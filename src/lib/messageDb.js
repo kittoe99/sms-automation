@@ -30,6 +30,7 @@ export function messageToRow(msg) {
     error_message: msg.errorMessage || null,
     contact_name: msg.contactName || null,
     status_history: msg.statusHistory || [],
+    meta: msg.meta && typeof msg.meta === 'object' ? msg.meta : {},
     created_at: msg.createdAt,
     updated_at: msg.updatedAt,
   };
@@ -53,6 +54,7 @@ export function rowToMessage(row) {
     createdAt: row.created_at,
     updatedAt: row.updated_at,
     statusHistory: row.status_history || [],
+    meta: row.meta || {},
   };
 }
 
@@ -77,6 +79,8 @@ export function contactToRow(c) {
     opted_in_at: c.optedInAt || null,
     opt_out_keyword: c.optOutKeyword || null,
     opt_out_source: c.optOutSource || null,
+    ai_enabled: c.aiEnabled !== false,
+    ai_paused_at: c.aiPausedAt || null,
     created_at: c.createdAt || new Date().toISOString(),
     updated_at: new Date().toISOString(),
   };
@@ -101,6 +105,8 @@ export function rowToContact(row) {
     optedInAt: row.opted_in_at,
     optOutKeyword: row.opt_out_keyword,
     optOutSource: row.opt_out_source,
+    aiEnabled: row.ai_enabled !== false,
+    aiPausedAt: row.ai_paused_at || null,
     createdAt: row.created_at,
   };
 }

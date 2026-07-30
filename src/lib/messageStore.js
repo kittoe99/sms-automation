@@ -174,6 +174,39 @@ export async function setOptOutStatus(phone, { optedOut, keyword = null, source 
   return publicContact(c);
 }
 
+/**
+ * Pause or resume AI auto-replies for a thread.
+ */
+export async function setAiPaused(phone, paused = true, reason = null) {
+  const key = normalizePhone(phone);
+  if (!key) return null;
+
+  let c = contacts.get(key);
+  if (!c && canPersistMessages()) {
+    try {
+      c = await dbGetContact(key);
+      if (c) contacts.set(key, c);
+    } catch (_) {
+      /* fall through */
+    }
+  }
+  if (!c) {
+    c = blankContact(key);
+    contacts.set(key, c);
+  }
+
+  c.aiPausedAt = paused ? new Date().toISOString() : null;
+  if (paused === false) c.aiEnabled = true;
+  await safeUpsertContact(c);
+  publish('thread', {
+    event: 'upsert',
+    record: publicContact(c),
+    source: 'ai_pause',
+    reason: reason || null,
+  });
+  return publicContact(c);
+}
+
 export async function listConversations({ q, unreadOnly = false, page = 1, pageSize = 50 } = {}) {
   if (canPersistMessages()) {
     try {
@@ -317,6 +350,7 @@ export async function recordOutbound({
   errorCode = null,
   errorMessage = null,
   contactName = null,
+  meta = null,
 }) {
   const now = new Date().toISOString();
   const id = sid || `local_${Date.now()}_${Math.random().toString(36).slice(2, 8)}`;
@@ -334,6 +368,7 @@ export async function recordOutbound({
     errorCode: errorCode || null,
     errorMessage: errorMessage || null,
     contactName: contactName || null,
+    meta: meta && typeof meta === 'object' ? meta : {},
     createdAt: now,
     updatedAt: now,
     statusHistory: [{ status: normalizeStatus(status), at: now, errorCode: errorCode || null }],
@@ -631,6 +666,8 @@ function blankContact(phone) {
     optedInAt: null,
     optOutKeyword: null,
     optOutSource: null,
+    aiEnabled: true,
+    aiPausedAt: null,
     createdAt: now,
   };
 }
@@ -752,6 +789,8 @@ function publicContact(c) {
     optOutKeyword: c.optOutKeyword || null,
     optOutSource: c.optOutSource || null,
     consentStatus: c.optedOut ? 'opted_out' : 'active',
+    aiEnabled: c.aiEnabled !== false,
+    aiPausedAt: c.aiPausedAt || null,
     createdAt: c.createdAt || null,
   };
 }
@@ -773,6 +812,7 @@ function publicMessage(row) {
     createdAt: row.createdAt,
     updatedAt: row.updatedAt,
     statusHistory: row.statusHistory,
+    meta: row.meta || {},
   };
 }
 

@@ -9,7 +9,17 @@ SMS automation foundation for **Opek Junk Removal** — Twilio Messaging + Digit
 | App | https://opek-sms-zllz4.ondigitalocean.app |
 | Health | https://opek-sms-zllz4.ondigitalocean.app/health |
 | DO App ID | `65c82719-4bef-4306-90e0-dccadbeb5f17` |
-| Repo | https://github.com/kittoe99/sms-automation.git (`main`) |
+| Repo | https://github.com/kittoe99/sms-automation.git (`deploy-crm`) |
+| Gradient agent | `opek-sms-agent` (Ministral 3 14B, tor1) |
+
+## AI SMS agent
+
+- **Gradient™ AI Agents** — conversation / replies (`GRADIENT_AGENT_*`)
+- **App Platform** — Twilio webhooks, eligibility gates, SMS send, CRM pause
+- **Supabase** — enrollments, message store, `agent_bookings` only (not the agent runtime)
+
+Eligible when enrolled in `quote-requests` or `appointment-reminders`, not opted out, and AI not paused.
+
 
 ## Twilio
 

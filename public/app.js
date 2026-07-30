@@ -456,16 +456,36 @@ async function renderMessaging() {
           <div class="card-head thread-head">
             <div>
               <h2>${esc(thread.name || thread.phone)}</h2>
-              <p class="muted">${esc(thread.phone)} · ${fmt(thread.messageCount)} messages</p>
+              <p class="muted">${esc(thread.phone)} · ${fmt(thread.messageCount)} messages${
+                thread.aiPausedAt ? ' · AI paused' : ''
+              }</p>
+            </div>
+            <div class="thread-actions">
+              <button type="button" class="btn btn-ghost" id="ai-pause-btn">
+                ${thread.aiPausedAt ? 'Resume AI' : 'Pause AI'}
+              </button>
             </div>
           </div>
           <div class="thread-scroll" id="thread-scroll">
             ${(thread.messages || [])
               .map(
                 (m) => `
-              <div class="bubble ${m.direction === 'inbound' ? 'in' : 'out'}">
+              <div class="bubble ${m.direction === 'inbound' ? 'in' : 'out'}${
+                  m.meta?.role === 'assistant' ? ' ai' : ''
+                }">
                 <div class="bubble-meta">
-                  <span>${m.direction === 'inbound' ? 'Customer' : 'Opek'}</span>
+                  <span>${
+                    m.direction === 'inbound'
+                      ? 'Customer'
+                      : m.meta?.role === 'assistant'
+                        ? 'AI'
+                        : 'Opek'
+                  }</span>
+                  ${
+                    m.meta?.role === 'assistant'
+                      ? `<span class="ai-pill">Gradient</span>`
+                      : ''
+                  }
                   <span>${esc(fmtTime(m.createdAt))}</span>
                   ${
                     m.direction === 'outbound'
@@ -513,6 +533,28 @@ async function renderMessaging() {
 
   const scroll = el.root.querySelector('#thread-scroll');
   if (scroll) scroll.scrollTop = scroll.scrollHeight;
+
+  el.root.querySelector('#ai-pause-btn')?.addEventListener('click', async () => {
+    if (!state.conversationPhone) return;
+    const paused = Boolean(thread?.aiPausedAt);
+    const path = paused ? 'resume' : 'pause';
+    try {
+      const res = await fetch(
+        `/api/conversations/${encodeURIComponent(state.conversationPhone)}/ai/${path}`,
+        {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ reason: 'crm_pause' }),
+        }
+      );
+      const json = await res.json();
+      if (!res.ok) throw new Error(json.detail || json.error || 'AI pause failed');
+      await load();
+    } catch (err) {
+      const hint = el.root.querySelector('#reply-hint');
+      if (hint) hint.textContent = err.message || 'Failed to update AI pause';
+    }
+  });
 
   const form = el.root.querySelector('#reply-form');
   form?.addEventListener('submit', async (e) => {

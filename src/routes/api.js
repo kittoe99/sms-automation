@@ -13,6 +13,7 @@ import {
   listOptOuts,
   markConversationRead,
   overviewStats,
+  setAiPaused,
   setOptOutStatus,
 } from '../lib/messageStore.js';
 import { sendSms } from '../lib/twilioClient.js';
@@ -26,6 +27,8 @@ import {
 } from '../lib/supabaseContacts.js';
 import { isSupabaseConfigured } from '../lib/supabase.js';
 import { requireApiKey } from '../lib/apiAuth.js';
+import { getAiConfig, isAiConfigured } from '../lib/ai/client.js';
+import { checkEligibility } from '../lib/ai/agent.js';
 
 export const apiRouter = Router();
 
@@ -363,4 +366,52 @@ apiRouter.get('/deliverability', async (req, res) => {
       categoryId: req.query.category || undefined,
     })
   );
+});
+
+/**
+ * AI SMS agent: Gradient™ AI Agents for conversation; App Platform for Twilio + eligibility.
+ * Supabase is data-only: enrollments, messages, agent_bookings.
+ */
+apiRouter.get('/ai/config', async (_req, res) => {
+  const cfg = getAiConfig();
+  res.json({
+    configured: isAiConfigured(),
+    enabled: cfg.enabled,
+    provider: cfg.provider,
+    model: cfg.model,
+    endpoint: cfg.endpoint || null,
+    agentUuid: cfg.agentUuid,
+    enabledCategories: cfg.enabledCategories,
+    maxHistory: cfg.maxHistory,
+    maxReplyChars: cfg.maxReplyChars,
+    host: 'digitalocean-gradient+app-platform',
+    dataStore: isSupabaseConfigured() ? 'supabase' : 'memory',
+  });
+});
+
+apiRouter.get('/ai/eligibility/:phone', async (req, res) => {
+  try {
+    const contact = await getContact(req.params.phone);
+    const eligibility = await checkEligibility(req.params.phone);
+    res.json({
+      contact: contact || null,
+      eligibility,
+      aiConfigured: isAiConfigured(),
+    });
+  } catch (err) {
+    console.error('[opek-sms] AI eligibility failed', err);
+    res.status(502).json({ error: 'Failed to check AI eligibility', detail: err.message });
+  }
+});
+
+apiRouter.post('/conversations/:phone/ai/pause', async (req, res) => {
+  const contact = await setAiPaused(req.params.phone, true, req.body?.reason || 'crm_pause');
+  if (!contact) return res.status(400).json({ error: 'Invalid phone' });
+  res.json({ contact, aiPaused: true });
+});
+
+apiRouter.post('/conversations/:phone/ai/resume', async (req, res) => {
+  const contact = await setAiPaused(req.params.phone, false);
+  if (!contact) return res.status(400).json({ error: 'Invalid phone' });
+  res.json({ contact, aiPaused: false });
 });

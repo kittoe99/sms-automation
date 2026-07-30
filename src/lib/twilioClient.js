@@ -30,7 +30,14 @@ export function getTwilioClient() {
  * Send via Messaging Service when configured (preferred for compliance + pooling).
  * Records the message so the UI can show deliverability status.
  */
-export async function sendSms({ to, body, categoryId = null, contactName = null, statusCallback = null }) {
+export async function sendSms({
+  to,
+  body,
+  categoryId = null,
+  contactName = null,
+  statusCallback = null,
+  meta = null,
+}) {
   if (await isOptedOut(to)) {
     const err = new Error('Contact has opted out of SMS');
     err.code = 'OPTED_OUT';
@@ -42,6 +49,7 @@ export async function sendSms({ to, body, categoryId = null, contactName = null,
       errorCode: 'OPTED_OUT',
       errorMessage: 'Blocked: contact opted out',
       contactName,
+      meta,
     });
     throw err;
   }
@@ -74,6 +82,7 @@ export async function sendSms({ to, body, categoryId = null, contactName = null,
       errorCode: msg.errorCode || null,
       errorMessage: msg.errorMessage || null,
       contactName,
+      meta,
     });
   } catch (err) {
     await recordOutbound({
@@ -84,6 +93,7 @@ export async function sendSms({ to, body, categoryId = null, contactName = null,
       errorCode: err.code || null,
       errorMessage: err.message || String(err),
       contactName,
+      meta,
     });
     throw err;
   }

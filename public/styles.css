@@ -499,7 +499,40 @@ table.data td.wrap {
   color: var(--muted);
   cursor: pointer;
 }
+.thread-head {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 12px;
+}
 .thread-head p { margin: 4px 0 0; font-size: 0.8rem; }
+.thread-actions { display: flex; gap: 8px; flex-shrink: 0; }
+.btn-ghost {
+  background: transparent;
+  border: 1px solid var(--border);
+  color: var(--text);
+  border-radius: 10px;
+  padding: 8px 12px;
+  cursor: pointer;
+  font: inherit;
+}
+.btn-ghost:hover { background: var(--surface-2); }
+.bubble.ai {
+  border-color: rgba(94, 184, 255, 0.35);
+  background: rgba(94, 184, 255, 0.08);
+}
+.ai-pill {
+  display: inline-flex;
+  align-items: center;
+  font-size: 0.68rem;
+  font-weight: 600;
+  letter-spacing: 0.02em;
+  padding: 1px 6px;
+  border-radius: 999px;
+  color: #8ec8ff;
+  border: 1px solid rgba(94, 184, 255, 0.35);
+  background: rgba(94, 184, 255, 0.1);
+}
 .thread-scroll {
   flex: 1;
   overflow: auto;
