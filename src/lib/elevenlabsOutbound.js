@@ -4,10 +4,16 @@
 
 import { loadCustomerBookingContext } from './ai/customerContext.js';
 import { toE164 } from './supabaseContacts.js';
+import {
+  OUTBOUND_DEFAULT_FIRST_MESSAGE,
+  OUTBOUND_DEFAULT_PROMPT,
+} from './outboundDefaultPrompt.js';
 
 const DEFAULT_AGENT_ID = 'agent_7801kwfn9rkcey5rn1wsrjdpnvvn';
 const DEFAULT_PHONE_NUMBER_ID = 'phnum_1601ktscp7y1e27b3apd0swmz55j';
+const SUBMIT_AGENT_BOOKING_TOOL_ID = 'tool_4601kyd0dyjmfegvahahhwvkv6zh';
 const MAX_HISTORY_CHARS = 3500;
+const MAX_PROMPT_CHARS = 50000;
 
 export function isElevenLabsOutboundConfigured() {
   return Boolean(String(process.env.ELEVENLABS_API_KEY || '').trim());
@@ -23,11 +29,41 @@ export function getElevenLabsOutboundConfig() {
   };
 }
 
+export function getOutboundPromptPresets() {
+  return {
+    presets: [
+      {
+        id: 'macy-outbound',
+        name: 'Macy outbound (default)',
+        description:
+          'Current Opek outbound Macy prompt — booking follow-up from SMS/CRM context.',
+        firstMessage: OUTBOUND_DEFAULT_FIRST_MESSAGE,
+        prompt: OUTBOUND_DEFAULT_PROMPT,
+      },
+    ],
+    defaultPresetId: 'macy-outbound',
+  };
+}
+
 /**
  * Build dynamic variables + place the outbound call.
- * @param {{ phone: string, conversation?: object|null, name?: string|null }} opts
+ * @param {{
+ *   phone: string,
+ *   conversation?: object|null,
+ *   name?: string|null,
+ *   systemPrompt?: string|null,
+ *   firstMessage?: string|null,
+ *   includeSmsHistory?: boolean,
+ * }} opts
  */
-export async function placeOutboundFollowUpCall({ phone, conversation = null, name = null }) {
+export async function placeOutboundFollowUpCall({
+  phone,
+  conversation = null,
+  name = null,
+  systemPrompt = null,
+  firstMessage = null,
+  includeSmsHistory = true,
+}) {
   const cfg = getElevenLabsOutboundConfig();
   if (!cfg.apiKey) throw new Error('ELEVENLABS_API_KEY is not configured');
 
@@ -44,7 +80,10 @@ export async function placeOutboundFollowUpCall({ phone, conversation = null, na
     clean(proposed.customer_name) ||
     'there';
 
-  const historyText = formatSmsHistory(conversation?.messages || []);
+  const historyText = includeSmsHistory
+    ? formatSmsHistory(conversation?.messages || [])
+    : 'SMS history was not included for this call. Rely on CALL CONTEXT and what the customer says.';
+
   const pipelineStatus = deriveBookingPipelineStatus(crm);
   const missingFields = Array.isArray(crm?.missingFields) ? crm.missingFields : [];
   const dynamicVariables = {
@@ -71,9 +110,23 @@ export async function placeOutboundFollowUpCall({ phone, conversation = null, na
     sms_conversation_history: historyText,
   };
 
-  // Do not send conversation_config_override unless platform_settings.overrides
-  // allow those fields — a disallowed override terminates the call on answer.
-  // Agent already has first_message with {{customer_name}} + submit_agent_booking.
+  const promptOverride = cleanPrompt(systemPrompt);
+  const firstMessageOverride =
+    clean(firstMessage) ||
+    (displayName && displayName !== 'there'
+      ? `Hello, Macy with Opek Junk Removal, Is this ${displayName}?`
+      : OUTBOUND_DEFAULT_FIRST_MESSAGE.replace('{{customer_name}}', displayName));
+
+  const agentOverride = {
+    first_message: firstMessageOverride,
+  };
+  if (promptOverride) {
+    agentOverride.prompt = {
+      prompt: promptOverride,
+      tool_ids: [SUBMIT_AGENT_BOOKING_TOOL_ID],
+    };
+  }
+
   const body = {
     agent_id: cfg.agentId,
     agent_phone_number_id: cfg.agentPhoneNumberId,
@@ -81,6 +134,9 @@ export async function placeOutboundFollowUpCall({ phone, conversation = null, na
     call_recording_enabled: true,
     conversation_initiation_client_data: {
       dynamic_variables: dynamicVariables,
+      conversation_config_override: {
+        agent: agentOverride,
+      },
     },
   };
 
@@ -119,8 +175,20 @@ export async function placeOutboundFollowUpCall({ phone, conversation = null, na
     callSid: data.callSid || data.call_sid || null,
     success: data.success !== false,
     message: data.message || 'Outbound call initiated',
+    usedCustomPrompt: Boolean(promptOverride),
+    firstMessage: firstMessageOverride,
     dynamicVariables,
   };
+}
+
+function cleanPrompt(v) {
+  if (v == null) return null;
+  const s = String(v).trim();
+  if (!s) return null;
+  if (s.length > MAX_PROMPT_CHARS) {
+    throw new Error(`System prompt is too long (max ${MAX_PROMPT_CHARS} characters)`);
+  }
+  return s;
 }
 
 function formatSmsHistory(messages) {

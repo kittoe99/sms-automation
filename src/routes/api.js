@@ -30,6 +30,7 @@ import { requireApiKey } from '../lib/apiAuth.js';
 import { getAiConfig, isAiConfigured } from '../lib/ai/client.js';
 import { checkEligibility } from '../lib/ai/agent.js';
 import {
+  getOutboundPromptPresets,
   isElevenLabsOutboundConfigured,
   placeOutboundFollowUpCall,
 } from '../lib/elevenlabsOutbound.js';
@@ -366,6 +367,7 @@ apiRouter.post('/conversations/:phone/reply', async (req, res) => {
 
 /**
  * Trigger ElevenLabs outbound call with SMS thread + CRM context for follow-up/close.
+ * Optional body: name, systemPrompt, firstMessage, includeSmsHistory, pauseAi
  */
 apiRouter.post('/conversations/:phone/call', async (req, res) => {
   const phone = req.params.phone;
@@ -385,10 +387,14 @@ apiRouter.post('/conversations/:phone/call', async (req, res) => {
 
   try {
     const conversation = await getConversation(phone);
+    const includeSmsHistory = req.body?.includeSmsHistory !== false;
     const result = await placeOutboundFollowUpCall({
       phone,
       conversation,
       name: req.body?.name || conversation?.name || null,
+      systemPrompt: req.body?.systemPrompt || null,
+      firstMessage: req.body?.firstMessage || null,
+      includeSmsHistory,
     });
 
     // Pause SMS AI so voice agent owns the thread during/after the call
@@ -413,9 +419,11 @@ apiRouter.post('/conversations/:phone/call', async (req, res) => {
 });
 
 apiRouter.get('/ai/outbound-call', async (_req, res) => {
+  const presets = getOutboundPromptPresets();
   res.json({
     configured: isElevenLabsOutboundConfigured(),
     from: '+18313187139',
+    ...presets,
   });
 });
 

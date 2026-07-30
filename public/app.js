@@ -14,6 +14,8 @@ const state = {
   contactTab: 'directory',
   sourceFilter: '',
   consentedOnly: false,
+  callPhone: '',
+  callName: '',
 };
 
 const el = {
@@ -38,6 +40,7 @@ const el = {
 const titles = {
   overview: ['Overview', 'Pipeline health across all SMS traffic'],
   messaging: ['Messaging', 'Inbox of customer responses and conversations'],
+  call: ['Call', 'Place ElevenLabs outbound calls with editable system prompts'],
   messages: ['Messages', 'Searchable CRM log for every SMS'],
   contacts: ['Contacts', 'Leads from Opek site — quotes, bookings, forms, phone agent'],
   optouts: ['Opt-Outs', 'Numbers that asked to stop receiving SMS'],
@@ -124,6 +127,7 @@ async function load() {
 
     if (state.view === 'overview') await renderOverview();
     else if (state.view === 'messaging') await renderMessaging();
+    else if (state.view === 'call') await renderCall();
     else if (state.view === 'contacts') await renderContacts();
     else if (state.view === 'optouts') await renderOptOuts();
     else if (state.view === 'deliverability') await renderDeliverability();
@@ -155,6 +159,189 @@ function openAutomationGroup(categoryId = null) {
   state.page = 1;
   setActiveNav();
   load();
+}
+
+function openCallSection({ phone = '', name = '' } = {}) {
+  state.view = 'call';
+  state.callPhone = phone || '';
+  state.callName = name || '';
+  state.categoryId = null;
+  state.page = 1;
+  closeDrawer();
+  setActiveNav();
+  load();
+}
+
+async function renderCall() {
+  setTitle(...titles.call);
+  el.kpi.innerHTML = '';
+  el.pager.hidden = true;
+  el.storeMeta.textContent = 'Outbound voice via ElevenLabs';
+
+  let config = { configured: false, presets: [], from: '+18313187139' };
+  try {
+    config = await fetch('/api/ai/outbound-call').then((r) => r.json());
+  } catch {
+    /* keep defaults */
+  }
+
+  const presets = config.presets || [];
+  const defaultPreset =
+    presets.find((p) => p.id === config.defaultPresetId) || presets[0] || null;
+  const phoneVal = state.callPhone || '';
+  const nameVal = state.callName || '';
+  const firstMessage =
+    defaultPreset?.firstMessage ||
+    'Hello, Macy with Opek Junk Removal, Is this {{customer_name}}?';
+  const promptVal = defaultPreset?.prompt || '';
+
+  el.root.innerHTML = `
+    <div class="card call-card">
+      <div class="card-head">
+        <div>
+          <strong>Outbound call</strong>
+          <p class="muted" style="margin:4px 0 0">
+            From ${esc(config.from || '+18313187139')} ·
+            ${
+              config.configured
+                ? '<span class="consent ok">Ready</span>'
+                : '<span class="consent out">Not configured</span>'
+            }
+          </p>
+        </div>
+      </div>
+
+      <div class="call-form">
+        <div class="call-grid">
+          <div>
+            <label class="compose-label" for="call-phone">Phone</label>
+            <input id="call-phone" type="tel" value="${esc(phoneVal)}" placeholder="+1…" />
+          </div>
+          <div>
+            <label class="compose-label" for="call-name">Name</label>
+            <input id="call-name" type="text" value="${esc(nameVal)}" placeholder="Customer name" />
+          </div>
+        </div>
+
+        <label class="compose-label" for="call-preset">System prompt preset</label>
+        <select id="call-preset">
+          ${presets
+            .map(
+              (p) =>
+                `<option value="${esc(p.id)}" ${
+                  defaultPreset && p.id === defaultPreset.id ? 'selected' : ''
+                }>${esc(p.name)}</option>`
+            )
+            .join('')}
+          <option value="custom">Custom prompt</option>
+        </select>
+        <p class="muted call-preset-desc" id="call-preset-desc">${esc(
+          defaultPreset?.description || 'Write your own system prompt below.'
+        )}</p>
+
+        <label class="compose-label" for="call-first-message">First message</label>
+        <input id="call-first-message" type="text" value="${esc(firstMessage)}" />
+
+        <label class="compose-label" for="call-prompt">System prompt</label>
+        <textarea id="call-prompt" rows="18" spellcheck="false">${esc(promptVal)}</textarea>
+
+        <div class="call-options">
+          <label class="check">
+            <input type="checkbox" id="call-include-sms" checked />
+            Include SMS history + CRM context
+          </label>
+          <label class="check">
+            <input type="checkbox" id="call-pause-ai" checked />
+            Pause SMS AI for this contact
+          </label>
+        </div>
+
+        <div class="compose-actions">
+          <span class="muted" id="call-hint"></span>
+          <button type="button" class="btn" id="call-place" ${
+            config.configured ? '' : 'disabled'
+          }>Place call</button>
+        </div>
+      </div>
+    </div>
+  `;
+
+  const phoneInput = el.root.querySelector('#call-phone');
+  const nameInput = el.root.querySelector('#call-name');
+  const presetSelect = el.root.querySelector('#call-preset');
+  const presetDesc = el.root.querySelector('#call-preset-desc');
+  const firstInput = el.root.querySelector('#call-first-message');
+  const promptInput = el.root.querySelector('#call-prompt');
+  const hint = el.root.querySelector('#call-hint');
+  const placeBtn = el.root.querySelector('#call-place');
+
+  phoneInput?.addEventListener('input', () => {
+    state.callPhone = phoneInput.value.trim();
+  });
+  nameInput?.addEventListener('input', () => {
+    state.callName = nameInput.value.trim();
+  });
+
+  presetSelect?.addEventListener('change', () => {
+    const id = presetSelect.value;
+    if (id === 'custom') {
+      presetDesc.textContent = 'Write your own system prompt. Dynamic vars like {{customer_name}} still work.';
+      return;
+    }
+    const preset = presets.find((p) => p.id === id);
+    if (!preset) return;
+    presetDesc.textContent = preset.description || '';
+    firstInput.value = preset.firstMessage || firstInput.value;
+    promptInput.value = preset.prompt || '';
+  });
+
+  placeBtn?.addEventListener('click', async () => {
+    const phone = phoneInput?.value.trim() || '';
+    const name = nameInput?.value.trim() || '';
+    const systemPrompt = promptInput?.value.trim() || '';
+    const firstMessageVal = firstInput?.value.trim() || '';
+    if (!phone) {
+      hint.textContent = 'Enter a phone number.';
+      return;
+    }
+    if (!systemPrompt) {
+      hint.textContent = 'System prompt cannot be empty.';
+      return;
+    }
+    if (
+      !confirm(
+        `Place an outbound call to ${name || phone}?\n\nThis will dial the contact with ElevenLabs.`
+      )
+    ) {
+      return;
+    }
+
+    placeBtn.disabled = true;
+    hint.textContent = 'Starting call…';
+    state.callPhone = phone;
+    state.callName = name;
+
+    try {
+      const res = await fetch(`/api/conversations/${encodeURIComponent(phone)}/call`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          name: name || null,
+          systemPrompt,
+          firstMessage: firstMessageVal || null,
+          includeSmsHistory: Boolean(el.root.querySelector('#call-include-sms')?.checked),
+          pauseAi: Boolean(el.root.querySelector('#call-pause-ai')?.checked),
+        }),
+      });
+      const json = await res.json();
+      if (!res.ok) throw new Error(json.detail || json.error || 'Call failed');
+      const sid = json.call?.callSid || json.call?.conversationId || '';
+      hint.textContent = `Call started${sid ? ` · ${sid}` : ''}`;
+    } catch (err) {
+      hint.textContent = err.message || 'Failed to start call';
+      placeBtn.disabled = false;
+    }
+  });
 }
 
 async function renderOverview() {
@@ -559,35 +746,12 @@ async function renderMessaging() {
     }
   });
 
-  el.root.querySelector('#call-btn')?.addEventListener('click', async () => {
+  el.root.querySelector('#call-btn')?.addEventListener('click', () => {
     if (!state.conversationPhone || thread?.optedOut) return;
-    const hint = el.root.querySelector('#reply-hint');
-    const btn = el.root.querySelector('#call-btn');
-    const who = thread?.name || state.conversationPhone;
-    if (!window.confirm(`Place an ElevenLabs outbound call to ${who}? SMS history will be sent to Macy.`)) {
-      return;
-    }
-    if (btn) btn.disabled = true;
-    if (hint) hint.textContent = 'Starting outbound call…';
-    try {
-      const res = await fetch(
-        `/api/conversations/${encodeURIComponent(state.conversationPhone)}/call`,
-        {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ name: thread?.name || null, pauseAi: true }),
-        }
-      );
-      const json = await res.json();
-      if (!res.ok) throw new Error(json.detail || json.error || 'Call failed');
-      if (hint) {
-        hint.textContent = `Call started${json.call?.callSid ? ` · ${json.call.callSid}` : ''}. SMS AI paused.`;
-      }
-      await load();
-    } catch (err) {
-      if (hint) hint.textContent = err.message || 'Failed to start call';
-      if (btn) btn.disabled = false;
-    }
+    openCallSection({
+      phone: state.conversationPhone,
+      name: thread?.name || '',
+    });
   });
 
   const form = el.root.querySelector('#reply-form');
@@ -728,6 +892,7 @@ async function renderContacts() {
               <th>Enrolled</th>
               <th>Automation group</th>
               <th>Message</th>
+              <th>Call</th>
             </tr>
           </thead>
           <tbody>
@@ -737,7 +902,9 @@ async function renderContacts() {
                     .map((c) => {
                       const canEnroll = c.canEnroll || c.smsMarketingConsent === true;
                       return `
-              <tr>
+              <tr class="contact-row" data-open-call="${esc(c.phone)}" data-name="${esc(
+                        c.name || ''
+                      )}">
                 <td>${esc(c.name || '—')}</td>
                 <td>${esc(c.phone || '—')}</td>
                 <td class="muted">${esc((c.sources || [c.primarySource]).filter(Boolean).join(', '))}</td>
@@ -800,10 +967,15 @@ async function renderContacts() {
                       : `<span class="muted">—</span>`
                   }
                 </td>
+                <td>
+                  <button type="button" class="btn ghost call-contact-btn"
+                    data-phone="${esc(c.phone)}"
+                    data-name="${esc(c.name || '')}">Call</button>
+                </td>
               </tr>`;
                     })
                     .join('')
-                : `<tr><td colspan="7"><div class="empty">No contacts found.</div></td></tr>`
+                : `<tr><td colspan="8"><div class="empty">No contacts found.</div></td></tr>`
             }
           </tbody>
         </table>
@@ -860,10 +1032,21 @@ async function renderContacts() {
   });
   bindUnenrollButtons();
   el.root.querySelectorAll('.message-btn').forEach((btn) => {
-    btn.addEventListener('click', () => {
+    btn.addEventListener('click', (e) => {
+      e.stopPropagation();
       openMessageComposer({
         phone: btn.getAttribute('data-phone'),
         name: btn.getAttribute('data-name') || '',
+      });
+    });
+  });
+  bindCallContactButtons();
+  el.root.querySelectorAll('[data-open-call]').forEach((row) => {
+    row.addEventListener('click', (e) => {
+      if (e.target.closest('button, select, a, input')) return;
+      openCallSection({
+        phone: row.getAttribute('data-open-call') || '',
+        name: row.getAttribute('data-name') || '',
       });
     });
   });
@@ -1013,6 +1196,7 @@ async function renderLocalContacts() {
               <th>Messages</th>
               <th>Last status</th>
               <th>Last activity</th>
+              <th>Call</th>
             </tr>
           </thead>
           <tbody>
@@ -1021,7 +1205,9 @@ async function renderLocalContacts() {
                 ? rows
                     .map(
                       (c) => `
-              <tr data-contact="${esc(c.phone)}">
+              <tr data-contact="${esc(c.phone)}" data-open-call="${esc(
+                        c.phone
+                      )}" data-name="${esc(c.name || '')}" class="contact-row">
                 <td>${esc(c.phone)}</td>
                 <td class="muted">${esc(c.name || '—')}</td>
                 <td>${consentBadge(c)}</td>
@@ -1030,10 +1216,15 @@ async function renderLocalContacts() {
                         c.lastDeliverability || '—'
                       )}</span></td>
                 <td class="muted">${esc(fmtTime(c.lastMessageAt))}</td>
+                <td>
+                  <button type="button" class="btn ghost call-contact-btn"
+                    data-phone="${esc(c.phone)}"
+                    data-name="${esc(c.name || '')}">Call</button>
+                </td>
               </tr>`
                     )
                     .join('')
-                : `<tr><td colspan="6"><div class="empty">No SMS activity contacts yet.</div></td></tr>`
+                : `<tr><td colspan="7"><div class="empty">No SMS activity contacts yet.</div></td></tr>`
             }
           </tbody>
         </table>
@@ -1139,15 +1330,31 @@ async function renderOptOuts() {
 }
 
 function bindContactRows(rows) {
-  const byPhone = new Map(rows.map((c) => [c.phone, c]));
+  bindCallContactButtons();
   el.root.querySelectorAll('[data-contact]').forEach((row) => {
-    row.addEventListener('click', async (e) => {
-      if (e.target.closest('[data-opt-in]')) return;
-      const phone = row.getAttribute('data-contact');
-      const detail = await fetch(`/api/contacts/${encodeURIComponent(phone)}`).then((r) =>
-        r.json()
-      );
-      openDrawer('Contact', contactDetail(detail.contact || byPhone.get(phone)));
+    row.addEventListener('click', (e) => {
+      if (e.target.closest('[data-opt-in], button, select, a, input')) return;
+      openCallSection({
+        phone: row.getAttribute('data-open-call') || row.getAttribute('data-contact') || '',
+        name: row.getAttribute('data-name') || byPhoneName(rows, row.getAttribute('data-contact')),
+      });
+    });
+  });
+}
+
+function byPhoneName(rows, phone) {
+  const hit = (rows || []).find((c) => c.phone === phone);
+  return hit?.name || '';
+}
+
+function bindCallContactButtons() {
+  el.root.querySelectorAll('.call-contact-btn').forEach((btn) => {
+    btn.addEventListener('click', (e) => {
+      e.stopPropagation();
+      openCallSection({
+        phone: btn.getAttribute('data-phone') || '',
+        name: btn.getAttribute('data-name') || '',
+      });
     });
   });
 }
@@ -1288,8 +1495,12 @@ function contactDetail(c) {
   if (!c) return `<div class="empty">Contact not found</div>`;
   return `
     <div class="kv">
-      <div class="row"><div class="k">Phone</div><div class="v">${esc(c.phone)}</div></div>
-      <div class="row"><div class="k">Name</div><div class="v">${esc(c.name || '—')}</div></div>
+      <div class="row"><div class="k">Phone</div><div class="v" id="drawer-call-phone">${esc(
+        c.phone
+      )}</div></div>
+      <div class="row"><div class="k">Name</div><div class="v" id="drawer-call-name">${esc(
+        c.name || '—'
+      )}</div></div>
       <div class="row"><div class="k">Consent</div><div class="v">${consentBadge(c)}</div></div>
       <div class="row"><div class="k">Opt-out keyword</div><div class="v">${esc(
         c.optOutKeyword ? c.optOutKeyword.toUpperCase() : '—'
@@ -1325,6 +1536,7 @@ function contactDetail(c) {
               : `<button type="button" class="btn ghost" id="drawer-opt-out">Mark opted out</button>`
           }
           <button type="button" class="btn ghost" id="drawer-open-thread">Open thread</button>
+          <button type="button" class="btn" id="drawer-open-call">Call</button>
         </div>
       </div>
     </div>
@@ -1391,6 +1603,14 @@ function openDrawer(title, html) {
     closeDrawer();
     setActiveNav();
     load();
+  });
+  el.drawerBody.querySelector('#drawer-open-call')?.addEventListener('click', () => {
+    const phone =
+      el.drawerBody.querySelector('#drawer-call-phone')?.textContent ||
+      el.drawerBody.querySelector('.kv .v')?.textContent;
+    const name = el.drawerBody.querySelector('#drawer-call-name')?.textContent || '';
+    if (!phone) return;
+    openCallSection({ phone, name: name === '—' ? '' : name });
   });
 }
 
