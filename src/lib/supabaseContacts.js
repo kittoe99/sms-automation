@@ -68,12 +68,23 @@ export async function listDirectoryContacts({
   };
 }
 
+function phonesMatch(a, b) {
+  const left = normalizeDigits(a);
+  const right = normalizeDigits(b);
+  if (!left || !right) return false;
+  if (left === right) return true;
+  const left10 = left.slice(-10);
+  const right10 = right.slice(-10);
+  return left10.length === 10 && right10.length === 10 && left10 === right10;
+}
+
 export async function findDirectoryContact(phone) {
   const needle = normalizeDigits(phone);
   if (!needle) return null;
 
+  const search = needle.length >= 10 ? needle.slice(-10) : phone;
   const { data, error } = await getSupabaseAdmin().rpc('sms_crm_list_contacts', {
-    p_search: phone,
+    p_search: search,
     p_source: null,
     p_limit: 25,
     p_offset: 0,
@@ -81,11 +92,7 @@ export async function findDirectoryContact(phone) {
   if (error) throw error;
 
   const rows = (data || []).map(normalizeDirectoryContact);
-  return (
-    rows.find((c) => c.phoneDigits === needle) ||
-    rows.find((c) => normalizeDigits(c.phone) === needle) ||
-    null
-  );
+  return rows.find((c) => phonesMatch(c.phoneDigits || c.phone, needle)) || null;
 }
 
 export async function enrollContactInAutomation({

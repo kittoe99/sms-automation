@@ -5,7 +5,7 @@ services:
   - name: api
     git:
       repo_clone_url: https://github.com/kittoe99/sms-automation.git
-      branch: main
+      branch: deploy-crm
     source_dir: /
     environment_slug: node-js
     instance_size_slug: apps-s-1vcpu-1gb
