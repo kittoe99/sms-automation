@@ -461,6 +461,9 @@ async function renderMessaging() {
               }</p>
             </div>
             <div class="thread-actions">
+              <button type="button" class="btn btn-ghost" id="call-btn" ${
+                thread.optedOut ? 'disabled' : ''
+              }>Call</button>
               <button type="button" class="btn btn-ghost" id="ai-pause-btn">
                 ${thread.aiPausedAt ? 'Resume AI' : 'Pause AI'}
               </button>
@@ -553,6 +556,37 @@ async function renderMessaging() {
     } catch (err) {
       const hint = el.root.querySelector('#reply-hint');
       if (hint) hint.textContent = err.message || 'Failed to update AI pause';
+    }
+  });
+
+  el.root.querySelector('#call-btn')?.addEventListener('click', async () => {
+    if (!state.conversationPhone || thread?.optedOut) return;
+    const hint = el.root.querySelector('#reply-hint');
+    const btn = el.root.querySelector('#call-btn');
+    const who = thread?.name || state.conversationPhone;
+    if (!window.confirm(`Place an ElevenLabs outbound call to ${who}? SMS history will be sent to Macy.`)) {
+      return;
+    }
+    if (btn) btn.disabled = true;
+    if (hint) hint.textContent = 'Starting outbound call…';
+    try {
+      const res = await fetch(
+        `/api/conversations/${encodeURIComponent(state.conversationPhone)}/call`,
+        {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ name: thread?.name || null, pauseAi: true }),
+        }
+      );
+      const json = await res.json();
+      if (!res.ok) throw new Error(json.detail || json.error || 'Call failed');
+      if (hint) {
+        hint.textContent = `Call started${json.call?.callSid ? ` · ${json.call.callSid}` : ''}. SMS AI paused.`;
+      }
+      await load();
+    } catch (err) {
+      if (hint) hint.textContent = err.message || 'Failed to start call';
+      if (btn) btn.disabled = false;
     }
   });
 

@@ -20,6 +20,8 @@ SMS automation foundation for **Opek Junk Removal** — Twilio Messaging + Digit
 
 Eligible when not opted out and AI not paused. Enrollment in `quote-requests` / `appointment-reminders` is optional enrichment (category tagging), not required for replies.
 
+**Call button (Messaging):** starts an ElevenLabs outbound call from `+18313187139` with SMS thread + CRM context injected into Macy’s follow-up/close prompt. Pauses SMS AI for that thread.
+
 
 ## Twilio
 

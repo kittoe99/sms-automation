@@ -29,6 +29,10 @@ import { isSupabaseConfigured } from '../lib/supabase.js';
 import { requireApiKey } from '../lib/apiAuth.js';
 import { getAiConfig, isAiConfigured } from '../lib/ai/client.js';
 import { checkEligibility } from '../lib/ai/agent.js';
+import {
+  isElevenLabsOutboundConfigured,
+  placeOutboundFollowUpCall,
+} from '../lib/elevenlabsOutbound.js';
 
 export const apiRouter = Router();
 
@@ -358,6 +362,61 @@ apiRouter.post('/conversations/:phone/reply', async (req, res) => {
       detail: err.message || String(err),
     });
   }
+});
+
+/**
+ * Trigger ElevenLabs outbound call with SMS thread + CRM context for follow-up/close.
+ */
+apiRouter.post('/conversations/:phone/call', async (req, res) => {
+  const phone = req.params.phone;
+  if (!isElevenLabsOutboundConfigured()) {
+    return res.status(503).json({
+      error: 'Outbound calling is not configured',
+      detail: 'Set ELEVENLABS_API_KEY on the app.',
+    });
+  }
+
+  if (await isOptedOut(phone)) {
+    return res.status(403).json({
+      error: 'Contact opted out',
+      detail: 'This number has opted out of SMS. Do not place marketing follow-up calls.',
+    });
+  }
+
+  try {
+    const conversation = await getConversation(phone);
+    const result = await placeOutboundFollowUpCall({
+      phone,
+      conversation,
+      name: req.body?.name || conversation?.name || null,
+    });
+
+    // Pause SMS AI so voice agent owns the thread during/after the call
+    const pauseAi = req.body?.pauseAi !== false;
+    let contact = null;
+    if (pauseAi) {
+      contact = await setAiPaused(phone, true, 'outbound_call');
+    }
+
+    res.status(201).json({
+      call: result,
+      contact,
+      aiPaused: Boolean(pauseAi),
+    });
+  } catch (err) {
+    console.error('[opek-sms] outbound call failed', err);
+    res.status(err.status && err.status < 600 ? err.status : 502).json({
+      error: 'Failed to start outbound call',
+      detail: err.message || String(err),
+    });
+  }
+});
+
+apiRouter.get('/ai/outbound-call', async (_req, res) => {
+  res.json({
+    configured: isElevenLabsOutboundConfigured(),
+    from: '+18313187139',
+  });
 });
 
 apiRouter.get('/deliverability', async (req, res) => {
