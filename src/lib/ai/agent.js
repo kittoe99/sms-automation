@@ -1,5 +1,6 @@
 import { getAiConfig, gradientChat, isAiConfigured } from './client.js';
 import { executeTool } from './tools.js';
+import { loadCustomerBookingContext } from './customerContext.js';
 import { isOptedOut, getConversation, getContact } from '../messageStore.js';
 import { getSupabaseAdmin, isSupabaseConfigured } from '../supabase.js';
 import { phoneDigits } from '../messageDb.js';
@@ -8,6 +9,7 @@ import { sendSms } from '../twilioClient.js';
 const processedInboundSids = new Set();
 const OPT_OUT_START = /^(stop|stopall|unsubscribe|cancel|end|quit|start|unstop|yes)\b/i;
 const BOOKING_RE = /^BOOKING_JSON:(.+)$/m;
+const UPDATE_RE = /^UPDATE_BOOKING_JSON:(.+)$/m;
 const ESCALATE_RE = /^ESCALATE:(.*)$/m;
 
 /**
@@ -115,20 +117,31 @@ async function runAgentTurn({
   maxHistory,
   maxReplyChars,
 }) {
-  const conversation = await getConversation(phone);
+  const [conversation, crmContext] = await Promise.all([
+    getConversation(phone),
+    loadCustomerBookingContext(phone),
+  ]);
   const historyMsgs = (conversation?.messages || []).slice(-maxHistory);
+  const knownName =
+    contactName || conversation?.name || crmContext.proposed?.customer_name || null;
 
-  const contextBits = [
+  const contextBlock = [
+    'CRM CONTEXT (trusted — use to confirm, do not invent missing fields):',
+    crmContext.summaryText,
+    '',
+    'Proposed booking draft JSON (merge customer corrections on top):',
+    JSON.stringify(crmContext.proposed || {}, null, 0),
+    '',
     `Customer SMS phone: ${phone}`,
-    contactName || conversation?.name ? `Known name: ${contactName || conversation.name}` : null,
+    knownName ? `Known name: ${knownName}` : null,
     `Automation category: ${categoryId}`,
-  ].filter(Boolean);
+    'Ask only for missing fields. Prefer confirming the draft over re-asking known details.',
+  ]
+    .filter(Boolean)
+    .join('\n');
 
   const messages = [
-    {
-      role: 'user',
-      content: `Context for this SMS thread (do not repeat verbatim):\n- ${contextBits.join('\n- ')}`,
-    },
+    { role: 'user', content: contextBlock },
     ...historyMsgs
       .filter((m) => m.body && String(m.body).trim())
       .map((m) => ({
@@ -142,19 +155,41 @@ async function runAgentTurn({
     messages.push({ role: 'user', content: inboundBody });
   }
 
-  const completion = await gradientChat({ messages, maxTokens: 450 });
+  const completion = await gradientChat({ messages, maxTokens: 500 });
   const toolsUsed = [];
-  const { reply, booking, escalateReason } = parseAgentActions(completion.content, phone);
+  const { reply, booking, updateBooking, escalateReason } = parseAgentActions(
+    completion.content,
+    phone,
+    crmContext.proposed
+  );
 
   if (escalateReason !== null) {
-    const result = await executeTool('escalate_to_human', { reason: escalateReason || 'customer_request' }, {
-      phone,
-      inboundSid,
-    });
+    const result = await executeTool(
+      'escalate_to_human',
+      { reason: escalateReason || 'customer_request' },
+      { phone, inboundSid }
+    );
     toolsUsed.push({ name: 'escalate_to_human', result });
   }
 
+  if (updateBooking && Object.keys(updateBooking).length) {
+    const result = await executeTool('update_agent_booking', updateBooking, {
+      phone,
+      inboundSid,
+    });
+    toolsUsed.push({ name: 'update_agent_booking', result });
+  }
+
   if (booking && isUsableBooking(booking)) {
+    if (crmContext.proposed?.source_records?.prebooking_id && !booking.prebooking_id) {
+      booking.prebooking_id = crmContext.proposed.source_records.prebooking_id;
+    }
+    if (Array.isArray(crmContext.proposed?.items) && !booking.items) {
+      booking.items = crmContext.proposed.items.join(', ');
+    }
+    if (crmContext.proposed?.quoted_price_summary && !booking.quoted_price_summary) {
+      booking.quoted_price_summary = crmContext.proposed.quoted_price_summary;
+    }
     const result = await executeTool('create_agent_booking', booking, { phone, inboundSid });
     toolsUsed.push({ name: 'create_agent_booking', result });
   }
@@ -171,13 +206,14 @@ async function runAgentTurn({
     to: phone,
     body: finalText,
     categoryId,
-    contactName: contactName || conversation?.name || null,
+    contactName: knownName,
     meta: {
       role: 'assistant',
       provider: 'digitalocean-gradient',
       model: completion.model,
       tools: toolsUsed.map((t) => t.name),
       inboundSid: inboundSid || null,
+      hadPrebooking: Boolean(crmContext.prebookings?.length),
     },
   });
 
@@ -191,18 +227,27 @@ async function runAgentTurn({
   };
 }
 
-function parseAgentActions(raw, phone) {
+function parseAgentActions(raw, phone, proposed) {
   let text = String(raw || '').trim();
   let booking = null;
+  let updateBooking = null;
   let escalateReason = null;
+
+  const updateMatch = text.match(UPDATE_RE);
+  if (updateMatch) {
+    try {
+      updateBooking = JSON.parse(updateMatch[1].trim());
+    } catch (err) {
+      console.warn('[opek-sms] UPDATE_BOOKING_JSON parse failed', err.message);
+    }
+    text = text.replace(UPDATE_RE, '').trim();
+  }
 
   const bookingMatch = text.match(BOOKING_RE);
   if (bookingMatch) {
     try {
       booking = JSON.parse(bookingMatch[1].trim());
-      if (booking && typeof booking === 'object' && !booking.customer_phone) {
-        booking.customer_phone = phone;
-      }
+      booking = mergeProposed(booking, proposed, phone);
     } catch (err) {
       console.warn('[opek-sms] BOOKING_JSON parse failed', err.message);
     }
@@ -215,15 +260,23 @@ function parseAgentActions(raw, phone) {
     text = text.replace(ESCALATE_RE, '').trim();
   }
 
-  return { reply: text, booking, escalateReason };
+  return { reply: text, booking, updateBooking, escalateReason };
+}
+
+function mergeProposed(booking, proposed, phone) {
+  const out = { ...(proposed || {}), ...(booking || {}) };
+  out.customer_phone = out.customer_phone || phone;
+  // Drop nested objects that agent_bookings insert doesn't want at top-level
+  delete out.source_records;
+  delete out.moving_options;
+  if (Array.isArray(out.items)) out.items = out.items.join(', ');
+  return out;
 }
 
 function isUsableBooking(booking) {
   const name = String(booking.customer_name || '').trim();
   if (!name || name === '...' || name.includes('...')) return false;
-  const values = Object.values(booking).map((v) => String(v ?? '').trim());
-  const placeholders = values.filter((v) => !v || v === '...').length;
-  if (placeholders >= Math.max(3, values.length - 1)) return false;
+  // Prefer having service or address/zip before saving, but name+phone is the hard min
   return true;
 }
 
