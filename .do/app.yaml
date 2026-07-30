@@ -1,0 +1,55 @@
+name: opek-sms
+region: nyc
+
+services:
+  - name: api
+    git:
+      repo_clone_url: https://github.com/kittoe99/sms-automation.git
+      branch: main
+    source_dir: /
+    environment_slug: node-js
+    instance_size_slug: apps-s-1vcpu-1gb
+    http_port: 8080
+    autoscaling:
+      min_instance_count: 1
+      max_instance_count: 3
+      metrics:
+        requests_per_second:
+          per_instance: 25
+    health_check:
+      http_path: /health
+      initial_delay_seconds: 10
+      period_seconds: 10
+      timeout_seconds: 3
+      success_threshold: 1
+      failure_threshold: 3
+    envs:
+      - key: NODE_ENV
+        scope: RUN_TIME
+        type: GENERAL
+        value: production
+      - key: TWILIO_ACCOUNT_SID
+        scope: RUN_TIME
+        type: SECRET
+        # Set in DigitalOcean dashboard
+      - key: TWILIO_MESSAGING_SERVICE_SID
+        scope: RUN_TIME
+        type: GENERAL
+        value: "MGae253c080173f100ca791069a215564a"
+      - key: TWILIO_FROM_NUMBER
+        scope: RUN_TIME
+        type: GENERAL
+        value: "+18777574365"
+      - key: TWILIO_VALIDATE_SIGNATURE
+        scope: RUN_TIME
+        type: GENERAL
+        value: "false"
+      - key: PUBLIC_BASE_URL
+        scope: RUN_TIME
+        type: GENERAL
+        value: "https://opek-sms-zllz4.ondigitalocean.app"
+      - key: SUPABASE_URL
+        scope: RUN_TIME
+        type: GENERAL
+        value: "https://mjgwoukwyqwoectxfwqv.supabase.co"
+      # Set SUPABASE_SERVICE_ROLE_KEY and TWILIO_AUTH_TOKEN as SECRETs in DigitalOcean
