@@ -27,25 +27,28 @@ import { isSupabaseConfigured } from '../lib/supabase.js';
 
 export const apiRouter = Router();
 
-apiRouter.get('/overview', (_req, res) => {
-  res.json(overviewStats());
+apiRouter.get('/overview', async (_req, res) => {
+  res.json(await overviewStats());
 });
 
-apiRouter.get('/categories', (_req, res) => {
-  const categories = CATEGORIES.map((c) => ({
-    ...c,
-    automations: [],
-    messageCount: categoryMessageCount(c.id),
-    summary: deliverabilitySummary({ categoryId: c.id }),
-  }));
+apiRouter.get('/categories', async (_req, res) => {
+  const categories = [];
+  for (const c of CATEGORIES) {
+    categories.push({
+      ...c,
+      automations: [],
+      messageCount: await categoryMessageCount(c.id),
+      summary: await deliverabilitySummary({ categoryId: c.id }),
+    });
+  }
   res.json({ categories });
 });
 
-apiRouter.get('/categories/:id', (req, res) => {
+apiRouter.get('/categories/:id', async (req, res) => {
   const category = getCategory(req.params.id);
   if (!category) return res.status(404).json({ error: 'Category not found' });
 
-  const page = listMessages({
+  const page = await listMessages({
     categoryId: category.id,
     page: req.query.page,
     pageSize: req.query.pageSize || 50,
@@ -57,14 +60,14 @@ apiRouter.get('/categories/:id', (req, res) => {
     category: {
       ...category,
       automations: [],
-      summary: deliverabilitySummary({ categoryId: category.id }),
+      summary: await deliverabilitySummary({ categoryId: category.id }),
     },
     ...page,
   });
 });
 
-apiRouter.get('/messages', (req, res) => {
-  const page = listMessages({
+apiRouter.get('/messages', async (req, res) => {
+  const page = await listMessages({
     categoryId: req.query.category || undefined,
     status: req.query.status || undefined,
     q: req.query.q || undefined,
@@ -75,21 +78,21 @@ apiRouter.get('/messages', (req, res) => {
 
   res.json({
     ...page,
-    summary: deliverabilitySummary({
+    summary: await deliverabilitySummary({
       categoryId: req.query.category || undefined,
     }),
   });
 });
 
-apiRouter.get('/messages/:id', (req, res) => {
-  const message = getMessage(req.params.id);
+apiRouter.get('/messages/:id', async (req, res) => {
+  const message = await getMessage(req.params.id);
   if (!message) return res.status(404).json({ error: 'Message not found' });
   res.json({ message });
 });
 
-apiRouter.get('/contacts', (req, res) => {
+apiRouter.get('/contacts', async (req, res) => {
   res.json(
-    listContacts({
+    await listContacts({
       q: req.query.q,
       status: req.query.status || null,
       page: req.query.page,
@@ -223,14 +226,14 @@ apiRouter.get('/enrollments', async (req, res) => {
   }
 });
 
-apiRouter.get('/contacts/:phone', (req, res) => {
-  const contact = getContact(req.params.phone);
+apiRouter.get('/contacts/:phone', async (req, res) => {
+  const contact = await getContact(req.params.phone);
   if (!contact) return res.status(404).json({ error: 'Contact not found' });
   res.json({ contact });
 });
 
-apiRouter.post('/contacts/:phone/opt-out', (req, res) => {
-  const contact = setOptOutStatus(req.params.phone, {
+apiRouter.post('/contacts/:phone/opt-out', async (req, res) => {
+  const contact = await setOptOutStatus(req.params.phone, {
     optedOut: true,
     keyword: req.body?.keyword || 'manual',
     source: 'manual',
@@ -239,8 +242,8 @@ apiRouter.post('/contacts/:phone/opt-out', (req, res) => {
   res.json({ contact });
 });
 
-apiRouter.post('/contacts/:phone/opt-in', (req, res) => {
-  const contact = setOptOutStatus(req.params.phone, {
+apiRouter.post('/contacts/:phone/opt-in', async (req, res) => {
+  const contact = await setOptOutStatus(req.params.phone, {
     optedOut: false,
     keyword: req.body?.keyword || 'manual',
     source: 'manual',
@@ -249,13 +252,13 @@ apiRouter.post('/contacts/:phone/opt-in', (req, res) => {
   res.json({ contact });
 });
 
-apiRouter.get('/opt-outs', (req, res) => {
-  res.json(listOptOuts({ q: req.query.q, page: req.query.page, pageSize: req.query.pageSize }));
+apiRouter.get('/opt-outs', async (req, res) => {
+  res.json(await listOptOuts({ q: req.query.q, page: req.query.page, pageSize: req.query.pageSize }));
 });
 
-apiRouter.get('/conversations', (req, res) => {
+apiRouter.get('/conversations', async (req, res) => {
   res.json(
-    listConversations({
+    await listConversations({
       q: req.query.q,
       unreadOnly: req.query.unread === '1' || req.query.unread === 'true',
       page: req.query.page,
@@ -264,14 +267,14 @@ apiRouter.get('/conversations', (req, res) => {
   );
 });
 
-apiRouter.get('/conversations/:phone', (req, res) => {
-  const conversation = getConversation(req.params.phone);
+apiRouter.get('/conversations/:phone', async (req, res) => {
+  const conversation = await getConversation(req.params.phone);
   if (!conversation) return res.status(404).json({ error: 'Conversation not found' });
   res.json({ conversation });
 });
 
-apiRouter.post('/conversations/:phone/read', (req, res) => {
-  const conversation = markConversationRead(req.params.phone);
+apiRouter.post('/conversations/:phone/read', async (req, res) => {
+  const conversation = await markConversationRead(req.params.phone);
   if (!conversation) return res.status(404).json({ error: 'Conversation not found' });
   res.json({ conversation });
 });
@@ -281,7 +284,7 @@ apiRouter.post('/conversations/:phone/reply', async (req, res) => {
   const body = String(req.body?.body || '').trim();
   if (!body) return res.status(400).json({ error: 'body is required' });
 
-  if (isOptedOut(phone)) {
+  if (await isOptedOut(phone)) {
     return res.status(403).json({
       error: 'Contact opted out',
       detail: 'This number has opted out of SMS. Opt them back in before sending.',
@@ -290,8 +293,8 @@ apiRouter.post('/conversations/:phone/reply', async (req, res) => {
 
   try {
     const message = await sendSms({ to: phone, body });
-    markConversationRead(phone);
-    const conversation = getConversation(phone);
+    await markConversationRead(phone);
+    const conversation = await getConversation(phone);
     res.status(201).json({ message, conversation });
   } catch (err) {
     console.error('[opek-sms] reply failed', err);
@@ -302,9 +305,9 @@ apiRouter.post('/conversations/:phone/reply', async (req, res) => {
   }
 });
 
-apiRouter.get('/deliverability', (req, res) => {
+apiRouter.get('/deliverability', async (req, res) => {
   res.json(
-    deliverabilitySummary({
+    await deliverabilitySummary({
       categoryId: req.query.category || undefined,
     })
   );

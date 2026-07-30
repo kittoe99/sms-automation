@@ -108,7 +108,7 @@ export async function enrollContactInAutomation({
   if (!getCategory(categoryId)) {
     throw new Error(`Unknown automation group: ${categoryId}`);
   }
-  if (isOptedOut(phone)) {
+  if (await isOptedOut(phone)) {
     throw new Error('Contact has opted out of SMS (STOP)');
   }
 
@@ -253,7 +253,7 @@ export async function sendCustomContactMessage({
   if (categoryId && !getCategory(categoryId)) {
     throw new Error(`Unknown automation group: ${categoryId}`);
   }
-  if (isOptedOut(phone)) {
+  if (await isOptedOut(phone)) {
     throw new Error('Contact has opted out of SMS (STOP)');
   }
 

@@ -31,10 +31,10 @@ export function getTwilioClient() {
  * Records the message so the UI can show deliverability status.
  */
 export async function sendSms({ to, body, categoryId = null, contactName = null, statusCallback = null }) {
-  if (isOptedOut(to)) {
+  if (await isOptedOut(to)) {
     const err = new Error('Contact has opted out of SMS');
     err.code = 'OPTED_OUT';
-    recordOutbound({
+    await recordOutbound({
       categoryId,
       to,
       body,
@@ -65,7 +65,7 @@ export async function sendSms({ to, body, categoryId = null, contactName = null,
 
   try {
     const msg = await getTwilioClient().messages.create(payload);
-    return recordOutbound({
+    return await recordOutbound({
       categoryId,
       to,
       body,
@@ -76,7 +76,7 @@ export async function sendSms({ to, body, categoryId = null, contactName = null,
       contactName,
     });
   } catch (err) {
-    recordOutbound({
+    await recordOutbound({
       categoryId,
       to,
       body,

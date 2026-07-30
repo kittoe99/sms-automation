@@ -26,7 +26,7 @@ function validateTwilio(req, res, next) {
   return next();
 }
 
-webhooksRouter.post('/inbound', validateTwilio, (req, res) => {
+webhooksRouter.post('/inbound', validateTwilio, async (req, res) => {
   const from = req.body?.From;
   const to = req.body?.To;
   const body = (req.body?.Body || '').trim();
@@ -34,22 +34,30 @@ webhooksRouter.post('/inbound', validateTwilio, (req, res) => {
 
   console.log('[opek-sms] inbound', { from, to, sid, body });
 
-  if (from) {
-    recordInbound({ from, to, body, sid });
+  try {
+    if (from) {
+      await recordInbound({ from, to, body, sid });
+    }
+  } catch (err) {
+    console.error('[opek-sms] inbound persist failed', err);
   }
 
   res.type('text/xml').send('<Response></Response>');
 });
 
-webhooksRouter.post('/status', validateTwilio, (req, res) => {
+webhooksRouter.post('/status', validateTwilio, async (req, res) => {
   const { MessageSid, MessageStatus, To, ErrorCode } = req.body || {};
   console.log('[opek-sms] status', { MessageSid, MessageStatus, To, ErrorCode });
 
-  updateDeliverability(MessageSid, {
-    status: MessageStatus,
-    errorCode: ErrorCode || null,
-    to: To || null,
-  });
+  try {
+    await updateDeliverability(MessageSid, {
+      status: MessageStatus,
+      errorCode: ErrorCode || null,
+      to: To || null,
+    });
+  } catch (err) {
+    console.error('[opek-sms] status persist failed', err);
+  }
 
   res.sendStatus(204);
 });

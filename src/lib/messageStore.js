@@ -1,33 +1,30 @@
 /**
- * In-memory CRM store for high-volume SMS tracking.
- * API is paginated/filterable so we can swap to Supabase/Postgres later
- * without changing the UI contract.
+ * SMS CRM store — in-memory cache + Supabase persistence (sms_messages /
+ * sms_thread_contacts) so history survives deploys and multi-instance.
  */
 
 import { CATEGORIES } from './categories.js';
+import {
+  canPersistMessages,
+  dbCategoryMessageCount,
+  dbDeliverabilitySummary,
+  dbGetContact,
+  dbGetMessage,
+  dbIsOptedOut,
+  dbListContacts,
+  dbListMessages,
+  dbListThreadMessages,
+  dbMarkConversationRead,
+  dbOverviewExtras,
+  dbUpsertContact,
+  dbUpsertMessage,
+  phoneDigits,
+} from './messageDb.js';
 
 const messages = [];
 const bySid = new Map();
 const byId = new Map();
-/** @type {Map<string, {
- *  phone: string,
- *  name: string|null,
- *  messageCount: number,
- *  outboundCount: number,
- *  inboundCount: number,
- *  unreadCount: number,
- *  lastMessageAt: string|null,
- *  lastDirection: string|null,
- *  lastBody: string|null,
- *  lastDeliverability: string|null,
- *  categoryIds: Set<string>,
- *  optedOut: boolean,
- *  optedOutAt: string|null,
- *  optedInAt: string|null,
- *  optOutKeyword: string|null,
- *  optOutSource: string|null,
- *  createdAt: string|null
- * }>} */
+/** @type {Map<string, object>} */
 const contacts = new Map();
 
 const OPT_OUT_KEYWORDS = new Set(['stop', 'stopall', 'unsubscribe', 'cancel', 'end', 'quit']);
@@ -35,23 +32,21 @@ const OPT_IN_KEYWORDS = new Set(['start', 'unstop', 'yes']);
 
 const MAX = Number(process.env.MESSAGE_STORE_MAX || 50000);
 
-export function listMessages({
-  categoryId,
-  status,
-  q,
-  contact,
-  page = 1,
-  pageSize = 50,
-} = {}) {
-  const size = clamp(pageSize, 1, 250);
-  const p = Math.max(1, Number(page) || 1);
-  const filtered = filterMessages({ categoryId, status, q, contact });
+export async function listMessages(opts = {}) {
+  if (canPersistMessages()) {
+    try {
+      return await dbListMessages(opts);
+    } catch (err) {
+      console.error('[opek-sms] db listMessages failed, using memory', err.message);
+    }
+  }
+  const size = clamp(opts.pageSize, 1, 250);
+  const p = Math.max(1, Number(opts.page) || 1);
+  const filtered = filterMessages(opts);
   const total = filtered.length;
   const start = (p - 1) * size;
-  const rows = filtered.slice(start, start + size);
-
   return {
-    messages: rows.map(publicMessage),
+    messages: filtered.slice(start, start + size).map(publicMessage),
     page: p,
     pageSize: size,
     total,
@@ -59,11 +54,44 @@ export function listMessages({
   };
 }
 
-export function getMessage(idOrSid) {
-  return byId.get(idOrSid) || bySid.get(idOrSid) || null;
+export async function getMessage(idOrSid) {
+  const mem = byId.get(idOrSid) || bySid.get(idOrSid) || null;
+  if (mem) return publicMessage(mem);
+  if (canPersistMessages()) {
+    try {
+      const row = await dbGetMessage(idOrSid);
+      if (row) {
+        cacheMessage(row);
+        return publicMessage(row);
+      }
+    } catch (err) {
+      console.error('[opek-sms] db getMessage failed', err.message);
+    }
+  }
+  return null;
 }
 
-export function listContacts({ q, status = null, page = 1, pageSize = 50 } = {}) {
+export async function listContacts({ q, status = null, page = 1, pageSize = 50 } = {}) {
+  if (canPersistMessages()) {
+    try {
+      const pageData = await dbListContacts({ q, status, page, pageSize });
+      const opted = await dbListContacts({ status: 'opted_out', page: 1, pageSize: 1 });
+      const all = await dbListContacts({ page: 1, pageSize: 1 });
+      return {
+        contacts: pageData.contacts.map(publicContact),
+        page: pageData.page,
+        pageSize: pageData.pageSize,
+        total: pageData.total,
+        totalPages: pageData.totalPages,
+        contactTotal: all.total,
+        optedOutTotal: opted.total,
+        activeTotal: Math.max(0, all.total - opted.total),
+      };
+    } catch (err) {
+      console.error('[opek-sms] db listContacts failed, using memory', err.message);
+    }
+  }
+
   const size = clamp(pageSize, 1, 250);
   const p = Math.max(1, Number(page) || 1);
   let rows = [...contacts.values()].sort((a, b) =>
@@ -85,11 +113,10 @@ export function listContacts({ q, status = null, page = 1, pageSize = 50 } = {})
 
   const total = rows.length;
   const start = (p - 1) * size;
-  const pageRows = rows.slice(start, start + size).map(publicContact);
   const optedOutTotal = [...contacts.values()].filter((c) => c.optedOut).length;
 
   return {
-    contacts: pageRows,
+    contacts: rows.slice(start, start + size).map(publicContact),
     page: p,
     pageSize: size,
     total,
@@ -100,20 +127,35 @@ export function listContacts({ q, status = null, page = 1, pageSize = 50 } = {})
   };
 }
 
-export function listOptOuts({ q, page = 1, pageSize = 50 } = {}) {
+export async function listOptOuts({ q, page = 1, pageSize = 50 } = {}) {
   return listContacts({ q, status: 'opted_out', page, pageSize });
 }
 
-export function isOptedOut(phone) {
+export async function isOptedOut(phone) {
+  if (canPersistMessages()) {
+    try {
+      return await dbIsOptedOut(normalizePhone(phone) || phone);
+    } catch (err) {
+      console.error('[opek-sms] db isOptedOut failed', err.message);
+    }
+  }
   const c = contacts.get(normalizePhone(phone));
   return Boolean(c?.optedOut);
 }
 
-export function setOptOutStatus(phone, { optedOut, keyword = null, source = 'manual' } = {}) {
+export async function setOptOutStatus(phone, { optedOut, keyword = null, source = 'manual' } = {}) {
   const key = normalizePhone(phone);
   if (!key) return null;
 
   let c = contacts.get(key);
+  if (!c && canPersistMessages()) {
+    try {
+      c = await dbGetContact(key);
+      if (c) contacts.set(key, c);
+    } catch (_) {
+      /* fall through */
+    }
+  }
   const now = new Date().toISOString();
   if (!c) {
     c = blankContact(key);
@@ -122,16 +164,33 @@ export function setOptOutStatus(phone, { optedOut, keyword = null, source = 'man
 
   applyConsent(c, {
     optedOut: Boolean(optedOut),
-    keyword: keyword || (optedOut ? 'manual' : 'manual'),
+    keyword,
     source,
     at: now,
   });
 
+  await safeUpsertContact(c);
   return publicContact(c);
 }
 
+export async function listConversations({ q, unreadOnly = false, page = 1, pageSize = 50 } = {}) {
+  if (canPersistMessages()) {
+    try {
+      const pageData = await dbListContacts({ q, unreadOnly, page, pageSize });
+      const extras = await dbOverviewExtras();
+      return {
+        conversations: pageData.contacts.map(publicContact),
+        page: pageData.page,
+        pageSize: pageData.pageSize,
+        total: pageData.total,
+        totalPages: pageData.totalPages,
+        unreadTotal: extras?.unreadTotal || 0,
+      };
+    } catch (err) {
+      console.error('[opek-sms] db listConversations failed, using memory', err.message);
+    }
+  }
 
-export function listConversations({ q, unreadOnly = false, page = 1, pageSize = 50 } = {}) {
   const size = clamp(pageSize, 1, 250);
   const p = Math.max(1, Number(page) || 1);
   let rows = [...contacts.values()].sort((a, b) =>
@@ -162,11 +221,27 @@ export function listConversations({ q, unreadOnly = false, page = 1, pageSize = 
   };
 }
 
-export function getConversation(phone) {
+export async function getConversation(phone) {
   const key = normalizePhone(phone);
+  if (!key) return null;
+
+  if (canPersistMessages()) {
+    try {
+      const c = (await dbGetContact(key)) || contacts.get(key);
+      if (!c) return null;
+      const thread = await dbListThreadMessages(key);
+      contacts.set(key, c);
+      return {
+        ...publicContact(c),
+        messages: thread.map(publicMessage),
+      };
+    } catch (err) {
+      console.error('[opek-sms] db getConversation failed', err.message);
+    }
+  }
+
   const c = contacts.get(key);
   if (!c) return null;
-
   const thread = messages
     .filter((m) => contactPhoneOf(m) === key)
     .slice()
@@ -179,16 +254,50 @@ export function getConversation(phone) {
   };
 }
 
-export function markConversationRead(phone) {
+export async function markConversationRead(phone) {
   const key = normalizePhone(phone);
+  if (!key) return null;
+
+  if (canPersistMessages()) {
+    try {
+      const c = await dbMarkConversationRead(key);
+      if (c) {
+        contacts.set(key, c);
+        return publicContact(c);
+      }
+    } catch (err) {
+      console.error('[opek-sms] db markConversationRead failed', err.message);
+    }
+  }
+
   const c = contacts.get(key);
   if (!c) return null;
   c.unreadCount = 0;
   return publicContact(c);
 }
 
-export function getContact(phone) {
+export async function getContact(phone) {
   const key = normalizePhone(phone);
+  if (!key) return null;
+
+  if (canPersistMessages()) {
+    try {
+      const c = await dbGetContact(key);
+      if (!c) return null;
+      const msgs = await dbListThreadMessages(key, { limit: 100 });
+      contacts.set(key, c);
+      return {
+        ...publicContact(c),
+        messages: msgs
+          .slice()
+          .reverse()
+          .map(publicMessage),
+      };
+    } catch (err) {
+      console.error('[opek-sms] db getContact failed', err.message);
+    }
+  }
+
   const c = contacts.get(key);
   if (!c) return null;
   const msgs = filterMessages({ contact: key }).slice(0, 100).map(publicMessage);
@@ -198,7 +307,7 @@ export function getContact(phone) {
   };
 }
 
-export function recordOutbound({
+export async function recordOutbound({
   categoryId = null,
   to,
   body,
@@ -232,7 +341,7 @@ export function recordOutbound({
   return persistMessage(row);
 }
 
-export function recordInbound({
+export async function recordInbound({
   from,
   to = null,
   body,
@@ -260,15 +369,24 @@ export function recordInbound({
     statusHistory: [{ status: 'received', at: now, errorCode: null }],
   };
 
-  const saved = persistMessage(row);
-  maybeApplyConsentFromInbound(phone || from, body, now);
+  const saved = await persistMessage(row);
+  await maybeApplyConsentFromInbound(phone || from, body, now);
   return saved;
 }
 
-export function updateDeliverability(sid, { status, errorCode = null, to = null } = {}) {
+export async function updateDeliverability(sid, { status, errorCode = null, to = null } = {}) {
   if (!sid) return null;
 
   let row = bySid.get(sid);
+  if (!row && canPersistMessages()) {
+    try {
+      row = await dbGetMessage(sid);
+      if (row) cacheMessage(row);
+    } catch (err) {
+      console.error('[opek-sms] db updateDeliverability lookup failed', err.message);
+    }
+  }
+
   if (!row) {
     return recordOutbound({
       to: to || 'unknown',
@@ -290,16 +408,29 @@ export function updateDeliverability(sid, { status, errorCode = null, to = null 
       row.contactPhone = normalizePhone(to);
     }
   }
-  row.statusHistory.push({
-    status: next,
-    at: now,
-    errorCode: errorCode ? String(errorCode) : null,
-  });
-  refreshContactMeta(row);
+  row.statusHistory = [
+    ...(row.statusHistory || []),
+    {
+      status: next,
+      at: now,
+      errorCode: errorCode ? String(errorCode) : null,
+    },
+  ];
+  cacheMessage(row);
+  await refreshContactMeta(row);
+  await safeUpsertMessage(row);
   return publicMessage(row);
 }
 
-export function deliverabilitySummary({ categoryId } = {}) {
+export async function deliverabilitySummary({ categoryId } = {}) {
+  if (canPersistMessages()) {
+    try {
+      return await dbDeliverabilitySummary({ categoryId });
+    } catch (err) {
+      console.error('[opek-sms] db deliverabilitySummary failed', err.message);
+    }
+  }
+
   const counts = blankCounts();
   const source = categoryId
     ? messages.filter((m) => m.categoryId === categoryId)
@@ -323,13 +454,29 @@ export function deliverabilitySummary({ categoryId } = {}) {
   };
 }
 
-export function overviewStats() {
-  const summary = deliverabilitySummary();
-  const byCategory = CATEGORIES.map((c) => ({
-    id: c.id,
-    name: c.name,
-    ...deliverabilitySummary({ categoryId: c.id }),
-  }));
+export async function overviewStats() {
+  const summary = await deliverabilitySummary();
+  const byCategory = [];
+  for (const c of CATEGORIES) {
+    byCategory.push({
+      id: c.id,
+      name: c.name,
+      ...(await deliverabilitySummary({ categoryId: c.id })),
+    });
+  }
+
+  if (canPersistMessages()) {
+    try {
+      const extras = await dbOverviewExtras();
+      return {
+        ...summary,
+        ...extras,
+        byCategory,
+      };
+    } catch (err) {
+      console.error('[opek-sms] db overviewStats failed', err.message);
+    }
+  }
 
   return {
     ...summary,
@@ -341,15 +488,22 @@ export function overviewStats() {
   };
 }
 
-export function categoryMessageCount(categoryId) {
+export async function categoryMessageCount(categoryId) {
+  if (canPersistMessages()) {
+    try {
+      const n = await dbCategoryMessageCount(categoryId);
+      if (n != null) return n;
+    } catch (err) {
+      console.error('[opek-sms] db categoryMessageCount failed', err.message);
+    }
+  }
   return messages.reduce((n, m) => (m.categoryId === categoryId ? n + 1 : n), 0);
 }
 
-function persistMessage(row) {
-  messages.unshift(row);
-  if (row.sid) bySid.set(row.sid, row);
-  byId.set(row.id, row);
-  upsertContact(row);
+async function persistMessage(row) {
+  cacheMessage(row);
+  await upsertContact(row);
+  await safeUpsertMessage(row);
 
   while (messages.length > MAX) {
     const dropped = messages.pop();
@@ -359,6 +513,35 @@ function persistMessage(row) {
   }
 
   return publicMessage(row);
+}
+
+function cacheMessage(row) {
+  const existingIdx = messages.findIndex((m) => m.id === row.id || (row.sid && m.sid === row.sid));
+  if (existingIdx >= 0) {
+    messages[existingIdx] = row;
+  } else {
+    messages.unshift(row);
+  }
+  if (row.sid) bySid.set(row.sid, row);
+  byId.set(row.id, row);
+}
+
+async function safeUpsertMessage(row) {
+  if (!canPersistMessages()) return;
+  try {
+    await dbUpsertMessage(row);
+  } catch (err) {
+    console.error('[opek-sms] failed to persist message', err.message || err);
+  }
+}
+
+async function safeUpsertContact(c) {
+  if (!canPersistMessages()) return;
+  try {
+    await dbUpsertContact(c);
+  } catch (err) {
+    console.error('[opek-sms] failed to persist contact', err.message || err);
+  }
 }
 
 function filterMessages({ categoryId, status, q, contact, direction } = {}) {
@@ -391,11 +574,19 @@ function filterMessages({ categoryId, status, q, contact, direction } = {}) {
   return rows;
 }
 
-function upsertContact(row) {
+async function upsertContact(row) {
   const phone = contactPhoneOf(row);
   if (!phone || phone === 'unknown') return;
 
   let c = contacts.get(phone);
+  if (!c && canPersistMessages()) {
+    try {
+      c = await dbGetContact(phone);
+      if (c) contacts.set(phone, c);
+    } catch (_) {
+      /* create below */
+    }
+  }
   if (!c) {
     c = blankContact(phone);
     contacts.set(phone, c);
@@ -409,6 +600,7 @@ function upsertContact(row) {
     c.outboundCount += 1;
   }
   applyContactMeta(c, row);
+  await safeUpsertContact(c);
 }
 
 function blankContact(phone) {
@@ -434,12 +626,20 @@ function blankContact(phone) {
   };
 }
 
-function maybeApplyConsentFromInbound(phone, body, at) {
+async function maybeApplyConsentFromInbound(phone, body, at) {
   const keyword = parseConsentKeyword(body);
   if (!keyword) return;
   const key = normalizePhone(phone);
   if (!key) return;
   let c = contacts.get(key);
+  if (!c && canPersistMessages()) {
+    try {
+      c = await dbGetContact(key);
+      if (c) contacts.set(key, c);
+    } catch (_) {
+      /* create below */
+    }
+  }
   if (!c) {
     c = blankContact(key);
     contacts.set(key, c);
@@ -450,6 +650,7 @@ function maybeApplyConsentFromInbound(phone, body, at) {
     source: 'inbound',
     at,
   });
+  await safeUpsertContact(c);
 }
 
 function parseConsentKeyword(body) {
@@ -478,16 +679,24 @@ function applyConsent(c, { optedOut, keyword, source, at }) {
   }
 }
 
-/** Update conversation preview/status without counting a new message. */
-function refreshContactMeta(row) {
+async function refreshContactMeta(row) {
   const phone = contactPhoneOf(row);
   if (!phone || phone === 'unknown') return;
   let c = contacts.get(phone);
+  if (!c && canPersistMessages()) {
+    try {
+      c = await dbGetContact(phone);
+      if (c) contacts.set(phone, c);
+    } catch (_) {
+      /* create via upsertContact path */
+    }
+  }
   if (!c) {
-    upsertContact(row);
+    await upsertContact(row);
     return;
   }
   applyContactMeta(c, row);
+  await safeUpsertContact(c);
 }
 
 function applyContactMeta(c, row) {
@@ -501,7 +710,10 @@ function applyContactMeta(c, row) {
   } else if (row.deliverability) {
     c.lastDeliverability = row.deliverability;
   }
-  if (row.categoryId) c.categoryIds.add(row.categoryId);
+  if (row.categoryId) {
+    if (!(c.categoryIds instanceof Set)) c.categoryIds = new Set(c.categoryIds || []);
+    c.categoryIds.add(row.categoryId);
+  }
 }
 
 function contactPhoneOf(row) {
@@ -511,6 +723,8 @@ function contactPhoneOf(row) {
 }
 
 function publicContact(c) {
+  const categoryIds =
+    c.categoryIds instanceof Set ? [...c.categoryIds] : [...(c.categoryIds || [])];
   return {
     phone: c.phone,
     name: c.name,
@@ -522,7 +736,7 @@ function publicContact(c) {
     lastDirection: c.lastDirection,
     lastBody: c.lastBody,
     lastDeliverability: c.lastDeliverability,
-    categoryIds: [...c.categoryIds],
+    categoryIds,
     optedOut: Boolean(c.optedOut),
     optedOutAt: c.optedOutAt || null,
     optedInAt: c.optedInAt || null,
@@ -571,35 +785,28 @@ function blankCounts() {
   };
 }
 
+function normalizeStatus(status) {
+  const s = String(status || 'unknown').toLowerCase();
+  const allowed = new Set(Object.keys(blankCounts()));
+  return allowed.has(s) ? s : 'other';
+}
+
 function normalizePhone(value) {
   if (!value) return '';
   const raw = String(value).trim();
-  if (raw === 'unknown') return 'unknown';
-  const digits = raw.replace(/[^\d+]/g, '');
-  return digits || raw;
-}
-
-function normalizeStatus(status) {
-  const s = String(status || 'unknown').toLowerCase();
-  const allowed = new Set([
-    'queued',
-    'sending',
-    'sent',
-    'delivered',
-    'undelivered',
-    'failed',
-    'receiving',
-    'received',
-    'accepted',
-    'scheduled',
-    'canceled',
-    'read',
-  ]);
-  return allowed.has(s) ? s : s || 'unknown';
+  if (raw.startsWith('+')) {
+    const digits = phoneDigits(raw);
+    return digits ? `+${digits}` : '';
+  }
+  const digits = phoneDigits(raw);
+  if (!digits) return '';
+  if (digits.length === 10) return `+1${digits}`;
+  if (digits.length === 11 && digits.startsWith('1')) return `+${digits}`;
+  return `+${digits}`;
 }
 
 function clamp(n, min, max) {
   const v = Number(n);
   if (!Number.isFinite(v)) return min;
-  return Math.min(max, Math.max(min, v));
+  return Math.min(Math.max(v, min), max);
 }
