@@ -45,6 +45,8 @@ export async function placeOutboundFollowUpCall({ phone, conversation = null, na
     'there';
 
   const historyText = formatSmsHistory(conversation?.messages || []);
+  const pipelineStatus = deriveBookingPipelineStatus(crm);
+  const missingFields = Array.isArray(crm?.missingFields) ? crm.missingFields : [];
   const dynamicVariables = {
     customer_name: displayName,
     customer_phone: toNumber,
@@ -62,6 +64,10 @@ export async function placeOutboundFollowUpCall({ phone, conversation = null, na
       clean(proposed.service_address) ||
       clean(proposed.zip_code) ||
       'not set yet',
+    booking_pipeline_status: pipelineStatus,
+    missing_booking_fields: missingFields.length
+      ? missingFields.join(', ')
+      : 'none listed in CRM — still verify from SMS before treating as booked',
     sms_conversation_history: historyText,
   };
 
@@ -136,6 +142,39 @@ function formatSmsHistory(messages) {
     joined = `…(earlier messages truncated)…\n${joined.slice(-MAX_HISTORY_CHARS)}`;
   }
   return joined;
+}
+
+/**
+ * CRM hint for the voice agent — SMS transcript still wins if they conflict.
+ */
+function deriveBookingPipelineStatus(crm) {
+  if (!crm) return 'unknown — read SMS carefully; default to needs_finishing';
+
+  const src = crm.proposed?.source_records || {};
+  const missing = Array.isArray(crm.missingFields) ? crm.missingFields : [];
+  const statuses = [
+    src.booking_status,
+    src.agent_booking_status,
+    src.prebooking_status,
+  ]
+    .filter(Boolean)
+    .map((s) => String(s).toLowerCase());
+
+  const confirmedLike = ['confirmed', 'scheduled', 'booked', 'paid', 'active', 'completed'];
+  const hasConfirmedRecord =
+    Boolean(src.booking_id || src.agent_booking_id) &&
+    statuses.some((s) => confirmedLike.some((c) => s.includes(c)));
+
+  if (hasConfirmedRecord && missing.length === 0) {
+    return 'likely_confirmed — still verify from SMS that customer agreed; do not re-book unless updating';
+  }
+  if (src.prebooking_id || src.booking_id || src.agent_booking_id || crm.proposed) {
+    if (missing.length) {
+      return `needs_finishing — missing: ${missing.join(', ')}`;
+    }
+    return 'details_present_unconfirmed — treat as needs_finishing until SMS shows explicit book confirmation';
+  }
+  return 'quote_or_early — no booking record; help schedule if interested';
 }
 
 function clean(v) {
