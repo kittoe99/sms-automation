@@ -7,6 +7,7 @@ import { toE164 } from './supabaseContacts.js';
 
 const DEFAULT_AGENT_ID = 'agent_7801kwfn9rkcey5rn1wsrjdpnvvn';
 const DEFAULT_PHONE_NUMBER_ID = 'phnum_1601ktscp7y1e27b3apd0swmz55j';
+const SUBMIT_AGENT_BOOKING_TOOL_ID = 'tool_4601kyd0dyjmfegvahahhwvkv6zh';
 const MAX_HISTORY_CHARS = 3500;
 
 export function isElevenLabsOutboundConfigured() {
@@ -80,6 +81,9 @@ export async function placeOutboundFollowUpCall({ phone, conversation = null, na
       conversation_config_override: {
         agent: {
           first_message: firstMessage,
+          prompt: {
+            tool_ids: [SUBMIT_AGENT_BOOKING_TOOL_ID],
+          },
         },
       },
     },
