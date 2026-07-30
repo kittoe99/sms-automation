@@ -57,11 +57,6 @@ export async function handleInboundAi({ from, body, sid = null }) {
 }
 
 export async function checkEligibility(phone) {
-  const cfg = getAiConfig();
-  if (!cfg.enabledCategories.length) {
-    return { ok: false, reason: 'no_ai_categories' };
-  }
-
   const contact = await getContact(phone).catch(() => null);
   if (contact?.aiPausedAt) {
     return { ok: false, reason: 'ai_paused' };
@@ -70,41 +65,49 @@ export async function checkEligibility(phone) {
     return { ok: false, reason: 'ai_disabled_thread' };
   }
 
-  if (!isSupabaseConfigured()) {
-    return { ok: false, reason: 'supabase_missing' };
-  }
-
   const digits = phoneDigits(phone);
   if (!digits) return { ok: false, reason: 'invalid_phone' };
 
-  const { data, error } = await getSupabaseAdmin()
-    .from('sms_automation_enrollments')
-    .select('category_id, name, status, phone, phone_digits')
-    .eq('status', 'enrolled')
-    .in('category_id', cfg.enabledCategories);
+  let categoryId = null;
+  let contactName = contact?.name || null;
+  let enrollments = [];
 
-  if (error) throw error;
+  // Enrollment is optional enrichment — inbound AI replies to everyone who is not paused/opted out.
+  if (isSupabaseConfigured()) {
+    try {
+      const cfg = getAiConfig();
+      const { data, error } = await getSupabaseAdmin()
+        .from('sms_automation_enrollments')
+        .select('category_id, name, status, phone, phone_digits')
+        .eq('status', 'enrolled');
 
-  const last10 = digits.slice(-10);
-  const matches = (data || []).filter((row) => {
-    const d = String(row.phone_digits || '').replace(/\D/g, '');
-    return d === digits || d === last10 || d.endsWith(last10) || last10.endsWith(d.slice(-10));
-  });
-
-  if (!matches.length) {
-    return { ok: false, reason: 'not_enrolled' };
+      if (!error) {
+        const last10 = digits.slice(-10);
+        const matches = (data || []).filter((row) => {
+          const d = String(row.phone_digits || '').replace(/\D/g, '');
+          return d === digits || d === last10 || d.endsWith(last10) || last10.endsWith(d.slice(-10));
+        });
+        enrollments = matches.map((m) => m.category_id);
+        const preferred =
+          matches.find((m) => m.category_id === 'quote-requests') ||
+          matches.find((m) => (cfg.enabledCategories || []).includes(m.category_id)) ||
+          matches[0];
+        if (preferred) {
+          categoryId = preferred.category_id;
+          contactName = preferred.name || contactName;
+        }
+      }
+    } catch (err) {
+      console.warn('[opek-sms] enrollment enrichment failed', err.message || err);
+    }
   }
-
-  const preferred =
-    matches.find((m) => m.category_id === 'quote-requests') ||
-    matches.find((m) => m.category_id === 'appointment-reminders') ||
-    matches[0];
 
   return {
     ok: true,
-    categoryId: preferred.category_id,
-    contactName: preferred.name || contact?.name || null,
-    enrollments: matches.map((m) => m.category_id),
+    categoryId,
+    contactName,
+    enrollments,
+    enrolled: enrollments.length > 0,
   };
 }
 
@@ -134,7 +137,9 @@ async function runAgentTurn({
     '',
     `Customer SMS phone: ${phone}`,
     knownName ? `Known name: ${knownName}` : null,
-    `Automation category: ${categoryId}`,
+    categoryId
+      ? `Automation category: ${categoryId}`
+      : 'Automation category: none (inbound inquiry — still help, quote, and book if asked)',
     'Ask only for missing fields. Prefer confirming the draft over re-asking known details.',
   ]
     .filter(Boolean)

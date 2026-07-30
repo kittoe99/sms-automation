@@ -5,15 +5,30 @@ import { loadCustomerBookingContext } from './customerContext.js';
 
 const FAQ = {
   business_name: 'Opek Junk Removal',
-  hours: 'Typical crew hours 7 days a week, 7am–8pm local time; exact slots confirmed by the team.',
-  service_area: 'Nationwide coverage. Share your zip and we will confirm crew availability.',
+  website: 'https://opekjunkremoval.com',
+  hours: '7 days a week, 7am–8pm local time; exact slots confirmed by the team.',
+  service_area: 'Nationwide coverage across all 50 states. Share your zip and we will confirm crew availability.',
   services: 'Junk removal, dumpster rentals, property cleanouts, local moving/labor, mattress disposal.',
+  support_email: 'Support@opekjunkremoval.com',
+  support_phone: '(831) 318-7139',
+  links: {
+    booking: 'https://opekjunkremoval.com/booking',
+    quote: 'https://opekjunkremoval.com/quote',
+    track: 'https://opekjunkremoval.com/track-order',
+    in_home_estimate: 'https://opekjunkremoval.com/in-home-estimate',
+    contact: 'https://opekjunkremoval.com/contact',
+  },
   booking_note:
-    'SMS bookings create an agent_bookings lead for our team — we confirm schedule and final pricing before the job. No payment over SMS.',
+    'SMS bookings create an agent_bookings lead — team confirms schedule and final pricing. No payment over SMS.',
   reschedule: 'Date/time changes are free if requested at least 24 hours in advance when possible.',
-  human_handoff: 'Got it — a teammate from Opek will follow up shortly.',
+  insurance: 'Fully licensed and insured. Final price may adjust on site if the load differs.',
   hazardous:
     'We cannot take hazardous materials, chemicals, wet paint, gasoline, motor oil, asbestos, propane tanks, or biological hazards.',
+  moving_rates: '1 helper $79/hr, 2 helpers $119/hr, truck fee $99 (no truck fee for rearrange). Never quote a full moving job total.',
+  junk_minimum: 'Junk estimates use item catalog + $169 minimum before 10% online discount.',
+  dumpster: '10yd $350, 15 $400, 20 $450, 30 $550 for 7 days; +$25/day after; 14+ days 10% off.',
+  mattress: 'Online: 1 item $138, 2 $169, 3+ $227 (after discount).',
+  human_handoff: 'Got it — a teammate from Opek will follow up shortly.',
 };
 
 export const TOOL_DEFINITIONS = [

@@ -18,7 +18,7 @@ SMS automation foundation for **Opek Junk Removal** — Twilio Messaging + Digit
 - **App Platform** — Twilio webhooks, eligibility gates, SMS send, CRM pause
 - **Supabase** — enrollments, message store, `agent_bookings` only (not the agent runtime)
 
-Eligible when enrolled in `quote-requests` or `appointment-reminders`, not opted out, and AI not paused.
+Eligible when not opted out and AI not paused. Enrollment in `quote-requests` / `appointment-reminders` is optional enrichment (category tagging), not required for replies.
 
 
 ## Twilio
