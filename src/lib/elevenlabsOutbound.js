@@ -7,7 +7,6 @@ import { toE164 } from './supabaseContacts.js';
 
 const DEFAULT_AGENT_ID = 'agent_7801kwfn9rkcey5rn1wsrjdpnvvn';
 const DEFAULT_PHONE_NUMBER_ID = 'phnum_1601ktscp7y1e27b3apd0swmz55j';
-const SUBMIT_AGENT_BOOKING_TOOL_ID = 'tool_4601kyd0dyjmfegvahahhwvkv6zh';
 const MAX_HISTORY_CHARS = 3500;
 
 export function isElevenLabsOutboundConfigured() {
@@ -66,11 +65,9 @@ export async function placeOutboundFollowUpCall({ phone, conversation = null, na
     sms_conversation_history: historyText,
   };
 
-  const firstMessage =
-    displayName && displayName !== 'there'
-      ? `Hi, is this ${displayName}? This is Macy calling from Opek Junk Removal.`
-      : 'Hi, this is Macy calling from Opek Junk Removal — did I catch you at a good time?';
-
+  // Do not send conversation_config_override unless platform_settings.overrides
+  // allow those fields — a disallowed override terminates the call on answer.
+  // Agent already has first_message with {{customer_name}} + submit_agent_booking.
   const body = {
     agent_id: cfg.agentId,
     agent_phone_number_id: cfg.agentPhoneNumberId,
@@ -78,14 +75,6 @@ export async function placeOutboundFollowUpCall({ phone, conversation = null, na
     call_recording_enabled: true,
     conversation_initiation_client_data: {
       dynamic_variables: dynamicVariables,
-      conversation_config_override: {
-        agent: {
-          first_message: firstMessage,
-          prompt: {
-            tool_ids: [SUBMIT_AGENT_BOOKING_TOOL_ID],
-          },
-        },
-      },
     },
   };
 
