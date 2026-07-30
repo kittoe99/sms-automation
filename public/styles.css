@@ -1,4 +1,5 @@
 :root {
+  color-scheme: dark;
   --bg: #070709;
   --surface: #101014;
   --surface-2: #14141a;
@@ -182,12 +183,25 @@ textarea::placeholder {
 
 .search-wrap input,
 #status-filter,
-#page-size {
+#page-size,
+#source-filter,
+#contact-status,
+#compose-category,
+.enroll-select,
+select {
   background: var(--surface);
   border: 1px solid var(--border);
   border-radius: 10px;
   padding: 9px 12px;
   min-width: 0;
+  color: var(--text);
+  color-scheme: dark;
+}
+
+select option,
+select optgroup {
+  background: var(--surface-2);
+  color: var(--text);
 }
 
 .search-wrap input { width: min(280px, 42vw); }
@@ -550,6 +564,7 @@ table.data td.wrap {
   border: 1px solid var(--border);
   border-radius: 8px;
   padding: 6px 8px;
+  color: var(--text);
 }
 .enrolled-chip {
   display: inline-flex;
