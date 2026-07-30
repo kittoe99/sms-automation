@@ -24,11 +24,27 @@ Voice/AI local number `+18313187139` stays on ElevenLabs — do not move it into
 
 ## Foundation only (wired later)
 
-1. Outbound transactional sends (booking confirm / reminder) via `src/lib/twilioClient.js`
+1. ~~Outbound transactional sends via `src/lib/twilioClient.js`~~ → **`POST /api/send`** (API key required)
 2. `TWILIO_AUTH_TOKEN` secret on DO → turn `TWILIO_VALIDATE_SIGNATURE=true`
-3. Message log persistence (Supabase)
+3. ~~Message log persistence (Supabase)~~
 4. Marketing Messaging Service + A2P (previous MARKETING campaign failed on opt-in / MESSAGE_FLOW)
 5. Campaign / drip automation
+
+## Server-to-server send (quotes)
+
+```bash
+curl -sS -X POST 'https://opek-sms-zllz4.ondigitalocean.app/api/send' \
+  -H 'Content-Type: application/json' \
+  -H "X-API-Key: $OPEK_SMS_API_KEY" \
+  -d '{
+    "phone": "+15551234567",
+    "body": "Hi — your Opek quote is ready: $219.",
+    "categoryId": "quote-requests",
+    "name": "Jordan"
+  }'
+```
+
+Requires `OPEK_SMS_API_KEY` on the SMS server. Opt-outs still block sends; marketing consent is not required for this transactional path.
 
 ## Local
 

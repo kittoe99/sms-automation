@@ -52,4 +52,8 @@ services:
         scope: RUN_TIME
         type: GENERAL
         value: "https://mjgwoukwyqwoectxfwqv.supabase.co"
+      - key: OPEK_SMS_API_KEY
+        scope: RUN_TIME
+        type: SECRET
+        # Set in DigitalOcean dashboard — required for POST /api/send
       # Set SUPABASE_SERVICE_ROLE_KEY and TWILIO_AUTH_TOKEN as SECRETs in DigitalOcean

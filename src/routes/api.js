@@ -22,10 +22,62 @@ import {
   listEnrollments,
   removeEnrollment,
   sendCustomContactMessage,
+  toE164,
 } from '../lib/supabaseContacts.js';
 import { isSupabaseConfigured } from '../lib/supabase.js';
+import { requireApiKey } from '../lib/apiAuth.js';
 
 export const apiRouter = Router();
+
+/**
+ * Transactional outbound SMS (quotes, booking updates, etc.).
+ * Auth: X-API-Key or Authorization Bearer matching OPEK_SMS_API_KEY.
+ * Does not require marketing consent; still respects STOP opt-outs.
+ */
+apiRouter.post('/send', requireApiKey, async (req, res) => {
+  const body = String(req.body?.body || '').trim();
+  const phoneRaw = String(req.body?.phone || '').trim();
+  const categoryId = req.body?.categoryId ? String(req.body.categoryId) : null;
+  const contactName = req.body?.name ? String(req.body.name).trim() : null;
+
+  if (!phoneRaw) return res.status(400).json({ error: 'phone is required' });
+  if (!body) return res.status(400).json({ error: 'body is required' });
+  if (body.length > 1600) {
+    return res.status(400).json({ error: 'body is too long (max 1600 characters)' });
+  }
+  if (categoryId && !getCategory(categoryId)) {
+    return res.status(400).json({ error: `Unknown category: ${categoryId}` });
+  }
+
+  const to = toE164(phoneRaw);
+  if (!to || to.length < 12) {
+    return res.status(400).json({ error: 'Invalid phone number' });
+  }
+
+  if (await isOptedOut(to)) {
+    return res.status(403).json({
+      error: 'Contact opted out',
+      detail: 'This number has opted out of SMS.',
+    });
+  }
+
+  try {
+    const message = await sendSms({
+      to,
+      body,
+      categoryId,
+      contactName,
+    });
+    res.status(201).json({ message, to });
+  } catch (err) {
+    console.error('[opek-sms] transactional send failed', err);
+    const status = err.code === 'OPTED_OUT' ? 403 : 502;
+    res.status(status).json({
+      error: 'Failed to send message',
+      detail: err.message || String(err),
+    });
+  }
+});
 
 apiRouter.get('/overview', async (_req, res) => {
   res.json(await overviewStats());
