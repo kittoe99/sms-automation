@@ -62,6 +62,37 @@ textarea::placeholder {
   font-size: 0.8rem;
   font-weight: 600;
 }
+.live-pill {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  margin-top: 10px;
+  padding: 4px 8px;
+  border-radius: 999px;
+  border: 1px solid var(--border);
+  font-size: 0.72rem;
+  font-weight: 600;
+  letter-spacing: 0.02em;
+  color: var(--muted);
+  background: rgba(255,255,255,0.03);
+}
+.live-pill::before {
+  content: "";
+  width: 7px;
+  height: 7px;
+  border-radius: 50%;
+  background: currentColor;
+}
+.live-pill.live {
+  color: var(--ok);
+  border-color: rgba(62, 207, 142, 0.35);
+  background: rgba(62, 207, 142, 0.08);
+}
+.live-pill.offline {
+  color: var(--warn);
+  border-color: rgba(245, 165, 36, 0.35);
+  background: rgba(245, 165, 36, 0.08);
+}
 
 .nav { display: flex; flex-direction: column; gap: 4px; flex: 1; }
 .nav-label {

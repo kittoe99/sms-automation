@@ -2,6 +2,7 @@ import { getSupabaseAdmin, isSupabaseConfigured } from './supabase.js';
 import { getCategory } from './categories.js';
 import { isOptedOut } from './messageStore.js';
 import { sendSms } from './twilioClient.js';
+import { publish } from './realtime.js';
 
 export async function listDirectoryContacts({
   q = null,
@@ -130,6 +131,7 @@ export async function enrollContactInAutomation({
   });
 
   if (error) throw error;
+  publish('enrollment', { event: 'insert', record: data });
   return data;
 }
 
@@ -151,6 +153,7 @@ export async function removeEnrollment({ phone, categoryId, enrollmentId = null 
       .maybeSingle();
     if (error) throw error;
     if (!data) throw new Error('Enrollment not found');
+    publish('enrollment', { event: 'update', record: data });
     return data;
   }
 
@@ -172,6 +175,7 @@ export async function removeEnrollment({ phone, categoryId, enrollmentId = null 
 
   if (error) throw error;
   if (!data) throw new Error('Enrollment not found');
+  publish('enrollment', { event: 'update', record: data });
   return data;
 }
 

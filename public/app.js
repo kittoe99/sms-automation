@@ -1360,4 +1360,104 @@ function esc(value) {
 }
 
 load();
-setInterval(() => load().catch(() => {}), 10000);
+connectLive();
+
+function setLiveStatus(online, label) {
+  const pill = document.getElementById('live-pill');
+  if (!pill) return;
+  pill.classList.toggle('live', online);
+  pill.classList.toggle('offline', !online);
+  pill.textContent = label;
+}
+
+function connectLive() {
+  const proto = location.protocol === 'https:' ? 'wss:' : 'ws:';
+  let ws;
+  let retryMs = 1000;
+  let refreshTimer = null;
+  let pollTimer = null;
+
+  const scheduleRefresh = (evt) => {
+    clearTimeout(refreshTimer);
+    refreshTimer = setTimeout(() => {
+      // Keep an open thread snappy when its phone matches
+      if (
+        state.view === 'messaging' &&
+        state.conversationPhone &&
+        evt?.record?.contactPhone &&
+        String(evt.record.contactPhone).replace(/\D/g, '').slice(-10) ===
+          String(state.conversationPhone).replace(/\D/g, '').slice(-10)
+      ) {
+        load().catch(() => {});
+        return;
+      }
+      if (
+        state.view === 'messaging' &&
+        state.conversationPhone &&
+        evt?.type === 'thread' &&
+        evt?.record?.phone &&
+        String(evt.record.phone).replace(/\D/g, '').slice(-10) ===
+          String(state.conversationPhone).replace(/\D/g, '').slice(-10)
+      ) {
+        load().catch(() => {});
+        return;
+      }
+      load().catch(() => {});
+    }, 250);
+  };
+
+  const startPollFallback = () => {
+    if (pollTimer) return;
+    pollTimer = setInterval(() => load().catch(() => {}), 15000);
+  };
+  const stopPollFallback = () => {
+    if (!pollTimer) return;
+    clearInterval(pollTimer);
+    pollTimer = null;
+  };
+
+  const open = () => {
+    ws = new WebSocket(`${proto}//${location.host}/ws`);
+    ws.addEventListener('open', () => {
+      retryMs = 1000;
+      setLiveStatus(true, 'Live');
+      stopPollFallback();
+    });
+    ws.addEventListener('message', (e) => {
+      let msg;
+      try {
+        msg = JSON.parse(e.data);
+      } catch {
+        return;
+      }
+      if (!msg?.type || msg.type === 'connected' || msg.type === 'pong') return;
+      if (msg.type === 'message' || msg.type === 'thread' || msg.type === 'enrollment') {
+        scheduleRefresh(msg);
+      }
+    });
+    ws.addEventListener('close', () => {
+      setLiveStatus(false, 'Reconnecting…');
+      startPollFallback();
+      setTimeout(open, retryMs);
+      retryMs = Math.min(retryMs * 1.6, 15000);
+    });
+    ws.addEventListener('error', () => {
+      try {
+        ws.close();
+      } catch {
+        /* ignore */
+      }
+    });
+  };
+
+  open();
+  setInterval(() => {
+    if (ws && ws.readyState === WebSocket.OPEN) {
+      try {
+        ws.send(JSON.stringify({ type: 'ping' }));
+      } catch {
+        /* ignore */
+      }
+    }
+  }, 25000);
+}

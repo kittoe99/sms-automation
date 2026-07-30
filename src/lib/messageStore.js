@@ -20,6 +20,7 @@ import {
   dbUpsertMessage,
   phoneDigits,
 } from './messageDb.js';
+import { publish } from './realtime.js';
 
 const messages = [];
 const bySid = new Map();
@@ -527,18 +528,26 @@ function cacheMessage(row) {
 }
 
 async function safeUpsertMessage(row) {
-  if (!canPersistMessages()) return;
+  if (!canPersistMessages()) {
+    publish('message', { event: 'insert', record: publicMessage(row), source: 'memory' });
+    return;
+  }
   try {
     await dbUpsertMessage(row);
+    publish('message', { event: 'upsert', record: publicMessage(row), source: 'local' });
   } catch (err) {
     console.error('[opek-sms] failed to persist message', err.message || err);
   }
 }
 
 async function safeUpsertContact(c) {
-  if (!canPersistMessages()) return;
+  if (!canPersistMessages()) {
+    publish('thread', { event: 'upsert', record: publicContact(c), source: 'memory' });
+    return;
+  }
   try {
     await dbUpsertContact(c);
+    publish('thread', { event: 'upsert', record: publicContact(c), source: 'local' });
   } catch (err) {
     console.error('[opek-sms] failed to persist contact', err.message || err);
   }
