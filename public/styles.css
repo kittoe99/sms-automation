@@ -726,6 +726,20 @@ table.data td.wrap {
 .contact-row { cursor: pointer; }
 .contact-row:hover { background: color-mix(in srgb, var(--brand) 8%, transparent); }
 
+.drip-steps {
+  margin: 0;
+  padding-left: 1.25rem;
+  display: grid;
+  gap: 10px;
+}
+.drip-step-head { font-size: 0.9rem; }
+.drip-step-body {
+  margin-top: 4px;
+  font-size: 0.85rem;
+  line-height: 1.4;
+  white-space: pre-wrap;
+}
+
 @media (max-width: 980px) {
   .call-grid { grid-template-columns: 1fr; }
 }

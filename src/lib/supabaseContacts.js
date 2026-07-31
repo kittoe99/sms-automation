@@ -3,6 +3,7 @@ import { getCategory } from './categories.js';
 import { isOptedOut } from './messageStore.js';
 import { sendSms } from './twilioClient.js';
 import { publish } from './realtime.js';
+import { seedDripOnEnrollment, needsQuoteRequestDripSeed } from './automations/dripState.js';
 
 export async function listDirectoryContacts({
   q = null,
@@ -131,8 +132,14 @@ export async function enrollContactInAutomation({
   });
 
   if (error) throw error;
-  publish('enrollment', { event: 'insert', record: data });
-  return data;
+
+  let enrollment = data;
+  if (categoryId === 'quote-requests' && enrollment?.id) {
+    enrollment = await ensureQuoteRequestDripSeeded(enrollment);
+  }
+
+  publish('enrollment', { event: 'insert', record: enrollment });
+  return enrollment;
 }
 
 export async function removeEnrollment({ phone, categoryId, enrollmentId = null }) {
@@ -280,4 +287,21 @@ export async function sendCustomContactMessage({
   });
 
   return { message, contact, to };
+}
+
+async function ensureQuoteRequestDripSeeded(enrollment) {
+  if (!needsQuoteRequestDripSeed(enrollment)) return enrollment;
+  const metadata = seedDripOnEnrollment(enrollment);
+  const { data, error } = await getSupabaseAdmin()
+    .from('sms_automation_enrollments')
+    .update({ metadata, updated_at: new Date().toISOString() })
+    .eq('id', enrollment.id)
+    .eq('status', 'enrolled')
+    .select()
+    .maybeSingle();
+  if (error) {
+    console.warn('[opek-sms] drip seed on enroll failed', error.message);
+    return enrollment;
+  }
+  return data || enrollment;
 }

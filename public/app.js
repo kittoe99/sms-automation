@@ -375,7 +375,11 @@ async function renderOverview() {
                 <p class="muted">${fmt(s?.total || 0)} messages · ${
                   s?.deliveryRate == null ? '—' : `${s.deliveryRate}% delivered`
                 }</p>
-                <div class="blank">No automations yet</div>
+                <div class="blank">${
+                  c.id === 'quote-requests'
+                    ? 'Quote Request drip · 6 steps'
+                    : 'No automations yet'
+                }</div>
               </button>`;
           })
           .join('')}
@@ -415,7 +419,7 @@ async function renderAutomations() {
       <div class="card">
         <div class="card-head">
           <h2>Automation groups</h2>
-          <span class="muted">Sub-categories — workflows blank until wired</span>
+          <span class="muted">Quote Request drip is live · other groups blank until wired</span>
         </div>
         <div class="category-grid">
           ${state.categories
@@ -430,7 +434,11 @@ async function renderAutomations() {
                   <p class="muted">${fmt(s?.total || 0)} messages · ${
                     s?.deliveryRate == null ? '—' : `${s.deliveryRate}% delivered`
                   }</p>
-                  <div class="blank">No automations yet</div>
+                  <div class="blank">${
+                  c.id === 'quote-requests'
+                    ? 'Quote Request drip · 6 steps'
+                    : 'No automations yet'
+                }</div>
                 </button>`;
             })
             .join('')}
@@ -467,6 +475,7 @@ async function renderAutomations() {
   el.storeMeta.textContent = `${fmt(data.total)} messages in ${category.name}`;
 
   let enrollments = [];
+  let sequence = null;
   try {
     const enr = await fetch(
       `/api/enrollments?category=${encodeURIComponent(category.id)}&pageSize=100`
@@ -475,6 +484,35 @@ async function renderAutomations() {
   } catch {
     enrollments = [];
   }
+
+  if (category.id === 'quote-requests') {
+    try {
+      const seqRes = await fetch('/api/automations/quote-requests').then((r) => r.json());
+      sequence = seqRes.sequence || null;
+    } catch {
+      sequence = null;
+    }
+  }
+
+  const sequenceHtml = sequence
+    ? `
+      <div class="drip-sequence" style="margin:0 16px 16px">
+        <h3 style="margin:0 0 8px">${esc(sequence.name)}</h3>
+        <p class="muted" style="margin:0 0 12px">${esc(sequence.description || '')}</p>
+        <ol class="drip-steps">
+          ${(sequence.steps || [])
+            .map(
+              (s, i) => `
+            <li>
+              <div class="drip-step-head"><strong>Step ${i + 1}</strong> · ${esc(s.label || s.id)}</div>
+              <div class="muted drip-step-body">${esc(s.template)}</div>
+            </li>`
+            )
+            .join('')}
+        </ol>
+        <p class="muted" style="margin:12px 0 0">After step 6 sends, the contact is removed from this group. Customer replies pause the drip.</p>
+      </div>`
+    : `<div class="blank" style="margin:0 16px 16px">No automations yet in this group</div>`;
 
   el.root.innerHTML = `
     <div class="automation-subnav card" style="margin-bottom:12px">
@@ -495,37 +533,53 @@ async function renderAutomations() {
           )
           .join('')}
       </div>
-      <div class="blank" style="margin:0 16px 16px">No automations yet in this group</div>
+      ${sequenceHtml}
       <div class="card-head" style="border-top:1px solid var(--border)">
         <h2>Enrolled contacts</h2>
         <span class="muted">${fmt(enrollments.length)} SMS-consented</span>
       </div>
-      <div class="table-scroll" style="max-height:240px">
+      <div class="table-scroll" style="max-height:320px">
         <table class="data">
           <thead>
-            <tr><th>Name</th><th>Phone</th><th>Source</th><th>Enrolled</th><th></th></tr>
+            <tr>
+              <th>Name</th>
+              <th>Phone</th>
+              <th>Source</th>
+              <th>Enrolled</th>
+              <th>Drip</th>
+              <th>Next send</th>
+              <th></th>
+            </tr>
           </thead>
           <tbody>
             ${
               enrollments.length
                 ? enrollments
-                    .map(
-                      (e) => `
+                    .map((e) => {
+                      const drip = e.metadata?.drip || null;
+                      const dripLabel = drip
+                        ? `${esc(drip.status || '—')}${
+                            drip.stepIndex != null ? ` · step ${Number(drip.stepIndex) + 1}/6` : ''
+                          }`
+                        : 'pending seed';
+                      return `
               <tr>
                 <td>${esc(e.name || '—')}</td>
                 <td>${esc(e.phone || '—')}</td>
                 <td class="muted">${esc(e.source || '—')}</td>
                 <td class="muted">${esc(fmtTime(e.enrolled_at))}</td>
+                <td class="muted">${dripLabel}</td>
+                <td class="muted">${esc(drip?.nextSendAt ? fmtTime(drip.nextSendAt) : '—')}</td>
                 <td>
                   <button type="button" class="btn ghost unenroll-btn"
                     data-enrollment-id="${esc(e.id)}"
                     data-phone="${esc(e.phone || '')}"
                     data-category="${esc(e.category_id || category.id)}">Remove</button>
                 </td>
-              </tr>`
-                    )
+              </tr>`;
+                    })
                     .join('')
-                : `<tr><td colspan="5"><div class="empty">No enrollments yet. Enroll consented contacts from Contacts.</div></td></tr>`
+                : `<tr><td colspan="7"><div class="empty">No enrollments yet. Enroll consented contacts from Contacts.</div></td></tr>`
             }
           </tbody>
         </table>

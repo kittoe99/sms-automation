@@ -2,6 +2,7 @@ import { Router } from 'express';
 import twilio from 'twilio';
 import { recordInbound, updateDeliverability } from '../lib/messageStore.js';
 import { handleInboundAi } from '../lib/ai/agent.js';
+import { pauseQuoteRequestDripsForPhone } from '../lib/automations/runner.js';
 
 export const webhooksRouter = Router();
 
@@ -48,19 +49,27 @@ webhooksRouter.post('/inbound', validateTwilio, async (req, res) => {
 
   if (from) {
     setImmediate(() => {
-      handleInboundAi({ from, body, sid }).then((result) => {
-        if (result?.skipped) {
-          console.log('[opek-sms] AI skipped', { from, reason: result.reason });
-        } else if (result?.message) {
-          console.log('[opek-sms] AI replied', {
-            from,
-            sid: result.message.sid,
-            tools: result.toolsUsed?.map((t) => t.name),
-          });
-        }
-      }).catch((err) => {
-        console.error('[opek-sms] AI background failed', err);
-      });
+      pauseQuoteRequestDripsForPhone(from)
+        .then((r) => {
+          if (r?.paused) console.log('[opek-sms] quote drip paused', { from, paused: r.paused });
+        })
+        .catch((err) => console.warn('[opek-sms] pause drip failed', err.message || err));
+
+      handleInboundAi({ from, body, sid })
+        .then((result) => {
+          if (result?.skipped) {
+            console.log('[opek-sms] AI skipped', { from, reason: result.reason });
+          } else if (result?.message) {
+            console.log('[opek-sms] AI replied', {
+              from,
+              sid: result.message.sid,
+              tools: result.toolsUsed?.map((t) => t.name),
+            });
+          }
+        })
+        .catch((err) => {
+          console.error('[opek-sms] AI background failed', err);
+        });
     });
   }
 });

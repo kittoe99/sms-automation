@@ -31,7 +31,6 @@ services:
       - key: TWILIO_ACCOUNT_SID
         scope: RUN_TIME
         type: SECRET
-        # Set in DigitalOcean dashboard
       - key: TWILIO_MESSAGING_SERVICE_SID
         scope: RUN_TIME
         type: GENERAL
@@ -55,5 +54,51 @@ services:
       - key: OPEK_SMS_API_KEY
         scope: RUN_TIME
         type: SECRET
-        # Set in DigitalOcean dashboard — required for POST /api/send
-      # Set SUPABASE_SERVICE_ROLE_KEY and TWILIO_AUTH_TOKEN as SECRETs in DigitalOcean
+
+jobs:
+  - name: automation-tick
+    kind: SCHEDULED
+    schedule:
+      cron: "*/15 * * * *"
+      time_zone: America/Denver
+    git:
+      repo_clone_url: https://github.com/kittoe99/sms-automation.git
+      branch: deploy-crm
+    source_dir: /
+    environment_slug: node-js
+    instance_size_slug: apps-s-1vcpu-0.5gb
+    instance_count: 1
+    run_command: npm run automation-tick
+    envs:
+      - key: NODE_ENV
+        scope: RUN_TIME
+        type: GENERAL
+        value: production
+      - key: TWILIO_ACCOUNT_SID
+        scope: RUN_TIME
+        type: SECRET
+      - key: TWILIO_AUTH_TOKEN
+        scope: RUN_TIME
+        type: SECRET
+      - key: TWILIO_MESSAGING_SERVICE_SID
+        scope: RUN_TIME
+        type: GENERAL
+        value: "MGae253c080173f100ca791069a215564a"
+      - key: TWILIO_FROM_NUMBER
+        scope: RUN_TIME
+        type: GENERAL
+        value: "+18777574365"
+      - key: PUBLIC_BASE_URL
+        scope: RUN_TIME
+        type: GENERAL
+        value: "https://opek-sms-zllz4.ondigitalocean.app"
+      - key: SUPABASE_URL
+        scope: RUN_TIME
+        type: GENERAL
+        value: "https://mjgwoukwyqwoectxfwqv.supabase.co"
+      - key: SUPABASE_SERVICE_ROLE_KEY
+        scope: RUN_TIME
+        type: SECRET
+      - key: OPEK_SMS_API_KEY
+        scope: RUN_TIME
+        type: SECRET

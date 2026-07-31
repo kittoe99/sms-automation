@@ -7,7 +7,8 @@
   "main": "src/index.js",
   "scripts": {
     "start": "node src/index.js",
-    "dev": "node --watch src/index.js"
+    "dev": "node --watch src/index.js",
+    "automation-tick": "node scripts/automation-tick.js"
   },
   "engines": {
     "node": ">=20"

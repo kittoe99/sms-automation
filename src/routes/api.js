@@ -34,6 +34,8 @@ import {
   isElevenLabsOutboundConfigured,
   placeOutboundFollowUpCall,
 } from '../lib/elevenlabsOutbound.js';
+import { runAutomationTick } from '../lib/automations/runner.js';
+import { QUOTE_REQUESTS_SEQUENCE } from '../lib/automations/quoteRequestsSequence.js';
 
 export const apiRouter = Router();
 
@@ -96,7 +98,7 @@ apiRouter.get('/categories', async (_req, res) => {
   for (const c of CATEGORIES) {
     categories.push({
       ...c,
-      automations: [],
+      automations: c.id === QUOTE_REQUESTS_SEQUENCE.categoryId ? [QUOTE_REQUESTS_SEQUENCE] : [],
       messageCount: await categoryMessageCount(c.id),
       summary: await deliverabilitySummary({ categoryId: c.id }),
     });
@@ -119,11 +121,31 @@ apiRouter.get('/categories/:id', async (req, res) => {
   res.json({
     category: {
       ...category,
-      automations: [],
+      automations:
+        category.id === QUOTE_REQUESTS_SEQUENCE.categoryId ? [QUOTE_REQUESTS_SEQUENCE] : [],
       summary: await deliverabilitySummary({ categoryId: category.id }),
     },
     ...page,
   });
+});
+
+apiRouter.get('/automations/quote-requests', async (_req, res) => {
+  res.json({ sequence: QUOTE_REQUESTS_SEQUENCE });
+});
+
+/**
+ * Cron / internal tick for drip automations. Requires OPEK_SMS_API_KEY.
+ */
+apiRouter.post('/internal/automation-tick', requireApiKey, async (req, res) => {
+  try {
+    const limit = req.body?.limit;
+    const summary = await runAutomationTick({ limit });
+    console.log('[opek-sms] automation tick', summary);
+    res.json({ ok: true, summary });
+  } catch (err) {
+    console.error('[opek-sms] automation tick failed', err);
+    res.status(500).json({ error: 'Automation tick failed', detail: err.message || String(err) });
+  }
 });
 
 apiRouter.get('/messages', async (req, res) => {
