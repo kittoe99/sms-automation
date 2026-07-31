@@ -375,11 +375,7 @@ async function renderOverview() {
                 <p class="muted">${fmt(s?.total || 0)} messages · ${
                   s?.deliveryRate == null ? '—' : `${s.deliveryRate}% delivered`
                 }</p>
-                <div class="blank">${
-                  c.id === 'quote-requests'
-                    ? 'Quote Request drip · 6 steps'
-                    : 'No automations yet'
-                }</div>
+                <div class="blank">${automationBlankLabel(c.id)}</div>
               </button>`;
           })
           .join('')}
@@ -390,6 +386,12 @@ async function renderOverview() {
   el.root.querySelectorAll('[data-open-automation]').forEach((btn) => {
     btn.addEventListener('click', () => openAutomationGroup(btn.getAttribute('data-open-automation')));
   });
+}
+
+function automationBlankLabel(categoryId) {
+  if (categoryId === 'quote-requests') return 'Quote Request drip · 6 steps';
+  if (categoryId === 'appointment-reminders') return 'Appointment reminder · 24h before';
+  return 'No automations yet';
 }
 
 async function renderAutomations() {
@@ -419,7 +421,7 @@ async function renderAutomations() {
       <div class="card">
         <div class="card-head">
           <h2>Automation groups</h2>
-          <span class="muted">Quote Request drip is live · other groups blank until wired</span>
+          <span class="muted">Quote Request + Appointment Reminder drips are live</span>
         </div>
         <div class="category-grid">
           ${state.categories
@@ -434,11 +436,7 @@ async function renderAutomations() {
                   <p class="muted">${fmt(s?.total || 0)} messages · ${
                     s?.deliveryRate == null ? '—' : `${s.deliveryRate}% delivered`
                   }</p>
-                  <div class="blank">${
-                  c.id === 'quote-requests'
-                    ? 'Quote Request drip · 6 steps'
-                    : 'No automations yet'
-                }</div>
+                  <div class="blank">${automationBlankLabel(c.id)}</div>
                 </button>`;
             })
             .join('')}
@@ -485,14 +483,21 @@ async function renderAutomations() {
     enrollments = [];
   }
 
-  if (category.id === 'quote-requests') {
+  if (category.id === 'quote-requests' || category.id === 'appointment-reminders') {
     try {
-      const seqRes = await fetch('/api/automations/quote-requests').then((r) => r.json());
+      const seqRes = await fetch(`/api/automations/${category.id}`).then((r) => r.json());
       sequence = seqRes.sequence || null;
     } catch {
       sequence = null;
     }
   }
+
+  const cadenceNote =
+    category.id === 'quote-requests'
+      ? 'Cadence: 1 text/day for 3 days, then 1 after 48h, 1 after another 48h, then 1 after 7 days. After the final send, the contact is removed. Customer replies pause the drip.'
+      : category.id === 'appointment-reminders'
+        ? 'Sends one SMS ~24 hours before the appointment date, then removes the contact from this group. Auto-enrolls from bookings. Replies do not pause this reminder.'
+        : '';
 
   const sequenceHtml = sequence
     ? `
@@ -510,7 +515,7 @@ async function renderAutomations() {
             )
             .join('')}
         </ol>
-        <p class="muted" style="margin:12px 0 0">Cadence: 1 text/day for 3 days, then 1 after 48h, 1 after another 48h, then 1 after 7 days. After the final send, the contact is removed. Customer replies pause the drip.</p>
+        ${cadenceNote ? `<p class="muted" style="margin:12px 0 0">${esc(cadenceNote)}</p>` : ''}
       </div>`
     : `<div class="blank" style="margin:0 16px 16px">No automations yet in this group</div>`;
 
@@ -536,7 +541,9 @@ async function renderAutomations() {
       ${sequenceHtml}
       <div class="card-head" style="border-top:1px solid var(--border)">
         <h2>Enrolled contacts</h2>
-        <span class="muted">${fmt(enrollments.length)} SMS-consented</span>
+        <span class="muted">${fmt(enrollments.length)}${
+          category.id === 'appointment-reminders' ? ' enrolled' : ' SMS-consented'
+        }</span>
       </div>
       <div class="table-scroll" style="max-height:320px">
         <table class="data">
@@ -557,9 +564,19 @@ async function renderAutomations() {
                 ? enrollments
                     .map((e) => {
                       const drip = e.metadata?.drip || null;
+                      const stepTotal =
+                        category.id === 'appointment-reminders'
+                          ? 1
+                          : category.id === 'quote-requests'
+                            ? 6
+                            : null;
                       const dripLabel = drip
                         ? `${esc(drip.status || '—')}${
-                            drip.stepIndex != null ? ` · step ${Number(drip.stepIndex) + 1}/6` : ''
+                            drip.stepIndex != null && stepTotal != null
+                              ? ` · step ${Number(drip.stepIndex) + 1}/${stepTotal}`
+                              : drip.stepIndex != null
+                                ? ` · step ${Number(drip.stepIndex) + 1}`
+                                : ''
                           }`
                         : 'pending seed';
                       return `
@@ -579,7 +596,11 @@ async function renderAutomations() {
               </tr>`;
                     })
                     .join('')
-                : `<tr><td colspan="7"><div class="empty">No enrollments yet. Enroll consented contacts from Contacts.</div></td></tr>`
+                : `<tr><td colspan="7"><div class="empty">${
+                    category.id === 'appointment-reminders'
+                      ? 'No enrollments yet. New bookings auto-enroll when they have a preferred date.'
+                      : 'No enrollments yet. Enroll consented contacts from Contacts.'
+                  }</div></td></tr>`
             }
           </tbody>
         </table>
@@ -987,16 +1008,17 @@ async function renderContacts() {
                   }
                 </td>
                 <td>
-                  ${
-                    canEnroll
-                      ? `<div class="enroll-row">
+                  <div class="enroll-row">
                     <select class="enroll-select" data-phone="${esc(c.phone)}" data-name="${esc(
-                          c.name || ''
-                        )}" data-source="${esc(c.primarySource || '')}" data-email="${esc(
-                          c.email || ''
-                        )}">
+                      c.name || ''
+                    )}" data-source="${esc(c.primarySource || '')}" data-email="${esc(
+                      c.email || ''
+                    )}">
                       <option value="">Choose group…</option>
                       ${state.categories
+                        .filter(
+                          (cat) => canEnroll || cat.id === 'appointment-reminders'
+                        )
                         .map(
                           (cat) =>
                             `<option value="${esc(cat.id)}" ${
@@ -1008,9 +1030,7 @@ async function renderContacts() {
                         .join('')}
                     </select>
                     <button type="button" class="btn ghost enroll-btn">Enroll</button>
-                  </div>`
-                      : `<span class="muted">Consent required</span>`
-                  }
+                  </div>
                 </td>
                 <td>
                   ${

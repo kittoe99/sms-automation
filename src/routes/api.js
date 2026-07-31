@@ -36,6 +36,7 @@ import {
 } from '../lib/elevenlabsOutbound.js';
 import { runAutomationTick } from '../lib/automations/runner.js';
 import { QUOTE_REQUESTS_SEQUENCE } from '../lib/automations/quoteRequestsSequence.js';
+import { APPOINTMENT_REMINDERS_SEQUENCE } from '../lib/automations/appointmentRemindersSequence.js';
 
 export const apiRouter = Router();
 
@@ -98,7 +99,7 @@ apiRouter.get('/categories', async (_req, res) => {
   for (const c of CATEGORIES) {
     categories.push({
       ...c,
-      automations: c.id === QUOTE_REQUESTS_SEQUENCE.categoryId ? [QUOTE_REQUESTS_SEQUENCE] : [],
+      automations: automationsForCategory(c.id),
       messageCount: await categoryMessageCount(c.id),
       summary: await deliverabilitySummary({ categoryId: c.id }),
     });
@@ -121,8 +122,7 @@ apiRouter.get('/categories/:id', async (req, res) => {
   res.json({
     category: {
       ...category,
-      automations:
-        category.id === QUOTE_REQUESTS_SEQUENCE.categoryId ? [QUOTE_REQUESTS_SEQUENCE] : [],
+      automations: automationsForCategory(category.id),
       summary: await deliverabilitySummary({ categoryId: category.id }),
     },
     ...page,
@@ -132,6 +132,18 @@ apiRouter.get('/categories/:id', async (req, res) => {
 apiRouter.get('/automations/quote-requests', async (_req, res) => {
   res.json({ sequence: QUOTE_REQUESTS_SEQUENCE });
 });
+
+apiRouter.get('/automations/appointment-reminders', async (_req, res) => {
+  res.json({ sequence: APPOINTMENT_REMINDERS_SEQUENCE });
+});
+
+function automationsForCategory(categoryId) {
+  if (categoryId === QUOTE_REQUESTS_SEQUENCE.categoryId) return [QUOTE_REQUESTS_SEQUENCE];
+  if (categoryId === APPOINTMENT_REMINDERS_SEQUENCE.categoryId) {
+    return [APPOINTMENT_REMINDERS_SEQUENCE];
+  }
+  return [];
+}
 
 /**
  * Cron / internal tick for drip automations. Requires OPEK_SMS_API_KEY.

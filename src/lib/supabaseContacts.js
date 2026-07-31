@@ -4,6 +4,10 @@ import { isOptedOut } from './messageStore.js';
 import { sendSms } from './twilioClient.js';
 import { publish } from './realtime.js';
 import { seedDripOnEnrollment, needsQuoteRequestDripSeed } from './automations/dripState.js';
+import {
+  needsAppointmentDripSeed,
+  seedAppointmentDripOnEnrollment,
+} from './automations/appointmentDripState.js';
 
 export async function listDirectoryContacts({
   q = null,
@@ -118,7 +122,8 @@ export async function enrollContactInAutomation({
   if (!contact) {
     throw new Error('Contact not found in Supabase directory');
   }
-  if (contact.smsMarketingConsent !== true) {
+  // Appointment reminders are transactional; other drips require marketing consent.
+  if (categoryId !== 'appointment-reminders' && contact.smsMarketingConsent !== true) {
     throw new Error('Contact has not consented to SMS marketing');
   }
 
@@ -136,6 +141,9 @@ export async function enrollContactInAutomation({
   let enrollment = data;
   if (categoryId === 'quote-requests' && enrollment?.id) {
     enrollment = await ensureQuoteRequestDripSeeded(enrollment);
+  }
+  if (categoryId === 'appointment-reminders' && enrollment?.id) {
+    enrollment = await ensureAppointmentReminderDripSeeded(enrollment);
   }
 
   publish('enrollment', { event: 'insert', record: enrollment });
@@ -301,6 +309,23 @@ async function ensureQuoteRequestDripSeeded(enrollment) {
     .maybeSingle();
   if (error) {
     console.warn('[opek-sms] drip seed on enroll failed', error.message);
+    return enrollment;
+  }
+  return data || enrollment;
+}
+
+async function ensureAppointmentReminderDripSeeded(enrollment) {
+  if (!needsAppointmentDripSeed(enrollment)) return enrollment;
+  const metadata = seedAppointmentDripOnEnrollment(enrollment);
+  const { data, error } = await getSupabaseAdmin()
+    .from('sms_automation_enrollments')
+    .update({ metadata, updated_at: new Date().toISOString() })
+    .eq('id', enrollment.id)
+    .eq('status', 'enrolled')
+    .select()
+    .maybeSingle();
+  if (error) {
+    console.warn('[opek-sms] appointment drip seed on enroll failed', error.message);
     return enrollment;
   }
   return data || enrollment;
