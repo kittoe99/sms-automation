@@ -1,5 +1,5 @@
 /**
- * Quote Requests drip: 24h×3 → 48h×2 → 7d×1 → unenroll.
+ * Quote Requests drip: 1 SMS/day × 3 days → 1 after 48h → 1 after 48h → 1 after 7d → unenroll.
  */
 
 export const QUOTE_REQUESTS_CATEGORY_ID = 'quote-requests';
@@ -14,12 +14,12 @@ export const QUOTE_REQUESTS_SEQUENCE = {
   categoryId: QUOTE_REQUESTS_CATEGORY_ID,
   name: 'Quote Request follow-up',
   description:
-    'Six templated SMS follow-ups after a quote request, then automatic removal from the group.',
+    'One SMS every 24 hours for 3 days, then one after 48 hours, another after 48 hours, then a final SMS 7 days later — then automatic removal from the group. Never more than one text per send.',
   steps: [
     {
       index: 0,
       id: 'day-1',
-      label: '24h after enroll',
+      label: 'Day 1 — 1 SMS, 24h after enroll',
       delayMs: 1 * DAY,
       template:
         'Hi {{first_name}}, this is Opek Junk Removal following up on your quote request. Ready to lock in a pickup? Book here: https://opekjunkremoval.com/booking — Reply STOP to opt out.',
@@ -27,7 +27,7 @@ export const QUOTE_REQUESTS_SEQUENCE = {
     {
       index: 1,
       id: 'day-2',
-      label: '24h after previous',
+      label: 'Day 2 — 1 SMS, 24h after previous',
       delayMs: 1 * DAY,
       template:
         'Hi {{first_name}}, still need that junk hauled? We can usually schedule same-week. Grab a time: https://opekjunkremoval.com/booking or text us any questions. Reply STOP to opt out.',
@@ -35,23 +35,23 @@ export const QUOTE_REQUESTS_SEQUENCE = {
     {
       index: 2,
       id: 'day-3',
-      label: '24h after previous',
+      label: 'Day 3 — 1 SMS, 24h after previous',
       delayMs: 1 * DAY,
       template:
         '{{first_name}}, quick check-in from Opek — your estimate is still available. Book online https://opekjunkremoval.com/booking or reply with a good day/time. Reply STOP to opt out.',
     },
     {
       index: 3,
-      id: 'day-5',
-      label: '48h after previous',
+      id: 'after-48h-1',
+      label: '1 SMS, 48h after Day 3',
       delayMs: 2 * DAY,
       template:
         'Hi {{first_name}}, Opek here. Want us to hold a preferred window for your junk removal? Reply with your ZIP + preferred day, or book: https://opekjunkremoval.com/booking Reply STOP to opt out.',
     },
     {
       index: 4,
-      id: 'day-7',
-      label: '48h after previous',
+      id: 'after-48h-2',
+      label: '1 SMS, 48h after previous',
       delayMs: 2 * DAY,
       template:
         '{{first_name}}, last few days of our quote follow-up — if the job is still on your list, we can get a crew scheduled: https://opekjunkremoval.com/booking Reply STOP to opt out.',
@@ -59,7 +59,7 @@ export const QUOTE_REQUESTS_SEQUENCE = {
     {
       index: 5,
       id: 'final-week',
-      label: '7 days after previous',
+      label: 'Final — 1 SMS, 7 days after previous',
       delayMs: 7 * DAY,
       template:
         'Hi {{first_name}}, final note from Opek Junk Removal on your quote. When you are ready: https://opekjunkremoval.com/booking or https://opekjunkremoval.com/quote — we are here to help. Reply STOP to opt out.',

@@ -510,7 +510,7 @@ async function renderAutomations() {
             )
             .join('')}
         </ol>
-        <p class="muted" style="margin:12px 0 0">After step 6 sends, the contact is removed from this group. Customer replies pause the drip.</p>
+        <p class="muted" style="margin:12px 0 0">Cadence: 1 text/day for 3 days, then 1 after 48h, 1 after another 48h, then 1 after 7 days. After the final send, the contact is removed. Customer replies pause the drip.</p>
       </div>`
     : `<div class="blank" style="margin:0 16px 16px">No automations yet in this group</div>`;
 
