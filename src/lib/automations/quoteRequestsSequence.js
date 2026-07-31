@@ -22,7 +22,7 @@ export const QUOTE_REQUESTS_SEQUENCE = {
       label: 'Day 1 — 1 SMS, 24h after enroll',
       delayMs: 1 * DAY,
       template:
-        'Hi {{first_name}}, this is Opek Junk Removal following up on your quote request. Ready to lock in a pickup? Book here: https://opekjunkremoval.com/booking — Reply STOP to opt out.',
+        'Hi {{first_name}}, this is Opek following up on your quote — junk removal or local moving. Ready to lock in a date? Book here: https://opekjunkremoval.com/booking — Reply STOP to opt out.',
     },
     {
       index: 1,
@@ -30,7 +30,7 @@ export const QUOTE_REQUESTS_SEQUENCE = {
       label: 'Day 2 — 1 SMS, 24h after previous',
       delayMs: 1 * DAY,
       template:
-        'Hi {{first_name}}, still need that junk hauled? We can usually schedule same-week. Grab a time: https://opekjunkremoval.com/booking or text us any questions. Reply STOP to opt out.',
+        'Hi {{first_name}}, still need a haul or moving help? We can usually schedule same-week. Grab a time: https://opekjunkremoval.com/booking or text us any questions. Reply STOP to opt out.',
     },
     {
       index: 2,
@@ -38,7 +38,7 @@ export const QUOTE_REQUESTS_SEQUENCE = {
       label: 'Day 3 — 1 SMS, 24h after previous',
       delayMs: 1 * DAY,
       template:
-        '{{first_name}}, quick check-in from Opek — your estimate is still available. Book online https://opekjunkremoval.com/booking or reply with a good day/time. Reply STOP to opt out.',
+        '{{first_name}}, quick check-in from Opek — your estimate is still available for junk removal or moving. Book online https://opekjunkremoval.com/booking or reply with a good day/time. Reply STOP to opt out.',
     },
     {
       index: 3,
@@ -46,7 +46,7 @@ export const QUOTE_REQUESTS_SEQUENCE = {
       label: '1 SMS, 48h after Day 3',
       delayMs: 2 * DAY,
       template:
-        'Hi {{first_name}}, Opek here. Want us to hold a preferred window for your junk removal? Reply with your ZIP + preferred day, or book: https://opekjunkremoval.com/booking Reply STOP to opt out.',
+        'Hi {{first_name}}, Opek here. Want us to hold a preferred window for your junk removal or move? Reply with your ZIP + preferred day, or book: https://opekjunkremoval.com/booking Reply STOP to opt out.',
     },
     {
       index: 4,
@@ -54,7 +54,7 @@ export const QUOTE_REQUESTS_SEQUENCE = {
       label: '1 SMS, 48h after previous',
       delayMs: 2 * DAY,
       template:
-        '{{first_name}}, last few days of our quote follow-up — if the job is still on your list, we can get a crew scheduled: https://opekjunkremoval.com/booking Reply STOP to opt out.',
+        '{{first_name}}, last few days of our quote follow-up — if the junk or moving job is still on your list, we can get a crew scheduled: https://opekjunkremoval.com/booking Reply STOP to opt out.',
     },
     {
       index: 5,
@@ -62,7 +62,7 @@ export const QUOTE_REQUESTS_SEQUENCE = {
       label: 'Final — 1 SMS, 7 days after previous',
       delayMs: 7 * DAY,
       template:
-        'Hi {{first_name}}, final note from Opek Junk Removal on your quote. When you are ready: https://opekjunkremoval.com/booking or https://opekjunkremoval.com/quote — we are here to help. Reply STOP to opt out.',
+        'Hi {{first_name}}, final note from Opek on your quote (junk removal or local moving). When you are ready: https://opekjunkremoval.com/booking or https://opekjunkremoval.com/quote — we are here to help. Reply STOP to opt out.',
     },
   ],
 };
