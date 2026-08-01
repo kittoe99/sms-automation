@@ -1,3 +1,13 @@
+import {
+  apiFetch,
+  getAccessToken,
+  getSession,
+  initAuth,
+  renderLoginScreen,
+  showCrmApp,
+  signOut,
+} from './auth.js';
+
 const state = {
   view: 'overview',
   categoryId: null,
@@ -119,7 +129,11 @@ function setActiveNav() {
 async function load() {
   try {
     if (!state.categories.length) {
-      const catRes = await fetch('/api/categories');
+      const catRes = await apiFetch('/api/categories');
+      if (catRes.status === 401 || catRes.status === 403) {
+        await forceLogin('Session expired. Please sign in again.');
+        return;
+      }
       const catJson = await catRes.json();
       state.categories = catJson.categories || [];
       renderNavAutomations();
@@ -180,7 +194,7 @@ async function renderCall() {
 
   let config = { configured: false, presets: [], from: '+18313187139' };
   try {
-    config = await fetch('/api/ai/outbound-call').then((r) => r.json());
+    config = await apiFetch('/api/ai/outbound-call').then((r) => r.json());
   } catch {
     /* keep defaults */
   }
@@ -318,7 +332,7 @@ async function renderCall() {
     state.callName = name;
 
     try {
-      const res = await fetch(`/api/conversations/${encodeURIComponent(phone)}/call`, {
+      const res = await apiFetch(`/api/conversations/${encodeURIComponent(phone)}/call`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
@@ -345,7 +359,7 @@ async function renderOverview() {
   el.pager.hidden = true;
   el.status.disabled = true;
 
-  const res = await fetch('/api/overview');
+  const res = await apiFetch('/api/overview');
   const data = await res.json();
   renderKpis(data);
   el.storeMeta.textContent = `${fmt(data.total)} messages · ${fmt(
@@ -401,7 +415,7 @@ async function renderAutomations() {
     el.status.disabled = true;
     el.search.placeholder = 'Search automations…';
 
-    const res = await fetch('/api/overview');
+    const res = await apiFetch('/api/overview');
     const data = await res.json();
     const groups = data.byCategory || [];
     el.kpi.innerHTML = [
@@ -461,7 +475,7 @@ async function renderAutomations() {
   if (state.q) params.set('q', state.q);
   if (state.status) params.set('status', state.status);
 
-  const res = await fetch(`/api/messages?${params}`);
+  const res = await apiFetch(`/api/messages?${params}`);
   const data = await res.json();
   state.totalPages = data.totalPages || 1;
   renderKpis(data.summary || {});
@@ -471,7 +485,7 @@ async function renderAutomations() {
   let enrollments = [];
   let sequence = null;
   try {
-    const enr = await fetch(
+    const enr = await apiFetch(
       `/api/enrollments?category=${encodeURIComponent(category.id)}&pageSize=100`
     ).then((r) => r.json());
     enrollments = enr.enrollments || [];
@@ -481,7 +495,7 @@ async function renderAutomations() {
 
   if (category.id === 'quote-requests' || category.id === 'appointment-reminders') {
     try {
-      const seqRes = await fetch(`/api/automations/${category.id}`).then((r) => r.json());
+      const seqRes = await apiFetch(`/api/automations/${category.id}`).then((r) => r.json());
       sequence = seqRes.sequence || null;
     } catch {
       sequence = null;
@@ -626,7 +640,7 @@ async function renderMessaging() {
   if (state.q) params.set('q', state.q);
   if (state.unreadOnly) params.set('unread', '1');
 
-  const listRes = await fetch(`/api/conversations?${params}`);
+  const listRes = await apiFetch(`/api/conversations?${params}`);
   const list = await listRes.json();
   state.totalPages = list.totalPages || 1;
   renderPager(list);
@@ -652,17 +666,17 @@ async function renderMessaging() {
   let voiceCalls = [];
   if (state.conversationPhone) {
     const [detail, callsRes] = await Promise.all([
-      fetch(`/api/conversations/${encodeURIComponent(state.conversationPhone)}`).then((r) =>
+      apiFetch(`/api/conversations/${encodeURIComponent(state.conversationPhone)}`).then((r) =>
         r.json()
       ),
-      fetch(`/api/conversations/${encodeURIComponent(state.conversationPhone)}/calls`).then((r) =>
+      apiFetch(`/api/conversations/${encodeURIComponent(state.conversationPhone)}/calls`).then((r) =>
         r.json()
       ),
     ]);
     thread = detail.conversation || null;
     voiceCalls = Array.isArray(callsRes?.calls) ? callsRes.calls : [];
     if (thread?.unreadCount) {
-      await fetch(`/api/conversations/${encodeURIComponent(state.conversationPhone)}/read`, {
+      await apiFetch(`/api/conversations/${encodeURIComponent(state.conversationPhone)}/read`, {
         method: 'POST',
       });
       thread.unreadCount = 0;
@@ -808,7 +822,7 @@ async function renderMessaging() {
     const paused = Boolean(thread?.aiPausedAt);
     const path = paused ? 'resume' : 'pause';
     try {
-      const res = await fetch(
+      const res = await apiFetch(
         `/api/conversations/${encodeURIComponent(state.conversationPhone)}/ai/${path}`,
         {
           method: 'POST',
@@ -842,7 +856,7 @@ async function renderMessaging() {
     if (!body || !state.conversationPhone) return;
     hint.textContent = 'Sending…';
     try {
-      const res = await fetch(
+      const res = await apiFetch(
         `/api/conversations/${encodeURIComponent(state.conversationPhone)}/reply`,
         {
           method: 'POST',
@@ -876,7 +890,7 @@ async function renderMessages() {
   if (state.q) params.set('q', state.q);
   if (state.status) params.set('status', state.status);
 
-  const res = await fetch(`/api/messages?${params}`);
+  const res = await apiFetch(`/api/messages?${params}`);
   const data = await res.json();
   state.totalPages = data.totalPages || 1;
   renderKpis(data.summary || {});
@@ -905,7 +919,7 @@ async function renderContacts() {
   if (state.sourceFilter) params.set('source', state.sourceFilter);
   if (state.consentedOnly) params.set('consented', '1');
 
-  const res = await fetch(`/api/directory?${params}`);
+  const res = await apiFetch(`/api/directory?${params}`);
   const data = await res.json();
   state.totalPages = data.totalPages || 1;
   renderPager(data);
@@ -1088,7 +1102,7 @@ async function renderContacts() {
       if (!phone || !categoryId) return;
       btn.disabled = true;
       try {
-        const res = await fetch('/api/directory/enroll', {
+        const res = await apiFetch('/api/directory/enroll', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({
@@ -1178,7 +1192,7 @@ function openMessageComposer({ phone, name }) {
     sendBtn.disabled = true;
     hint.textContent = 'Sending…';
     try {
-      const res = await fetch('/api/directory/message', {
+      const res = await apiFetch('/api/directory/message', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ phone, body: text, categoryId, name: name || null }),
@@ -1213,7 +1227,7 @@ function bindUnenrollButtons() {
       if (!confirm('Remove this contact from the automation group?')) return;
       btn.disabled = true;
       try {
-        const res = await fetch('/api/directory/unenroll', {
+        const res = await apiFetch('/api/directory/unenroll', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({ phone, categoryId, enrollmentId }),
@@ -1237,7 +1251,7 @@ async function renderLocalContacts() {
   if (state.q) params.set('q', state.q);
   if (state.contactStatus) params.set('status', state.contactStatus);
 
-  const res = await fetch(`/api/contacts?${params}`);
+  const res = await apiFetch(`/api/contacts?${params}`);
   const data = await res.json();
   state.totalPages = data.totalPages || 1;
   renderPager(data);
@@ -1337,7 +1351,7 @@ async function renderOptOuts() {
   });
   if (state.q) params.set('q', state.q);
 
-  const res = await fetch(`/api/opt-outs?${params}`);
+  const res = await apiFetch(`/api/opt-outs?${params}`);
   const data = await res.json();
   state.totalPages = data.totalPages || 1;
   renderPager(data);
@@ -1399,7 +1413,7 @@ async function renderOptOuts() {
     btn.addEventListener('click', async (e) => {
       e.stopPropagation();
       const phone = btn.getAttribute('data-opt-in');
-      await fetch(`/api/contacts/${encodeURIComponent(phone)}/opt-in`, { method: 'POST' });
+      await apiFetch(`/api/contacts/${encodeURIComponent(phone)}/opt-in`, { method: 'POST' });
       await load();
     });
   });
@@ -1449,7 +1463,7 @@ async function renderDeliverability() {
   el.pager.hidden = true;
   el.status.disabled = true;
 
-  const res = await fetch('/api/deliverability');
+  const res = await apiFetch('/api/deliverability');
   const data = await res.json();
   renderKpis(data);
   el.storeMeta.textContent = `${fmt(data.total)} messages tracked`;
@@ -1661,14 +1675,14 @@ function openDrawer(title, html) {
   el.drawerBody.querySelector('#drawer-opt-in')?.addEventListener('click', async () => {
     const phone = el.drawerBody.querySelector('.kv .v')?.textContent;
     if (!phone) return;
-    await fetch(`/api/contacts/${encodeURIComponent(phone)}/opt-in`, { method: 'POST' });
+    await apiFetch(`/api/contacts/${encodeURIComponent(phone)}/opt-in`, { method: 'POST' });
     closeDrawer();
     await load();
   });
   el.drawerBody.querySelector('#drawer-opt-out')?.addEventListener('click', async () => {
     const phone = el.drawerBody.querySelector('.kv .v')?.textContent;
     if (!phone) return;
-    await fetch(`/api/contacts/${encodeURIComponent(phone)}/opt-out`, { method: 'POST' });
+    await apiFetch(`/api/contacts/${encodeURIComponent(phone)}/opt-out`, { method: 'POST' });
     closeDrawer();
     await load();
   });
@@ -1804,8 +1818,53 @@ function esc(value) {
     .replaceAll("'", '&#39;');
 }
 
-load();
-connectLive();
+async function forceLogin(message = '') {
+  renderLoginScreen({
+    errorMessage: message,
+    onSuccess: async () => {
+      updateAuthChrome();
+      await load();
+      connectLive();
+    },
+  });
+}
+
+function updateAuthChrome() {
+  const emailEl = document.getElementById('auth-email');
+  const email = getSession()?.user?.email || '';
+  if (emailEl) emailEl.textContent = email;
+}
+
+document.getElementById('sign-out-btn')?.addEventListener('click', async () => {
+  await signOut();
+  await forceLogin('');
+});
+
+async function boot() {
+  try {
+    await initAuth();
+    const token = getAccessToken();
+    if (!token) {
+      await forceLogin('');
+      return;
+    }
+    const me = await apiFetch('/api/auth/me');
+    if (!me.ok) {
+      await signOut();
+      await forceLogin('This account is not invited to the SMS CRM.');
+      return;
+    }
+    showCrmApp();
+    updateAuthChrome();
+    await load();
+    connectLive();
+  } catch (err) {
+    console.error(err);
+    await forceLogin(err.message || 'Auth failed to start');
+  }
+}
+
+boot();
 
 function setLiveStatus(online, label) {
   const pill = document.getElementById('live-pill');
@@ -1862,7 +1921,14 @@ function connectLive() {
   };
 
   const open = () => {
-    ws = new WebSocket(`${proto}//${location.host}/ws`);
+    const token = getAccessToken();
+    if (!token) {
+      setLiveStatus(false, 'Sign in required');
+      return;
+    }
+    ws = new WebSocket(
+      `${proto}//${location.host}/ws?access_token=${encodeURIComponent(token)}`
+    );
     ws.addEventListener('open', () => {
       retryMs = 1000;
       setLiveStatus(true, 'Live');

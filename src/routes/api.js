@@ -27,6 +27,12 @@ import {
 } from '../lib/supabaseContacts.js';
 import { isSupabaseConfigured } from '../lib/supabase.js';
 import { requireApiKey } from '../lib/apiAuth.js';
+import {
+  getSupabaseAnonKey,
+  inviteCrmUser,
+  isCrmAuthConfigured,
+  requireCrmAuth,
+} from '../lib/crmAuth.js';
 import { getAiConfig, isAiConfigured } from '../lib/ai/client.js';
 import { checkEligibility } from '../lib/ai/agent.js';
 import {
@@ -45,6 +51,57 @@ import {
 } from '../lib/elevenlabsConversations.js';
 
 export const apiRouter = Router();
+
+/** Public: frontend needs URL + anon key to start Supabase Auth. */
+apiRouter.get('/auth/config', (_req, res) => {
+  const url = String(process.env.SUPABASE_URL || '').trim();
+  const anonKey = getSupabaseAnonKey();
+  res.json({
+    configured: Boolean(url && anonKey),
+    supabaseUrl: url || null,
+    supabaseAnonKey: anonKey || null,
+  });
+});
+
+apiRouter.get('/auth/me', requireCrmAuth, (req, res) => {
+  res.json({
+    user: {
+      id: req.crmUser.userId,
+      email: req.crmUser.email,
+    },
+  });
+});
+
+/**
+ * Invite-only registration: add email to crm_admins and send Supabase invite.
+ * Requires an existing CRM session.
+ */
+apiRouter.post('/auth/invite', requireCrmAuth, async (req, res) => {
+  try {
+    const result = await inviteCrmUser(req.body?.email, {
+      invitedBy: req.crmUser.email,
+    });
+    res.status(201).json({ ok: true, ...result });
+  } catch (err) {
+    console.error('[opek-sms] invite failed', err);
+    res.status(err.status && err.status < 600 ? err.status : 500).json({
+      error: 'Invite failed',
+      detail: err.message || String(err),
+    });
+  }
+});
+
+/**
+ * Gate all CRM UI APIs behind invite-listed session.
+ * Server-to-server routes (/send, /internal/*) keep API-key auth only.
+ */
+apiRouter.use((req, res, next) => {
+  if (req.path === '/auth/config') return next();
+  if (req.path === '/send') return next();
+  if (req.path.startsWith('/internal/')) return next();
+  if (req.path === '/auth/me' || req.path === '/auth/invite') return next();
+  return requireCrmAuth(req, res, next);
+});
 
 /**
  * Transactional outbound SMS (quotes, booking updates, etc.).

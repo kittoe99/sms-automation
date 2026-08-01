@@ -171,10 +171,80 @@ textarea::placeholder {
 }
 
 .sidebar-foot {
-  padding: 10px 8px;
+  margin-top: auto;
+  padding: 10px 8px 14px;
   font-size: 0.75rem;
   color: var(--muted);
   border-top: 1px solid var(--border);
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+.auth-foot {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  align-items: stretch;
+}
+.auth-foot #auth-email {
+  font-size: 0.75rem;
+  word-break: break-all;
+  color: var(--muted);
+}
+.login-shell {
+  min-height: 100vh;
+  display: grid;
+  place-items: center;
+  padding: 24px;
+  background:
+    radial-gradient(900px 480px at 15% -10%, rgba(255, 0, 110, 0.18), transparent 55%),
+    radial-gradient(700px 420px at 90% 10%, rgba(94, 184, 255, 0.12), transparent 50%),
+    var(--bg);
+}
+.login-card {
+  width: min(420px, 100%);
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: 18px;
+  padding: 28px 24px 22px;
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+.login-brand {
+  display: flex;
+  align-items: baseline;
+  gap: 8px;
+  margin-bottom: 4px;
+}
+.login-card h1 {
+  margin: 0;
+  font-family: "Instrument Sans", "DM Sans", sans-serif;
+  font-size: 1.55rem;
+}
+.login-card label {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  font-size: 0.82rem;
+  color: var(--muted);
+}
+.login-card input {
+  border: 1px solid var(--border);
+  background: var(--surface-2);
+  border-radius: 10px;
+  padding: 10px 12px;
+  color: var(--text);
+}
+.login-error {
+  min-height: 1.2em;
+  margin: 0;
+  color: var(--bad);
+  font-size: 0.85rem;
+}
+.login-foot {
+  margin: 4px 0 0;
+  font-size: 0.78rem;
 }
 
 .workspace {

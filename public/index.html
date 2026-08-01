@@ -13,7 +13,8 @@
     <link rel="stylesheet" href="/styles.css" />
   </head>
   <body>
-    <div class="crm">
+    <div id="auth-root" hidden></div>
+    <div class="crm" id="crm-app" hidden>
       <aside class="sidebar">
         <div class="sidebar-brand">
           <span class="logo">Opek</span>
@@ -37,6 +38,10 @@
 
         <div class="sidebar-foot">
           <span id="store-meta">Tracking outbound SMS at scale</span>
+          <div class="auth-foot">
+            <span id="auth-email" class="muted"></span>
+            <button type="button" class="btn ghost" id="sign-out-btn">Sign out</button>
+          </div>
         </div>
       </aside>
 

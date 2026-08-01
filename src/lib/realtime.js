@@ -7,6 +7,7 @@
 
 import { WebSocketServer } from 'ws';
 import { getSupabaseAdmin, isSupabaseConfigured } from './supabase.js';
+import { verifyCrmAccessToken } from './crmAuth.js';
 
 /** @type {Set<import('ws').WebSocket>} */
 const clients = new Set();
@@ -35,7 +36,22 @@ export function attachRealtime(server) {
   started = true;
 
   const wss = new WebSocketServer({ server, path: '/ws' });
-  wss.on('connection', (ws) => {
+  wss.on('connection', async (ws, req) => {
+    try {
+      const url = new URL(req.url || '/ws', 'http://localhost');
+      const token = String(url.searchParams.get('access_token') || '').trim();
+      const user = token ? await verifyCrmAccessToken(token) : null;
+      if (!user) {
+        ws.close(4401, 'Unauthorized');
+        return;
+      }
+      ws.crmUser = user;
+    } catch (err) {
+      console.warn('[opek-sms] ws auth failed', err.message);
+      ws.close(4401, 'Unauthorized');
+      return;
+    }
+
     clients.add(ws);
     ws.send(
       JSON.stringify({
@@ -59,7 +75,7 @@ export function attachRealtime(server) {
   });
 
   startSupabaseBridge();
-  console.log('[opek-sms] websocket hub on /ws');
+  console.log('[opek-sms] websocket hub on /ws (CRM auth required)');
 }
 
 function startSupabaseBridge() {
