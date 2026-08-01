@@ -249,7 +249,7 @@ export async function listVoiceConversationsForPhone(phone, { limit = 50 } = {})
   const { data, error } = await getSupabaseAdmin()
     .from('sms_voice_conversations')
     .select(
-      'conversation_id, agent_id, call_sid, status, phone, direction, started_at, ended_at, duration_secs, call_successful, summary, created_at, updated_at'
+      'conversation_id, agent_id, call_sid, status, phone, direction, started_at, ended_at, duration_secs, call_successful, summary, transcript, created_at, updated_at'
     )
     .ilike('phone_digits', `%${digits}`)
     .order('started_at', { ascending: false, nullsFirst: false })

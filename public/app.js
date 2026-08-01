@@ -649,11 +649,18 @@ async function renderMessaging() {
   }
 
   let thread = null;
+  let voiceCalls = [];
   if (state.conversationPhone) {
-    const detail = await fetch(
-      `/api/conversations/${encodeURIComponent(state.conversationPhone)}`
-    ).then((r) => r.json());
+    const [detail, callsRes] = await Promise.all([
+      fetch(`/api/conversations/${encodeURIComponent(state.conversationPhone)}`).then((r) =>
+        r.json()
+      ),
+      fetch(`/api/conversations/${encodeURIComponent(state.conversationPhone)}/calls`).then((r) =>
+        r.json()
+      ),
+    ]);
     thread = detail.conversation || null;
+    voiceCalls = Array.isArray(callsRes?.calls) ? callsRes.calls : [];
     if (thread?.unreadCount) {
       await fetch(`/api/conversations/${encodeURIComponent(state.conversationPhone)}/read`, {
         method: 'POST',
@@ -761,6 +768,7 @@ async function renderMessaging() {
               )
               .join('') || `<div class="empty">No messages in this thread.</div>`}
           </div>
+          ${voiceCallsPanel(voiceCalls)}
           <form class="reply-box" id="reply-form">
             <textarea id="reply-body" rows="2" placeholder="${
               thread.optedOut ? 'Contact opted out — opt in before sending' : 'Reply via SMS…'
@@ -1714,6 +1722,77 @@ function fmtTimeShort(iso) {
   } catch {
     return iso;
   }
+}
+
+function fmtDuration(secs) {
+  const n = Number(secs);
+  if (!Number.isFinite(n) || n < 0) return '';
+  const m = Math.floor(n / 60);
+  const s = Math.round(n % 60);
+  if (m <= 0) return `${s}s`;
+  return `${m}m ${s}s`;
+}
+
+function voiceCallsPanel(calls) {
+  const list = Array.isArray(calls) ? calls : [];
+  if (!list.length) {
+    return `
+      <details class="calls-panel">
+        <summary>Voice calls <span class="muted">0</span></summary>
+        <div class="empty calls-empty">No stored calls for this number yet.</div>
+      </details>`;
+  }
+
+  return `
+    <details class="calls-panel" open>
+      <summary>Voice calls <span class="muted">${fmt(list.length)}</span></summary>
+      <div class="calls-list">
+        ${list
+          .map((c) => {
+            const status = c.status || 'unknown';
+            const dir = c.direction || 'outbound';
+            const when = fmtTime(c.started_at || c.created_at);
+            const dur = fmtDuration(c.duration_secs);
+            const success = c.call_successful ? ` · ${c.call_successful}` : '';
+            const turns = Array.isArray(c.transcript) ? c.transcript : [];
+            const transcriptHtml = turns.length
+              ? turns
+                  .map((t) => {
+                    const role = String(t.role || t.speaker || 'unknown');
+                    const text = t.message || t.text || t.content || '';
+                    if (!text) return '';
+                    return `<div class="call-turn"><span class="muted">${esc(
+                      role
+                    )}</span> ${esc(text)}</div>`;
+                  })
+                  .filter(Boolean)
+                  .join('')
+              : `<div class="muted">No transcript yet${
+                  status === 'pending' ? ' (call in progress or awaiting webhook)' : ''
+                }.</div>`;
+
+            return `
+          <details class="call-item">
+            <summary>
+              <span class="call-item-main">
+                <strong>${esc(dir)}</strong>
+                <span class="status ${esc(status)}">${esc(status)}</span>
+                ${dur ? `<span class="muted">${esc(dur)}</span>` : ''}
+                <span class="muted">${esc(success)}</span>
+              </span>
+              <span class="muted call-item-when">${esc(when)}</span>
+            </summary>
+            ${
+              c.summary
+                ? `<p class="call-summary">${esc(c.summary)}</p>`
+                : ''
+            }
+            <div class="call-transcript">${transcriptHtml}</div>
+          </details>`;
+          })
+          .join('')}
+      </div>
+    </details>`;
 }
 
 function esc(value) {
