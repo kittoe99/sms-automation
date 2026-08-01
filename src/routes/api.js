@@ -30,6 +30,7 @@ import { requireApiKey } from '../lib/apiAuth.js';
 import { getAiConfig, isAiConfigured } from '../lib/ai/client.js';
 import { checkEligibility } from '../lib/ai/agent.js';
 import {
+  getElevenLabsOutboundConfig,
   getOutboundPromptPresets,
   isElevenLabsOutboundConfigured,
   placeOutboundFollowUpCall,
@@ -37,6 +38,11 @@ import {
 import { runAutomationTick } from '../lib/automations/runner.js';
 import { QUOTE_REQUESTS_SEQUENCE } from '../lib/automations/quoteRequestsSequence.js';
 import { APPOINTMENT_REMINDERS_SEQUENCE } from '../lib/automations/appointmentRemindersSequence.js';
+import {
+  listVoiceConversationsForPhone,
+  recordPendingOutboundCall,
+  syncConversations,
+} from '../lib/elevenlabsConversations.js';
 
 export const apiRouter = Router();
 
@@ -157,6 +163,32 @@ apiRouter.post('/internal/automation-tick', requireApiKey, async (req, res) => {
   } catch (err) {
     console.error('[opek-sms] automation tick failed', err);
     res.status(500).json({ error: 'Automation tick failed', detail: err.message || String(err) });
+  }
+});
+
+/**
+ * Pull ElevenLabs conversations into sms_voice_conversations. Requires OPEK_SMS_API_KEY.
+ */
+apiRouter.post('/internal/voice-sync', requireApiKey, async (req, res) => {
+  try {
+    const agentId =
+      req.body?.agentId ||
+      getElevenLabsOutboundConfig().agentId ||
+      'agent_7801kwfn9rkcey5rn1wsrjdpnvvn';
+    const sinceUnix =
+      req.body?.sinceUnix != null ? Number(req.body.sinceUnix) : null;
+    const maxPages =
+      req.body?.maxPages != null ? Number(req.body.maxPages) : 20;
+    const summary = await syncConversations({
+      agentId,
+      sinceUnix: Number.isFinite(sinceUnix) ? sinceUnix : null,
+      maxPages: Number.isFinite(maxPages) ? maxPages : 20,
+    });
+    console.log('[opek-sms] voice sync', summary);
+    res.json({ ok: true, summary });
+  } catch (err) {
+    console.error('[opek-sms] voice sync failed', err);
+    res.status(500).json({ error: 'Voice sync failed', detail: err.message || String(err) });
   }
 });
 
@@ -367,6 +399,21 @@ apiRouter.get('/conversations/:phone', async (req, res) => {
   res.json({ conversation });
 });
 
+apiRouter.get('/conversations/:phone/calls', async (req, res) => {
+  try {
+    const calls = await listVoiceConversationsForPhone(req.params.phone, {
+      limit: req.query.pageSize || req.query.limit || 50,
+    });
+    res.json({ calls, total: calls.length });
+  } catch (err) {
+    console.error('[opek-sms] list voice calls failed', err);
+    res.status(500).json({
+      error: 'Failed to list voice calls',
+      detail: err.message || String(err),
+    });
+  }
+});
+
 apiRouter.post('/conversations/:phone/read', async (req, res) => {
   const conversation = await markConversationRead(req.params.phone);
   if (!conversation) return res.status(404).json({ error: 'Conversation not found' });
@@ -431,6 +478,15 @@ apiRouter.post('/conversations/:phone/call', async (req, res) => {
       firstMessage: req.body?.firstMessage || null,
       includeSmsHistory,
     });
+
+    if (result?.conversationId) {
+      await recordPendingOutboundCall({
+        conversationId: result.conversationId,
+        phone: result.to || phone,
+        callSid: result.callSid || null,
+        agentId: result.agentId || null,
+      });
+    }
 
     // SMS AI stays active unless the caller explicitly requests pauseAi: true
     // (manual Pause AI in Messaging is the normal control).

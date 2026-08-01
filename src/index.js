@@ -7,6 +7,7 @@ import { fileURLToPath } from 'node:url';
 import twilio from 'twilio';
 import { healthRouter } from './routes/health.js';
 import { webhooksRouter } from './routes/webhooks.js';
+import { elevenLabsWebhooksRouter } from './routes/elevenLabsWebhooks.js';
 import { apiRouter } from './routes/api.js';
 import { attachRealtime } from './lib/realtime.js';
 
@@ -17,11 +18,20 @@ const app = express();
 const port = Number(process.env.PORT || 8080);
 
 app.use(express.urlencoded({ extended: false }));
-app.use(express.json());
+app.use(
+  express.json({
+    verify: (req, _res, buf) => {
+      if (req.originalUrl?.startsWith('/webhooks/elevenlabs')) {
+        req.rawBody = buf.toString('utf8');
+      }
+    },
+  })
+);
 
 app.use(healthRouter);
 app.use('/api', apiRouter);
 app.use('/webhooks/twilio', webhooksRouter);
+app.use('/webhooks/elevenlabs', elevenLabsWebhooksRouter);
 app.use(express.static(publicDir));
 
 app.get('*', (req, res, next) => {
