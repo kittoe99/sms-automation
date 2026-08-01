@@ -250,10 +250,6 @@ async function renderCall() {
             <input type="checkbox" id="call-include-sms" checked />
             Include SMS history + CRM context
           </label>
-          <label class="check">
-            <input type="checkbox" id="call-pause-ai" checked />
-            Pause SMS AI for this contact
-          </label>
         </div>
 
         <div class="compose-actions">
@@ -330,7 +326,7 @@ async function renderCall() {
           systemPrompt,
           firstMessage: firstMessageVal || null,
           includeSmsHistory: Boolean(el.root.querySelector('#call-include-sms')?.checked),
-          pauseAi: Boolean(el.root.querySelector('#call-pause-ai')?.checked),
+          pauseAi: false,
         }),
       });
       const json = await res.json();

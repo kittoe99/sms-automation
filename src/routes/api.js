@@ -402,6 +402,7 @@ apiRouter.post('/conversations/:phone/reply', async (req, res) => {
 /**
  * Trigger ElevenLabs outbound call with SMS thread + CRM context for follow-up/close.
  * Optional body: name, systemPrompt, firstMessage, includeSmsHistory, pauseAi
+ * pauseAi defaults to false — SMS AI stays on unless explicitly paused.
  */
 apiRouter.post('/conversations/:phone/call', async (req, res) => {
   const phone = req.params.phone;
@@ -431,8 +432,9 @@ apiRouter.post('/conversations/:phone/call', async (req, res) => {
       includeSmsHistory,
     });
 
-    // Pause SMS AI so voice agent owns the thread during/after the call
-    const pauseAi = req.body?.pauseAi !== false;
+    // SMS AI stays active unless the caller explicitly requests pauseAi: true
+    // (manual Pause AI in Messaging is the normal control).
+    const pauseAi = req.body?.pauseAi === true;
     let contact = null;
     if (pauseAi) {
       contact = await setAiPaused(phone, true, 'outbound_call');
@@ -441,7 +443,7 @@ apiRouter.post('/conversations/:phone/call', async (req, res) => {
     res.status(201).json({
       call: result,
       contact,
-      aiPaused: Boolean(pauseAi),
+      aiPaused: Boolean(pauseAi && contact),
     });
   } catch (err) {
     console.error('[opek-sms] outbound call failed', err);
