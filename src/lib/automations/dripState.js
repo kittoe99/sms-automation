@@ -22,6 +22,8 @@ export function needsQuoteRequestDripSeed(enrollment) {
   const drip = getDrip(enrollment);
   if (!drip) return true;
   if (drip.sequenceId !== QUOTE_REQUESTS_SEQUENCE_ID) return true;
+  // Completed / finished drips on an enrolled row (e.g. after re-enroll) must restart.
+  if (drip.status && drip.status !== 'active' && drip.status !== 'paused') return true;
   if (!drip.nextSendAt && (drip.status === 'active' || drip.status === 'paused')) return true;
   return false;
 }
@@ -29,8 +31,15 @@ export function needsQuoteRequestDripSeed(enrollment) {
 export function seedDripOnEnrollment(enrollment) {
   const enrolledAt = enrollment?.enrolled_at || new Date().toISOString();
   const seeded = initialDripMetadata(enrolledAt);
+  const prev =
+    enrollment.metadata && typeof enrollment.metadata === 'object' ? { ...enrollment.metadata } : {};
+  // Drop prior removal / completion flags so re-enroll is a clean start.
+  delete prev.removedReason;
+  delete prev.removedByBookingId;
+  delete prev.removedBySource;
+  delete prev.drip;
   return {
-    ...(enrollment.metadata && typeof enrollment.metadata === 'object' ? enrollment.metadata : {}),
+    ...prev,
     ...seeded,
   };
 }

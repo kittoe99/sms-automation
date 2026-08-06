@@ -21,6 +21,7 @@ export function needsAppointmentDripSeed(enrollment) {
   const drip = getAppointmentDrip(enrollment);
   if (!drip) return true;
   if (drip.sequenceId !== APPOINTMENT_REMINDERS_SEQUENCE_ID) return true;
+  if (drip.status && drip.status !== 'active' && drip.status !== 'paused') return true;
   if (!drip.nextSendAt && (drip.status === 'active' || drip.status === 'paused')) return true;
   return false;
 }
@@ -38,8 +39,14 @@ export function seedAppointmentDripOnEnrollment(enrollment, extras = {}) {
     serviceAddress: extras.serviceAddress || enrollment?.metadata?.serviceAddress || null,
     bookingId: extras.bookingId || enrollment?.record_id || enrollment?.metadata?.bookingId || null,
   });
+  const prev =
+    enrollment.metadata && typeof enrollment.metadata === 'object' ? { ...enrollment.metadata } : {};
+  delete prev.removedReason;
+  delete prev.removedByBookingId;
+  delete prev.removedBySource;
+  delete prev.drip;
   return {
-    ...(enrollment.metadata && typeof enrollment.metadata === 'object' ? enrollment.metadata : {}),
+    ...prev,
     ...seeded,
   };
 }
