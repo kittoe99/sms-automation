@@ -22,7 +22,7 @@ export function needsQuoteRequestDripSeed(enrollment) {
   const drip = getDrip(enrollment);
   if (!drip) return true;
   if (drip.sequenceId !== QUOTE_REQUESTS_SEQUENCE_ID) return true;
-  if (!drip.nextSendAt && drip.status === 'active') return true;
+  if (!drip.nextSendAt && (drip.status === 'active' || drip.status === 'paused')) return true;
   return false;
 }
 
@@ -56,7 +56,11 @@ export function mergeDrip(enrollment, dripPatch) {
 
 export function isDripDue(enrollment, now = new Date()) {
   const drip = getDrip(enrollment);
-  if (!drip || drip.status !== 'active') return false;
+  // Enrolled contacts keep receiving drips unless removed from the group.
+  // Ignore historical "paused" flags — never auto-block.
+  if (!drip || (drip.status && drip.status !== 'active' && drip.status !== 'paused')) {
+    return false;
+  }
   if (drip.nextSendAt == null) return false;
   const next = new Date(drip.nextSendAt);
   if (Number.isNaN(next.getTime())) return false;
@@ -111,9 +115,10 @@ export function advanceAfterSend(enrollment, sentAt = new Date()) {
   };
 }
 
-export function pauseDripMetadata(enrollment, reason = 'inbound_reply') {
+/** @deprecated No-op — drips are never auto-paused. Kept for import compatibility. */
+export function pauseDripMetadata(enrollment, _reason = 'inbound_reply') {
   return mergeDrip(enrollment, {
-    status: 'paused',
-    pauseReason: reason,
+    status: 'active',
+    pauseReason: null,
   });
 }

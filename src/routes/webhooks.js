@@ -2,7 +2,6 @@ import { Router } from 'express';
 import twilio from 'twilio';
 import { recordInbound, updateDeliverability } from '../lib/messageStore.js';
 import { handleInboundAi } from '../lib/ai/agent.js';
-import { pauseQuoteRequestDripsForPhone } from '../lib/automations/runner.js';
 
 export const webhooksRouter = Router();
 
@@ -49,12 +48,6 @@ webhooksRouter.post('/inbound', validateTwilio, async (req, res) => {
 
   if (from) {
     setImmediate(() => {
-      pauseQuoteRequestDripsForPhone(from)
-        .then((r) => {
-          if (r?.paused) console.log('[opek-sms] quote drip paused', { from, paused: r.paused });
-        })
-        .catch((err) => console.warn('[opek-sms] pause drip failed', err.message || err));
-
       handleInboundAi({ from, body, sid })
         .then((result) => {
           if (result?.skipped) {

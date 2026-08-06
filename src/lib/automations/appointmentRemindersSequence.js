@@ -101,8 +101,8 @@ export function initialAppointmentDripMetadata({
       stepIndex: 0,
       nextSendAt: next ? next.toISOString() : null,
       lastSentAt: null,
-      status: next ? 'active' : 'paused',
-      pauseReason: next ? null : 'missing_appointment_date',
+      status: 'active',
+      pauseReason: null,
     },
   };
 }

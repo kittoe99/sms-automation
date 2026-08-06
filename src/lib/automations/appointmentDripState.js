@@ -21,7 +21,7 @@ export function needsAppointmentDripSeed(enrollment) {
   const drip = getAppointmentDrip(enrollment);
   if (!drip) return true;
   if (drip.sequenceId !== APPOINTMENT_REMINDERS_SEQUENCE_ID) return true;
-  if (!drip.nextSendAt && drip.status === 'active') return true;
+  if (!drip.nextSendAt && (drip.status === 'active' || drip.status === 'paused')) return true;
   return false;
 }
 
@@ -70,7 +70,10 @@ export function mergeAppointmentDrip(enrollment, dripPatch, extras = {}) {
 
 export function isAppointmentDripDue(enrollment, now = new Date()) {
   const drip = getAppointmentDrip(enrollment);
-  if (!drip || drip.status !== 'active') return false;
+  // Enrolled contacts keep receiving reminders unless removed from the group.
+  if (!drip || (drip.status && drip.status !== 'active' && drip.status !== 'paused')) {
+    return false;
+  }
   if (drip.nextSendAt == null) return false;
   const next = new Date(drip.nextSendAt);
   if (Number.isNaN(next.getTime())) return false;
@@ -96,9 +99,9 @@ export function rescheduleAppointmentDrip(enrollment, preferredDate, now = new D
   return mergeAppointmentDrip(
     enrollment,
     {
-      status: next ? 'active' : 'paused',
+      status: 'active',
       nextSendAt: next ? next.toISOString() : null,
-      pauseReason: next ? null : 'missing_appointment_date',
+      pauseReason: null,
       stepIndex: 0,
     },
     { appointmentDate: preferredDate }

@@ -164,11 +164,8 @@ async function processDueQuoteEnrollment(enrollment, now) {
 
   const to = toE164(enrollment.phone);
   if (await isOptedOut(to || enrollment.phone)) {
-    await completeAndRemove(enrollment, now, {
-      status: 'completed',
-      pauseReason: 'opted_out',
-    });
-    return { completed: true, skipped: true };
+    // Keep them enrolled — STOP only blocks sends until they opt back in.
+    return { skipped: true };
   }
 
   const previousNextSendAt = drip.nextSendAt || null;
@@ -219,11 +216,8 @@ async function processDueAppointmentEnrollment(enrollment, now) {
 
   const to = toE164(enrollment.phone);
   if (await isOptedOut(to || enrollment.phone)) {
-    await completeAndRemove(enrollment, now, {
-      status: 'completed',
-      pauseReason: 'opted_out',
-    });
-    return { completed: true, skipped: true };
+    // Keep them enrolled — STOP only blocks sends until they opt back in.
+    return { skipped: true };
   }
 
   const previousNextSendAt = drip.nextSendAt || null;
@@ -273,6 +267,8 @@ async function claimEnrollment(enrollment, now, stepIndex) {
     ...(enrollment.metadata || {}),
     drip: {
       ...drip,
+      status: 'active',
+      pauseReason: null,
       nextSendAt: claimUntil,
       claimAt: now.toISOString(),
     },
@@ -355,58 +351,9 @@ async function completeAndRemove(enrollment, now, dripPatch = {}) {
 }
 
 /**
- * Pause active quote-request drips for a phone after inbound reply.
- * Appointment reminders are transactional and are not paused on reply.
- * Do not pause drips that have never sent a message yet — otherwise an early
- * reply permanently blocks the entire sequence.
+ * Legacy no-op: automation drips are never auto-paused.
+ * Contacts stay on cadence until removed from the group (or sequence completes).
  */
-export async function pauseQuoteRequestDripsForPhone(phone) {
-  if (!isSupabaseConfigured() || !phone) return { paused: 0 };
-
-  const digits = String(phone).replace(/\D/g, '');
-  const last10 = digits.slice(-10);
-  if (last10.length < 10) return { paused: 0 };
-
-  const admin = getSupabaseAdmin();
-  const { data: rows, error } = await admin
-    .from('sms_automation_enrollments')
-    .select('*')
-    .eq('category_id', QUOTE_REQUESTS_CATEGORY_ID)
-    .eq('status', 'enrolled')
-    .ilike('phone_digits', `%${last10}`);
-
-  if (error) throw error;
-
-  let paused = 0;
-  const now = new Date().toISOString();
-  for (const row of rows || []) {
-    const drip = row.metadata?.drip;
-    if (!drip || drip.status !== 'active') continue;
-    // Still waiting for first drip SMS — keep sequence active.
-    if (!drip.lastSentAt) continue;
-    const metadata = {
-      ...(row.metadata || {}),
-      drip: {
-        ...drip,
-        status: 'paused',
-        pauseReason: 'inbound_reply',
-      },
-    };
-    const { data, error: updErr } = await admin
-      .from('sms_automation_enrollments')
-      .update({ metadata, updated_at: now })
-      .eq('id', row.id)
-      .eq('status', 'enrolled')
-      .select()
-      .maybeSingle();
-    if (updErr) {
-      console.warn('[opek-sms] pause drip failed', row.id, updErr.message);
-      continue;
-    }
-    if (data) {
-      paused += 1;
-      publish('enrollment', { event: 'update', record: data });
-    }
-  }
-  return { paused };
+export async function pauseQuoteRequestDripsForPhone(_phone) {
+  return { paused: 0 };
 }

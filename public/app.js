@@ -504,9 +504,9 @@ async function renderAutomations() {
 
   const cadenceNote =
     category.id === 'quote-requests'
-      ? 'Cadence: 1 text/day for 3 days, then 1 after 48h, 1 after another 48h, then 1 after 7 days. After the final send, the contact is removed. Customer replies pause the drip.'
+      ? 'Cadence: 1 text/day for 3 days, then 1 after 48h, 1 after another 48h, then 1 after 7 days. After the final send, the contact is removed. Replies do not pause or block this drip.'
       : category.id === 'appointment-reminders'
-        ? 'Sends one SMS ~24 hours before the appointment date, then removes the contact from this group. Auto-enrolls from bookings. Replies do not pause this reminder.'
+        ? 'Sends one SMS ~24 hours before the appointment date, then removes the contact from this group. Auto-enrolls from bookings. Replies do not pause or block this reminder.'
         : '';
 
   const sequenceHtml = sequence
