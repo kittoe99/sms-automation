@@ -6,6 +6,7 @@ import { getSupabaseAdmin, isSupabaseConfigured } from '../supabase.js';
 import { isOptedOut } from '../messageStore.js';
 import { sendSms } from '../twilioClient.js';
 import { publish } from '../realtime.js';
+import { toE164 } from '../supabaseContacts.js';
 import {
   QUOTE_REQUESTS_CATEGORY_ID,
   getQuoteRequestsStep,
@@ -161,7 +162,8 @@ async function processDueQuoteEnrollment(enrollment, now) {
     return { completed: true };
   }
 
-  if (await isOptedOut(enrollment.phone)) {
+  const to = toE164(enrollment.phone);
+  if (await isOptedOut(to || enrollment.phone)) {
     await completeAndRemove(enrollment, now, {
       status: 'completed',
       pauseReason: 'opted_out',
@@ -169,6 +171,7 @@ async function processDueQuoteEnrollment(enrollment, now) {
     return { completed: true, skipped: true };
   }
 
+  const previousNextSendAt = drip.nextSendAt || null;
   const claimed = await claimEnrollment(enrollment, now, stepIndex);
   if (!claimed) return { skipped: true };
 
@@ -177,19 +180,24 @@ async function processDueQuoteEnrollment(enrollment, now) {
     phone: enrollment.phone,
   });
 
-  await sendSms({
-    to: enrollment.phone,
-    body,
-    categoryId: QUOTE_REQUESTS_CATEGORY_ID,
-    contactName: enrollment.name || null,
-    meta: {
-      role: 'automation',
-      dripSequenceId: drip.sequenceId,
-      dripStepId: step.id,
-      dripStepIndex: stepIndex,
-      enrollmentId: enrollment.id,
-    },
-  });
+  try {
+    await sendSms({
+      to,
+      body,
+      categoryId: QUOTE_REQUESTS_CATEGORY_ID,
+      contactName: enrollment.name || null,
+      meta: {
+        role: 'automation',
+        dripSequenceId: drip.sequenceId,
+        dripStepId: step.id,
+        dripStepIndex: stepIndex,
+        enrollmentId: enrollment.id,
+      },
+    });
+  } catch (err) {
+    await restoreClaim(claimed, previousNextSendAt, now);
+    throw err;
+  }
 
   const advanced = advanceAfterSend(claimed, now);
   if (advanced.completed) {
@@ -209,7 +217,8 @@ async function processDueAppointmentEnrollment(enrollment, now) {
     return { completed: true };
   }
 
-  if (await isOptedOut(enrollment.phone)) {
+  const to = toE164(enrollment.phone);
+  if (await isOptedOut(to || enrollment.phone)) {
     await completeAndRemove(enrollment, now, {
       status: 'completed',
       pauseReason: 'opted_out',
@@ -217,6 +226,7 @@ async function processDueAppointmentEnrollment(enrollment, now) {
     return { completed: true, skipped: true };
   }
 
+  const previousNextSendAt = drip.nextSendAt || null;
   const claimed = await claimEnrollment(enrollment, now, 0);
   if (!claimed) return { skipped: true };
 
@@ -230,20 +240,25 @@ async function processDueAppointmentEnrollment(enrollment, now) {
     service_address: meta.serviceAddress,
   });
 
-  await sendSms({
-    to: enrollment.phone,
-    body,
-    categoryId: APPOINTMENT_REMINDERS_CATEGORY_ID,
-    contactName: enrollment.name || null,
-    meta: {
-      role: 'automation',
-      dripSequenceId: drip.sequenceId || 'appointment-reminders-v1',
-      dripStepId: step.id,
-      dripStepIndex: 0,
-      enrollmentId: enrollment.id,
-      bookingId: meta.bookingId || enrollment.record_id || null,
-    },
-  });
+  try {
+    await sendSms({
+      to,
+      body,
+      categoryId: APPOINTMENT_REMINDERS_CATEGORY_ID,
+      contactName: enrollment.name || null,
+      meta: {
+        role: 'automation',
+        dripSequenceId: drip.sequenceId || 'appointment-reminders-v1',
+        dripStepId: step.id,
+        dripStepIndex: 0,
+        enrollmentId: enrollment.id,
+        bookingId: meta.bookingId || enrollment.record_id || null,
+      },
+    });
+  } catch (err) {
+    await restoreClaim(claimed, previousNextSendAt, now);
+    throw err;
+  }
 
   const advanced = completeAppointmentAfterSend(claimed, now);
   await finishEnrollment(claimed, advanced.metadata, now);
@@ -277,6 +292,20 @@ async function claimEnrollment(enrollment, now, stepIndex) {
   const claimedDrip = claimed.metadata?.drip || {};
   if (Number(claimedDrip.stepIndex || 0) !== stepIndex) return null;
   return claimed;
+}
+
+/** Undo claim lock so a failed send can retry on the next tick. */
+async function restoreClaim(enrollment, previousNextSendAt, now) {
+  const drip = enrollment?.metadata?.drip || {};
+  const { claimAt: _claimAt, ...rest } = drip;
+  const metadata = {
+    ...(enrollment.metadata || {}),
+    drip: {
+      ...rest,
+      nextSendAt: previousNextSendAt,
+    },
+  };
+  await updateEnrollmentMetadata(enrollment.id, metadata, now);
 }
 
 async function updateEnrollmentMetadata(id, metadata, now) {
@@ -328,6 +357,8 @@ async function completeAndRemove(enrollment, now, dripPatch = {}) {
 /**
  * Pause active quote-request drips for a phone after inbound reply.
  * Appointment reminders are transactional and are not paused on reply.
+ * Do not pause drips that have never sent a message yet — otherwise an early
+ * reply permanently blocks the entire sequence.
  */
 export async function pauseQuoteRequestDripsForPhone(phone) {
   if (!isSupabaseConfigured() || !phone) return { paused: 0 };
@@ -351,6 +382,8 @@ export async function pauseQuoteRequestDripsForPhone(phone) {
   for (const row of rows || []) {
     const drip = row.metadata?.drip;
     if (!drip || drip.status !== 'active') continue;
+    // Still waiting for first drip SMS — keep sequence active.
+    if (!drip.lastSentAt) continue;
     const metadata = {
       ...(row.metadata || {}),
       drip: {

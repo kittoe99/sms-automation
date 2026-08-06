@@ -56,10 +56,13 @@ export async function sendSms({
   const messagingServiceSid = process.env.TWILIO_MESSAGING_SERVICE_SID;
   const from = process.env.TWILIO_FROM_NUMBER;
   const publicBase = (process.env.PUBLIC_BASE_URL || '').replace(/\/$/, '');
-  const callback =
+  const rawCallback =
     statusCallback ||
     process.env.TWILIO_STATUS_CALLBACK_URL ||
     (publicBase ? `${publicBase}/webhooks/twilio/status` : undefined);
+  // Twilio rejects non-public URLs (localhost/http). Skip callback rather than fail the send.
+  const callback =
+    rawCallback && /^https:\/\//i.test(String(rawCallback)) ? String(rawCallback) : undefined;
 
   const payload = { to, body };
   if (messagingServiceSid) {
