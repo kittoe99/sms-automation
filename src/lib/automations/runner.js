@@ -12,6 +12,7 @@ import {
   getQuoteRequestsStep,
   renderTemplate,
 } from './quoteRequestsSequence.js';
+import { loadCustomerBookingContext } from '../ai/customerContext.js';
 import {
   advanceAfterSend,
   isDripDue,
@@ -172,9 +173,11 @@ async function processDueQuoteEnrollment(enrollment, now) {
   const claimed = await claimEnrollment(enrollment, now, stepIndex);
   if (!claimed) return { skipped: true };
 
+  const quotedPrice = await resolveQuotedPrice(enrollment);
   const body = renderTemplate(step.template, {
     name: enrollment.name,
     phone: enrollment.phone,
+    quoted_price: quotedPrice,
   });
 
   try {
@@ -189,6 +192,7 @@ async function processDueQuoteEnrollment(enrollment, now) {
         dripStepId: step.id,
         dripStepIndex: stepIndex,
         enrollmentId: enrollment.id,
+        quotedPrice: quotedPrice || null,
       },
     });
   } catch (err) {
@@ -257,6 +261,28 @@ async function processDueAppointmentEnrollment(enrollment, now) {
   const advanced = completeAppointmentAfterSend(claimed, now);
   await finishEnrollment(claimed, advanced.metadata, now);
   return { sent: true, completed: true };
+}
+
+async function resolveQuotedPrice(enrollment) {
+  const meta = enrollment?.metadata || {};
+  const cached =
+    meta.quotedPrice ||
+    meta.quoted_price ||
+    meta.quoted_price_summary ||
+    meta.drip?.quotedPrice ||
+    null;
+  if (cached != null && String(cached).trim()) return cached;
+
+  try {
+    const ctx = await loadCustomerBookingContext(enrollment.phone);
+    const summary = ctx?.proposed?.quoted_price_summary || null;
+    if (summary) return summary;
+    const bd = ctx?.prebookings?.[0]?.booking_details;
+    if (bd?.price != null) return bd.price;
+  } catch (err) {
+    console.warn('[opek-sms] quote price lookup failed', err.message || err);
+  }
+  return null;
 }
 
 async function claimEnrollment(enrollment, now, stepIndex) {

@@ -22,7 +22,7 @@ export const QUOTE_REQUESTS_SEQUENCE = {
       label: 'Day 1 — 1 SMS, 24h after enroll',
       delayMs: 1 * DAY,
       template:
-        'Hi {{first_name}}, this is Opek following up on your quote — junk removal or local moving. Ready to lock in a date? Book here: https://opekjunkremoval.com/booking — Reply STOP to opt out.',
+        'Hi {{first_name}} — Opek here. Your quote is {{quoted_price}}. Ready to book? Reply with a day/time or book online: https://opekjunkremoval.com/booking Reply STOP to opt out.',
     },
     {
       index: 1,
@@ -30,7 +30,7 @@ export const QUOTE_REQUESTS_SEQUENCE = {
       label: 'Day 2 — 1 SMS, 24h after previous',
       delayMs: 1 * DAY,
       template:
-        'Hi {{first_name}}, still need a haul or moving help? We can usually schedule same-week. Grab a time: https://opekjunkremoval.com/booking or text us any questions. Reply STOP to opt out.',
+        '{{first_name}}, still want that {{quoted_price}} job done? Text a preferred day or book here: https://opekjunkremoval.com/booking Reply STOP to opt out.',
     },
     {
       index: 2,
@@ -38,7 +38,7 @@ export const QUOTE_REQUESTS_SEQUENCE = {
       label: 'Day 3 — 1 SMS, 24h after previous',
       delayMs: 1 * DAY,
       template:
-        '{{first_name}}, quick check-in from Opek — your estimate is still available for junk removal or moving. Book online https://opekjunkremoval.com/booking or reply with a good day/time. Reply STOP to opt out.',
+        'Quick reminder from Opek — your quote is {{quoted_price}}. Reply with a day/time to book, or schedule online: https://opekjunkremoval.com/booking Reply STOP to opt out.',
     },
     {
       index: 3,
@@ -46,7 +46,7 @@ export const QUOTE_REQUESTS_SEQUENCE = {
       label: '1 SMS, 48h after Day 3',
       delayMs: 2 * DAY,
       template:
-        'Hi {{first_name}}, Opek here. Want us to hold a preferred window for your junk removal or move? Reply with your ZIP + preferred day, or book: https://opekjunkremoval.com/booking Reply STOP to opt out.',
+        '{{first_name}}, we can lock in your {{quoted_price}} quote this week. Text a day/time or book: https://opekjunkremoval.com/booking Reply STOP to opt out.',
     },
     {
       index: 4,
@@ -54,7 +54,7 @@ export const QUOTE_REQUESTS_SEQUENCE = {
       label: '1 SMS, 48h after previous',
       delayMs: 2 * DAY,
       template:
-        '{{first_name}}, last few days of our quote follow-up — if the junk or moving job is still on your list, we can get a crew scheduled: https://opekjunkremoval.com/booking Reply STOP to opt out.',
+        'Last nudge — your Opek quote is still {{quoted_price}}. Text a day to schedule, or book now: https://opekjunkremoval.com/booking Reply STOP to opt out.',
     },
     {
       index: 5,
@@ -62,7 +62,7 @@ export const QUOTE_REQUESTS_SEQUENCE = {
       label: 'Final — 1 SMS, 7 days after previous',
       delayMs: 7 * DAY,
       template:
-        'Hi {{first_name}}, final note from Opek on your quote (junk removal or local moving). When you are ready: https://opekjunkremoval.com/booking or https://opekjunkremoval.com/quote — we are here to help. Reply STOP to opt out.',
+        'Final note from Opek: your quote is {{quoted_price}}. When you\'re ready, reply here or book: https://opekjunkremoval.com/booking Reply STOP to opt out.',
     },
   ],
 };
@@ -76,10 +76,28 @@ export function renderTemplate(template, vars = {}) {
     name: clean(vars.name) || 'there',
     first_name: clean(vars.first_name) || firstName(vars.name) || 'there',
     phone: clean(vars.phone) || '',
+    quoted_price: formatQuotedPrice(vars.quoted_price) || 'the estimate we sent you',
   };
-  return String(template || '').replace(/\{\{\s*(name|first_name|phone)\s*\}\}/gi, (_, key) => {
-    return map[String(key).toLowerCase()] ?? '';
-  });
+  return String(template || '').replace(
+    /\{\{\s*(name|first_name|phone|quoted_price)\s*\}\}/gi,
+    (_, key) => map[String(key).toLowerCase()] ?? ''
+  );
+}
+
+/** Normalize CRM price strings to a short SMS-friendly amount like "$169". */
+export function formatQuotedPrice(value) {
+  if (value == null || value === '') return null;
+  if (typeof value === 'number' && Number.isFinite(value)) {
+    return `$${Math.round(value)}`;
+  }
+  const raw = String(value).trim();
+  if (!raw) return null;
+  const match = raw.match(/\$?\s*([\d,]+(?:\.\d{1,2})?)/);
+  if (match) {
+    const n = Number(String(match[1]).replace(/,/g, ''));
+    if (Number.isFinite(n)) return `$${Math.round(n)}`;
+  }
+  return raw;
 }
 
 /**
