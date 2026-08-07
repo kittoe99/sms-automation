@@ -30,7 +30,7 @@ export const QUOTE_REQUESTS_SEQUENCE = {
       label: 'Day 2 — 1 SMS, 24h after previous',
       delayMs: 1 * DAY,
       template:
-        '{{first_name}}, still want that {{quoted_price}} job done? Text a preferred day or book here: https://opekjunkremoval.com/booking Reply STOP to opt out.',
+        '{{first_name}}, still interested in {{quoted_price}}? Text a preferred day or book here: https://opekjunkremoval.com/booking Reply STOP to opt out.',
     },
     {
       index: 2,
@@ -46,7 +46,7 @@ export const QUOTE_REQUESTS_SEQUENCE = {
       label: '1 SMS, 48h after Day 3',
       delayMs: 2 * DAY,
       template:
-        '{{first_name}}, we can lock in your {{quoted_price}} quote this week. Text a day/time or book: https://opekjunkremoval.com/booking Reply STOP to opt out.',
+        '{{first_name}}, we can lock in {{quoted_price}} this week. Text a day/time or book: https://opekjunkremoval.com/booking Reply STOP to opt out.',
     },
     {
       index: 4,
@@ -76,7 +76,8 @@ export function renderTemplate(template, vars = {}) {
     name: clean(vars.name) || 'there',
     first_name: clean(vars.first_name) || firstName(vars.name) || 'there',
     phone: clean(vars.phone) || '',
-    quoted_price: formatQuotedPrice(vars.quoted_price) || 'the estimate we sent you',
+    quoted_price:
+      formatQuotedPrice(vars.quoted_price, vars.service_type) || 'the estimate we sent you',
   };
   return String(template || '').replace(
     /\{\{\s*(name|first_name|phone|quoted_price)\s*\}\}/gi,
@@ -84,26 +85,77 @@ export function renderTemplate(template, vars = {}) {
   );
 }
 
-/** Normalize CRM price strings to a short SMS-friendly amount like "$169". */
-export function formatQuotedPrice(value) {
+/** True for Local Moving / Moving Labor (hourly) — never SMS a job total. */
+export function isMovingService(serviceType) {
+  const s = String(serviceType || '').toLowerCase();
+  if (!s) return false;
+  if (/\b(junk|cleanout|mattress|dumpster|disposal|hauling)\b/.test(s)) return false;
+  return /\b(moving|movers?|local\s*move)\b/.test(s);
+}
+
+/** Junk removal and other fixed / itemized totals. */
+export function isFixedPriceService(serviceType) {
+  const s = String(serviceType || '').toLowerCase();
+  if (!s) return false;
+  return /\b(junk|cleanout|mattress|dumpster|disposal|removal|haul)\b/.test(s);
+}
+
+function looksHourlyRateText(raw) {
+  return /\b(per\s*hour|hourly|\/\s*hr|helpers?|crew)\b/i.test(String(raw || ''));
+}
+
+function cleanMovingRatePhrase(raw) {
+  let s = String(raw || '').trim();
+  s = s.replace(/^(quoted\/?est\.?|quote|estimate|est\.?)\s*[:\-]?\s*/i, '');
+  s = s.replace(/\s+/g, ' ').trim();
+  return s || null;
+}
+
+/**
+ * Normalize CRM price strings for drip SMS.
+ * - Junk / fixed-price: short "$169" total (legacy behavior).
+ * - Moving: keep hourly CRM phrasing; never collapse to a bare job total like "$693".
+ */
+export function formatQuotedPrice(value, serviceType = null) {
   if (value == null || value === '') return null;
+
+  const moving =
+    isMovingService(serviceType) ||
+    (!isFixedPriceService(serviceType) && looksHourlyRateText(value));
+
+  if (moving) {
+    return formatMovingQuotedPrice(value);
+  }
+
   if (typeof value === 'number' && Number.isFinite(value)) {
-    return `$${Math.round(value)}`;
+    return '$' + Math.round(value);
   }
   const raw = String(value).trim();
   if (!raw) return null;
   const match = raw.match(/\$?\s*([\d,]+(?:\.\d{1,2})?)/);
   if (match) {
     const n = Number(String(match[1]).replace(/,/g, ''));
-    if (Number.isFinite(n)) return `$${Math.round(n)}`;
+    if (Number.isFinite(n)) return '$' + Math.round(n);
   }
   return raw;
 }
 
-/**
- * @param {number} stepIndex - step about to be sent (0-based)
- * @param {Date|string|number} fromDate - enroll time for step 0, else last send time
- */
+/** Moving-only: hourly phrase or generic — never a job total. */
+export function formatMovingQuotedPrice(value) {
+  if (value == null || value === '') return null;
+  if (typeof value === 'number' && Number.isFinite(value)) {
+    // Bare totals are not used for moving SMS.
+    return 'your hourly moving rate';
+  }
+  const raw = String(value).trim();
+  if (!raw) return null;
+  if (looksHourlyRateText(raw)) {
+    return cleanMovingRatePhrase(raw) || 'your hourly moving rate';
+  }
+  // CRM sometimes stores an estimated hours×rate total — do not surface it.
+  return 'your hourly moving rate';
+}
+
 export function computeNextSendAt(stepIndex, fromDate = new Date()) {
   const step = getQuoteRequestsStep(stepIndex);
   if (!step) return null;

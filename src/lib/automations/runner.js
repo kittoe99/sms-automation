@@ -173,11 +173,12 @@ async function processDueQuoteEnrollment(enrollment, now) {
   const claimed = await claimEnrollment(enrollment, now, stepIndex);
   if (!claimed) return { skipped: true };
 
-  const quotedPrice = await resolveQuotedPrice(enrollment);
+  const { quotedPrice, serviceType } = await resolveQuoteFields(enrollment);
   const body = renderTemplate(step.template, {
     name: enrollment.name,
     phone: enrollment.phone,
     quoted_price: quotedPrice,
+    service_type: serviceType,
   });
 
   try {
@@ -263,26 +264,50 @@ async function processDueAppointmentEnrollment(enrollment, now) {
   return { sent: true, completed: true };
 }
 
-async function resolveQuotedPrice(enrollment) {
+async function resolveQuoteFields(enrollment) {
   const meta = enrollment?.metadata || {};
-  const cached =
+  let serviceType =
+    meta.serviceType ||
+    meta.service_type ||
+    meta.drip?.serviceType ||
+    null;
+  let quotedPrice =
     meta.quotedPrice ||
     meta.quoted_price ||
     meta.quoted_price_summary ||
     meta.drip?.quotedPrice ||
     null;
-  if (cached != null && String(cached).trim()) return cached;
 
-  try {
-    const ctx = await loadCustomerBookingContext(enrollment.phone);
-    const summary = ctx?.proposed?.quoted_price_summary || null;
-    if (summary) return summary;
-    const bd = ctx?.prebookings?.[0]?.booking_details;
-    if (bd?.price != null) return bd.price;
-  } catch (err) {
-    console.warn('[opek-sms] quote price lookup failed', err.message || err);
+  const needsCtx =
+    !(quotedPrice != null && String(quotedPrice).trim()) ||
+    !(serviceType != null && String(serviceType).trim());
+
+  if (needsCtx) {
+    try {
+      const ctx = await loadCustomerBookingContext(enrollment.phone);
+      if (!(serviceType != null && String(serviceType).trim())) {
+        serviceType = ctx?.proposed?.service_type || null;
+      }
+      if (!(quotedPrice != null && String(quotedPrice).trim())) {
+        const summary = ctx?.proposed?.quoted_price_summary || null;
+        if (summary) quotedPrice = summary;
+        else {
+          const bd = ctx?.prebookings?.[0]?.booking_details;
+          // For moving, never fall back to a numeric job total.
+          const st = serviceType || bd?.service_type || null;
+          const isMoving = /\b(moving|movers?|local\s*move)\b/i.test(String(st || ''));
+          if (!isMoving && bd?.price != null) quotedPrice = bd.price;
+        }
+      }
+    } catch (err) {
+      console.warn('[opek-sms] quote price lookup failed', err.message || err);
+    }
   }
-  return null;
+
+  return {
+    quotedPrice: quotedPrice != null && String(quotedPrice).trim() ? quotedPrice : null,
+    serviceType: serviceType != null && String(serviceType).trim() ? serviceType : null,
+  };
 }
 
 async function claimEnrollment(enrollment, now, stepIndex) {

@@ -101,6 +101,34 @@ function phoneIlikePattern(last10) {
   return `%${last10.slice(0, 3)}%${last10.slice(3, 6)}%${last10.slice(6)}%`;
 }
 
+
+function isMovingServiceType(serviceType) {
+  const s = String(serviceType || '').toLowerCase();
+  if (!s) return false;
+  if (/\b(junk|cleanout|mattress|dumpster|disposal|hauling)\b/.test(s)) return false;
+  return /\b(moving|movers?|local\s*move)\b/.test(s);
+}
+
+function buildQuotedPriceSummary(bd, latestAgent, serviceType) {
+  const agentSummary = clean(latestAgent?.quoted_price_summary);
+  const estimateSummary = clean(bd.estimate_summary);
+  const moving = isMovingServiceType(serviceType);
+
+  if (moving) {
+    // Prefer hourly / narrative summaries — never invent a moving job total from bd.price.
+    if (agentSummary && /\b(per\s*hour|hourly|\/\s*hr|helpers?|crew)\b/i.test(agentSummary)) {
+      return agentSummary;
+    }
+    if (estimateSummary && /\b(per\s*hour|hourly|\/\s*hr|helpers?|crew)\b/i.test(estimateSummary)) {
+      return estimateSummary;
+    }
+    return agentSummary || estimateSummary || null;
+  }
+
+  if (bd.price != null) return 'Quoted/est. $' + bd.price;
+  return agentSummary || estimateSummary || null;
+}
+
 function buildProposedProfile({ phone, directory, prebookings, bookings, agentBookings }) {
   const latestPb = prebookings[0] || null;
   const latestBooking = bookings[0] || null;
@@ -140,10 +168,7 @@ function buildProposedProfile({ phone, directory, prebookings, bookings, agentBo
       clean(bd.time_window) ||
       clean(latestAgent?.preferred_time_window) ||
       null,
-    quoted_price_summary:
-      bd.price != null
-        ? `Quoted/est. $${bd.price}`
-        : clean(latestAgent?.quoted_price_summary) || clean(bd.estimate_summary) || null,
+    quoted_price_summary: buildQuotedPriceSummary(bd, latestAgent, clean(bd.service_type) || clean(latestAgent?.service_type) || null),
     notes,
     items: Array.isArray(items) ? items : null,
     moving_options: bd.moving_options || latestAgent?.details?.moving_options || null,
