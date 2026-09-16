@@ -7,13 +7,25 @@
   "main": "src/index.js",
   "scripts": {
     "start": "node src/index.js",
-    "dev": "node --watch src/index.js"
+    "dev": "node --watch src/index.js",
+    "demo": "node src/demo.js",
+    "test": "node --test",
+    "automation-tick": "node scripts/automation-tick.js",
+    "voice-sync": "node scripts/voice-sync.js"
   },
   "engines": {
-    "node": ">=20"
+    "node": ">=20.9"
   },
   "dependencies": {
+    "@clerk/express": "^2.1.67",
+    "@supabase/supabase-js": "^2.111.0",
+    "dotenv": "^17.4.2",
     "express": "^4.21.2",
-    "twilio": "^5.5.1"
+    "openai": "^4.104.0",
+    "twilio": "^5.5.1",
+    "ws": "^8.21.1"
+  },
+  "overrides": {
+    "qs": "^6.16.0"
   }
 }

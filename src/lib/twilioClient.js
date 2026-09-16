@@ -1,28 +1,71 @@
 import twilio from 'twilio';
+import { isOptedOut, recordOutbound } from './messageStore.js';
+import { getTenantTwilioConfig } from './tenantTwilio.js';
 
-let client;
+const clients = new Map();
 
 export function getTwilioClient() {
-  if (client) return client;
+  const { accountSid, authToken, apiKey, apiSecret } = getTenantTwilioConfig();
+  const key = JSON.stringify([accountSid, authToken, apiKey, apiSecret]);
+  if (clients.has(key)) return clients.get(key);
 
-  const accountSid = process.env.TWILIO_ACCOUNT_SID;
-  const authToken = process.env.TWILIO_AUTH_TOKEN;
-
-  if (!accountSid || !authToken) {
-    throw new Error('TWILIO_ACCOUNT_SID and TWILIO_AUTH_TOKEN are required');
+  if (apiKey && apiSecret && accountSid) {
+    const client = twilio(apiKey, apiSecret, { accountSid });
+    if (clients.size >= 100) clients.clear();
+    clients.set(key, client);
+    return client;
   }
 
-  client = twilio(accountSid, authToken);
+  if (!accountSid || !authToken) {
+    throw new Error(
+      'Set TWILIO_ACCOUNT_SID with TWILIO_AUTH_TOKEN, or TWILIO_API_KEY + TWILIO_API_SECRET'
+    );
+  }
+
+  const client = twilio(accountSid, authToken);
+  if (clients.size >= 100) clients.clear();
+  clients.set(key, client);
   return client;
 }
 
 /**
  * Send via Messaging Service when configured (preferred for compliance + pooling).
- * Outbound product features will call this later — not wired to public routes yet.
+ * Records the message so the UI can show deliverability status.
  */
-export async function sendSms({ to, body }) {
-  const messagingServiceSid = process.env.TWILIO_MESSAGING_SERVICE_SID;
-  const from = process.env.TWILIO_FROM_NUMBER;
+export async function sendSms({
+  to,
+  body,
+  categoryId = null,
+  contactName = null,
+  statusCallback = null,
+  meta = null,
+}) {
+  if (await isOptedOut(to)) {
+    const err = new Error('Contact has opted out of SMS');
+    err.code = 'OPTED_OUT';
+    await recordOutbound({
+      categoryId,
+      to,
+      body,
+      status: 'canceled',
+      errorCode: 'OPTED_OUT',
+      errorMessage: 'Blocked: contact opted out',
+      contactName,
+      meta,
+    });
+    throw err;
+  }
+  const config = getTenantTwilioConfig();
+  const messagingServiceSid = config.messagingServiceSid;
+  const from = config.fromNumber;
+  const publicBase = (process.env.PUBLIC_BASE_URL || '').replace(/\/$/, '');
+  const rawCallback =
+    statusCallback ||
+    config.statusCallbackUrl ||
+    (publicBase ? `${publicBase}/webhooks/twilio/status` : undefined);
+  // Twilio rejects non-public URLs (localhost/http). Skip callback rather than fail the send.
+  const callback =
+    rawCallback && /^https:\/\//i.test(String(rawCallback)) ? String(rawCallback) : undefined;
 
   const payload = { to, body };
   if (messagingServiceSid) {
@@ -32,6 +75,32 @@ export async function sendSms({ to, body }) {
   } else {
     throw new Error('Set TWILIO_MESSAGING_SERVICE_SID or TWILIO_FROM_NUMBER');
   }
+  if (callback) payload.statusCallback = callback;
 
-  return getTwilioClient().messages.create(payload);
+  try {
+    const msg = await getTwilioClient().messages.create(payload);
+    return await recordOutbound({
+      categoryId,
+      to,
+      body,
+      sid: msg.sid,
+      status: msg.status || 'queued',
+      errorCode: msg.errorCode || null,
+      errorMessage: msg.errorMessage || null,
+      contactName,
+      meta,
+    });
+  } catch (err) {
+    await recordOutbound({
+      categoryId,
+      to,
+      body,
+      status: 'failed',
+      errorCode: err.code || null,
+      errorMessage: err.message || String(err),
+      contactName,
+      meta,
+    });
+    throw err;
+  }
 }
