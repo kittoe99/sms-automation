@@ -90,8 +90,9 @@ async function fetchAgentBookings(last10) {
     .select(
       'id, status, source, customer_name, customer_phone, customer_email, service_type, zip_code, service_address, preferred_date, preferred_time_window, quoted_price_summary, call_summary, details, created_at, updated_at'
     )
+    .ilike('customer_phone', phoneIlikePattern(last10))
     .order('created_at', { ascending: false })
-    .limit(40);
+    .limit(8);
   if (error) throw error;
   return (data || []).filter((row) => phonesMatch(row.customer_phone, last10)).slice(0, 5);
 }
@@ -273,7 +274,9 @@ function summarizeItems(bd) {
 function phonesMatch(a, bLast10) {
   const d = String(a || '').replace(/\D/g, '');
   if (!d || !bLast10) return false;
-  return d === bLast10 || d.endsWith(bLast10) || bLast10.endsWith(d.slice(-10));
+  const left10 = d.slice(-10);
+  const right10 = String(bLast10).slice(-10);
+  return left10.length === 10 && right10.length === 10 && left10 === right10;
 }
 
 function clean(v) {

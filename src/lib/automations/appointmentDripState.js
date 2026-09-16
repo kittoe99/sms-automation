@@ -101,8 +101,13 @@ export function completeAppointmentAfterSend(enrollment, sentAt = new Date()) {
   };
 }
 
-export function rescheduleAppointmentDrip(enrollment, preferredDate, now = new Date()) {
-  const next = computeReminderSendAt(preferredDate, now);
+export function rescheduleAppointmentDrip(
+  enrollment,
+  preferredDate,
+  now = new Date(),
+  preferredTime = enrollment?.metadata?.preferredTime || null
+) {
+  const next = computeReminderSendAt(preferredDate, now, preferredTime);
   return mergeAppointmentDrip(
     enrollment,
     {
@@ -111,6 +116,6 @@ export function rescheduleAppointmentDrip(enrollment, preferredDate, now = new D
       pauseReason: null,
       stepIndex: 0,
     },
-    { appointmentDate: preferredDate }
+    { appointmentDate: preferredDate, preferredTime }
   );
 }

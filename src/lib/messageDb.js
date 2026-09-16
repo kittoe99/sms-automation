@@ -13,6 +13,25 @@ export function phoneDigits(value) {
   return String(value || '').replace(/\D/g, '') || '';
 }
 
+export function searchNeedle(value) {
+  const safe = String(value || '')
+    .trim()
+    .slice(0, 160)
+    // PostgREST's or() filter is raw syntax; remove its structural characters
+    // and SQL wildcard controls before embedding the user-supplied value.
+    .replace(/[%_,.():"\\]/g, ' ')
+    .replace(/[\u0000-\u001f\u007f]/g, ' ')
+    .replace(/\s+/g, ' ')
+    .trim();
+  return safe ? `%${safe}%` : '';
+}
+
+function applySearch(query, columns, value) {
+  const needle = searchNeedle(value);
+  if (!needle) return query;
+  return query.or(columns.map((column) => `${column}.ilike.${JSON.stringify(needle)}`).join(','));
+}
+
 export function messageToRow(msg) {
   const contactPhone = msg.contactPhone || msg.to || msg.from || 'unknown';
   return {
@@ -108,7 +127,46 @@ export function rowToContact(row) {
     aiEnabled: row.ai_enabled !== false,
     aiPausedAt: row.ai_paused_at || null,
     createdAt: row.created_at,
+    updatedAt: row.updated_at,
   };
+}
+
+/** Insert once and return null when another worker already inserted this ID. */
+export async function dbInsertMessageIfAbsent(msg) {
+  if (!canPersistMessages()) return null;
+  const { data, error } = await getSupabaseAdmin()
+    .from('sms_messages')
+    .upsert(messageToRow(msg), { onConflict: 'id', ignoreDuplicates: true })
+    .select('*')
+    .maybeSingle();
+  if (error) throw error;
+  return rowToMessage(data);
+}
+
+/** Insert a contact only if no concurrent worker has created it. */
+export async function dbInsertContactIfAbsent(contact) {
+  if (!canPersistMessages() || !contact?.phone) return null;
+  const { data, error } = await getSupabaseAdmin()
+    .from('sms_thread_contacts')
+    .upsert(contactToRow(contact), { onConflict: 'phone', ignoreDuplicates: true })
+    .select('*')
+    .maybeSingle();
+  if (error) throw error;
+  return rowToContact(data);
+}
+
+/** Update only the version that was read, so counter increments cannot be lost. */
+export async function dbUpdateContactIfVersion(contact, expectedUpdatedAt) {
+  if (!canPersistMessages() || !contact?.phone || !expectedUpdatedAt) return null;
+  const { data, error } = await getSupabaseAdmin()
+    .from('sms_thread_contacts')
+    .update(contactToRow(contact))
+    .eq('phone', contact.phone)
+    .eq('updated_at', expectedUpdatedAt)
+    .select('*')
+    .maybeSingle();
+  if (error) throw error;
+  return rowToContact(data);
 }
 
 export async function dbUpsertMessage(msg) {
@@ -189,13 +247,11 @@ export async function dbListMessages({
     if (digits) query = query.eq('phone_digits', digits);
   }
   if (q) {
-    const safe = String(q).trim().replace(/[%_,.()]/g, ' ').replace(/\s+/g, ' ').trim();
-    if (safe) {
-      const needle = `%${safe}%`;
-      query = query.or(
-        `body.ilike.${JSON.stringify(needle)},sid.ilike.${JSON.stringify(needle)},contact_phone.ilike.${JSON.stringify(needle)},contact_name.ilike.${JSON.stringify(needle)},to.ilike.${JSON.stringify(needle)},from.ilike.${JSON.stringify(needle)}`
-      );
-    }
+    query = applySearch(
+      query,
+      ['body', 'sid', 'contact_phone', 'contact_name', 'to', 'from'],
+      q
+    );
   }
 
   const { data, error, count } = await query;
@@ -235,8 +291,7 @@ export async function dbListContacts({
   if (status === 'active') query = query.eq('opted_out', false);
   if (unreadOnly) query = query.gt('unread_count', 0);
   if (q) {
-    const needle = `%${String(q).trim()}%`;
-    query = query.or(`phone.ilike.${needle},name.ilike.${needle},last_body.ilike.${needle}`);
+    query = applySearch(query, ['phone', 'name', 'last_body'], q);
   }
 
   const { data, error, count } = await query;
@@ -359,4 +414,42 @@ export async function dbCategoryMessageCount(categoryId) {
 export async function dbIsOptedOut(phone) {
   const c = await dbGetContact(phone);
   return Boolean(c?.optedOut);
+}
+
+/** Return recent inbound rows whose embedded AI job may need processing. */
+export async function dbListInboundAiCandidates({ limit = 200 } = {}) {
+  if (!canPersistMessages()) return [];
+  const { data, error } = await getSupabaseAdmin()
+    .from('sms_messages')
+    .select('*')
+    .eq('direction', 'inbound')
+    .in('meta->ai->>state', ['pending', 'failed', 'processing'])
+    .order('created_at', { ascending: true })
+    .limit(Math.min(Math.max(Number(limit) || 200, 1), 500));
+  if (error) throw error;
+  return (data || []).map(rowToMessage);
+}
+
+/**
+ * Optimistically update an inbound message's AI job state. The updated_at
+ * comparison makes claiming safe across multiple app/job instances.
+ */
+export async function dbUpdateInboundAiState(message, aiState) {
+  if (!canPersistMessages() || !message?.id) return null;
+  const now = new Date().toISOString();
+  let query = getSupabaseAdmin()
+    .from('sms_messages')
+    .update({
+      meta: {
+        ...(message.meta || {}),
+        ai: aiState,
+      },
+      updated_at: now,
+    })
+    .eq('id', message.id)
+    .eq('direction', 'inbound');
+  if (message.updatedAt) query = query.eq('updated_at', message.updatedAt);
+  const { data, error } = await query.select('*').maybeSingle();
+  if (error) throw error;
+  return rowToMessage(data);
 }

@@ -30,6 +30,7 @@ async function elFetch(path, { method = 'GET', query = null } = {}) {
   }
   const res = await fetch(url, {
     method,
+    signal: AbortSignal.timeout(30_000),
     headers: {
       'xi-api-key': apiKey(),
       Accept: 'application/json',

@@ -55,6 +55,7 @@ export async function gradientChat({ messages, maxTokens = 400 } = {}) {
   const url = `${endpoint}/api/v1/chat/completions`;
   const res = await fetch(url, {
     method: 'POST',
+    signal: AbortSignal.timeout(30_000),
     headers: {
       Authorization: `Bearer ${apiKey}`,
       'Content-Type': 'application/json',

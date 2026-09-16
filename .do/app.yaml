@@ -28,7 +28,40 @@ services:
         scope: RUN_TIME
         type: GENERAL
         value: production
+      - key: BUSINESS_TIME_ZONE
+        scope: RUN_TIME
+        type: GENERAL
+        value: America/Denver
+      - key: DEFAULT_TENANT_ID
+        scope: RUN_TIME
+        type: GENERAL
+        value: opek
+      - key: DEFAULT_TENANT_NAME
+        scope: RUN_TIME
+        type: GENERAL
+        value: Opek Junk Removal
+      - key: DEFAULT_TENANT_SHORT_NAME
+        scope: RUN_TIME
+        type: GENERAL
+        value: Opek
+      - key: CLERK_PUBLISHABLE_KEY
+        scope: RUN_TIME
+        type: SECRET
+      - key: CLERK_SECRET_KEY
+        scope: RUN_TIME
+        type: SECRET
+      - key: TENANT_ACCOUNTS_JSON
+        scope: RUN_TIME
+        type: GENERAL
+        value: "[]"
+      - key: AUTOMATION_RULES_STORE
+        scope: RUN_TIME
+        type: GENERAL
+        value: supabase
       - key: TWILIO_ACCOUNT_SID
+        scope: RUN_TIME
+        type: SECRET
+      - key: TWILIO_AUTH_TOKEN
         scope: RUN_TIME
         type: SECRET
       - key: TWILIO_MESSAGING_SERVICE_SID
@@ -42,7 +75,7 @@ services:
       - key: TWILIO_VALIDATE_SIGNATURE
         scope: RUN_TIME
         type: GENERAL
-        value: "false"
+        value: "true"
       - key: PUBLIC_BASE_URL
         scope: RUN_TIME
         type: GENERAL
@@ -51,7 +84,22 @@ services:
         scope: RUN_TIME
         type: GENERAL
         value: "https://mjgwoukwyqwoectxfwqv.supabase.co"
+      - key: SUPABASE_SERVICE_ROLE_KEY
+        scope: RUN_TIME
+        type: SECRET
       - key: OPEK_SMS_API_KEY
+        scope: RUN_TIME
+        type: SECRET
+      - key: GRADIENT_AGENT_ENDPOINT
+        scope: RUN_TIME
+        type: SECRET
+      - key: GRADIENT_AGENT_ACCESS_KEY
+        scope: RUN_TIME
+        type: SECRET
+      - key: ELEVENLABS_API_KEY
+        scope: RUN_TIME
+        type: SECRET
+      - key: ELEVENLABS_WEBHOOK_SECRET
         scope: RUN_TIME
         type: SECRET
 
@@ -74,6 +122,18 @@ jobs:
         scope: RUN_TIME
         type: GENERAL
         value: production
+      - key: BUSINESS_TIME_ZONE
+        scope: RUN_TIME
+        type: GENERAL
+        value: America/Denver
+      - key: AUTOMATION_RULES_STORE
+        scope: RUN_TIME
+        type: GENERAL
+        value: supabase
+      - key: TENANT_ACCOUNTS_JSON
+        scope: RUN_TIME
+        type: GENERAL
+        value: "[]"
       - key: TWILIO_ACCOUNT_SID
         scope: RUN_TIME
         type: SECRET
@@ -100,5 +160,11 @@ jobs:
         scope: RUN_TIME
         type: SECRET
       - key: OPEK_SMS_API_KEY
+        scope: RUN_TIME
+        type: SECRET
+      - key: GRADIENT_AGENT_ENDPOINT
+        scope: RUN_TIME
+        type: SECRET
+      - key: GRADIENT_AGENT_ACCESS_KEY
         scope: RUN_TIME
         type: SECRET

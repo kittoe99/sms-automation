@@ -10,6 +10,8 @@ import {
   dbDeliverabilitySummary,
   dbGetContact,
   dbGetMessage,
+  dbInsertContactIfAbsent,
+  dbInsertMessageIfAbsent,
   dbIsOptedOut,
   dbListContacts,
   dbListMessages,
@@ -18,9 +20,12 @@ import {
   dbOverviewExtras,
   dbUpsertContact,
   dbUpsertMessage,
+  dbUpdateContactIfVersion,
   phoneDigits,
 } from './messageDb.js';
 import { publish } from './realtime.js';
+import { getCurrentTenantId } from './tenantContext.js';
+import { getTenantTwilioConfig } from './tenantTwilio.js';
 
 const messages = [];
 const bySid = new Map();
@@ -38,7 +43,8 @@ export async function listMessages(opts = {}) {
     try {
       return await dbListMessages(opts);
     } catch (err) {
-      console.error('[opek-sms] db listMessages failed, using memory', err.message);
+      console.error('[opek-sms] db listMessages failed', err.message);
+      throw err;
     }
   }
   const size = clamp(opts.pageSize, 1, 250);
@@ -67,6 +73,7 @@ export async function getMessage(idOrSid) {
       }
     } catch (err) {
       console.error('[opek-sms] db getMessage failed', err.message);
+      throw err;
     }
   }
   return null;
@@ -89,7 +96,8 @@ export async function listContacts({ q, status = null, page = 1, pageSize = 50 }
         activeTotal: Math.max(0, all.total - opted.total),
       };
     } catch (err) {
-      console.error('[opek-sms] db listContacts failed, using memory', err.message);
+      console.error('[opek-sms] db listContacts failed', err.message);
+      throw err;
     }
   }
 
@@ -138,6 +146,10 @@ export async function isOptedOut(phone) {
       return await dbIsOptedOut(normalizePhone(phone) || phone);
     } catch (err) {
       console.error('[opek-sms] db isOptedOut failed', err.message);
+      const wrapped = new Error('Unable to verify SMS opt-out status');
+      wrapped.code = 'CONSENT_CHECK_UNAVAILABLE';
+      wrapped.cause = err;
+      throw wrapped;
     }
   }
   const c = contacts.get(normalizePhone(phone));
@@ -147,16 +159,19 @@ export async function isOptedOut(phone) {
 export async function setOptOutStatus(phone, { optedOut, keyword = null, source = 'manual' } = {}) {
   const key = normalizePhone(phone);
   if (!key) return null;
+  if (canPersistMessages()) {
+    const saved = await mutatePersistentContact(key, (c) =>
+      applyConsent(c, {
+        optedOut: Boolean(optedOut),
+        keyword,
+        source,
+        at: new Date().toISOString(),
+      })
+    );
+    return publicContact(saved);
+  }
 
   let c = contacts.get(key);
-  if (!c && canPersistMessages()) {
-    try {
-      c = await dbGetContact(key);
-      if (c) contacts.set(key, c);
-    } catch (_) {
-      /* fall through */
-    }
-  }
   const now = new Date().toISOString();
   if (!c) {
     c = blankContact(key);
@@ -180,16 +195,21 @@ export async function setOptOutStatus(phone, { optedOut, keyword = null, source 
 export async function setAiPaused(phone, paused = true, reason = null) {
   const key = normalizePhone(phone);
   if (!key) return null;
+  if (canPersistMessages()) {
+    const saved = await mutatePersistentContact(key, (c) => {
+      c.aiPausedAt = paused ? new Date().toISOString() : null;
+      if (paused === false) c.aiEnabled = true;
+    });
+    publish('thread', {
+      event: 'upsert',
+      record: publicContact(saved),
+      source: 'ai_pause',
+      reason: reason || null,
+    });
+    return publicContact(saved);
+  }
 
   let c = contacts.get(key);
-  if (!c && canPersistMessages()) {
-    try {
-      c = await dbGetContact(key);
-      if (c) contacts.set(key, c);
-    } catch (_) {
-      /* fall through */
-    }
-  }
   if (!c) {
     c = blankContact(key);
     contacts.set(key, c);
@@ -221,7 +241,8 @@ export async function listConversations({ q, unreadOnly = false, page = 1, pageS
         unreadTotal: extras?.unreadTotal || 0,
       };
     } catch (err) {
-      console.error('[opek-sms] db listConversations failed, using memory', err.message);
+      console.error('[opek-sms] db listConversations failed', err.message);
+      throw err;
     }
   }
 
@@ -271,6 +292,7 @@ export async function getConversation(phone) {
       };
     } catch (err) {
       console.error('[opek-sms] db getConversation failed', err.message);
+      throw err;
     }
   }
 
@@ -301,6 +323,7 @@ export async function markConversationRead(phone) {
       }
     } catch (err) {
       console.error('[opek-sms] db markConversationRead failed', err.message);
+      throw err;
     }
   }
 
@@ -329,6 +352,7 @@ export async function getContact(phone) {
       };
     } catch (err) {
       console.error('[opek-sms] db getContact failed', err.message);
+      throw err;
     }
   }
 
@@ -362,13 +386,16 @@ export async function recordOutbound({
     categoryId,
     contactPhone: phone || to,
     to: phone || to,
-    from: process.env.TWILIO_FROM_NUMBER || null,
+    from: getTenantTwilioConfig().fromNumber || null,
     body: body || '',
     deliverability: normalizeStatus(status),
     errorCode: errorCode || null,
     errorMessage: errorMessage || null,
     contactName: contactName || null,
-    meta: meta && typeof meta === 'object' ? meta : {},
+    meta: {
+      ...(meta && typeof meta === 'object' ? meta : {}),
+      tenantId: getCurrentTenantId(),
+    },
     createdAt: now,
     updatedAt: now,
     statusHistory: [{ status: normalizeStatus(status), at: now, errorCode: errorCode || null }],
@@ -393,20 +420,30 @@ export async function recordInbound({
     direction: 'inbound',
     categoryId: null,
     contactPhone: phone || from,
-    to: normalizePhone(to) || process.env.TWILIO_FROM_NUMBER || null,
+    to: normalizePhone(to) || getTenantTwilioConfig().fromNumber || null,
     from: phone || from,
     body: body || '',
     deliverability: 'received',
     errorCode: null,
     errorMessage: null,
     contactName: contactName || null,
+    meta: {
+      tenantId: getCurrentTenantId(),
+      ai: {
+        state: 'pending',
+        attempts: 0,
+        availableAt: now,
+      },
+    },
     createdAt: now,
     updatedAt: now,
     statusHistory: [{ status: 'received', at: now, errorCode: null }],
   };
 
-  const saved = await persistMessage(row);
-  await maybeApplyConsentFromInbound(phone || from, body, now);
+  const saved = await persistMessage(row, { requirePersistence: canPersistMessages() });
+  await maybeApplyConsentFromInbound(phone || from, body, now, {
+    requirePersistence: canPersistMessages(),
+  });
   return saved;
 }
 
@@ -420,6 +457,7 @@ export async function updateDeliverability(sid, { status, errorCode = null, to =
       if (row) cacheMessage(row);
     } catch (err) {
       console.error('[opek-sms] db updateDeliverability lookup failed', err.message);
+      throw err;
     }
   }
 
@@ -464,6 +502,7 @@ export async function deliverabilitySummary({ categoryId } = {}) {
       return await dbDeliverabilitySummary({ categoryId });
     } catch (err) {
       console.error('[opek-sms] db deliverabilitySummary failed', err.message);
+      throw err;
     }
   }
 
@@ -511,6 +550,7 @@ export async function overviewStats() {
       };
     } catch (err) {
       console.error('[opek-sms] db overviewStats failed', err.message);
+      throw err;
     }
   }
 
@@ -531,15 +571,62 @@ export async function categoryMessageCount(categoryId) {
       if (n != null) return n;
     } catch (err) {
       console.error('[opek-sms] db categoryMessageCount failed', err.message);
+      throw err;
     }
   }
   return messages.reduce((n, m) => (m.categoryId === categoryId ? n + 1 : n), 0);
 }
 
-async function persistMessage(row) {
+async function persistMessage(row, { requirePersistence = false } = {}) {
+  let existing = byId.get(row.id) || (row.sid ? bySid.get(row.sid) : null);
+  if (!existing && canPersistMessages()) {
+    try {
+      existing = await dbGetMessage(row.id);
+    } catch (err) {
+      console.error('[opek-sms] duplicate message lookup failed', err.message || err);
+      if (requirePersistence) throw err;
+    }
+  }
+
+  // Twilio retries webhook events. A repeated SID represents the same message and
+  // must not increment thread counters or overwrite a newer delivery status.
+  if (existing) {
+    const merged = mergeDuplicateMessage(existing, row);
+    cacheMessage(merged);
+    await safeUpsertMessage(merged, { requirePersistence });
+    await refreshContactMeta(merged);
+    return publicMessage(merged);
+  }
+
+  let insertedInDb = false;
+  if (canPersistMessages()) {
+    try {
+      const inserted = await dbInsertMessageIfAbsent(row);
+      if (!inserted) {
+        existing = await dbGetMessage(row.id);
+        if (existing) {
+          const merged = mergeDuplicateMessage(existing, row);
+          cacheMessage(merged);
+          await safeUpsertMessage(merged, { requirePersistence });
+          await refreshContactMeta(merged);
+          return publicMessage(merged);
+        }
+      } else {
+        insertedInDb = true;
+      }
+    } catch (err) {
+      console.error('[opek-sms] failed to insert message', err.message || err);
+      if (requirePersistence) throw err;
+    }
+  }
+
   cacheMessage(row);
-  await upsertContact(row);
-  await safeUpsertMessage(row);
+  await upsertContact(row, { requirePersistence });
+  if (insertedInDb) {
+    publish('message', { event: 'insert', record: publicMessage(row), source: 'local' });
+  } else {
+    await safeUpsertMessage(row, { requirePersistence });
+  }
 
   while (messages.length > MAX) {
     const dropped = messages.pop();
@@ -549,6 +636,31 @@ async function persistMessage(row) {
   }
 
   return publicMessage(row);
+}
+
+function mergeDuplicateMessage(existing, incoming) {
+  const existingStatus = normalizeStatus(existing.deliverability);
+  const keepExistingStatus = existingStatus !== 'other';
+  return {
+    ...incoming,
+    ...existing,
+    body: existing.body || incoming.body || '',
+    categoryId: existing.categoryId || incoming.categoryId || null,
+    contactName: existing.contactName || incoming.contactName || null,
+    contactPhone: existing.contactPhone || incoming.contactPhone,
+    to: existing.to && existing.to !== 'unknown' ? existing.to : incoming.to,
+    from: existing.from || incoming.from,
+    deliverability: keepExistingStatus ? existingStatus : normalizeStatus(incoming.deliverability),
+    errorCode: existing.errorCode || incoming.errorCode || null,
+    errorMessage: existing.errorMessage || incoming.errorMessage || null,
+    meta: { ...(incoming.meta || {}), ...(existing.meta || {}) },
+    createdAt: existing.createdAt || incoming.createdAt,
+    updatedAt: existing.updatedAt || incoming.updatedAt,
+    statusHistory:
+      Array.isArray(existing.statusHistory) && existing.statusHistory.length
+        ? existing.statusHistory
+        : incoming.statusHistory || [],
+  };
 }
 
 function cacheMessage(row) {
@@ -562,7 +674,7 @@ function cacheMessage(row) {
   byId.set(row.id, row);
 }
 
-async function safeUpsertMessage(row) {
+async function safeUpsertMessage(row, { requirePersistence = false } = {}) {
   if (!canPersistMessages()) {
     publish('message', { event: 'insert', record: publicMessage(row), source: 'memory' });
     return;
@@ -572,10 +684,11 @@ async function safeUpsertMessage(row) {
     publish('message', { event: 'upsert', record: publicMessage(row), source: 'local' });
   } catch (err) {
     console.error('[opek-sms] failed to persist message', err.message || err);
+    if (requirePersistence) throw err;
   }
 }
 
-async function safeUpsertContact(c) {
+async function safeUpsertContact(c, { requirePersistence = false } = {}) {
   if (!canPersistMessages()) {
     publish('thread', { event: 'upsert', record: publicContact(c), source: 'memory' });
     return;
@@ -585,6 +698,7 @@ async function safeUpsertContact(c) {
     publish('thread', { event: 'upsert', record: publicContact(c), source: 'local' });
   } catch (err) {
     console.error('[opek-sms] failed to persist contact', err.message || err);
+    if (requirePersistence) throw err;
   }
 }
 
@@ -618,19 +732,42 @@ function filterMessages({ categoryId, status, q, contact, direction } = {}) {
   return rows;
 }
 
-async function upsertContact(row) {
+async function upsertContact(row, { requirePersistence = false } = {}) {
   const phone = contactPhoneOf(row);
   if (!phone || phone === 'unknown') return;
 
-  let c = contacts.get(phone);
-  if (!c && canPersistMessages()) {
+  if (canPersistMessages()) {
     try {
-      c = await dbGetContact(phone);
-      if (c) contacts.set(phone, c);
-    } catch (_) {
-      /* create below */
+      for (let attempt = 0; attempt < 5; attempt += 1) {
+        const current = await dbGetContact(phone);
+        const next = current || blankContact(phone);
+        next.messageCount += 1;
+        if (row.direction === 'inbound') {
+          next.inboundCount += 1;
+          next.unreadCount += 1;
+        } else {
+          next.outboundCount += 1;
+        }
+        applyContactMeta(next, row);
+
+        const saved = current
+          ? await dbUpdateContactIfVersion(next, current.updatedAt)
+          : await dbInsertContactIfAbsent(next);
+        if (saved) {
+          contacts.set(phone, saved);
+          publish('thread', { event: 'upsert', record: publicContact(saved), source: 'local' });
+          return;
+        }
+      }
+      throw new Error('Contact update conflicted too many times');
+    } catch (err) {
+      console.error('[opek-sms] atomic contact update failed', err.message || err);
+      if (requirePersistence) throw err;
+      return;
     }
   }
+
+  let c = contacts.get(phone);
   if (!c) {
     c = blankContact(phone);
     contacts.set(phone, c);
@@ -644,7 +781,7 @@ async function upsertContact(row) {
     c.outboundCount += 1;
   }
   applyContactMeta(c, row);
-  await safeUpsertContact(c);
+  await safeUpsertContact(c, { requirePersistence });
 }
 
 function blankContact(phone) {
@@ -672,20 +809,34 @@ function blankContact(phone) {
   };
 }
 
-async function maybeApplyConsentFromInbound(phone, body, at) {
+async function maybeApplyConsentFromInbound(
+  phone,
+  body,
+  at,
+  { requirePersistence = false } = {}
+) {
   const keyword = parseConsentKeyword(body);
   if (!keyword) return;
   const key = normalizePhone(phone);
   if (!key) return;
-  let c = contacts.get(key);
-  if (!c && canPersistMessages()) {
+  if (canPersistMessages()) {
     try {
-      c = await dbGetContact(key);
-      if (c) contacts.set(key, c);
-    } catch (_) {
-      /* create below */
+      await mutatePersistentContact(key, (c) =>
+        applyConsent(c, {
+          optedOut: OPT_OUT_KEYWORDS.has(keyword),
+          keyword,
+          source: 'inbound',
+          at,
+        })
+      );
+      return;
+    } catch (err) {
+      if (requirePersistence) throw err;
+      console.error('[opek-sms] consent update failed', err.message || err);
+      return;
     }
   }
+  let c = contacts.get(key);
   if (!c) {
     c = blankContact(key);
     contacts.set(key, c);
@@ -696,7 +847,23 @@ async function maybeApplyConsentFromInbound(phone, body, at) {
     source: 'inbound',
     at,
   });
-  await safeUpsertContact(c);
+  await safeUpsertContact(c, { requirePersistence });
+}
+
+async function mutatePersistentContact(phone, mutate) {
+  for (let attempt = 0; attempt < 5; attempt += 1) {
+    const current = (await dbGetContact(phone)) || blankContact(phone);
+    mutate(current);
+    const saved = current.updatedAt
+      ? await dbUpdateContactIfVersion(current, current.updatedAt)
+      : await dbInsertContactIfAbsent(current);
+    if (saved) {
+      contacts.set(phone, saved);
+      publish('thread', { event: 'upsert', record: publicContact(saved), source: 'local' });
+      return saved;
+    }
+  }
+  throw new Error('Contact update conflicted too many times');
 }
 
 function parseConsentKeyword(body) {
@@ -728,15 +895,31 @@ function applyConsent(c, { optedOut, keyword, source, at }) {
 async function refreshContactMeta(row) {
   const phone = contactPhoneOf(row);
   if (!phone || phone === 'unknown') return;
-  let c = contacts.get(phone);
-  if (!c && canPersistMessages()) {
+
+  if (canPersistMessages()) {
     try {
-      c = await dbGetContact(phone);
-      if (c) contacts.set(phone, c);
-    } catch (_) {
-      /* create via upsertContact path */
+      for (let attempt = 0; attempt < 5; attempt += 1) {
+        const current = await dbGetContact(phone);
+        if (!current) {
+          await upsertContact(row);
+          return;
+        }
+        applyContactMeta(current, row);
+        const saved = await dbUpdateContactIfVersion(current, current.updatedAt);
+        if (saved) {
+          contacts.set(phone, saved);
+          publish('thread', { event: 'upsert', record: publicContact(saved), source: 'local' });
+          return;
+        }
+      }
+      throw new Error('Contact metadata update conflicted too many times');
+    } catch (err) {
+      console.error('[opek-sms] contact metadata update failed', err.message || err);
+      return;
     }
   }
+
+  let c = contacts.get(phone);
   if (!c) {
     await upsertContact(row);
     return;
@@ -813,6 +996,7 @@ function publicMessage(row) {
     updatedAt: row.updatedAt,
     statusHistory: row.statusHistory,
     meta: row.meta || {},
+    tenantId: row.tenantId || row.meta?.tenantId || getCurrentTenantId(),
   };
 }
 

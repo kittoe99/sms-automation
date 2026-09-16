@@ -7,9 +7,12 @@
  */
 
 import dotenv from 'dotenv';
-dotenv.config({ override: true });
+dotenv.config();
 
 import { syncConversations } from '../src/lib/elevenlabsConversations.js';
+import { assertTenantDataAccessSafe } from '../src/lib/tenantContext.js';
+
+assertTenantDataAccessSafe();
 
 const agentId =
   process.env.ELEVENLABS_OUTBOUND_AGENT_ID || 'agent_7801kwfn9rkcey5rn1wsrjdpnvvn';

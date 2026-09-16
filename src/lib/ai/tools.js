@@ -1,5 +1,5 @@
 import { getSupabaseAdmin, isSupabaseConfigured } from '../supabase.js';
-import { listEnrollments } from '../supabaseContacts.js';
+import { listEnrollments, syncBookingAutomations } from '../supabaseContacts.js';
 import { setAiPaused } from '../messageStore.js';
 import { loadCustomerBookingContext } from './customerContext.js';
 
@@ -40,9 +40,7 @@ export const TOOL_DEFINITIONS = [
         'Load directory + latest Prebooking/booking/agent_booking details for this phone to confirm before booking.',
       parameters: {
         type: 'object',
-        properties: {
-          phone: { type: 'string' },
-        },
+        properties: {},
         additionalProperties: false,
       },
     },
@@ -65,7 +63,6 @@ export const TOOL_DEFINITIONS = [
         type: 'object',
         properties: {
           customer_name: { type: 'string' },
-          customer_phone: { type: 'string' },
           customer_email: { type: 'string' },
           service_type: { type: 'string' },
           zip_code: { type: 'string' },
@@ -129,7 +126,7 @@ export async function executeTool(name, args, ctx) {
   switch (name) {
     case 'lookup_customer_context':
     case 'lookup_contact':
-      return lookupCustomerContext(args?.phone || ctx.phone);
+      return lookupCustomerContext(ctx.phone);
     case 'get_business_hours_or_faq':
       return { ...FAQ };
     case 'create_agent_booking':
@@ -173,7 +170,8 @@ async function createAgentBooking(args, ctx) {
     return { error: 'Supabase is not configured' };
   }
   const customerName = String(args.customer_name || '').trim();
-  const customerPhone = String(args.customer_phone || ctx.phone || '').trim();
+  // Identity comes from the verified Twilio webhook, never from model output.
+  const customerPhone = String(ctx.phone || '').trim();
   if (!customerName || !customerPhone) {
     return { error: 'customer_name and customer_phone are required' };
   }
@@ -220,11 +218,30 @@ async function createAgentBooking(args, ctx) {
     return { error: error.message || 'Failed to save booking' };
   }
 
+  let automations = null;
+  try {
+    automations = await syncBookingAutomations({
+      phone: customerPhone,
+      bookingId: data.id,
+      status: data.status,
+      appointmentDate: row.preferred_date,
+      preferredTime: row.preferred_time_window,
+      serviceType: row.service_type,
+      serviceAddress: row.service_address,
+      name: row.customer_name,
+      email: row.customer_email,
+      source: 'sms_agent',
+    });
+  } catch (automationError) {
+    console.error('[opek-sms] booking automation sync failed', automationError);
+  }
+
   return {
     ok: true,
     booking_id: data.id,
     status: data.status,
     created_at: data.created_at,
+    automations,
     message: 'Booking saved. Our team will confirm shortly.',
   };
 }
@@ -234,14 +251,15 @@ async function updateAgentBooking(args, ctx) {
     return { error: 'Supabase is not configured' };
   }
 
-  let bookingId = args.booking_id ? String(args.booking_id).trim() : null;
-  if (!bookingId) {
-    const ctxData = await loadCustomerBookingContext(ctx.phone);
-    bookingId = ctxData.agentBookings.find((b) => b.status !== 'cancelled')?.id || null;
-  }
-  if (!bookingId) {
+  const ctxData = await loadCustomerBookingContext(ctx.phone);
+  const requestedId = args.booking_id ? String(args.booking_id).trim() : null;
+  const booking = requestedId
+    ? ctxData.agentBookings.find((b) => String(b.id) === requestedId)
+    : ctxData.agentBookings.find((b) => b.status !== 'cancelled');
+  if (!booking) {
     return { error: 'No existing agent booking found to update' };
   }
+  const bookingId = booking.id;
 
   const patch = {};
   for (const key of [
@@ -254,7 +272,11 @@ async function updateAgentBooking(args, ctx) {
     'status',
   ]) {
     if (args[key] != null && String(args[key]).trim()) {
-      patch[key] = String(args[key]).trim();
+      const value = String(args[key]).trim();
+      if (key === 'status' && !['new', 'reviewed', 'confirmed', 'cancelled'].includes(value)) {
+        continue;
+      }
+      patch[key] = value;
     }
   }
 
@@ -263,6 +285,7 @@ async function updateAgentBooking(args, ctx) {
       .from('agent_bookings')
       .select('details')
       .eq('id', bookingId)
+      .eq('customer_phone', booking.customer_phone)
       .maybeSingle();
     patch.details = {
       ...(existing?.details && typeof existing.details === 'object' ? existing.details : {}),
@@ -279,6 +302,7 @@ async function updateAgentBooking(args, ctx) {
     .from('agent_bookings')
     .update(patch)
     .eq('id', bookingId)
+    .eq('customer_phone', booking.customer_phone)
     .select(
       'id, status, preferred_date, preferred_time_window, service_address, zip_code, service_type, updated_at'
     )
@@ -289,9 +313,28 @@ async function updateAgentBooking(args, ctx) {
     return { error: error.message || 'Failed to update booking' };
   }
 
+  let automations = null;
+  try {
+    automations = await syncBookingAutomations({
+      phone: ctx.phone,
+      bookingId: data.id,
+      status: data.status,
+      appointmentDate: data.preferred_date,
+      preferredTime: data.preferred_time_window,
+      serviceType: data.service_type,
+      serviceAddress: data.service_address,
+      name: booking.customer_name,
+      email: booking.customer_email,
+      source: 'sms_agent',
+    });
+  } catch (automationError) {
+    console.error('[opek-sms] booking automation reschedule failed', automationError);
+  }
+
   return {
     ok: true,
     booking: data,
+    automations,
     message: 'Booking updated. Our team will confirm the change.',
   };
 }

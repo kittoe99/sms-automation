@@ -1,6 +1,8 @@
 /**
- * Quote Requests drip: 1 SMS/day × 3 days → 1 after 48h → 1 after 48h → 1 after 7d → unenroll.
+ * Quote Requests drip with reply-aware lifecycle controls in the runner.
  */
+
+import { constrainToSendWindow, getBusinessTimeZone } from './timeRules.js';
 
 export const QUOTE_REQUESTS_CATEGORY_ID = 'quote-requests';
 export const QUOTE_REQUESTS_SEQUENCE_ID = 'quote-requests-v1';
@@ -8,13 +10,13 @@ export const QUOTE_REQUESTS_SEQUENCE_ID = 'quote-requests-v1';
 const HOUR = 60 * 60 * 1000;
 const DAY = 24 * HOUR;
 
-/** Delays are measured from enroll (step 0) or from the previous send (later steps). */
+/** Delays are measured from enroll (step 0) or from the previous successful send. */
 export const QUOTE_REQUESTS_SEQUENCE = {
   id: QUOTE_REQUESTS_SEQUENCE_ID,
   categoryId: QUOTE_REQUESTS_CATEGORY_ID,
   name: 'Quote Request follow-up',
   description:
-    'One SMS every 24 hours for 3 days, then one after 48 hours, another after 48 hours, then a final SMS 7 days later — then automatic removal from the group. Never more than one text per send.',
+    'Six measured follow-ups over 14 days. Sends stay inside 9am–7pm business time, customer replies postpone the next touch, and a booking or opt-out ends the sequence.',
   steps: [
     {
       index: 0,
@@ -22,7 +24,7 @@ export const QUOTE_REQUESTS_SEQUENCE = {
       label: 'Day 1 — 1 SMS, 24h after enroll',
       delayMs: 1 * DAY,
       template:
-        'Hi {{first_name}} — Opek here. Your quote is {{quoted_price}}. Ready to book? Reply with a day/time or book online: https://opekjunkremoval.com/booking Reply STOP to opt out.',
+        'Hi {{first_name}} — Opek here. Your estimate is {{quoted_price}}. Want help choosing a pickup day? Reply here or book at https://opekjunkremoval.com/booking Reply STOP to opt out.',
     },
     {
       index: 1,
@@ -30,7 +32,7 @@ export const QUOTE_REQUESTS_SEQUENCE = {
       label: 'Day 2 — 1 SMS, 24h after previous',
       delayMs: 1 * DAY,
       template:
-        '{{first_name}}, still interested in {{quoted_price}}? Text a preferred day or book here: https://opekjunkremoval.com/booking Reply STOP to opt out.',
+        'Hi {{first_name}}, any questions about your {{quoted_price}} estimate? Reply with the items, timing, or access details you want us to review. Reply STOP to opt out.',
     },
     {
       index: 2,
@@ -38,7 +40,7 @@ export const QUOTE_REQUESTS_SEQUENCE = {
       label: 'Day 3 — 1 SMS, 24h after previous',
       delayMs: 1 * DAY,
       template:
-        'Quick reminder from Opek — your quote is {{quoted_price}}. Reply with a day/time to book, or schedule online: https://opekjunkremoval.com/booking Reply STOP to opt out.',
+        'Opek follow-up: if you would like to move ahead with the {{quoted_price}} estimate, send a preferred day and time window or book online: https://opekjunkremoval.com/booking Reply STOP to opt out.',
     },
     {
       index: 3,
@@ -46,7 +48,7 @@ export const QUOTE_REQUESTS_SEQUENCE = {
       label: '1 SMS, 48h after Day 3',
       delayMs: 2 * DAY,
       template:
-        '{{first_name}}, we can lock in {{quoted_price}} this week. Text a day/time or book: https://opekjunkremoval.com/booking Reply STOP to opt out.',
+        'Hi {{first_name}}, are you still planning this project? Your Opek estimate is {{quoted_price}}. Reply with a date if you want us to help schedule it. Reply STOP to opt out.',
     },
     {
       index: 4,
@@ -54,7 +56,7 @@ export const QUOTE_REQUESTS_SEQUENCE = {
       label: '1 SMS, 48h after previous',
       delayMs: 2 * DAY,
       template:
-        'Last nudge — your Opek quote is still {{quoted_price}}. Text a day to schedule, or book now: https://opekjunkremoval.com/booking Reply STOP to opt out.',
+        'Checking in from Opek — if your plans or item list changed, reply and we can update the {{quoted_price}} estimate before you book. Reply STOP to opt out.',
     },
     {
       index: 5,
@@ -62,7 +64,7 @@ export const QUOTE_REQUESTS_SEQUENCE = {
       label: 'Final — 1 SMS, 7 days after previous',
       delayMs: 7 * DAY,
       template:
-        'Final note from Opek: your quote is {{quoted_price}}. When you\'re ready, reply here or book: https://opekjunkremoval.com/booking Reply STOP to opt out.',
+        'Final follow-up from Opek: your estimate is {{quoted_price}}. We will close this reminder sequence, but you can reply anytime or book at https://opekjunkremoval.com/booking Reply STOP to opt out.',
     },
   ],
 };
@@ -156,12 +158,20 @@ export function formatMovingQuotedPrice(value) {
   return 'your hourly moving rate';
 }
 
-export function computeNextSendAt(stepIndex, fromDate = new Date()) {
+/**
+ * @param {number} stepIndex - step about to be sent (0-based)
+ * @param {Date|string|number} fromDate - enroll time for step 0, else last send time
+ */
+export function computeNextSendAt(
+  stepIndex,
+  fromDate = new Date(),
+  timeZone = getBusinessTimeZone()
+) {
   const step = getQuoteRequestsStep(stepIndex);
   if (!step) return null;
   const base = new Date(fromDate);
   if (Number.isNaN(base.getTime())) return null;
-  return new Date(base.getTime() + step.delayMs);
+  return constrainToSendWindow(new Date(base.getTime() + step.delayMs), { timeZone });
 }
 
 export function initialDripMetadata(enrolledAt = new Date()) {

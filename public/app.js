@@ -2,11 +2,14 @@ import {
   apiFetch,
   getAccessToken,
   getSession,
+  getTenantId,
   initAuth,
+  isDemoMode,
   renderLoginScreen,
   showCrmApp,
   signOut,
-} from './auth.js';
+  setTenantId,
+} from './auth.js?v=20260916-light1';
 
 const state = {
   view: 'overview',
@@ -17,6 +20,7 @@ const state = {
   pageSize: 50,
   totalPages: 1,
   categories: [],
+  cadences: [],
   selected: null,
   conversationPhone: null,
   unreadOnly: false,
@@ -26,6 +30,10 @@ const state = {
   consentedOnly: false,
   callPhone: '',
   callName: '',
+  tenants: [],
+  tenant: null,
+  automationBuilderOpen: false,
+  aiBuilderOpen: false,
 };
 
 const el = {
@@ -42,10 +50,36 @@ const el = {
   status: document.getElementById('status-filter'),
   navAutomations: document.getElementById('nav-automations'),
   drawer: document.getElementById('drawer'),
+  drawerBackdrop: document.getElementById('drawer-backdrop'),
   drawerTitle: document.getElementById('drawer-title'),
   drawerBody: document.getElementById('drawer-body'),
   storeMeta: document.getElementById('store-meta'),
+  toolbarSection: document.getElementById('toolbar-section'),
+  sidebar: document.getElementById('sidebar'),
+  sidebarTrigger: document.getElementById('sidebar-trigger'),
+  sidebarClose: document.getElementById('sidebar-close'),
+  sidebarBackdrop: document.getElementById('sidebar-backdrop'),
+  tenantSelect: document.getElementById('tenant-select'),
+  toolbarTenant: document.getElementById('toolbar-tenant'),
+  tenantAvatar: document.getElementById('tenant-avatar'),
 };
+
+let drawerReturnFocus = null;
+
+function syncOverlayLock() {
+  const crm = document.querySelector('.crm');
+  const hasOpenOverlay = Boolean(
+    crm?.classList.contains('sidebar-open') || crm?.classList.contains('drawer-open'),
+  );
+  document.body.classList.toggle('ui-overlay-open', hasOpenOverlay);
+}
+
+el.tenantSelect?.addEventListener('change', () => {
+  setTenantId(el.tenantSelect.value);
+  location.reload();
+});
+
+window.addEventListener('clerk:organization-changed', () => location.reload());
 
 const titles = {
   overview: ['Overview', 'Pipeline health across all SMS traffic'],
@@ -55,7 +89,7 @@ const titles = {
   contacts: ['Contacts', 'Leads from Opek site — quotes, bookings, forms, phone agent'],
   optouts: ['Opt-Outs', 'Numbers that asked to stop receiving SMS'],
   deliverability: ['Deliverability', 'Delivery outcomes across the message store'],
-  automations: ['Automations', 'SMS automation groups and blank workflows'],
+  automations: ['Automations', 'Lifecycle-driven SMS sequences and enrollment rules'],
 };
 
 document.getElementById('nav').addEventListener('click', (e) => {
@@ -69,11 +103,44 @@ document.getElementById('nav').addEventListener('click', (e) => {
     state.categoryId = null;
   }
   setActiveNav();
+  closeSidebar();
   load();
+});
+
+function setSidebarOpen(open) {
+  const isOpen = Boolean(open);
+  document.querySelector('.crm')?.classList.toggle('sidebar-open', isOpen);
+  el.sidebarTrigger?.classList.toggle('is-open', isOpen);
+  el.sidebarTrigger?.setAttribute('aria-expanded', String(isOpen));
+  el.sidebarTrigger?.setAttribute('aria-label', isOpen ? 'Close navigation' : 'Open navigation');
+  if (el.sidebarBackdrop) el.sidebarBackdrop.tabIndex = isOpen ? 0 : -1;
+  syncOverlayLock();
+  if (isOpen) requestAnimationFrame(() => el.sidebarClose?.focus());
+}
+
+function closeSidebar({ restoreFocus = false } = {}) {
+  setSidebarOpen(false);
+  if (restoreFocus) el.sidebarTrigger?.focus();
+}
+
+el.sidebarTrigger?.addEventListener('click', () => {
+  const isOpen = document.querySelector('.crm')?.classList.contains('sidebar-open');
+  setSidebarOpen(!isOpen);
+});
+el.sidebarClose?.addEventListener('click', () => closeSidebar({ restoreFocus: true }));
+el.sidebarBackdrop?.addEventListener('click', () => closeSidebar({ restoreFocus: true }));
+document.addEventListener('keydown', (event) => {
+  if (event.key !== 'Escape') return;
+  if (!el.drawer?.hidden) {
+    closeDrawer();
+    return;
+  }
+  closeSidebar({ restoreFocus: true });
 });
 
 document.getElementById('refresh').addEventListener('click', () => load());
 document.getElementById('drawer-close').addEventListener('click', closeDrawer);
+el.drawerBackdrop?.addEventListener('click', closeDrawer);
 
 el.prev.addEventListener('click', () => {
   if (state.page > 1) {
@@ -136,6 +203,7 @@ async function load() {
       }
       const catJson = await catRes.json();
       state.categories = catJson.categories || [];
+      state.cadences = catJson.cadences || [];
       renderNavAutomations();
     }
 
@@ -170,6 +238,8 @@ function renderNavAutomations() {
 function openAutomationGroup(categoryId = null) {
   state.view = 'automations';
   state.categoryId = categoryId;
+  state.automationBuilderOpen = false;
+  state.aiBuilderOpen = false;
   state.page = 1;
   setActiveNav();
   load();
@@ -385,7 +455,7 @@ async function renderOverview() {
                 <p class="muted">${fmt(s?.total || 0)} messages · ${
                   s?.deliveryRate == null ? '—' : `${s.deliveryRate}% delivered`
                 }</p>
-                <div class="blank">${automationBlankLabel(c.id)}</div>
+                <div class="blank">${automationBlankLabel(c)}</div>
               </button>`;
           })
           .join('')}
@@ -398,10 +468,361 @@ async function renderOverview() {
   });
 }
 
-function automationBlankLabel(categoryId) {
-  if (categoryId === 'quote-requests') return 'Quote Request drip · 6 steps';
-  if (categoryId === 'appointment-reminders') return 'Appointment reminder · 24h before';
+function automationBlankLabel(category) {
+  if (category.id === 'quote-requests') return 'Quote Request drip · 6 steps';
+  if (category.id === 'appointment-reminders') return 'Appointment reminder · 24h before';
+  if (category.custom && category.rule) {
+    return `${category.rule.firstSendAt ? `Scheduled ${fmtTime(category.rule.firstSendAt)}` : cadenceDisplay(category.rule)} · ${category.rule.repeatCount} send${
+      category.rule.repeatCount === 1 ? '' : 's'
+    }${category.activeAutomation ? '' : ' · inactive'}`;
+  }
   return 'No automations yet';
+}
+
+function cadenceDisplay(rule) {
+  if (rule?.cadence !== 'custom') {
+    return state.cadences.find((cadence) => cadence.id === rule?.cadence)?.label || 'Custom';
+  }
+  return `Every ${rule.intervalCount} ${rule.intervalUnit}${rule.intervalCount === 1 ? '' : 's'}`;
+}
+
+function automationBuilderHtml(group = null) {
+  const rule = group?.rule || {
+    cadence: 'daily',
+    intervalCount: 1,
+    intervalUnit: 'day',
+    repeatCount: 3,
+    template: 'Hi {{first_name}}, this is a quick follow-up. Reply STOP to opt out.',
+    startHour: 9,
+    endHour: 19,
+    firstSendAt: null,
+    steps: [],
+  };
+  const steps = rule.steps?.length
+    ? rule.steps
+    : Array.from({ length: rule.repeatCount || 1 }, (_, index) => ({
+        id: `send-${index + 1}`,
+        template: rule.template,
+        delayCount: rule.intervalCount,
+        delayUnit: rule.intervalUnit,
+      }));
+  return `
+    <form class="automation-builder card" id="automation-builder">
+      <div class="card-head">
+        <div>
+          <span class="eyebrow">Manual rule</span>
+          <h2>${group ? 'Edit custom group' : 'Create custom group'}</h2>
+        </div>
+        <button type="button" class="btn ghost" id="cancel-automation-builder">Cancel</button>
+      </div>
+      <div class="automation-form-grid">
+        <label class="field-wide">
+          <span class="compose-label">Group name</span>
+          <input id="automation-name" maxlength="100" required value="${esc(group?.name || '')}" placeholder="Post-job follow-up" />
+        </label>
+        <label class="field-wide">
+          <span class="compose-label">Description</span>
+          <input id="automation-description" maxlength="300" value="${esc(group?.description || '')}" placeholder="What this automation is for" />
+        </label>
+        <label>
+          <span class="compose-label">Cadence</span>
+          <select id="automation-cadence">
+            ${state.cadences
+              .map(({ id, label }) => `<option value="${esc(id)}" ${rule.cadence === id ? 'selected' : ''}>${esc(label)}</option>`)
+              .join('')}
+          </select>
+        </label>
+        <div class="custom-interval" id="custom-interval" ${rule.cadence === 'custom' ? '' : 'hidden'}>
+          <label>
+            <span class="compose-label">Every</span>
+            <input id="automation-interval-count" type="number" min="1" max="365" value="${esc(rule.intervalCount)}" />
+          </label>
+          <label>
+            <span class="compose-label">Unit</span>
+            <select id="automation-interval-unit">
+              ${['day', 'week', 'month'].map((unit) => `<option value="${unit}" ${rule.intervalUnit === unit ? 'selected' : ''}>${unit}${unit === rule.intervalUnit && rule.intervalCount === 1 ? '' : 's'}</option>`).join('')}
+            </select>
+          </label>
+        </div>
+        <label>
+          <span class="compose-label">Number of sends</span>
+          <input id="automation-repeat-count" type="number" min="1" max="30" value="${esc(rule.repeatCount)}" required />
+        </label>
+        <div class="send-window-fields">
+          <label>
+            <span class="compose-label">Send after</span>
+            <select id="automation-start-hour">${hourOptions(rule.startHour, 0, 23)}</select>
+          </label>
+          <label>
+            <span class="compose-label">Send before</span>
+            <select id="automation-end-hour">${hourOptions(rule.endHour, 1, 24)}</select>
+          </label>
+        </div>
+        <label class="field-wide">
+          <span class="compose-label">First send date and time (optional)</span>
+          <input id="automation-first-send" type="datetime-local" value="${esc(toDateTimeLocal(rule.firstSendAt))}" />
+          <small class="muted">Set this for a scheduled campaign. Leave blank to start after the first message delay.</small>
+        </label>
+        <div class="field-wide automation-message-head">
+          <div>
+            <span class="compose-label">Automated messages</span>
+            <small class="muted">Each delay is measured after enrollment or the previous successful send.</small>
+          </div>
+          <button type="button" class="btn ghost" id="add-automation-message">Add message</button>
+        </div>
+        <div class="field-wide automation-step-editor" id="automation-step-editor">
+          ${automationStepRows(steps)}
+        </div>
+        <label class="check field-wide">
+          <input id="automation-active" type="checkbox" ${group?.activeAutomation === false ? '' : 'checked'} />
+          Active and available for enrollment
+        </label>
+      </div>
+      <div class="automation-builder-actions">
+        <span class="login-error" id="automation-builder-error"></span>
+        <button type="submit" class="btn" id="save-automation-group">${group ? 'Save changes' : 'Create group'}</button>
+      </div>
+    </form>`;
+}
+
+function automationStepRows(steps) {
+  return steps
+    .map(
+      (step, index) => `
+      <div class="automation-step-row" data-step-row>
+        <div class="automation-step-title">
+          <strong>Message ${index + 1}</strong>
+          <button type="button" class="btn ghost remove-automation-message" ${steps.length === 1 ? 'disabled' : ''}>Remove</button>
+        </div>
+        <div class="automation-step-delay">
+          <label>
+            <span class="compose-label">Delay</span>
+            <input class="step-delay-count" type="number" min="0" max="365" value="${esc(step.delayCount ?? 1)}" required />
+          </label>
+          <label>
+            <span class="compose-label">Unit</span>
+            <select class="step-delay-unit">
+              ${['day', 'week', 'month'].map((unit) => `<option value="${unit}" ${step.delayUnit === unit ? 'selected' : ''}>${unit}${Number(step.delayCount) === 1 ? '' : 's'}</option>`).join('')}
+            </select>
+          </label>
+        </div>
+        <label>
+          <span class="compose-label">Message</span>
+          <textarea class="step-template" maxlength="1600" rows="4" required>${esc(step.template || '')}</textarea>
+        </label>
+      </div>`
+    )
+    .join('');
+}
+
+function toDateTimeLocal(value) {
+  if (!value) return '';
+  const date = new Date(value);
+  if (Number.isNaN(date.getTime())) return '';
+  try {
+    const parts = Object.fromEntries(
+      new Intl.DateTimeFormat('en-CA', {
+        timeZone: state.tenant?.timeZone || undefined,
+        year: 'numeric',
+        month: '2-digit',
+        day: '2-digit',
+        hour: '2-digit',
+        minute: '2-digit',
+        hourCycle: 'h23',
+      })
+        .formatToParts(date)
+        .filter((part) => part.type !== 'literal')
+        .map((part) => [part.type, part.value])
+    );
+    return `${parts.year}-${parts.month}-${parts.day}T${parts.hour}:${parts.minute}`;
+  } catch {
+    return '';
+  }
+}
+
+function hourOptions(selected, start, end) {
+  return Array.from({ length: end - start + 1 }, (_, index) => start + index)
+    .map((hour) => `<option value="${hour}" ${Number(selected) === hour ? 'selected' : ''}>${hour === 24 ? '12:00 AM' : new Date(2000, 0, 1, hour).toLocaleTimeString([], { hour: 'numeric' })}</option>`)
+    .join('');
+}
+
+function bindAutomationBuilder(group = null) {
+  const form = el.root.querySelector('#automation-builder');
+  if (!form) return;
+  const cadence = form.querySelector('#automation-cadence');
+  const customInterval = form.querySelector('#custom-interval');
+  const repeatCount = form.querySelector('#automation-repeat-count');
+  const stepEditor = form.querySelector('#automation-step-editor');
+  const cadenceDefaults = Object.fromEntries(
+    state.cadences.map((item) => [item.id, [item.intervalCount, item.intervalUnit]])
+  );
+
+  const readSteps = () =>
+    [...form.querySelectorAll('[data-step-row]')].map((row, index) => ({
+      id: `send-${index + 1}`,
+      delayCount: Number(row.querySelector('.step-delay-count').value),
+      delayUnit: row.querySelector('.step-delay-unit').value,
+      template: row.querySelector('.step-template').value,
+    }));
+
+  const renderSteps = (steps) => {
+    stepEditor.innerHTML = automationStepRows(steps);
+    repeatCount.value = String(steps.length);
+    stepEditor.querySelectorAll('.remove-automation-message').forEach((button) => {
+      button.addEventListener('click', () => {
+        const rows = readSteps();
+        const index = [...stepEditor.querySelectorAll('[data-step-row]')].indexOf(
+          button.closest('[data-step-row]')
+        );
+        if (rows.length > 1 && index >= 0) rows.splice(index, 1);
+        renderSteps(rows);
+      });
+    });
+  };
+
+  const defaultDelay = () =>
+    cadence.value === 'custom'
+      ? [
+          Number(form.querySelector('#automation-interval-count').value) || 1,
+          form.querySelector('#automation-interval-unit').value,
+        ]
+      : cadenceDefaults[cadence.value] || [1, 'day'];
+
+  const resizeSteps = (size) => {
+    const rows = readSteps();
+    const desired = Math.min(Math.max(Number(size) || 1, 1), 30);
+    const [delayCount, delayUnit] = defaultDelay();
+    while (rows.length < desired) {
+      rows.push({
+        id: `send-${rows.length + 1}`,
+        delayCount,
+        delayUnit,
+        template: rows.at(-1)?.template || 'Hi {{first_name}}, this is a quick follow-up. Reply STOP to opt out.',
+      });
+    }
+    rows.length = desired;
+    renderSteps(rows);
+  };
+
+  cadence?.addEventListener('change', () => {
+    customInterval.hidden = cadence.value !== 'custom';
+    const [delayCount, delayUnit] = defaultDelay();
+    renderSteps(readSteps().map((step) => ({ ...step, delayCount, delayUnit })));
+  });
+  repeatCount?.addEventListener('change', () => resizeSteps(repeatCount.value));
+  form.querySelector('#add-automation-message')?.addEventListener('click', () => {
+    resizeSteps(readSteps().length + 1);
+  });
+  renderSteps(readSteps());
+  form.querySelector('#cancel-automation-builder')?.addEventListener('click', () => {
+    state.automationBuilderOpen = false;
+    renderAutomations();
+  });
+  form.addEventListener('submit', async (event) => {
+    event.preventDefault();
+    const button = form.querySelector('#save-automation-group');
+    const error = form.querySelector('#automation-builder-error');
+    button.disabled = true;
+    error.textContent = '';
+    const steps = readSteps();
+    const firstSendValue = form.querySelector('#automation-first-send').value;
+    const firstSendAt = firstSendValue || null;
+    const payload = {
+      name: form.querySelector('#automation-name').value.trim(),
+      description: form.querySelector('#automation-description').value.trim(),
+      activeAutomation: form.querySelector('#automation-active').checked,
+      rule: {
+        cadence: cadence.value,
+        intervalCount: Number(form.querySelector('#automation-interval-count').value),
+        intervalUnit: form.querySelector('#automation-interval-unit').value,
+        repeatCount: steps.length,
+        startHour: Number(form.querySelector('#automation-start-hour').value),
+        endHour: Number(form.querySelector('#automation-end-hour').value),
+        template: steps[0]?.template.trim(),
+        firstSendAt,
+        steps,
+      },
+    };
+    try {
+      const response = await apiFetch(
+        group ? `/api/automation-groups/${encodeURIComponent(group.id)}` : '/api/automation-groups',
+        { method: group ? 'PUT' : 'POST', body: JSON.stringify(payload) }
+      );
+      const json = await response.json();
+      if (!response.ok) throw new Error(json.detail || json.error || 'Could not save group');
+      state.categories = [];
+      state.categoryId = json.group.id;
+      state.automationBuilderOpen = false;
+      await load();
+    } catch (err) {
+      error.textContent = err.message || 'Could not save group';
+      button.disabled = false;
+    }
+  });
+}
+
+function groupAiBuilderHtml(group) {
+  return `
+    <form class="automation-builder card" id="group-ai-builder">
+      <div class="card-head">
+        <div>
+          <span class="eyebrow">Group AI behavior</span>
+          <h2>${esc(group.name)} instructions</h2>
+        </div>
+        <button type="button" class="btn ghost" id="cancel-group-ai">Cancel</button>
+      </div>
+      <div class="automation-form-grid">
+        <label class="check field-wide">
+          <input id="group-ai-enabled" type="checkbox" ${group.ai?.enabled ? 'checked' : ''} />
+          Apply custom AI instructions when a customer is enrolled in this group
+        </label>
+        <label class="field-wide">
+          <span class="compose-label">AI instructions</span>
+          <textarea id="group-ai-instructions" maxlength="6000" rows="8" placeholder="Describe the goal, questions to ask, tone, escalation conditions, and facts the AI may use.">${esc(group.ai?.instructions || '')}</textarea>
+          <small class="muted">Group instructions supplement platform safety, consent, privacy, and tool restrictions.</small>
+        </label>
+      </div>
+      <div class="automation-builder-actions">
+        <span class="login-error" id="group-ai-error"></span>
+        <button type="submit" class="btn" id="save-group-ai">Save AI instructions</button>
+      </div>
+    </form>`;
+}
+
+function bindGroupAiBuilder(group) {
+  const form = el.root.querySelector('#group-ai-builder');
+  if (!form) return;
+  form.querySelector('#cancel-group-ai')?.addEventListener('click', () => {
+    state.aiBuilderOpen = false;
+    renderAutomations();
+  });
+  form.addEventListener('submit', async (event) => {
+    event.preventDefault();
+    const button = form.querySelector('#save-group-ai');
+    const error = form.querySelector('#group-ai-error');
+    button.disabled = true;
+    error.textContent = '';
+    try {
+      const response = await apiFetch(
+        `/api/automation-groups/${encodeURIComponent(group.id)}/ai-instructions`,
+        {
+          method: 'PUT',
+          body: JSON.stringify({
+            enabled: form.querySelector('#group-ai-enabled').checked,
+            instructions: form.querySelector('#group-ai-instructions').value.trim(),
+          }),
+        }
+      );
+      const json = await response.json();
+      if (!response.ok) throw new Error(json.detail || json.error || 'Could not save AI instructions');
+      state.categories = [];
+      state.aiBuilderOpen = false;
+      await load();
+    } catch (err) {
+      error.textContent = err.message || 'Could not save AI instructions';
+      button.disabled = false;
+    }
+  });
 }
 
 async function renderAutomations() {
@@ -430,9 +851,13 @@ async function renderAutomations() {
     el.root.innerHTML = `
       <div class="card">
         <div class="card-head">
-          <h2>Automation groups</h2>
-          <span class="muted">Quote Request + Appointment Reminder drips are live</span>
+          <div>
+            <h2>Automation groups</h2>
+            <span class="muted">System sequences and manual cadence rules</span>
+          </div>
+          <button type="button" class="btn" id="new-automation-group">Create group</button>
         </div>
+        ${state.automationBuilderOpen ? automationBuilderHtml() : ''}
         <div class="category-grid">
           ${state.categories
             .map((c) => {
@@ -446,7 +871,7 @@ async function renderAutomations() {
                   <p class="muted">${fmt(s?.total || 0)} messages · ${
                     s?.deliveryRate == null ? '—' : `${s.deliveryRate}% delivered`
                   }</p>
-                  <div class="blank">${automationBlankLabel(c.id)}</div>
+                  <div class="blank">${automationBlankLabel(c)}</div>
                 </button>`;
             })
             .join('')}
@@ -459,6 +884,11 @@ async function renderAutomations() {
         openAutomationGroup(btn.getAttribute('data-open-automation'))
       );
     });
+    el.root.querySelector('#new-automation-group')?.addEventListener('click', () => {
+      state.automationBuilderOpen = true;
+      renderAutomations();
+    });
+    bindAutomationBuilder();
     return;
   }
 
@@ -493,21 +923,21 @@ async function renderAutomations() {
     enrollments = [];
   }
 
-  if (category.id === 'quote-requests' || category.id === 'appointment-reminders') {
-    try {
-      const seqRes = await apiFetch(`/api/automations/${category.id}`).then((r) => r.json());
-      sequence = seqRes.sequence || null;
-    } catch {
-      sequence = null;
-    }
+  try {
+    const seqRes = await apiFetch(`/api/automations/${category.id}`).then((r) => r.json());
+    sequence = seqRes.sequence || null;
+  } catch {
+    sequence = null;
   }
 
   const cadenceNote =
     category.id === 'quote-requests'
-      ? 'Cadence: 1 text/day for 3 days, then 1 after 48h, 1 after another 48h, then 1 after 7 days. After the final send, the contact is removed. Replies do not pause or block this drip.'
+      ? 'Cadence: 1 text/day for 3 days, then 1 after 48h, another after 48h, and a final text after 7 days. Marketing sends stay between 9am and 7pm. A customer reply postpones the next touch for at least 24 hours; a booking, opt-out, manual removal, or final send ends the sequence.'
       : category.id === 'appointment-reminders'
-        ? 'Sends one SMS ~24 hours before the appointment date, then removes the contact from this group. Auto-enrolls from bookings. Replies do not pause or block this reminder.'
-        : '';
+        ? 'Sends one SMS ~24 hours before an upcoming appointment. New bookings enroll automatically, booking changes reschedule the reminder, and cancellations or expired appointments remove it without sending.'
+        : category.custom
+          ? `${category.rule.firstSendAt ? `First send scheduled for ${fmtTime(category.rule.firstSendAt)}.` : `${cadenceDisplay(category.rule)} cadence.`} ${category.rule.repeatCount} custom message${category.rule.repeatCount === 1 ? '' : 's'} constrained to ${category.rule.startHour}:00–${category.rule.endHour}:00 in the business account timezone. Each step can use its own delay and message.`
+          : '';
 
   const sequenceHtml = sequence
     ? `
@@ -526,6 +956,7 @@ async function renderAutomations() {
             .join('')}
         </ol>
         ${cadenceNote ? `<p class="muted" style="margin:12px 0 0">${esc(cadenceNote)}</p>` : ''}
+        <p class="muted" style="margin:8px 0 0">Group AI: ${category.ai?.enabled ? 'custom instructions enabled' : 'default assistant behavior'}</p>
       </div>`
     : `<div class="blank" style="margin:0 16px 16px">No automations yet in this group</div>`;
 
@@ -536,8 +967,14 @@ async function renderAutomations() {
           <h2>${esc(category.name)}</h2>
           <p class="muted" style="margin:4px 0 0">${esc(category.description || '')}</p>
         </div>
-        <button type="button" class="btn ghost" id="back-automations">All groups</button>
+        <div class="automation-head-actions">
+          <button type="button" class="btn ghost" id="edit-group-ai">AI instructions</button>
+          ${category.custom ? '<button type="button" class="btn ghost" id="edit-automation-group">Edit rule</button><button type="button" class="btn danger" id="delete-automation-group">Delete</button>' : ''}
+          <button type="button" class="btn ghost" id="back-automations">All groups</button>
+        </div>
       </div>
+      ${state.aiBuilderOpen ? groupAiBuilderHtml(category) : ''}
+      ${state.automationBuilderOpen && category.custom ? automationBuilderHtml(category) : ''}
       <div class="subcat-chips">
         ${state.categories
           .map(
@@ -579,7 +1016,9 @@ async function renderAutomations() {
                           ? 1
                           : category.id === 'quote-requests'
                             ? 6
-                            : null;
+                            : category.custom
+                              ? category.rule?.repeatCount || null
+                              : null;
                       const dripLabel = drip
                         ? `${esc(drip.status || '—')}${
                             drip.stepIndex != null && stepTotal != null
@@ -608,7 +1047,7 @@ async function renderAutomations() {
                     .join('')
                 : `<tr><td colspan="7"><div class="empty">${
                     category.id === 'appointment-reminders'
-                      ? 'No enrollments yet. New bookings auto-enroll when they have a preferred date.'
+                      ? 'No enrollments yet. New bookings with a valid future date auto-enroll.'
                       : 'No enrollments yet. Enroll consented contacts from Contacts.'
                   }</div></td></tr>`
             }
@@ -620,10 +1059,37 @@ async function renderAutomations() {
   `;
 
   el.root.querySelector('#back-automations')?.addEventListener('click', () => openAutomationGroup(null));
+  el.root.querySelector('#edit-automation-group')?.addEventListener('click', () => {
+    state.aiBuilderOpen = false;
+    state.automationBuilderOpen = true;
+    renderAutomations();
+  });
+  el.root.querySelector('#edit-group-ai')?.addEventListener('click', () => {
+    state.automationBuilderOpen = false;
+    state.aiBuilderOpen = true;
+    renderAutomations();
+  });
+  el.root.querySelector('#delete-automation-group')?.addEventListener('click', async () => {
+    if (!confirm(`Delete “${category.name}”? Existing enrollments will be removed.`)) return;
+    const response = await apiFetch(`/api/automation-groups/${encodeURIComponent(category.id)}`, {
+      method: 'DELETE',
+    });
+    const json = await response.json();
+    if (!response.ok) {
+      alert(json.detail || json.error || 'Could not delete group');
+      return;
+    }
+    state.categories = [];
+    state.categoryId = null;
+    state.automationBuilderOpen = false;
+    await load();
+  });
   el.root.querySelectorAll('[data-open-automation]').forEach((btn) => {
     btn.addEventListener('click', () => openAutomationGroup(btn.getAttribute('data-open-automation')));
   });
   bindUnenrollButtons();
+  bindAutomationBuilder(category.custom ? category : null);
+  bindGroupAiBuilder(category);
   bindMessageRows(data.messages || []);
 }
 
@@ -1035,7 +1501,9 @@ async function renderContacts() {
                       <option value="">Choose group…</option>
                       ${state.categories
                         .filter(
-                          (cat) => canEnroll || cat.id === 'appointment-reminders'
+                          (cat) =>
+                            cat.activeAutomation !== false &&
+                            (canEnroll || cat.id === 'appointment-reminders')
                         )
                         .map(
                           (cat) =>
@@ -1100,6 +1568,15 @@ async function renderContacts() {
       const phone = select?.getAttribute('data-phone');
       const categoryId = select?.value;
       if (!phone || !categoryId) return;
+      let appointmentDate = null;
+      let preferredTime = null;
+      if (categoryId === 'appointment-reminders') {
+        appointmentDate = window.prompt('Appointment date (YYYY-MM-DD)');
+        if (!appointmentDate) return;
+        preferredTime = window.prompt(
+          'Preferred time or window (optional, for example "morning 8-12")'
+        );
+      }
       btn.disabled = true;
       try {
         const res = await apiFetch('/api/directory/enroll', {
@@ -1111,6 +1588,8 @@ async function renderContacts() {
             name: select.getAttribute('data-name') || null,
             email: select.getAttribute('data-email') || null,
             source: select.getAttribute('data-source') || null,
+            appointmentDate,
+            preferredTime: preferredTime || null,
           }),
         });
         const json = await res.json();
@@ -1648,9 +2127,18 @@ function renderKpis(summary) {
 }
 
 function kpiCard(label, value) {
-  return `<div class="kpi"><div class="label">${esc(label)}</div><div class="value">${esc(
+  const notes = {
+    'Total SMS': 'Across all channels',
+    Conversations: 'Customer threads',
+    'Opted out': 'Suppressed contacts',
+    Delivered: 'Confirmed by carrier',
+    'Delivery rate': 'Successful delivery',
+    Groups: 'Configured workspaces',
+    'Automation SMS': 'Sequence activity',
+  };
+  return `<article class="kpi"><div class="label">${esc(label)}</div><div class="value">${esc(
     value
-  )}</div></div>`;
+  )}</div><p>${esc(notes[label] || 'Current total')}</p></article>`;
 }
 
 function renderPager(data) {
@@ -1664,13 +2152,21 @@ function renderPager(data) {
 function setTitle(title, sub) {
   el.title.textContent = title;
   el.sub.textContent = sub;
+  if (el.toolbarSection) el.toolbarSection.textContent = title;
 }
 
 function openDrawer(title, html) {
+  drawerReturnFocus = document.activeElement instanceof HTMLElement ? document.activeElement : null;
   el.drawer.hidden = false;
+  if (el.drawerBackdrop) {
+    el.drawerBackdrop.hidden = false;
+    el.drawerBackdrop.tabIndex = 0;
+  }
   document.querySelector('.crm').classList.add('drawer-open');
+  syncOverlayLock();
   el.drawerTitle.textContent = title;
   el.drawerBody.innerHTML = html;
+  requestAnimationFrame(() => document.getElementById('drawer-close')?.focus());
 
   el.drawerBody.querySelector('#drawer-opt-in')?.addEventListener('click', async () => {
     const phone = el.drawerBody.querySelector('.kv .v')?.textContent;
@@ -1707,8 +2203,16 @@ function openDrawer(title, html) {
 }
 
 function closeDrawer() {
+  if (el.drawer.hidden) return;
   el.drawer.hidden = true;
+  if (el.drawerBackdrop) {
+    el.drawerBackdrop.hidden = true;
+    el.drawerBackdrop.tabIndex = -1;
+  }
   document.querySelector('.crm').classList.remove('drawer-open');
+  syncOverlayLock();
+  drawerReturnFocus?.focus?.();
+  drawerReturnFocus = null;
 }
 
 function fmt(n) {
@@ -1822,6 +2326,7 @@ async function forceLogin(message = '') {
   renderLoginScreen({
     errorMessage: message,
     onSuccess: async () => {
+      await loadTenantContext();
       updateAuthChrome();
       await load();
       connectLive();
@@ -1831,8 +2336,36 @@ async function forceLogin(message = '') {
 
 function updateAuthChrome() {
   const emailEl = document.getElementById('auth-email');
-  const email = getSession()?.user?.email || '';
+  const email = isDemoMode() ? 'Demo preview · sample data' : getSession()?.user?.email || '';
   if (emailEl) emailEl.textContent = email;
+  const tenant = state.tenant;
+  if (tenant && el.toolbarTenant) el.toolbarTenant.textContent = tenant.shortName || tenant.name;
+  if (tenant && el.tenantAvatar) {
+    el.tenantAvatar.textContent = String(tenant.shortName || tenant.name || 'BA')
+      .split(/\s+/)
+      .map((part) => part[0])
+      .join('')
+      .slice(0, 2)
+      .toUpperCase();
+  }
+  if (tenant) document.title = `${tenant.shortName || tenant.name} · SMS CRM`;
+}
+
+async function loadTenantContext() {
+  const response = await apiFetch('/api/tenants', { tenant: false });
+  if (!response.ok) throw new Error('Could not load business accounts');
+  const data = await response.json();
+  state.tenants = Array.isArray(data.tenants) ? data.tenants : [];
+  const stored = getTenantId();
+  state.tenant = state.tenants.find((tenant) => tenant.id === stored) || data.currentTenant || state.tenants[0];
+  if (!state.tenant) throw new Error('No business account is configured');
+  setTenantId(state.tenant.id);
+  if (el.tenantSelect) {
+    el.tenantSelect.innerHTML = state.tenants
+      .map((tenant) => `<option value="${esc(tenant.id)}">${esc(tenant.name)}</option>`)
+      .join('');
+    el.tenantSelect.value = state.tenant.id;
+  }
 }
 
 document.getElementById('sign-out-btn')?.addEventListener('click', async () => {
@@ -1842,18 +2375,31 @@ document.getElementById('sign-out-btn')?.addEventListener('click', async () => {
 
 async function boot() {
   try {
-    await initAuth();
-    const token = getAccessToken();
+    const auth = await initAuth();
+    if (auth.demo) {
+      await loadTenantContext();
+      showCrmApp();
+      updateAuthChrome();
+      document.getElementById('demo-banner').hidden = false;
+      document.getElementById('sign-out-btn').hidden = true;
+      document.getElementById('clerk-organization-switcher').hidden = true;
+      setLiveStatus(false, 'Sample data');
+      installDemoActionGuard();
+      await load();
+      return;
+    }
+    const token = await getAccessToken();
     if (!token) {
       await forceLogin('');
       return;
     }
-    const me = await apiFetch('/api/auth/me');
+    const me = await apiFetch('/api/auth/me', { tenant: false });
     if (!me.ok) {
       await signOut();
-      await forceLogin('This account is not invited to the SMS CRM.');
+      await forceLogin('This account does not have access to this business workspace.');
       return;
     }
+    await loadTenantContext();
     showCrmApp();
     updateAuthChrome();
     await load();
@@ -1862,6 +2408,23 @@ async function boot() {
     console.error(err);
     await forceLogin(err.message || 'Auth failed to start');
   }
+}
+
+function installDemoActionGuard() {
+  const selector = 'button[type="submit"], #call-place, #ai-pause-btn, #compose-send, #save-automation-group, #save-group-ai, #delete-automation-group, #drawer-opt-in, #drawer-opt-out, .enroll-btn, .unenroll-btn, [data-opt-in], [data-enrollment-id]';
+  const disableActions = () => {
+    document.querySelectorAll(selector).forEach(button => {
+      if (button.disabled) return;
+      button.disabled = true;
+      button.title = 'Read-only demo: changes, SMS, and calls are disabled';
+    });
+  };
+  new MutationObserver(disableActions).observe(document.getElementById('crm-app'), { childList: true, subtree: true });
+  document.getElementById('crm-app').addEventListener('submit', event => {
+    event.preventDefault();
+    event.stopImmediatePropagation();
+  }, true);
+  disableActions();
 }
 
 boot();
@@ -1920,14 +2483,15 @@ function connectLive() {
     pollTimer = null;
   };
 
-  const open = () => {
-    const token = getAccessToken();
+  const open = async () => {
+    const token = await getAccessToken().catch(() => null);
     if (!token) {
       setLiveStatus(false, 'Sign in required');
       return;
     }
     ws = new WebSocket(
-      `${proto}//${location.host}/ws?access_token=${encodeURIComponent(token)}`
+      `${proto}//${location.host}/ws?tenant_id=${encodeURIComponent(getTenantId())}`,
+      ['opek-sms-v1', `auth.${token}`]
     );
     ws.addEventListener('open', () => {
       retryMs = 1000;
@@ -1949,7 +2513,7 @@ function connectLive() {
     ws.addEventListener('close', () => {
       setLiveStatus(false, 'Reconnecting…');
       startPollFallback();
-      setTimeout(open, retryMs);
+      setTimeout(() => open().catch(() => {}), retryMs);
       retryMs = Math.min(retryMs * 1.6, 15000);
     });
     ws.addEventListener('error', () => {
@@ -1961,7 +2525,7 @@ function connectLive() {
     });
   };
 
-  open();
+  open().catch(() => startPollFallback());
   setInterval(() => {
     if (ws && ws.readyState === WebSocket.OPEN) {
       try {

@@ -1,18 +1,18 @@
 import twilio from 'twilio';
 import { isOptedOut, recordOutbound } from './messageStore.js';
+import { getTenantTwilioConfig } from './tenantTwilio.js';
 
-let client;
+const clients = new Map();
 
 export function getTwilioClient() {
-  if (client) return client;
-
-  const accountSid = process.env.TWILIO_ACCOUNT_SID;
-  const authToken = process.env.TWILIO_AUTH_TOKEN;
-  const apiKey = process.env.TWILIO_API_KEY;
-  const apiSecret = process.env.TWILIO_API_SECRET;
+  const { accountSid, authToken, apiKey, apiSecret } = getTenantTwilioConfig();
+  const key = JSON.stringify([accountSid, authToken, apiKey, apiSecret]);
+  if (clients.has(key)) return clients.get(key);
 
   if (apiKey && apiSecret && accountSid) {
-    client = twilio(apiKey, apiSecret, { accountSid });
+    const client = twilio(apiKey, apiSecret, { accountSid });
+    if (clients.size >= 100) clients.clear();
+    clients.set(key, client);
     return client;
   }
 
@@ -22,7 +22,9 @@ export function getTwilioClient() {
     );
   }
 
-  client = twilio(accountSid, authToken);
+  const client = twilio(accountSid, authToken);
+  if (clients.size >= 100) clients.clear();
+  clients.set(key, client);
   return client;
 }
 
@@ -53,12 +55,13 @@ export async function sendSms({
     });
     throw err;
   }
-  const messagingServiceSid = process.env.TWILIO_MESSAGING_SERVICE_SID;
-  const from = process.env.TWILIO_FROM_NUMBER;
+  const config = getTenantTwilioConfig();
+  const messagingServiceSid = config.messagingServiceSid;
+  const from = config.fromNumber;
   const publicBase = (process.env.PUBLIC_BASE_URL || '').replace(/\/$/, '');
   const rawCallback =
     statusCallback ||
-    process.env.TWILIO_STATUS_CALLBACK_URL ||
+    config.statusCallbackUrl ||
     (publicBase ? `${publicBase}/webhooks/twilio/status` : undefined);
   // Twilio rejects non-public URLs (localhost/http). Skip callback rather than fail the send.
   const callback =

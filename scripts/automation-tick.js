@@ -1,10 +1,10 @@
 #!/usr/bin/env node
 /**
- * DigitalOcean scheduled job entrypoint — runs Quote Request drip tick.
+ * DigitalOcean scheduled job entrypoint — runs inbound recovery and automation lifecycle ticks.
  * Prefer direct runner (same env as API); falls back to HTTP if AUTOMATION_TICK_URL is set.
  */
 import dotenv from 'dotenv';
-dotenv.config({ override: true });
+dotenv.config();
 
 async function main() {
   const url = String(process.env.AUTOMATION_TICK_URL || '').trim();
@@ -12,6 +12,7 @@ async function main() {
     const key = String(process.env.OPEK_SMS_API_KEY || '').trim();
     const res = await fetch(url, {
       method: 'POST',
+      signal: AbortSignal.timeout(60_000),
       headers: {
         'Content-Type': 'application/json',
         ...(key ? { 'X-API-Key': key } : {}),
@@ -28,6 +29,8 @@ async function main() {
   }
 
   const { runAutomationTick } = await import('../src/lib/automations/runner.js');
+  const { refreshBusinessRegistry } = await import('../src/lib/businessAccounts.js');
+  await refreshBusinessRegistry({ force: true });
   const summary = await runAutomationTick();
   console.log('[automation-tick]', JSON.stringify(summary));
   if (summary.errors?.length) process.exitCode = 1;

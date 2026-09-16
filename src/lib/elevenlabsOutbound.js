@@ -142,6 +142,7 @@ export async function placeOutboundFollowUpCall({
 
   const res = await fetch('https://api.elevenlabs.io/v1/convai/twilio/outbound-call', {
     method: 'POST',
+    signal: AbortSignal.timeout(30_000),
     headers: {
       'xi-api-key': cfg.apiKey,
       'Content-Type': 'application/json',

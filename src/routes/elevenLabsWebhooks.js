@@ -7,8 +7,10 @@ import {
   ingestPostCallWebhook,
   verifyElevenLabsWebhookSignature,
 } from '../lib/elevenlabsConversations.js';
+import { requireTenantDataIsolation } from '../lib/tenantContext.js';
 
 export const elevenLabsWebhooksRouter = Router();
+elevenLabsWebhooksRouter.use(requireTenantDataIsolation);
 
 elevenLabsWebhooksRouter.post('/post-call', async (req, res) => {
   const secret = String(process.env.ELEVENLABS_WEBHOOK_SECRET || '').trim();
@@ -24,16 +26,15 @@ elevenLabsWebhooksRouter.post('/post-call', async (req, res) => {
           ? req.body.toString('utf8')
           : JSON.stringify(req.body || {});
 
-  if (secret) {
-    const verified = verifyElevenLabsWebhookSignature(rawBody, signature, secret);
-    if (!verified.ok) {
-      console.warn('[opek-sms] elevenlabs webhook auth failed', verified.error);
-      return res.status(401).json({ error: verified.error || 'Unauthorized' });
-    }
-  } else {
-    console.warn(
-      '[opek-sms] ELEVENLABS_WEBHOOK_SECRET not set; accepting post-call webhook without HMAC'
-    );
+  if (!secret) {
+    console.error('[opek-sms] ELEVENLABS_WEBHOOK_SECRET missing; rejecting webhook');
+    return res.status(503).json({ error: 'Webhook verification unavailable' });
+  }
+
+  const verified = verifyElevenLabsWebhookSignature(rawBody, signature, secret);
+  if (!verified.ok) {
+    console.warn('[opek-sms] elevenlabs webhook auth failed', verified.error);
+    return res.status(401).json({ error: verified.error || 'Unauthorized' });
   }
 
   let event;

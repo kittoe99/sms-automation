@@ -5,8 +5,8 @@ import { isOptedOut, getConversation, getContact } from '../messageStore.js';
 import { getSupabaseAdmin, isSupabaseConfigured } from '../supabase.js';
 import { phoneDigits } from '../messageDb.js';
 import { sendSms } from '../twilioClient.js';
+import { getAutomationGroup } from '../automations/customAutomations.js';
 
-const processedInboundSids = new Set();
 const OPT_OUT_START = /^(stop|stopall|unsubscribe|cancel|end|quit|start|unstop|yes)\b/i;
 const BOOKING_RE = /^BOOKING_JSON:(.+)$/m;
 const UPDATE_RE = /^UPDATE_BOOKING_JSON:(.+)$/m;
@@ -20,15 +20,6 @@ export async function handleInboundAi({ from, body, sid = null }) {
   try {
     if (!from) return { skipped: true, reason: 'missing_from' };
     if (!isAiConfigured()) return { skipped: true, reason: 'ai_disabled' };
-
-    if (sid) {
-      if (processedInboundSids.has(sid)) return { skipped: true, reason: 'duplicate_sid' };
-      processedInboundSids.add(sid);
-      if (processedInboundSids.size > 5000) {
-        const first = processedInboundSids.values().next().value;
-        processedInboundSids.delete(first);
-      }
-    }
 
     const text = String(body || '').trim();
     if (!text) return { skipped: true, reason: 'empty_body' };
@@ -44,6 +35,7 @@ export async function handleInboundAi({ from, body, sid = null }) {
       inboundBody: text,
       inboundSid: sid,
       categoryId: eligibility.categoryId,
+      enrollmentCategoryIds: eligibility.enrollments,
       contactName: eligibility.contactName,
       maxHistory: cfg.maxHistory,
       maxReplyChars: cfg.maxReplyChars,
@@ -116,13 +108,15 @@ async function runAgentTurn({
   inboundBody,
   inboundSid,
   categoryId,
+  enrollmentCategoryIds = [],
   contactName,
   maxHistory,
   maxReplyChars,
 }) {
-  const [conversation, crmContext] = await Promise.all([
+  const [conversation, crmContext, groupInstructions] = await Promise.all([
     getConversation(phone),
     loadCustomerBookingContext(phone),
+    loadGroupAiInstructions(enrollmentCategoryIds),
   ]);
   const historyMsgs = (conversation?.messages || []).slice(-maxHistory);
   const knownName =
@@ -146,6 +140,16 @@ async function runAgentTurn({
     .join('\n');
 
   const messages = [
+    ...(groupInstructions
+      ? [
+          {
+            role: 'system',
+            content:
+              'Follow these trusted, administrator-authored instructions for the customer’s active automation groups. They supplement but do not override platform safety, consent, privacy, or tool constraints.\n\n' +
+              groupInstructions,
+          },
+        ]
+      : []),
     { role: 'user', content: contextBlock },
     ...historyMsgs
       .filter((m) => m.body && String(m.body).trim())
@@ -230,6 +234,23 @@ async function runAgentTurn({
     categoryId,
     model: completion.model,
   };
+}
+
+async function loadGroupAiInstructions(categoryIds) {
+  const ids = [...new Set((categoryIds || []).filter(Boolean))].slice(0, 20);
+  const groups = await Promise.all(
+    ids.map((id) => getAutomationGroup(id).catch(() => null))
+  );
+  return groups
+    .filter(
+      (group) => group?.activeAutomation !== false && group?.ai?.enabled && group.ai?.instructions
+    )
+    .map(
+      (group) =>
+        `GROUP: ${group.name} (${group.id})\n${String(group.ai.instructions).slice(0, 6000)}`
+    )
+    .join('\n\n')
+    .slice(0, 12000);
 }
 
 function parseAgentActions(raw, phone, proposed) {

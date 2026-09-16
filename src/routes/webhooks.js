@@ -1,22 +1,55 @@
 import { Router } from 'express';
 import twilio from 'twilio';
 import { recordInbound, updateDeliverability } from '../lib/messageStore.js';
-import { handleInboundAi } from '../lib/ai/agent.js';
+import { processInboundAiJob } from '../lib/ai/inboundJobs.js';
+import { handleInboundAutomationTrigger } from '../lib/automations/lifecycle.js';
+import {
+  requireTenantDataIsolation,
+  resolveTenantForPhone,
+  resolveTenantForTwilioAccount,
+  listTenants,
+  runWithTenant,
+} from '../lib/tenantContext.js';
+import { redactPhone } from '../lib/security.js';
+import { getTenantTwilioConfig } from '../lib/tenantTwilio.js';
 
 export const webhooksRouter = Router();
+webhooksRouter.use(requireTenantDataIsolation);
+
+webhooksRouter.use((req, res, next) => {
+  const accountSid = req.body?.AccountSid;
+  const tenant = accountSid
+    ? resolveTenantForTwilioAccount(accountSid)
+    : listTenants().length === 1
+      ? resolveTenantForPhone(req.body?.To || req.body?.From)
+      : null;
+  if (!tenant) return res.status(403).type('text/plain').send('Unknown Twilio business account');
+  req.tenant = tenant;
+  return runWithTenant(tenant, next);
+});
 
 function validateTwilio(req, res, next) {
-  const shouldValidate = process.env.TWILIO_VALIDATE_SIGNATURE !== 'false';
+  const shouldValidate =
+    process.env.NODE_ENV === 'production' || listTenants().length > 1 || process.env.TWILIO_VALIDATE_SIGNATURE !== 'false';
   if (!shouldValidate) return next();
 
-  const authToken = process.env.TWILIO_AUTH_TOKEN;
+  const authToken = getTenantTwilioConfig(req.tenant).authToken;
   if (!authToken) {
-    console.warn('[opek-sms] TWILIO_AUTH_TOKEN missing; skipping signature check');
-    return next();
+    console.error('[opek-sms] TWILIO_AUTH_TOKEN missing; rejecting webhook');
+    return res.status(503).type('text/plain').send('Webhook verification unavailable');
   }
 
   const signature = req.get('X-Twilio-Signature') || '';
-  const url = `${req.protocol}://${req.get('host')}${req.originalUrl}`;
+  const publicBase = String(process.env.PUBLIC_BASE_URL || '')
+    .trim()
+    .replace(/\/$/, '');
+  if (process.env.NODE_ENV === 'production' && !publicBase) {
+    console.error('[opek-sms] PUBLIC_BASE_URL missing; rejecting Twilio webhook');
+    return res.status(503).type('text/plain').send('Webhook verification unavailable');
+  }
+  const url = publicBase
+    ? `${publicBase}${req.originalUrl}`
+    : `${req.protocol}://${req.get('host')}${req.originalUrl}`;
   const valid = twilio.validateRequest(authToken, signature, url, req.body || {});
 
   if (!valid) {
@@ -33,28 +66,39 @@ webhooksRouter.post('/inbound', validateTwilio, async (req, res) => {
   const body = (req.body?.Body || '').trim();
   const sid = req.body?.MessageSid || req.body?.SmsSid || null;
 
-  console.log('[opek-sms] inbound', { from, to, sid, body });
+  console.log('[opek-sms] inbound', {
+    from: redactPhone(from),
+    to: redactPhone(to),
+    sid,
+    bodyLength: body.length,
+  });
 
+  let message = null;
   try {
     if (from) {
-      await recordInbound({ from, to, body, sid });
+      message = await recordInbound({ from, to, body, sid });
+      await handleInboundAutomationTrigger({ phone: from, body });
     }
   } catch (err) {
-    console.error('[opek-sms] inbound persist failed', err);
+    console.error('[opek-sms] inbound persistence/lifecycle failed', err);
+    return res.status(500).type('text/plain').send('Temporary inbound processing failure');
   }
 
   // Fast ACK — AI runs in background so Twilio does not time out
   res.type('text/xml').send('<Response></Response>');
 
-  if (from) {
+  if (from && message?.id) {
     setImmediate(() => {
-      handleInboundAi({ from, body, sid })
+      processInboundAiJob(message.id)
         .then((result) => {
           if (result?.skipped) {
-            console.log('[opek-sms] AI skipped', { from, reason: result.reason });
+            console.log('[opek-sms] AI skipped', {
+              from: redactPhone(from),
+              reason: result.reason,
+            });
           } else if (result?.message) {
             console.log('[opek-sms] AI replied', {
-              from,
+              from: redactPhone(from),
               sid: result.message.sid,
               tools: result.toolsUsed?.map((t) => t.name),
             });
@@ -69,7 +113,12 @@ webhooksRouter.post('/inbound', validateTwilio, async (req, res) => {
 
 webhooksRouter.post('/status', validateTwilio, async (req, res) => {
   const { MessageSid, MessageStatus, To, ErrorCode } = req.body || {};
-  console.log('[opek-sms] status', { MessageSid, MessageStatus, To, ErrorCode });
+  console.log('[opek-sms] status', {
+    MessageSid,
+    MessageStatus,
+    To: redactPhone(To),
+    ErrorCode,
+  });
 
   try {
     await updateDeliverability(MessageSid, {

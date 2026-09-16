@@ -1,5 +1,4 @@
 import { getSupabaseAdmin, isSupabaseConfigured } from './supabase.js';
-import { getCategory } from './categories.js';
 import { isOptedOut } from './messageStore.js';
 import { sendSms } from './twilioClient.js';
 import { publish } from './realtime.js';
@@ -8,6 +7,17 @@ import {
   needsAppointmentDripSeed,
   seedAppointmentDripOnEnrollment,
 } from './automations/appointmentDripState.js';
+import {
+  computeReminderSendAt,
+  initialAppointmentDripMetadata,
+} from './automations/appointmentRemindersSequence.js';
+import { removeActiveEnrollmentsForPhone } from './automations/lifecycle.js';
+import { getBusinessTimeZone } from './automations/timeRules.js';
+import {
+  computeCustomNextSendAt,
+  getAutomationGroup,
+  seedCustomDrip,
+} from './automations/customAutomations.js';
 
 export async function listDirectoryContacts({
   q = null,
@@ -107,12 +117,27 @@ export async function enrollContactInAutomation({
   name = null,
   email = null,
   source = null,
+  bookingId = null,
+  appointmentDate = null,
+  preferredTime = null,
+  serviceType = null,
+  serviceAddress = null,
 }) {
   if (!isSupabaseConfigured()) {
     throw new Error('Supabase is not configured');
   }
-  if (!getCategory(categoryId)) {
+  const category = await getAutomationGroup(categoryId);
+  if (!category) {
     throw new Error(`Unknown automation group: ${categoryId}`);
+  }
+  if (category.activeAutomation === false) {
+    throw new Error(`No active automation is configured for ${category.name}`);
+  }
+  if (
+    categoryId === 'appointment-reminders' &&
+    !computeReminderSendAt(appointmentDate, new Date(), preferredTime)
+  ) {
+    throw new Error('A valid appointmentDate is required in YYYY-MM-DD format');
   }
   if (await isOptedOut(phone)) {
     throw new Error('Contact has opted out of SMS (STOP)');
@@ -133,7 +158,7 @@ export async function enrollContactInAutomation({
     p_name: name || contact.name,
     p_email: email || contact.email,
     p_source: source || contact.primarySource,
-    p_record_id: null,
+    p_record_id: bookingId || null,
   });
 
   if (error) throw error;
@@ -143,7 +168,16 @@ export async function enrollContactInAutomation({
     enrollment = await ensureQuoteRequestDripSeeded(enrollment);
   }
   if (categoryId === 'appointment-reminders' && enrollment?.id) {
-    enrollment = await ensureAppointmentReminderDripSeeded(enrollment);
+    enrollment = await ensureAppointmentReminderDripSeeded(enrollment, {
+      preferredDate: appointmentDate,
+      preferredTime,
+      serviceType,
+      serviceAddress,
+      bookingId,
+    });
+  }
+  if (category.custom && enrollment?.id) {
+    enrollment = await ensureCustomDripSeeded(enrollment, category);
   }
 
   publish('enrollment', { event: 'insert', record: enrollment });
@@ -172,7 +206,7 @@ export async function removeEnrollment({ phone, categoryId, enrollmentId = null 
     return data;
   }
 
-  if (!getCategory(categoryId)) {
+  if (!(await getAutomationGroup(categoryId))) {
     throw new Error(`Unknown automation group: ${categoryId}`);
   }
 
@@ -192,6 +226,88 @@ export async function removeEnrollment({ phone, categoryId, enrollmentId = null 
   if (!data) throw new Error('Enrollment not found');
   publish('enrollment', { event: 'update', record: data });
   return data;
+}
+
+/**
+ * Move a customer from quote nurture into the correct booking reminder state.
+ * This is shared by the SMS agent and server-to-server booking event endpoint.
+ */
+export async function syncBookingAutomations({
+  phone,
+  bookingId = null,
+  status = 'new',
+  appointmentDate = null,
+  preferredTime = null,
+  serviceType = null,
+  serviceAddress = null,
+  name = null,
+  email = null,
+  source = 'booking',
+  now = new Date(),
+}) {
+  if (!isSupabaseConfigured()) throw new Error('Supabase is not configured');
+  if (!normalizeDigits(phone)) throw new Error('phone is required');
+
+  const normalizedStatus = String(status || 'new').trim().toLowerCase();
+  const quoteRemoved = await removeActiveEnrollmentsForPhone(phone, {
+    categoryId: 'quote-requests',
+    reason: normalizedStatus === 'cancelled' ? 'booking_cancelled' : 'booking_created',
+    source,
+    bookingId,
+    now,
+  });
+
+  if (normalizedStatus === 'cancelled') {
+    const remindersRemoved = await removeActiveEnrollmentsForPhone(phone, {
+      categoryId: 'appointment-reminders',
+      reason: 'booking_cancelled',
+      source,
+      bookingId,
+      now,
+    });
+    return { quoteRemoved, remindersRemoved, reminder: null };
+  }
+
+  if (!computeReminderSendAt(appointmentDate, now, preferredTime)) {
+    return { quoteRemoved, remindersRemoved: 0, reminder: null };
+  }
+
+  let enrollment = await enrollContactInAutomation({
+    phone,
+    categoryId: 'appointment-reminders',
+    name,
+    email,
+    source,
+    bookingId,
+    appointmentDate,
+    preferredTime,
+    serviceType,
+    serviceAddress,
+  });
+
+  const metadata = {
+    ...(enrollment.metadata || {}),
+    ...initialAppointmentDripMetadata({
+      preferredDate: appointmentDate,
+      preferredTime,
+      serviceType,
+      serviceAddress,
+      bookingId,
+      now,
+    }),
+  };
+  const { data, error } = await getSupabaseAdmin()
+    .from('sms_automation_enrollments')
+    .update({ metadata, updated_at: now.toISOString() })
+    .eq('id', enrollment.id)
+    .eq('status', 'enrolled')
+    .select()
+    .maybeSingle();
+  if (error) throw error;
+  enrollment = data || enrollment;
+  if (data) publish('enrollment', { event: 'update', record: data });
+
+  return { quoteRemoved, remindersRemoved: 0, reminder: enrollment };
 }
 
 export async function listEnrollments({ categoryId = null, page = 1, pageSize = 50 } = {}) {
@@ -226,6 +342,73 @@ export async function listEnrollments({ categoryId = null, page = 1, pageSize = 
   };
 }
 
+/** Apply custom rule edits to the next unsent step without replaying prior sends. */
+export async function rescheduleCustomAutomationEnrollments(group, now = new Date()) {
+  if (!isSupabaseConfigured() || !group?.custom) return { updated: 0, completed: 0 };
+  const admin = getSupabaseAdmin();
+  const { data: rows, error } = await admin
+    .from('sms_automation_enrollments')
+    .select('*')
+    .eq('category_id', group.id)
+    .eq('status', 'enrolled')
+    .limit(1000);
+  if (error) throw error;
+
+  const summary = { updated: 0, completed: 0 };
+  const timeZone = getBusinessTimeZone();
+  for (const enrollment of rows || []) {
+    const drip = enrollment.metadata?.drip || {};
+    const stepIndex = Number(drip.stepIndex) || 0;
+    if (stepIndex >= group.rule.repeatCount) {
+      const { data, error: updateError } = await admin
+        .from('sms_automation_enrollments')
+        .update({ status: 'removed', updated_at: now.toISOString() })
+        .eq('id', enrollment.id)
+        .eq('status', 'enrolled')
+        .select()
+        .maybeSingle();
+      if (updateError) throw updateError;
+      if (data) {
+        summary.completed += 1;
+        publish('enrollment', { event: 'update', record: data });
+      }
+      continue;
+    }
+
+    const metadata =
+      stepIndex === 0 && !drip.lastSentAt
+        ? seedCustomDrip(enrollment, group, now)
+        : {
+            ...(enrollment.metadata || {}),
+            drip: {
+              ...drip,
+              ruleVersion: group.updatedAt,
+              status: 'active',
+              nextSendAt:
+                computeCustomNextSendAt(
+                  group.rule,
+                  drip.lastSentAt || now,
+                  timeZone,
+                  stepIndex
+                )?.toISOString() || null,
+            },
+          };
+    const { data, error: updateError } = await admin
+      .from('sms_automation_enrollments')
+      .update({ metadata, updated_at: now.toISOString() })
+      .eq('id', enrollment.id)
+      .eq('status', 'enrolled')
+      .select()
+      .maybeSingle();
+    if (updateError) throw updateError;
+    if (data) {
+      summary.updated += 1;
+      publish('enrollment', { event: 'update', record: data });
+    }
+  }
+  return summary;
+}
+
 function normalizeDirectoryContact(row) {
   const enrollments = row.enrollments || [];
   return {
@@ -251,12 +434,12 @@ function normalizeDigits(value) {
 export function toE164(phone) {
   const digits = normalizeDigits(phone);
   if (!digits) return '';
-  if (String(phone).trim().startsWith('+') && digits.length >= 10) {
+  if (String(phone).trim().startsWith('+') && digits.length >= 10 && digits.length <= 15) {
     return `+${digits}`;
   }
   if (digits.length === 10) return `+1${digits}`;
   if (digits.length === 11 && digits.startsWith('1')) return `+${digits}`;
-  return `+${digits}`;
+  return '';
 }
 
 export async function sendCustomContactMessage({
@@ -269,7 +452,7 @@ export async function sendCustomContactMessage({
   if (!text) throw new Error('Message body is required');
   if (text.length > 1600) throw new Error('Message is too long (max 1600 characters)');
 
-  if (categoryId && !getCategory(categoryId)) {
+  if (categoryId && !(await getAutomationGroup(categoryId))) {
     throw new Error(`Unknown automation group: ${categoryId}`);
   }
   if (await isOptedOut(phone)) {
@@ -314,9 +497,9 @@ async function ensureQuoteRequestDripSeeded(enrollment) {
   return data || enrollment;
 }
 
-async function ensureAppointmentReminderDripSeeded(enrollment) {
+async function ensureAppointmentReminderDripSeeded(enrollment, extras = {}) {
   if (!needsAppointmentDripSeed(enrollment)) return enrollment;
-  const metadata = seedAppointmentDripOnEnrollment(enrollment);
+  const metadata = seedAppointmentDripOnEnrollment(enrollment, extras);
   const { data, error } = await getSupabaseAdmin()
     .from('sms_automation_enrollments')
     .update({ metadata, updated_at: new Date().toISOString() })
@@ -326,6 +509,22 @@ async function ensureAppointmentReminderDripSeeded(enrollment) {
     .maybeSingle();
   if (error) {
     console.warn('[opek-sms] appointment drip seed on enroll failed', error.message);
+    return enrollment;
+  }
+  return data || enrollment;
+}
+
+async function ensureCustomDripSeeded(enrollment, group) {
+  const metadata = seedCustomDrip(enrollment, group);
+  const { data, error } = await getSupabaseAdmin()
+    .from('sms_automation_enrollments')
+    .update({ metadata, updated_at: new Date().toISOString() })
+    .eq('id', enrollment.id)
+    .eq('status', 'enrolled')
+    .select()
+    .maybeSingle();
+  if (error) {
+    console.warn('[opek-sms] custom drip seed on enroll failed', error.message);
     return enrollment;
   }
   return data || enrollment;
