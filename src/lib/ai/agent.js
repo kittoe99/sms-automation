@@ -1,4 +1,4 @@
-import { getAiConfig, gradientChat, isAiConfigured } from './client.js';
+import { getAiConfig, workerOnlyChat, isAiConfigured } from './client.js';
 import { executeTool } from './tools.js';
 import { loadCustomerBookingContext } from './customerContext.js';
 import { isOptedOut, getConversation, getContact } from '../messageStore.js';
@@ -164,7 +164,7 @@ async function runAgentTurn({
     messages.push({ role: 'user', content: inboundBody });
   }
 
-  const completion = await gradientChat({ messages, maxTokens: 500 });
+  const completion = await workerOnlyChat({ messages, maxTokens: 500 });
   const toolsUsed = [];
   const { reply, booking, updateBooking, escalateReason } = parseAgentActions(
     completion.content,

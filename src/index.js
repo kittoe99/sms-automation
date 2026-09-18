@@ -1,4 +1,6 @@
 import 'dotenv/config';
+import { isDatabaseDisconnected } from './lib/dataMode.js';
+import { loadLocalBusinesses } from './lib/localBusinesses.js';
 import http from 'node:http';
 import express from 'express';
 import path from 'node:path';
@@ -18,16 +20,21 @@ import {
   getClerkPublishableKey,
   getClerkSecretKey,
   isCrmAuthConfigured,
+  isLocalAuthDisabled,
 } from './lib/crmAuth.js';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const publicDir = path.join(__dirname, '..', 'public');
 const app = express();
 const port = Number(process.env.PORT || 8080);
+if (process.env.NODE_ENV === 'production') {
+  throw new Error('Production uses Supabase Edge APIs and bounded Edge workers. This server is a local preview only.');
+}
+await loadLocalBusinesses();
 
 app.disable('x-powered-by');
 app.set('trust proxy', 1);
-if (isCrmAuthConfigured()) {
+if (isCrmAuthConfigured() && !isLocalAuthDisabled()) {
   app.use(
     clerkMiddleware({
       publishableKey: getClerkPublishableKey(),
@@ -50,6 +57,10 @@ app.use(
 );
 
 app.use(healthRouter);
+app.use('/webhooks', (_req, res, next) => {
+  if (isDatabaseDisconnected()) return res.status(503).json({ error: 'Database disconnected' });
+  next();
+});
 app.use('/api', businessRegistryMiddleware);
 app.use('/webhooks', businessRegistryMiddleware);
 app.use('/api/platform', platformRouter);
@@ -91,7 +102,7 @@ server.keepAliveTimeout = 5_000;
 server.maxHeadersCount = 100;
 attachRealtime(server);
 
-server.listen(port, () => {
+server.listen(port, isLocalAuthDisabled() ? '127.0.0.1' : undefined, () => {
   console.log(`[opek-sms] listening on :${port}`);
   console.log(`[opek-sms] UI http://localhost:${port}/`);
   console.log(`[opek-sms] messaging service: ${process.env.TWILIO_MESSAGING_SERVICE_SID || '(not set)'}`);
@@ -100,3 +111,4 @@ server.listen(port, () => {
 });
 
 export { app, server, twilio };
+

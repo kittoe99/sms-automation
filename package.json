@@ -2,7 +2,7 @@
   "name": "opek-sms",
   "version": "0.1.0",
   "private": true,
-  "description": "Opek Junk Removal SMS automation service (Twilio + DigitalOcean)",
+  "description": "Multi-business SMS CRM with Supabase queues and bounded Edge workers",
   "type": "module",
   "main": "src/index.js",
   "scripts": {
@@ -11,21 +11,33 @@
     "demo": "node src/demo.js",
     "test": "node --test",
     "automation-tick": "node scripts/automation-tick.js",
-    "voice-sync": "node scripts/voice-sync.js"
+    "voice-sync": "node scripts/voice-sync.js",
+    "worker:sms": "node src/workers/run.js sms",
+    "worker:automation": "node src/workers/run.js automation",
+    "worker:ai": "node src/workers/run.js ai",
+    "build:frontend": "node scripts/build-frontend.js",
+    "db:assemble": "node scripts/assemble-migration.js",
+    "test:workers": "node --test test/workerArchitecture.test.js test/edgeWorkers.test.js"
   },
   "engines": {
     "node": ">=20.9"
   },
   "dependencies": {
-    "@clerk/express": "^2.1.67",
-    "@supabase/supabase-js": "^2.111.0",
-    "dotenv": "^17.4.2",
-    "express": "^4.21.2",
-    "openai": "^4.104.0",
-    "twilio": "^5.5.1",
-    "ws": "^8.21.1"
+    "@clerk/express": "2.1.67",
+    "@supabase/supabase-js": "2.111.0",
+    "dotenv": "17.4.2",
+    "express": "4.22.3",
+    "jose": "6.2.12",
+    "openai": "4.104.0",
+    "postgres": "3.4.9",
+    "twilio": "5.5.1",
+    "ws": "8.21.1"
   },
   "overrides": {
     "qs": "^6.16.0"
+  },
+  "devDependencies": {
+    "@electric-sql/pglite": "^0.5.8",
+    "esbuild": "^0.28.2"
   }
 }

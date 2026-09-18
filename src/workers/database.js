@@ -1,0 +1,15 @@
+import postgres from 'postgres';
+const functions = new Set(['claim','extend_lease','finish','begin_submission','accept_submission','job_context','provision_credentials','complete_automation','complete_ai','ai_tool','provision_checkpoint','api_action','api_read','provider_setup','save_provider_setup','queue_provision','webhook_credentials','record_webhook','integration_credentials','ingest_event']);
+export function connectDatabase(url = process.env.WORKER_DATABASE_URL) {
+  if (!url) throw new Error('WORKER_DATABASE_URL is required (a scoped worker login)');
+  const sql = postgres(url, { ssl: process.env.NODE_ENV === 'test' ? false : 'require', prepare: false, max: 3, connect_timeout: 10, idle_timeout: 20 });
+  return {
+    async call(name, ...args) {
+      if (!functions.has(name)) throw new Error('Unknown database operation');
+      const values = args;
+      const result = await sql.unsafe(`select sms_private.${name}(${values.map((_,i)=>`$${i+1}`).join(',')}) as result`, values);
+      return result[0]?.result;
+    },
+    close: () => sql.end({ timeout: 5 }),
+  };
+}

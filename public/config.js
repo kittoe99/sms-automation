@@ -1,0 +1,1 @@
+globalThis.SMS_CONFIG={"apiBase":"https://wxamwhfmelxqahkdtcci.supabase.co/functions/v1/crm-api","supabaseUrl":"https://wxamwhfmelxqahkdtcci.supabase.co","supabasePublishableKey":"sb_publishable_AasRnYe1rmeE3NKXHCcR0Q_8DYFkHSP"};

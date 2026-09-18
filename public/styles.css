@@ -2591,3 +2591,56 @@ body.ui-overlay-open {
   font-size: 12px;
   line-height: 1.6;
 }
+
+/* Keep the dashboard focused; supporting details expand in place. */
+.crm[data-view="overview"] .kpi-row {
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+}
+.crm[data-view="overview"] .kpi { min-height: 100px; }
+.crm[data-view="overview"] .kpi .value { margin-top: 12px; }
+.crm[data-view="overview"] .kpi p { display: none; }
+.platform-badge, .nav-tag { display: none; }
+.dashboard-actions {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 16px;
+  margin-bottom: 24px;
+}
+.dashboard-action {
+  padding: 22px;
+  border: 1px solid var(--border);
+  background: var(--surface);
+  color: var(--text);
+  font: inherit;
+  text-align: left;
+  cursor: pointer;
+}
+.dashboard-action strong, .dashboard-group-open {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 16px;
+}
+.dashboard-action > span { display: block; margin-top: 8px; color: var(--muted); font-size: 0.85rem; }
+.dashboard-action:hover, .dashboard-group-open:hover { background: var(--brand-soft, #edf7f1); }
+.dashboard-action:focus-visible, .dashboard-group-open:focus-visible, .dashboard-details summary:focus-visible, .dashboard-group summary:focus-visible {
+  outline: 2px solid var(--brand);
+  outline-offset: 3px;
+}
+.dashboard-details { padding: 18px 22px; margin-bottom: 24px; }
+.dashboard-details > summary { cursor: pointer; color: var(--muted); font-weight: 600; }
+.dashboard-stats { display: flex; flex-wrap: wrap; gap: 32px; margin: 24px 0; }
+.dashboard-stats dt { color: var(--muted); font-size: 0.85rem; }
+.dashboard-stats dd { margin: 8px 0 0; font-size: 1.4rem; font-weight: 600; }
+.dashboard-group { padding: 0 22px; border-top: 1px solid var(--border); }
+.dashboard-group-open { width: 100%; padding: 18px 0; border: 0; background: transparent; color: var(--text); font: inherit; text-align: left; cursor: pointer; }
+.dashboard-group details { margin-bottom: 16px; color: var(--muted); font-size: 0.85rem; }
+.dashboard-group summary { cursor: pointer; width: fit-content; }
+.dashboard-group p { margin: 12px 0; line-height: 1.6; }
+@media (max-width: 700px) {
+  .dashboard-actions { grid-template-columns: 1fr; gap: 10px; }
+  .dashboard-action { padding: 16px; }
+  .crm[data-view="overview"] .kpi-row { grid-template-columns: 1fr; }
+  .crm[data-view="overview"] .kpi { min-height: auto; display: flex; justify-content: space-between; align-items: center; gap: 16px; }
+  .crm[data-view="overview"] .kpi .value { margin: 0; font-size: 1.6rem; }
+}

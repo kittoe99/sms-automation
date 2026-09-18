@@ -1,0 +1,25 @@
+services:
+  - type: web
+    name: wpacquisition-crm
+    runtime: static
+    buildCommand: npm ci && npm run build:frontend
+    staticPublishPath: ./dist
+    envVars:
+      - key: CRM_API_BASE
+        value: https://wxamwhfmelxqahkdtcci.supabase.co/functions/v1/crm-api
+      - key: SUPABASE_URL
+        value: https://wxamwhfmelxqahkdtcci.supabase.co
+      - key: SUPABASE_PUBLISHABLE_KEY
+        sync: false
+    routes:
+      - type: rewrite
+        source: /*
+        destination: /index.html
+    headers:
+      - path: /*
+        name: X-Content-Type-Options
+        value: nosniff
+      - path: /*
+        name: Referrer-Policy
+        value: strict-origin-when-cross-origin
+

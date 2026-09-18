@@ -1,0 +1,38 @@
+project_id = "sms-wpacquisition"
+
+[api]
+enabled = true
+schemas = ["public", "graphql_public"]
+extra_search_path = ["public", "extensions"]
+max_rows = 250
+
+[db]
+major_version = 17
+
+[functions.crm-api]
+verify_jwt = false
+import_map = "./functions/import_map.json"
+
+[functions.twilio-webhook]
+verify_jwt = false
+import_map = "./functions/import_map.json"
+
+[functions.business-events]
+verify_jwt = false
+import_map = "./functions/import_map.json"
+
+[functions.sms-worker]
+verify_jwt = false
+import_map = "./functions/import_map.json"
+
+[functions.automation-worker]
+verify_jwt = false
+import_map = "./functions/import_map.json"
+
+[functions.ai-worker]
+verify_jwt = false
+import_map = "./functions/import_map.json"
+
+[functions.provisioning-worker]
+verify_jwt = false
+import_map = "./functions/import_map.json"

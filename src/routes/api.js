@@ -1,4 +1,6 @@
 import { Router } from 'express';
+import { emptyDataMiddleware, isDatabaseDisconnected, canManageLocalBusinesses } from '../lib/dataMode.js';
+import { addLocalBusiness } from '../lib/localBusinesses.js';
 import {
   categoryMessageCount,
   deliverabilitySummary,
@@ -32,6 +34,7 @@ import {
   getClerkPublishableKey,
   getClerkFrontendApiUrl,
   isCrmAuthConfigured,
+  isLocalAuthDisabled,
   requireClerkSession,
   requireCrmAuth,
 } from '../lib/crmAuth.js';
@@ -105,6 +108,8 @@ apiRouter.use((req, res, next) => {
 apiRouter.get('/auth/config', (_req, res) => {
   const publishableKey = getClerkPublishableKey();
   res.json({
+    mode: isLocalAuthDisabled() ? 'local' : 'clerk',
+    manualBusinesses: canManageLocalBusinesses(),
     configured: isCrmAuthConfigured(),
     publishableKey: publishableKey || null,
     frontendApiUrl: getClerkFrontendApiUrl(),
@@ -112,7 +117,7 @@ apiRouter.get('/auth/config', (_req, res) => {
 });
 
 apiRouter.get('/auth/me', requireClerkSession, (req, res) => {
-  const tenant = listTenants().find((item) => tenantMatchesClerkAuth(item, req.crmUser));
+  const tenant = listTenants().find((item) => canManageLocalBusinesses() || tenantMatchesClerkAuth(item, req.crmUser));
   res.json({
     user: {
       id: req.crmUser.userId,
@@ -126,7 +131,7 @@ apiRouter.get('/auth/me', requireClerkSession, (req, res) => {
 });
 
 apiRouter.get('/tenants', requireClerkSession, (req, res) => {
-  const tenants = listTenants().filter((tenant) => tenantMatchesClerkAuth(tenant, req.crmUser));
+  const tenants = listTenants().filter((tenant) => canManageLocalBusinesses() || tenantMatchesClerkAuth(tenant, req.crmUser));
   const current = tenants.find((tenant) => tenant.id === req.tenant.id) || tenants[0] || null;
   res.json({
     tenants: tenants.map(toPublicTenant),
@@ -147,6 +152,32 @@ apiRouter.use((req, res, next) => {
   return requireCrmAuth(req, res, next);
 });
 apiRouter.use(requireTenantDataIsolation);
+apiRouter.post('/businesses', crmActionLimiter, asyncRoute(async (req, res) => {
+  if (!canManageLocalBusinesses()) return res.status(403).json({ error: 'Manual local business setup is unavailable' });
+  try {
+    const business = await addLocalBusiness(req.body);
+    res.status(201).json({ business: toPublicTenant(business) });
+  } catch (error) {
+    if ([400, 403, 409].includes(error.status)) return res.status(error.status).json({ error: error.message });
+    throw error;
+  }
+}));
+apiRouter.use(emptyDataMiddleware);
+
+apiRouter.get('/calls', asyncRoute(async (req, res) => {
+  const page = Math.max(1, Math.floor(Number(req.query.page) || 1));
+  const pageSize = Math.max(1, Math.min(250, Math.floor(Number(req.query.pageSize) || 50)));
+  if (!isSupabaseConfigured()) return res.json({ calls: [], total: 0, page: 1, pageSize, totalPages: 1 });
+  const { data, count, error } = await getSupabaseAdmin()
+    .from('sms_voice_conversations')
+    .select('conversation_id, phone, direction, started_at, status, duration_secs', { count: 'exact' })
+    .eq('direction', 'inbound')
+    .order('started_at', { ascending: false, nullsFirst: false })
+    .range((page - 1) * pageSize, page * pageSize - 1);
+  if (error) throw error;
+  res.json({ calls: data || [], total: count || 0, page, pageSize,
+    totalPages: Math.max(1, Math.ceil((count || 0) / pageSize)) });
+}));
 
 /**
  * Transactional outbound SMS (quotes, booking updates, etc.).
@@ -231,8 +262,8 @@ apiRouter.get('/categories', async (_req, res) => {
       categories.push({
         ...c,
         automations: automationsForGroup(c),
-        messageCount: await categoryMessageCount(c.id),
-        summary: await deliverabilitySummary({ categoryId: c.id }),
+        messageCount: isDatabaseDisconnected() ? 0 : await categoryMessageCount(c.id),
+        summary: isDatabaseDisconnected() ? { total: 0, counts: {}, deliveryRate: null } : await deliverabilitySummary({ categoryId: c.id }),
       });
     }
     return res.json({

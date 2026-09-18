@@ -12,4 +12,5 @@ node_modules/
 /.codex-*-preview.png
 .DS_Store
 dist/
+/public/vendor/
 *.log
