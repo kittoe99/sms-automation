@@ -4,7 +4,7 @@
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <title>Opek SMS CRM</title>
-    <link rel="stylesheet" href="/styles.css?v=20260916-light1" />
+    <link rel="stylesheet" href="/styles.css?v=20260916-simple1" />
   </head>
   <body>
     <div id="auth-root" hidden></div>
@@ -19,14 +19,15 @@
 
       <aside class="sidebar" id="sidebar" aria-label="CRM navigation">
         <div class="sidebar-brand">
-          <div>
-            <span class="logo">Opek</span>
+          <span class="workspace-dot" id="tenant-dot" aria-hidden="true"></span>
+          <div class="sidebar-brand-copy">
+            <span class="logo" id="sidebar-brand-name">Opek</span>
             <span class="logo-sub">SMS CRM</span>
           </div>
-          <div class="sidebar-brand-actions">
-            <span class="platform-badge">Platform</span>
-            <button type="button" class="sidebar-close" id="sidebar-close" aria-label="Close navigation">×</button>
-          </div>
+          <span class="platform-badge" id="sidebar-plan-badge">SMS</span>
+          <button type="button" class="sidebar-collapse" id="sidebar-close" aria-label="Close navigation" title="Close navigation">
+            <svg viewBox="0 0 16 16" aria-hidden="true"><path d="M4 3.5 8.5 8 4 12.5M9.5 3.5 14 8l-4.5 4.5" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"/></svg>
+          </button>
         </div>
 
         <div class="clerk-org-switcher" id="clerk-organization-switcher"></div>
@@ -39,51 +40,77 @@
           <i aria-hidden="true">⌄</i>
         </label>
 
-        <nav class="nav" id="nav">
-          <section>
+        <button type="button" id="add-business" class="btn ghost" style="margin:0 12px 16px" hidden>Add business</button>
+
+        <div class="sidebar-find">
+          <svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="11" cy="11" r="7" fill="none" stroke="currentColor" stroke-width="1.8"/><path d="m16.5 16.5 4 4" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/></svg>
+          <input id="nav-find" type="search" placeholder="Find" aria-label="Filter navigation" autocomplete="off" />
+          <kbd title="Press F to focus">F</kbd>
+        </div>
+
+        <nav class="nav" id="nav" aria-label="CRM sections">
+          <section data-nav-section="workspace">
             <p class="nav-label">Workspace</p>
-            <button type="button" class="nav-item active" data-view="overview">
-              <svg viewBox="0 0 24 24" aria-hidden="true"><rect x="3" y="3" width="7" height="7" rx="1"/><rect x="14" y="3" width="7" height="7" rx="1"/><rect x="3" y="14" width="7" height="7" rx="1"/><rect x="14" y="14" width="7" height="7" rx="1"/></svg>
-              <span>Overview</span>
+            <button type="button" class="nav-item active" data-view="overview" data-find="dashboard overview home">
+              <svg viewBox="0 0 24 24" aria-hidden="true"><rect x="3" y="3" width="7" height="7" rx="1.5"/><rect x="14" y="3" width="7" height="7" rx="1.5"/><rect x="3" y="14" width="7" height="7" rx="1.5"/><rect x="14" y="14" width="7" height="7" rx="1.5"/></svg>
+              <span>Dashboard</span>
             </button>
-            <button type="button" class="nav-item" data-view="contacts">
+            <button type="button" class="nav-item" data-view="contacts" data-find="contacts customers leads directory">
               <svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="9" cy="8" r="3"/><path d="M3.5 20c.6-4 2.5-6 5.5-6s4.9 2 5.5 6"/><path d="M17 8h4M19 6v4"/></svg>
               <span>Contacts</span>
             </button>
           </section>
 
-          <section>
+          <section data-nav-section="conversations">
             <p class="nav-label">Conversations</p>
-            <button type="button" class="nav-item" data-view="messaging">
+            <button type="button" class="nav-item" data-view="messaging" data-find="messaging inbox conversations sms replies">
               <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 5h16v11H9l-5 4V5Z"/><path d="M8 10h8M8 13h5"/></svg>
               <span>Messaging</span>
               <i class="nav-tag">Live</i>
             </button>
-            <button type="button" class="nav-item" data-view="call">
+            <button type="button" class="nav-item" data-view="call" data-find="calls inbound voice phone">
               <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M7.2 3.8 10 8.5 7.8 11c1.2 2.5 2.9 4.2 5.4 5.4l2.5-2.2 4.5 2.8c.4.2.5.7.3 1.1-.8 1.7-2.4 2.9-4.3 2.8C9.5 20.5 3.5 14.5 3 7.8c-.1-1.9 1.1-3.5 2.8-4.3.5-.2 1 0 1.4.3Z"/></svg>
-              <span>Call</span>
+              <span>Inbound calls</span>
             </button>
-            <button type="button" class="nav-item" data-view="messages">
+            <button type="button" class="nav-item" data-view="messages" data-find="message history log all sms">
               <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M6 4h12v16H6z"/><path d="M9 8h6M9 12h6M9 16h4"/></svg>
-              <span>Messages</span>
+              <span>Message history</span>
             </button>
           </section>
 
-          <section>
+          <section data-nav-section="operations">
             <p class="nav-label">Operations</p>
-            <button type="button" class="nav-item" data-view="deliverability">
+            <button type="button" class="nav-item" data-view="deliverability" data-find="delivery report analytics deliverability sent delivered">
               <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 19V9M10 19V5M16 19v-7M22 19V3"/></svg>
-              <span>Deliverability</span>
+              <span>Delivery report</span>
             </button>
-            <button type="button" class="nav-item" data-view="optouts">
+            <button type="button" class="nav-item" data-view="optouts" data-find="opt outs stop unsubscribed suppressed">
               <svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="9"/><path d="m8.5 8.5 7 7"/></svg>
               <span>Opt-Outs</span>
             </button>
-            <button type="button" class="nav-item" data-view="automations" id="nav-automations-root">
+            <button type="button" class="nav-item nav-parent" data-view="automations" id="nav-automations-root" data-find="automations follow ups sequences drip campaigns">
               <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 3v4M12 17v4M3 12h4M17 12h4"/><circle cx="12" cy="12" r="4"/><path d="m5.6 5.6 2.8 2.8M15.6 15.6l2.8 2.8M18.4 5.6l-2.8 2.8M8.4 15.6l-2.8 2.8"/></svg>
               <span>Automations</span>
+              <em class="nav-count" id="nav-automations-count" hidden></em>
+              <i class="nav-chevron" aria-hidden="true">›</i>
             </button>
             <div class="nav-sub" id="nav-automations" hidden></div>
+          </section>
+
+          <section class="nav-settings" data-nav-section="settings">
+            <p class="nav-label">Setup</p>
+            <button type="button" class="nav-item" data-view="business-setup" data-find="business setup twilio registration phone number sender">
+              <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 7h16M4 12h16M4 17h10"/><circle cx="19" cy="17" r="2.4"/></svg>
+              <span>Business setup</span>
+            </button>
+            <button type="button" class="nav-item" data-view="business-context" data-find="business context onboarding services areas hours faqs ai voice sms">
+              <svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="9"/><path d="M12 7v5l3 3"/></svg>
+              <span>Business context</span>
+            </button>
+            <button type="button" class="nav-item" data-view="knowledge" data-find="knowledge sources website documents leads handoffs ai evidence">
+              <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M5 4h11a3 3 0 0 1 3 3v13H8a3 3 0 0 1-3-3z"/><path d="M8 20a3 3 0 0 1 0-6h11M9 8h6"/></svg>
+              <span>AI knowledge</span>
+            </button>
           </section>
         </nav>
 
@@ -117,27 +144,31 @@
 
         <section class="page-heading">
           <div class="page-heading-copy">
-            <span class="eyebrow">Customer operations</span>
-            <h1 id="page-title">Overview</h1>
-            <p id="page-sub" class="muted">Pipeline health across all SMS traffic</p>
+            <h1 id="page-title">Dashboard</h1>
+            <p id="page-sub" class="muted">Your messages, contacts, and follow-ups in one place.</p>
           </div>
           <div class="toolbar-actions">
             <div class="search-wrap">
               <input
                 id="search"
                 type="search"
-                placeholder="Search phone, body, SID…"
+                placeholder="Search…"
+                aria-label="Search current view"
                 autocomplete="off"
               />
             </div>
             <select id="status-filter" aria-label="Deliverability filter">
               <option value="">All statuses</option>
               <option value="queued">Queued</option>
+              <option value="submitting">Submitting</option>
+              <option value="accepted">Accepted</option>
               <option value="sending">Sending</option>
               <option value="sent">Sent</option>
               <option value="delivered">Delivered</option>
               <option value="undelivered">Undelivered</option>
               <option value="failed">Failed</option>
+              <option value="cancelled">Cancelled</option>
+              <option value="submission_unknown">Needs review</option>
             </select>
             <button type="button" id="refresh" class="btn">Refresh</button>
           </div>
@@ -177,6 +208,7 @@
       </aside>
     </div>
 
-    <script src="/app.js?v=20260916-light1" type="module"></script>
+    <script src="/config.js"></script>
+    <script src="/app.js?v=20260918-workers1" type="module"></script>
   </body>
 </html>

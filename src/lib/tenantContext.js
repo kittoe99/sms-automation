@@ -1,4 +1,5 @@
 import { AsyncLocalStorage } from 'node:async_hooks';
+import { canManageLocalBusinesses } from './dataMode.js';
 
 const tenantStorage = new AsyncLocalStorage();
 let warnedAboutInvalidConfig = false;
@@ -177,6 +178,8 @@ export function getCurrentTenantId() {
  * only change labels while exposing the same underlying records.
  */
 export function isTenantDataAccessSafe() {
+  // Multiple empty local workspaces have no customer records or provider actions.
+  if (canManageLocalBusinesses()) return true;
   return listTenants().length <= 1 ||
     (TENANT_CAPABILITIES.databaseIsolation &&
       TENANT_CAPABILITIES.membershipAuthorization &&

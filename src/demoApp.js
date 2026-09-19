@@ -99,7 +99,8 @@ export function createDemoApp() {
       if (!contact) return res.status(404).json({ demo: true, error: 'Sample conversation not found' });
       result = path.endsWith('/calls') ? { calls: [] } : {
         conversation: { ...contact, messages: messages.filter(m => m.contactPhone === phone) } };
-    } else if (path === '/enrollments') result = { ...page(req, [], 'enrollments') };
+    } else if (path === '/calls') result = { ...page(req, [], 'calls') };
+    else if (path === '/enrollments') result = { ...page(req, [], 'enrollments') };
     else if (/^\/automations\/[^/]+$/.test(path)) {
       const category = categories.find(c => c.id === path.split('/')[2]);
       if (!category) return res.status(404).json({ demo: true, error: 'Sample group not found' });

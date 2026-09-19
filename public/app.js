@@ -1,3 +1,4 @@
+import { connectSupabaseLive } from './live.js';
 import {
   apiFetch,
   getAccessToken,
@@ -6,10 +7,11 @@ import {
   initAuth,
   isDemoMode,
   renderLoginScreen,
+  runtimeConfig,
   showCrmApp,
   signOut,
   setTenantId,
-} from './auth.js?v=20260916-light1';
+} from './auth.js?v=20260916-manual-business1';
 
 const state = {
   view: 'overview',
@@ -28,12 +30,11 @@ const state = {
   contactTab: 'directory',
   sourceFilter: '',
   consentedOnly: false,
-  callPhone: '',
-  callName: '',
   tenants: [],
   tenant: null,
   automationBuilderOpen: false,
   aiBuilderOpen: false,
+  businessContextDraft: null,
 };
 
 const el = {
@@ -81,16 +82,983 @@ el.tenantSelect?.addEventListener('change', () => {
 
 window.addEventListener('clerk:organization-changed', () => location.reload());
 
+document.getElementById('add-business')?.addEventListener('click', () => {
+  const currentZone = state.tenant?.timeZone || Intl.DateTimeFormat().resolvedOptions().timeZone || 'America/Denver';
+  openDrawer('Add business', `
+    <form id="add-business-form" class="compose">
+      <label class="compose-label" for="business-name">Business name</label>
+      <input id="business-name" maxlength="100" required placeholder="Business name" autocomplete="organization" />
+      <label class="compose-label" for="business-timezone">Time zone</label>
+      <input id="business-timezone" value="${esc(currentZone)}" required placeholder="America/Denver" />
+      <p class="muted">Create an empty workspace. No user registration is required. A separate Twilio subaccount and Messaging Service will be prepared automatically under the parent billing account.</p>
+      <div class="compose-actions"><span id="business-error" class="login-error" role="alert"></span>
+        <button type="submit" class="btn">Add business</button>
+      </div>
+    </form>`);
+  const form = el.drawerBody.querySelector('#add-business-form');
+  form.addEventListener('submit', async (event) => {
+    event.preventDefault();
+    const button = form.querySelector('button[type="submit"]');
+    const error = form.querySelector('#business-error');
+    error.textContent = '';
+    button.disabled = true;
+    try {
+      const response = await apiFetch('/api/businesses', { tenant: false, method: 'POST',
+        headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({
+          name: form.querySelector('#business-name').value.trim(),
+          timeZone: form.querySelector('#business-timezone').value.trim(),
+        }) });
+      const data = await response.json();
+      if (!response.ok) throw new Error(data.error || 'Could not add business');
+      setTenantId(data.business.id);
+      location.reload();
+    } catch (failure) {
+      error.textContent = failure.message;
+      button.disabled = false;
+    }
+  });
+  el.drawerBody.querySelector('#business-name').focus();
+});
+
+function openBusinessSetup(provisioning = null) {
+  if (provisioning) state.setupProvisioning = provisioning;
+  state.view = 'business-setup';
+  state.page = 1;
+  setActiveNav();
+  closeDrawer();
+  closeSidebar();
+  load();
+}
+
+function openBusinessContext() {
+  state.view = 'business-context';
+  state.page = 1;
+  setActiveNav();
+  closeDrawer();
+  closeSidebar();
+  load();
+}
+
+function refreshFromBackground() {
+  if (el.root.querySelector('form[data-dirty="true"]')) return Promise.resolve(false);
+  return load();
+}
+
+function onboardingStorageKey() {
+  return `opek_sms_onboarding_${getTenantId() || state.tenant?.id || 'default'}`;
+}
+
+function readLocalOnboarding() {
+  try {
+    const raw = localStorage.getItem(onboardingStorageKey());
+    if (!raw) return null;
+    const data = JSON.parse(raw);
+    if (!data || typeof data !== 'object') return null;
+    return data;
+  } catch {
+    return null;
+  }
+}
+
+function writeLocalOnboarding(data) {
+  try {
+    localStorage.setItem(onboardingStorageKey(), JSON.stringify({ ...data, localOnly: true }));
+  } catch {
+    // Private browsing etc. must not block onboarding.
+  }
+}
+
+async function fetchOnboarding() {
+  const merged = { onboarding: {}, onboardingComplete: false, source: 'api' };
+  try {
+    const response = await apiFetch('/api/onboarding');
+    if (response.ok) {
+      const data = await response.json();
+      merged.onboarding = data.onboarding || {};
+      merged.onboardingComplete = Boolean(data.onboardingComplete);
+      if (merged.onboardingComplete) {
+        try { localStorage.removeItem(onboardingStorageKey()); } catch { /* noop */ }
+      }
+      return merged;
+    }
+    if (![404, 501, 502, 503].includes(response.status)) return merged;
+  } catch {
+    // Disconnected preview or undeployed route: fall through to the device copy.
+  }
+  const local = readLocalOnboarding();
+  if (local) {
+    merged.onboarding = local;
+    merged.onboardingComplete = Boolean(local.completedAt);
+    merged.source = 'local';
+  }
+  return merged;
+}
+
+async function saveOnboarding(payload) {
+  try {
+    const response = await apiFetch('/api/onboarding', { method: 'POST', body: JSON.stringify(payload) });
+    if (response.ok) {
+      try { localStorage.removeItem(onboardingStorageKey()); } catch { /* noop */ }
+      return { data: await response.json(), source: 'api' };
+    }
+    const data = await response.json().catch(() => ({}));
+    if (![404, 501, 502, 503].includes(response.status)) {
+      throw new Error(data.error || data.detail || 'Could not save business context');
+    }
+  } catch (error) {
+    if (error?.message && !/fetch|network|failed/i.test(error.message)) throw error;
+  }
+  const local = { ...payload, completedAt: new Date().toISOString(), updatedAt: new Date().toISOString() };
+  writeLocalOnboarding(local);
+  return { data: { onboarding: local, onboardingComplete: true }, source: 'local' };
+}
+
+function setupStepsHtml(current = 1) {
+  const steps = ['Details', 'Twilio review', 'Approved'];
+  return `<ol class="setup-steps" aria-label="Setup progress">${steps
+    .map((label, i) => {
+      const n = i + 1;
+      const cls = n < current ? 'done' : n === current ? 'current' : '';
+      return `<li class="${cls}"><span class="setup-step-n">${n}</span><span>${esc(label)}</span></li>`;
+    })
+    .join('')}</ol>`;
+}
+
+function sampleFieldsHtml(samples) {
+  const list = samples.length ? samples : ['', ''];
+  return list
+    .map(
+      (value, i) => `
+      <div class="setup-sample" data-sample-row>
+        <div class="setup-sample-head">
+          <label class="compose-label" for="setup-sample-${i}">Sample ${i + 1} *</label>
+          <span class="setup-count" data-count-for="setup-sample-${i}">${String(value || '').trim().length}/320</span>
+        </div>
+        <textarea id="setup-sample-${i}" data-sample-input rows="3" minlength="20" maxlength="320" required placeholder="Thanks for contacting Example Business. Reply STOP to opt out.">${esc(value || '')}</textarea>
+        <div class="setup-sample-foot">
+          <span class="muted" data-hint-for="setup-sample-${i}">20–320 characters. Include STOP/HELP wording.</span>
+          ${list.length > 2 ? `<button type="button" class="btn ghost setup-sample-remove" data-remove-sample="${i}">Remove</button>` : ''}
+        </div>
+      </div>`
+    )
+    .join('');
+}
+
+function registrationControlsHtml(registration = {}, detailsComplete = false) {
+  const registrationState = registration.state || 'draft';
+  const button = (action, label) => `<button type="button" class="btn" data-registration-action="${action}">${label}</button>`;
+  let action = '';
+  if (!detailsComplete) action = '<p class="muted">Save the registration details first.</p>';
+  else if (registrationState === 'draft') action = button('start', 'Start registration');
+  else if (registrationState === 'profile_pending') action = button('session-brand-new', 'Open secure brand form');
+  else if (registrationState === 'brand_pending') action = `${registration.brand_inquiry_id ? button('session-brand-resume', 'Resume brand form') : ''}${button('refresh', 'Check brand status')}`;
+  else if (registrationState === 'campaign_pending') action = `${button(`session-campaign-${registration.campaign_inquiry_id ? 'resume' : 'new'}`, registration.campaign_inquiry_id ? 'Resume campaign form' : 'Open secure campaign form')}${registration.campaign_inquiry_id ? button('refresh', 'Check campaign status') : ''}`;
+  else if (registrationState === 'number_pending') action = `<label><span class="compose-label">Area code</span><input id="registration-area-code" inputmode="numeric" maxlength="3" placeholder="720" /></label>${button('search-number', 'Find available numbers')}`;
+  else if (registrationState === 'verification_pending') action = registration.sender_type === 'toll_free' ? button('session-toll_free-new', 'Open toll-free verification') : button('refresh', 'Check approval');
+  else if (['in_review', 'approved', 'canary_pending'].includes(registrationState)) action = button('refresh', 'Refresh Twilio status');
+  else if (registrationState === 'webhook_verified') action = `<label><span class="compose-label">Canary recipient</span><input id="registration-canary-phone" type="tel" placeholder="+15551234567" /></label>${button('canary', 'Send activation canary')}`;
+  else if (registrationState === 'ready') action = button('activate', 'Enable sending');
+  else if (registrationState === 'submission_unknown') action = button('reconcile', 'Reconcile uncertain operation');
+  else if (registrationState === 'rejected') action = button(`session-${registration.sender_type === 'toll_free' ? 'toll_free' : registration.campaign_inquiry_id ? 'campaign' : 'brand'}-resubmit`, 'Correct and resubmit');
+  return `<div class="card setup-card"><div class="card-head"><div><span class="eyebrow">Live registration</span><h2>${esc(registrationState.replaceAll('_', ' '))}</h2></div></div><div class="setup-body"><p class="muted">Paid submissions and number purchases always ask for confirmation. Legal answers stay in Twilio's secure form.</p><div class="compose-actions" style="align-items:stretch;flex-direction:column">${action}<span id="registration-action-error" class="login-error"></span></div>${registration.rejection_reason ? `<p class="login-error">${esc(registration.rejection_reason)}</p>` : ''}</div></div>`;
+}
+
+async function renderBusinessSetup() {
+  setTitle(...titles['business-setup']);
+  el.kpi.innerHTML = '';
+  el.pager.hidden = true;
+  el.storeMeta.textContent = state.tenant?.name || 'Your workspace';
+
+  let provisioning = state.setupProvisioning || null;
+  let onboardingState = state.setupOnboarding || null;
+  let registration = state.setupRegistration || null;
+  if (!provisioning || !onboardingState || !registration) {
+    el.root.innerHTML = '<div class="card"><div class="empty">Loading business setup…</div></div>';
+    try {
+      const [provRes, onb, regRes] = await Promise.all([
+        provisioning ? null : apiFetch('/api/provisioning'),
+        onboardingState ? null : fetchOnboarding(),
+        registration ? null : apiFetch('/api/twilio/registration'),
+      ]);
+      if (provRes && provRes.ok) provisioning = await provRes.json();
+      if (onb) onboardingState = onb;
+      if (regRes && regRes.ok) registration = await regRes.json();
+    } catch (error) {
+      console.error(error);
+    }
+  }
+  state.setupProvisioning = provisioning;
+  state.setupOnboarding = onboardingState || { onboarding: {}, onboardingComplete: false };
+  state.setupRegistration = registration || { state: 'draft' };
+  const details = provisioning?.details || {};
+  const senderType = details.senderType || 'local_a2p';
+  const brandType = details.brandType || 'standard';
+  const samples = Array.isArray(details.sampleMessages) && details.sampleMessages.length
+    ? details.sampleMessages.slice(0, 5)
+    : ['', ''];
+  const stateLabel = String(provisioning?.state || 'pending').replaceAll('_', ' ');
+  const sendingEnabled = Boolean(provisioning?.sendingEnabled);
+
+  el.root.innerHTML = `
+    <div class="setup-page">
+      <div class="setup-topbar">
+        <button type="button" class="btn ghost" id="setup-back">← Back to dashboard</button>
+        <span class="setup-status ${sendingEnabled ? 'ok' : ''}">${esc(sendingEnabled ? 'Sending enabled' : 'Sending disabled until Twilio approval')}</span>
+      </div>
+      <div class="card setup-hero">
+        <div>
+          <span class="eyebrow">Twilio registration · ${esc(state.tenant?.name || 'Business account')}</span>
+          <h2>Complete business setup</h2>
+          <p class="muted">Provide the information needed to choose a phone number and prepare the applicable Twilio registration. Legal identity and tax information are entered later in Twilio's secure form — this CRM does not store that here. Business context for SMS and AI lives on its own page under Setup → Business context.</p>
+          ${setupStepsHtml(provisioning?.detailsComplete ? 2 : 1)}
+        </div>
+        <dl class="setup-facts">
+          <div><dt>Status</dt><dd>${esc(stateLabel)}</dd></div>
+          <div><dt>Details</dt><dd>${provisioning?.detailsComplete ? 'saved · registration submission is next' : 'required'}</dd></div>
+          ${provisioning?.phoneNumber ? `<div><dt>Number</dt><dd>${esc(provisioning.phoneNumber)}</dd></div>` : ''}
+        </dl>
+      </div>
+      <form id="business-setup-page-form" class="setup-layout">
+        <div class="setup-main">
+          <section class="card setup-card" aria-labelledby="setup-sender-h">
+            <div class="card-head"><div><span class="eyebrow">Step 1</span><h2 id="setup-sender-h">Phone number</h2></div><span class="muted">Choose once per business</span></div>
+            <div class="setup-body">
+              <div class="setup-radio-grid" role="radiogroup" aria-label="Phone number type">
+                <label class="setup-radio ${senderType === 'local_a2p' ? 'selected' : ''}">
+                  <input type="radio" name="senderType" value="local_a2p" ${senderType === 'local_a2p' ? 'checked' : ''} />
+                  <strong>US local number</strong>
+                  <span>A2P 10DLC registration. Best for local presence. Requires brand type + area code.</span>
+                </label>
+                <label class="setup-radio ${senderType === 'toll_free' ? 'selected' : ''}">
+                  <input type="radio" name="senderType" value="toll_free" ${senderType === 'toll_free' ? 'checked' : ''} />
+                  <strong>US toll-free number</strong>
+                  <span>Toll-free verification. No area code needed.</span>
+                </label>
+              </div>
+              <div id="setup-local-fields" class="setup-grid-2">
+                <label>
+                  <span class="compose-label">Business registration type *</span>
+                  <select id="setup-brand-type">
+                    <option value="standard" ${brandType !== 'sole_proprietor' ? 'selected' : ''}>Registered business with EIN</option>
+                    <option value="sole_proprietor" ${brandType === 'sole_proprietor' ? 'selected' : ''}>Sole proprietor (no EIN)</option>
+                  </select>
+                  <small class="muted">Sole proprietors get a separate low-volume path. Choose EIN when available.</small>
+                </label>
+                <label>
+                  <span class="compose-label">Preferred area code *</span>
+                  <input id="setup-area-code" inputmode="numeric" maxlength="3" minlength="3" pattern="[0-9]{3}" value="${esc(details.areaCode || '')}" placeholder="720" autocomplete="off" />
+                  <small class="muted">Exactly 3 digits. Used when searching for a local number. Not needed for toll-free.</small>
+                </label>
+              </div>
+            </div>
+          </section>
+          <section class="card setup-card" aria-labelledby="setup-identity-h">
+            <div class="card-head"><div><span class="eyebrow">Step 2</span><h2 id="setup-identity-h">Business identity</h2></div><span class="muted">Must match public records</span></div>
+            <div class="setup-body setup-grid-2">
+              <label class="field-wide">
+                <span class="compose-label">Legal business name *</span>
+                <input id="setup-legal-name" maxlength="160" required value="${esc(details.legalBusinessName || state.tenant?.name || '')}" autocomplete="organization" placeholder="Bello Moving LLC" />
+              </label>
+              <label>
+                <span class="compose-label">Registration notification email *</span>
+                <input id="setup-email" type="email" maxlength="320" required value="${esc(details.notificationEmail || getSession()?.user?.email || '')}" autocomplete="email" placeholder="owner@example.com" />
+              </label>
+              <label>
+                <span class="compose-label">Public website *</span>
+                <input id="setup-website" type="url" inputmode="url" maxlength="2048" required pattern="https://.*" value="${esc(details.websiteUrl || '')}" placeholder="https://example.com" />
+                <small class="muted">Must start with https:// and be publicly accessible. Twilio reviews this site.</small>
+              </label>
+            </div>
+          </section>
+          <section class="card setup-card" aria-labelledby="setup-use-h">
+            <div class="card-head"><div><span class="eyebrow">Step 3</span><h2 id="setup-use-h">Messaging use case</h2></div><span class="muted">Twilio requires 40+ characters each</span></div>
+            <div class="setup-body">
+              <label>
+                <span class="compose-label">How will this business use SMS? *</span>
+                <textarea id="setup-campaign" minlength="40" maxlength="1500" rows="4" required placeholder="Describe the messages customers will receive and why.">${esc(details.campaignDescription || '')}</textarea>
+                <small class="muted"><span data-count-for="setup-campaign">${String(details.campaignDescription || '').trim().length}/1500</span> · minimum 40 characters.</small>
+              </label>
+              <label>
+                <span class="compose-label">How do customers agree to receive messages? *</span>
+                <textarea id="setup-opt-in" minlength="40" maxlength="1500" rows="4" required placeholder="Describe the form, checkbox, keyword, or verbal workflow used to collect consent.">${esc(details.optInDescription || '')}</textarea>
+                <small class="muted"><span data-count-for="setup-opt-in">${String(details.optInDescription || '').trim().length}/1500</span> · minimum 40 characters.</small>
+              </label>
+              <div>
+                <div class="setup-samples-head">
+                  <span class="compose-label">Sample messages * · 2–5 required</span>
+                  <button type="button" class="btn ghost" id="setup-add-sample" ${samples.length >= 5 ? 'disabled' : ''}>Add sample</button>
+                </div>
+                <div id="setup-samples" class="setup-samples">${sampleFieldsHtml(samples)}</div>
+              </div>
+            </div>
+          </section>
+        </div>
+        <aside class="setup-side">
+          ${registrationControlsHtml(state.setupRegistration, Boolean(provisioning?.detailsComplete))}
+          <div class="card setup-card setup-help">
+            <div class="card-head"><h2>What happens next</h2></div>
+            <ol class="setup-help-list">
+              <li>We save this draft and pick a phone number for the subaccount.</li>
+              <li>You complete Twilio's secure brand + campaign registration.</li>
+              <li>Sending unlocks automatically after Twilio approval.</li>
+            </ol>
+            <div class="card-head" style="border-top:1px solid var(--border)"><h2>Required for approval</h2></div>
+            <ul class="setup-help-list">
+              <li>Sender: local A2P 10DLC or toll-free.</li>
+              <li>Brand type + 3-digit area code (local only).</li>
+              <li>Legal name, notification email, public https:// website.</li>
+              <li>Use case + consent answers, 40+ characters each.</li>
+              <li>2–5 samples, 20–320 chars each, with STOP/HELP wording.</li>
+            </ul>
+            <p class="muted">Keep descriptions specific: who gets messages, what triggers them, and exactly where consent is collected. Vague answers are the most common Twilio rejection. EIN and address are collected later in Twilio's secure form.</p>
+          </div>
+          <div class="card setup-card setup-actions">
+            <span id="setup-error" class="login-error" role="alert"></span>
+            <button type="submit" class="btn" id="setup-save">Save setup details</button>
+            <button type="button" class="btn ghost" id="setup-cancel">Cancel</button>
+          </div>
+        </aside>
+      </form>
+    </div>`;
+
+  const form = el.root.querySelector('#business-setup-page-form');
+  const error = form.querySelector('#setup-error');
+  const saveButton = form.querySelector('#setup-save');
+  const radios = [...form.querySelectorAll('input[name="senderType"]')];
+  const localFields = form.querySelector('#setup-local-fields');
+  const brand = form.querySelector('#setup-brand-type');
+  const area = form.querySelector('#setup-area-code');
+  const campaign = form.querySelector('#setup-campaign');
+  const optIn = form.querySelector('#setup-opt-in');
+  const samplesWrap = form.querySelector('#setup-samples');
+  const addSample = form.querySelector('#setup-add-sample');
+
+  const reloadRegistration = async () => {
+    state.setupRegistration = null;
+    await renderBusinessSetup();
+  };
+  el.root.querySelectorAll('[data-registration-action]').forEach((button) => button.addEventListener('click', async () => {
+    const action = button.dataset.registrationAction;
+    const feedback = el.root.querySelector('#registration-action-error');
+    feedback.textContent = '';
+    button.disabled = true;
+    try {
+      if (action === 'start') {
+        const response = await apiFetch('/api/twilio/registration/start', { method: 'POST', body: JSON.stringify({ senderType, country: 'US' }) });
+        const body = await response.json(); if (!response.ok) throw new Error(body.error || 'Could not start registration');
+        return reloadRegistration();
+      }
+      if (action === 'refresh' || action === 'reconcile') {
+        const response = await apiFetch(`/api/twilio/${action === 'refresh' ? 'status-refresh' : 'reconcile'}`, { method: 'POST', body: '{}' });
+        const body = await response.json(); if (!response.ok) throw new Error(body.error || 'Could not refresh registration');
+        return reloadRegistration();
+      }
+      if (action === 'activate') {
+        const response = await apiFetch('/api/twilio/activate', { method: 'POST', body: '{}' });
+        const body = await response.json(); if (!response.ok) throw new Error(body.error || 'Activation is not ready');
+        return reloadRegistration();
+      }
+      if (action === 'canary') {
+        const phone = el.root.querySelector('#registration-canary-phone')?.value.trim();
+        if (!/^\+[1-9]\d{7,14}$/.test(phone || '')) throw new Error('Enter a canary recipient in E.164 format.');
+        if (!confirm('Send one billable activation test SMS to this number?')) return;
+        const response = await apiFetch('/api/twilio/canary', { method: 'POST', body: JSON.stringify({ phone, confirmed: true }) });
+        const body = await response.json(); if (!response.ok) throw new Error(body.error || 'Could not queue the canary');
+        return reloadRegistration();
+      }
+      if (action === 'search-number') {
+        const areaCode = el.root.querySelector('#registration-area-code')?.value.trim();
+        const response = await apiFetch('/api/twilio/number-search', { method: 'POST', body: JSON.stringify({ areaCode }) });
+        const body = await response.json(); if (!response.ok) throw new Error(body.error || 'Number search failed');
+        openDrawer('Choose a Twilio number', `<div class="compose">${(body.numbers || []).map((number) => `<button type="button" class="btn ghost" data-purchase-number="${esc(number.phoneNumber)}">${esc(number.friendlyName || number.phoneNumber)} ${esc([number.locality, number.region].filter(Boolean).join(', '))}</button>`).join('') || '<p class="empty">No matching numbers are available.</p>'}<span id="purchase-number-error" class="login-error"></span></div>`);
+        el.drawerBody.querySelectorAll('[data-purchase-number]').forEach((choice) => choice.addEventListener('click', async () => {
+          if (!confirm(`Purchase ${choice.dataset.purchaseNumber}? This creates recurring Twilio charges.`)) return;
+          choice.disabled = true;
+          const purchase = await apiFetch('/api/twilio/paid-action', { method: 'POST', body: JSON.stringify({ confirmed: true, operation: 'purchase_number', selection: { phoneNumber: choice.dataset.purchaseNumber }, idempotencyKey: `purchase:${choice.dataset.purchaseNumber}` }) });
+          const result = await purchase.json();
+          if (!purchase.ok) { el.drawerBody.querySelector('#purchase-number-error').textContent = result.error || 'Purchase could not be queued'; choice.disabled = false; return; }
+          closeDrawer(); await reloadRegistration();
+        }));
+        return;
+      }
+      if (action.startsWith('session-')) {
+        const [, stage, sessionAction] = action.split('-');
+        if (['new', 'resubmit'].includes(sessionAction) && !confirm('Continue to Twilio’s secure form? Submission may create registration charges.')) return;
+        if (['new', 'resubmit'].includes(sessionAction)) {
+          const charge = await apiFetch('/api/twilio/paid-action', { method: 'POST', body: JSON.stringify({ confirmed: true, operation: 'submit_registration', idempotencyKey: `registration:${stage}:${Date.now()}` }) });
+          const result = await charge.json(); if (!charge.ok) throw new Error(result.error || 'Charge confirmation failed');
+        }
+        const response = await apiFetch('/api/twilio/registration-session', { method: 'POST', body: JSON.stringify({ stage, action: sessionAction }) });
+        const session = await response.json(); if (!response.ok) throw new Error(session.error || 'Could not open Twilio registration');
+        await import('/vendor/compliance-embed.js');
+        globalThis.openTwilioComplianceEmbed({ inquiryId: session.inquiryId, sessionToken: session.sessionToken, onSubmitted: async () => { await apiFetch('/api/twilio/status-refresh', { method: 'POST', body: '{}' }); }, onClose: reloadRegistration });
+      }
+    } catch (error) {
+      feedback.textContent = error.message;
+    } finally {
+      button.disabled = false;
+    }
+  }));
+
+  const syncSender = () => {
+    const value = form.querySelector('input[name="senderType"]:checked')?.value || 'local_a2p';
+    const local = value === 'local_a2p';
+    localFields.hidden = !local;
+    localFields.style.display = local ? '' : 'none';
+    brand.required = local;
+    area.required = local;
+    form.querySelectorAll('.setup-radio').forEach((node) => {
+      node.classList.toggle('selected', node.querySelector('input')?.checked);
+    });
+  };
+  radios.forEach((r) => r.addEventListener('change', syncSender));
+  syncSender();
+
+  const bindCounter = (input) => {
+    const counter = form.querySelector(`[data-count-for="${input.id}"]`);
+    if (!counter || !input) return;
+    const update = () => {
+      counter.textContent = `${input.value.trim().length}/${input.maxLength > 0 ? input.maxLength : 1500}`;
+    };
+    input.addEventListener('input', update);
+    update();
+  };
+  bindCounter(campaign);
+  bindCounter(optIn);
+  samplesWrap.querySelectorAll('[data-sample-input]').forEach(bindCounter);
+
+  const refreshSamples = () => {
+    const rows = [...samplesWrap.querySelectorAll('[data-sample-row]')];
+    rows.forEach((row, i) => {
+      row.querySelector('.compose-label').textContent = `Sample ${i + 1}`;
+      row.querySelector('.compose-label').setAttribute('for', `setup-sample-${i}`);
+      const input = row.querySelector('[data-sample-input]');
+      input.id = `setup-sample-${i}`;
+      const count = row.querySelector('[data-count-for]');
+      if (count) count.setAttribute('data-count-for', input.id);
+    });
+    addSample.disabled = rows.length >= 5;
+    samplesWrap.querySelectorAll('[data-remove-sample]').forEach((btn) => {
+      btn.disabled = rows.length <= 2;
+    });
+  };
+  refreshSamples();
+
+  addSample.addEventListener('click', () => {
+    const rows = [...samplesWrap.querySelectorAll('[data-sample-row]')];
+    if (rows.length >= 5) return;
+    const div = document.createElement('div');
+    div.className = 'setup-sample';
+    div.setAttribute('data-sample-row', '');
+    div.innerHTML = `
+      <div class="setup-sample-head">
+        <label class="compose-label" for="setup-sample-new">Sample ${rows.length + 1} *</label>
+        <span class="setup-count" data-count-for="setup-sample-new">0/320</span>
+      </div>
+      <textarea data-sample-input rows="3" minlength="20" maxlength="320" required placeholder="Your appointment is confirmed for tomorrow. Reply HELP for help."></textarea>
+      <div class="setup-sample-foot"><span class="muted">20–320 characters. Include STOP/HELP wording.</span><button type="button" class="btn ghost setup-sample-remove">Remove</button></div>`;
+    samplesWrap.appendChild(div);
+    const input = div.querySelector('[data-sample-input]');
+    bindCounter(input);
+    refreshSamples();
+    input.focus();
+  });
+  samplesWrap.addEventListener('click', (event) => {
+    const btn = event.target.closest('[data-remove-sample], .setup-sample-remove');
+    if (!btn) return;
+    const rows = [...samplesWrap.querySelectorAll('[data-sample-row]')];
+    if (rows.length <= 2) return;
+    btn.closest('[data-sample-row]')?.remove();
+    refreshSamples();
+  });
+  samplesWrap.addEventListener('input', (event) => {
+    const input = event.target.closest?.('[data-sample-input]');
+    if (!input) return;
+    const row = input.closest('[data-sample-row]');
+    const counter = row?.querySelector('[data-count-for]');
+    if (counter) counter.textContent = `${input.value.trim().length}/320`;
+  });
+
+  const goOverview = () => {
+    state.view = 'overview';
+    state.page = 1;
+    setActiveNav();
+    load();
+  };
+  el.root.querySelector('#setup-back')?.addEventListener('click', goOverview);
+  el.root.querySelector('#setup-cancel')?.addEventListener('click', goOverview);
+
+  form.addEventListener('submit', async (event) => {
+    event.preventDefault();
+    const sender = form.querySelector('input[name="senderType"]:checked')?.value || 'local_a2p';
+    const legalName = form.querySelector('#setup-legal-name').value.trim();
+    const notifyEmail = form.querySelector('#setup-email').value.trim();
+    const website = form.querySelector('#setup-website').value.trim();
+    const campaignText = campaign.value.trim();
+    const optInText = optIn.value.trim();
+    const sampleMessages = [...samplesWrap.querySelectorAll('[data-sample-input]')].map((n) => n.value.trim()).filter(Boolean);
+    const fail = (message, node) => {
+      error.textContent = message;
+      saveButton.disabled = false;
+      (node || error).scrollIntoView?.({ block: 'nearest' });
+      node?.focus?.();
+    };
+    error.textContent = '';
+    saveButton.disabled = true;
+    if (!legalName) return fail('Legal business name is required — use the exact registered name.', form.querySelector('#setup-legal-name'));
+    if (!/^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(notifyEmail)) return fail('Valid notification email is required — Twilio status goes here.', form.querySelector('#setup-email'));
+    if (!/^https:\/\/\S+/.test(website)) return fail('A public HTTPS website is required (must start with https://).', form.querySelector('#setup-website'));
+    if (sender === 'local_a2p' && !/^[0-9]{3}$/.test(area.value.trim())) return fail('A three-digit area code is required for a local number.', area);
+    if (campaignText.length < 40 || campaignText.length > 1500) return fail('Campaign description must be 40–1500 characters — describe who gets messages and why.', campaign);
+    if (optInText.length < 40 || optInText.length > 1500) return fail('Opt-in description must be 40–1500 characters — describe the exact consent workflow.', optIn);
+    if (sampleMessages.length < 2 || sampleMessages.length > 5) return fail('Provide 2–5 sample messages.', samplesWrap.querySelector('[data-sample-input]'));
+    const badSample = sampleMessages.findIndex((s) => s.length < 20 || s.length > 320);
+    if (badSample >= 0) return fail(`Sample ${badSample + 1} must be 20–320 characters.`, samplesWrap.querySelectorAll('[data-sample-input]')[badSample]);
+    try {
+      if (!form.reportValidity()) {
+        saveButton.disabled = false;
+        return;
+      }
+      const response = await apiFetch('/api/provisioning/details', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({
+        senderType: sender, brandType: brand.value, areaCode: area.value.trim(),
+        legalBusinessName: legalName, notificationEmail: notifyEmail, websiteUrl: website,
+        campaignDescription: campaignText, optInDescription: optInText, sampleMessages,
+      }) });
+      const data = await response.json();
+      if (!response.ok) throw new Error(data.error || data.detail || 'Could not save setup details');
+      state.setupProvisioning = data;
+      state.view = 'overview';
+      setActiveNav();
+      await load();
+    } catch (failure) {
+      error.textContent = failure.message;
+      saveButton.disabled = false;
+      error.scrollIntoView({ block: 'nearest' });
+    }
+  });
+}
+
+function onboardingDefaults(provisioning) {
+  const twilio = provisioning?.details || {};
+  const saved = state.setupOnboarding?.onboarding || {};
+  const splitLines = (value) => String(value || '').split(/\r?\n/).map((s) => s.trim()).filter(Boolean);
+  const asLines = (value) => Array.isArray(value) ? value.filter(Boolean) : splitLines(value);
+  const services = asLines(saved.services);
+  const locations = asLines(saved.locations);
+  const faqs = asLines(saved.faqs);
+  const pricing = asLines(saved.pricing),policies=asLines(saved.policies);
+  const defaults = {
+    businessName: saved.businessName || twilio.legalBusinessName || state.tenant?.name || '',
+    websiteUrl: saved.websiteUrl || twilio.websiteUrl || '',
+    summary: saved.summary || '',
+    servicesText: services.join('\n'),
+    locationsText: locations.length ? locations.join('\n') : (saved.businessName || twilio.legalBusinessName ? '' : 'United States'),
+    hours: saved.hours || '',
+    contactPhone: saved.contactPhone || '',
+    contactEmail: saved.contactEmail || twilio.notificationEmail || '',
+    tone: saved.tone || '',
+    faqsText: faqs.join('\n'),
+    pricingText: pricing.join('\n'),
+    policiesText: policies.join('\n'),
+    bookingRules: saved.bookingRules || '',
+    handoff: saved.handoff || '',
+  };
+  return state.businessContextDraft ? { ...defaults, ...state.businessContextDraft } : defaults;
+}
+
+async function renderBusinessContext() {
+  setTitle(...titles['business-context']);
+  el.kpi.innerHTML = '';
+  el.pager.hidden = true;
+  el.storeMeta.textContent = state.tenant?.name || 'Your workspace';
+
+  let onboardingState = state.setupOnboarding || null;
+  let provisioning = state.setupProvisioning || null;
+  if (!onboardingState || !provisioning) {
+    el.root.innerHTML = '<div class="card"><div class="empty">Loading business context…</div></div>';
+    try {
+      const [onb, provRes] = await Promise.all([
+        onboardingState ? null : fetchOnboarding(),
+        provisioning ? null : apiFetch('/api/provisioning'),
+      ]);
+      if (onb) onboardingState = onb;
+      if (provRes && provRes.ok) provisioning = await provRes.json();
+    } catch (error) {
+      console.error(error);
+    }
+  }
+  state.setupOnboarding = onboardingState || { onboarding: {}, onboardingComplete: false };
+  state.setupProvisioning = provisioning;
+  const defaults = onboardingDefaults(provisioning);
+  const localNote = state.setupOnboarding.source === 'local';
+  el.root.innerHTML = `
+    <div class="setup-page">
+      <div class="setup-topbar">
+        <button type="button" class="btn ghost" id="setup-back">← Back to dashboard</button>
+        <span class="setup-status ${state.setupOnboarding.onboardingComplete ? 'ok' : ''}">${esc(state.setupOnboarding.onboardingComplete ? 'Context saved' : 'Context required for smarter SMS + AI')}</span>
+      </div>
+      <div class="card setup-hero">
+        <div>
+          <span class="eyebrow">Business context · ${esc(state.tenant?.name || 'Business account')}</span>
+          <h2>Help SMS and AI sound like you.</h2>
+          <p class="muted">Separate from the Twilio registration — nothing here is sent to Twilio. This context powers smarter follow-ups and AI replies: what you sell, where, when you're open, and how you want to sound.</p>
+        </div>
+        <dl class="setup-facts">
+          <div><dt>Business context</dt><dd>${state.setupOnboarding.onboardingComplete ? 'saved' : 'required'}</dd></div>
+          ${state.setupOnboarding.onboarding?.updatedAt ? `<div><dt>Updated</dt><dd>${esc(fmtTime(state.setupOnboarding.onboarding.updatedAt))}</dd></div>` : ''}
+        </dl>
+      </div>
+      <form id="business-context-form" class="setup-layout">
+        <div class="setup-main">
+          <section class="card setup-card" aria-labelledby="ctx-fetch-h">
+            <div class="card-head"><div><span class="eyebrow">Start from the website</span><h2 id="ctx-fetch-h">Fetch business details</h2></div><span class="muted">Same reader as Get Started</span></div>
+            <div class="setup-body">
+              <div class="setup-fetch-row">
+                <label class="setup-fetch-url">
+                  <span class="compose-label">Website to read</span>
+                  <input id="ctx-fetch-url" type="text" inputmode="url" maxlength="2048" value="${esc(defaults.fetchUrl || defaults.websiteUrl)}" placeholder="yourbusiness.com" autocomplete="off" />
+                </label>
+                <button type="button" class="btn" id="ctx-fetch">Fetch details</button>
+              </div>
+              <p class="muted" style="margin:0" id="ctx-fetch-note">Reads the public homepage and prefills the form below. Review everything before saving — fetched text is a draft, not the truth.</p>
+            </div>
+          </section>
+          <section class="card setup-card" aria-labelledby="ctx-business-h">
+            <div class="card-head"><div><span class="eyebrow">Basics · Get Started step 1</span><h2 id="ctx-business-h">Business identity</h2></div><span class="muted">Prefilled where possible</span></div>
+            <div class="setup-body setup-grid-2">
+              <label>
+                <span class="compose-label">Your business name *</span>
+                <input id="ctx-name" maxlength="120" required value="${esc(defaults.businessName)}" placeholder="Business name" autocomplete="organization" />
+              </label>
+              <label>
+                <span class="compose-label">Website <span class="muted">Optional</span></span>
+                <input id="ctx-website" type="url" inputmode="url" maxlength="2048" pattern="https://.*" value="${esc(defaults.websiteUrl)}" placeholder="yourbusiness.com" autocomplete="off" />
+                <small class="muted">Public site, starting with https://.</small>
+              </label>
+              <label class="field-wide">
+                <span class="compose-label">What does this business do? <span class="muted">Optional · 20+ characters</span></span>
+                <textarea id="ctx-summary" maxlength="2000" rows="3" placeholder="Two or three sentences: what you do and who you serve.">${esc(defaults.summary)}</textarea>
+                <small class="muted"><span data-count-for="ctx-summary">${defaults.summary.trim().length}/2000</span> · shown to AI before every reply.</small>
+              </label>
+              <label class="field-wide">
+                <span class="compose-label">Services you sell *</span>
+                <textarea id="ctx-services" rows="4" required placeholder="One service per line">${esc(defaults.servicesText)}</textarea>
+                <small class="muted"><span data-count-for="ctx-services">${defaults.servicesText.split('\n').filter(Boolean).length} services</span> · 1–30 services, one per line, 160 characters max each.</small>
+              </label>
+              <label class="field-wide">
+                <span class="compose-label">Service areas *</span>
+                <textarea id="ctx-areas" rows="3" required placeholder="Cities, regions, or territories you serve">${esc(defaults.locationsText)}</textarea>
+                <small class="muted"><span data-count-for="ctx-areas">${defaults.locationsText.split('\n').filter(Boolean).length} areas</span> · 1–20 areas, one per line, 160 characters max each.</small>
+              </label>
+            </div>
+          </section>
+          <section class="card setup-card" aria-labelledby="ctx-reach-h">
+            <div class="card-head"><div><span class="eyebrow">Availability</span><h2 id="ctx-reach-h">When and how to reach you</h2></div><span class="muted">AI uses this in replies</span></div>
+            <div class="setup-body setup-grid-2">
+              <label>
+                <span class="compose-label">Business hours</span>
+                <input id="ctx-hours" maxlength="200" value="${esc(defaults.hours)}" placeholder="Mon–Fri 8am–6pm, Sat 9am–2pm" autocomplete="off" />
+                <small class="muted">Free text — AI quotes it when customers ask if you're open.</small>
+              </label>
+              <label>
+                <span class="compose-label">Main contact phone</span>
+                <input id="ctx-phone" type="tel" maxlength="32" value="${esc(defaults.contactPhone)}" placeholder="+15551234567" autocomplete="tel" />
+                <small class="muted">Offered when a customer asks to call.</small>
+              </label>
+              <label>
+                <span class="compose-label">Main contact email</span>
+                <input id="ctx-email" type="email" maxlength="320" value="${esc(defaults.contactEmail)}" placeholder="help@example.com" autocomplete="email" />
+              </label>
+            </div>
+          </section>
+          <section class="card setup-card" aria-labelledby="ctx-voice-h">
+            <div class="card-head"><div><span class="eyebrow">AI voice</span><h2 id="ctx-voice-h">How should replies sound?</h2></div><span class="muted">Guides tone + handoff</span></div>
+            <div class="setup-body">
+              <label>
+                <span class="compose-label">Brand voice</span>
+                <select id="ctx-tone">
+                  <option value="" ${!defaults.tone ? 'selected' : ''}>Default assistant voice</option>
+                  <option value="friendly" ${defaults.tone === 'friendly' ? 'selected' : ''}>Friendly and helpful</option>
+                  <option value="professional" ${defaults.tone === 'professional' ? 'selected' : ''}>Professional and direct</option>
+                  <option value="casual" ${defaults.tone === 'casual' ? 'selected' : ''}>Warm and casual</option>
+                </select>
+              </label>
+              <label>
+                <span class="compose-label">Key facts for AI <span class="muted">Optional · one per line</span></span>
+                <textarea id="ctx-faqs" rows="4" maxlength="8000" placeholder="Estimates are free within 20 miles.&#10;We book 2–3 days out in peak season.">${esc(defaults.faqsText)}</textarea>
+                <small class="muted"><span data-count-for="ctx-faqs">${defaults.faqsText.split('\n').filter(Boolean).length} facts</span> · up to 20, 300 characters max each. Pricing, booking, policies.</small>
+              </label>
+              <label>
+                <span class="compose-label">Pricing facts <span class="muted">Optional · one per line</span></span>
+                <textarea id="ctx-pricing" rows="4" maxlength="20000" placeholder="Service call: $99&#10;After-hours surcharge: $25">${esc(defaults.pricingText)}</textarea>
+                <small class="muted">Approved structured pricing outranks imported pages.</small>
+              </label>
+              <label>
+                <span class="compose-label">Policies <span class="muted">Optional · one per line</span></span>
+                <textarea id="ctx-policies" rows="4" maxlength="12000" placeholder="Cancellations are free with 24 hours notice.">${esc(defaults.policiesText)}</textarea>
+              </label>
+              <label>
+                <span class="compose-label">Booking rules <span class="muted">AI captures requests but never confirms them</span></span>
+                <textarea id="ctx-booking" maxlength="2000" rows="3" placeholder="Collect service, address, preferred date, and contact email. Staff must confirm availability.">${esc(defaults.bookingRules)}</textarea>
+              </label>
+              <label>
+                <span class="compose-label">When should AI hand off to a human? <span class="muted">Optional</span></span>
+                <textarea id="ctx-handoff" maxlength="1000" rows="3" placeholder="e.g. Angry customers, pricing disputes, or anything about refunds.">${esc(defaults.handoff)}</textarea>
+              </label>
+            </div>
+          </section>
+        </div>
+        <aside class="setup-side">
+          <div class="card setup-card setup-help">
+            <div class="card-head"><h2>Why this helps</h2></div>
+            <ol class="setup-help-list">
+              <li>Follow-ups reference what you actually sell.</li>
+              <li>AI answers hours, areas, and pricing from your facts.</li>
+              <li>Handoff rules keep tricky conversations human.</li>
+            </ol>
+            <p class="muted">Identity fields are copied from the Get Started first step. Voice fields tune AI replies only — nothing here is sent to Twilio.</p>
+          </div>
+          <div class="card setup-card setup-actions">
+            <span id="ctx-error" class="login-error" role="alert"></span>
+            ${localNote ? '<p class="muted" style="margin:0">API is not deployed yet — saving on this device for now.</p>' : ''}
+            <button type="submit" class="btn" id="ctx-save">Save business context</button>
+            <button type="button" class="btn ghost" id="ctx-cancel">Cancel</button>
+          </div>
+        </aside>
+      </form>
+    </div>`;
+
+  const form = el.root.querySelector('#business-context-form');
+  const error = form.querySelector('#ctx-error');
+  const saveButton = form.querySelector('#ctx-save');
+  const nameInput = form.querySelector('#ctx-name');
+  const websiteInput = form.querySelector('#ctx-website');
+  const summaryInput = form.querySelector('#ctx-summary');
+  const servicesInput = form.querySelector('#ctx-services');
+  const areasInput = form.querySelector('#ctx-areas');
+  const hoursInput = form.querySelector('#ctx-hours');
+  const phoneInput = form.querySelector('#ctx-phone');
+  const emailInput = form.querySelector('#ctx-email');
+  const toneInput = form.querySelector('#ctx-tone');
+  const faqsInput = form.querySelector('#ctx-faqs');
+  const pricingInput=form.querySelector('#ctx-pricing'),policiesInput=form.querySelector('#ctx-policies'),bookingInput=form.querySelector('#ctx-booking');
+  const handoffInput = form.querySelector('#ctx-handoff');
+  if (state.businessContextDraft) form.dataset.dirty = 'true';
+
+  const captureDraft = () => {
+    state.businessContextDraft = {
+      businessName: nameInput.value,
+      websiteUrl: websiteInput.value,
+      fetchUrl: form.querySelector('#ctx-fetch-url')?.value || '',
+      summary: summaryInput.value,
+      servicesText: servicesInput.value,
+      locationsText: areasInput.value,
+      hours: hoursInput.value,
+      contactPhone: phoneInput.value,
+      contactEmail: emailInput.value,
+      tone: toneInput.value,
+      faqsText: faqsInput.value,
+      pricingText: pricingInput.value,
+      policiesText: policiesInput.value,
+      bookingRules: bookingInput.value,
+      handoff: handoffInput.value,
+    };
+    form.dataset.dirty = 'true';
+  };
+  form.addEventListener('input', captureDraft);
+  form.addEventListener('change', captureDraft);
+
+  const goOverview = () => {
+    state.businessContextDraft = null;
+    state.view = 'overview';
+    state.page = 1;
+    setActiveNav();
+    load();
+  };
+  el.root.querySelector('#setup-back')?.addEventListener('click', goOverview);
+  el.root.querySelector('#ctx-cancel')?.addEventListener('click', goOverview);
+
+  const lines = (value) => String(value || '').split(/\r?\n/).map((s) => s.trim()).filter(Boolean);
+  const bindCount = (input, format) => {
+    const counter = form.querySelector(`[data-count-for="${input.id}"]`);
+    if (!counter) return;
+    const update = () => {
+      counter.textContent = format(input.value);
+    };
+    input.addEventListener('input', update);
+    update();
+  };
+  bindCount(summaryInput, (v) => `${v.trim().length}/2000`);
+  bindCount(servicesInput, (v) => `${lines(v).length} services`);
+  bindCount(areasInput, (v) => `${lines(v).length} areas`);
+  bindCount(faqsInput, (v) => `${lines(v).length} facts`);
+
+  const fetchUrlInput = form.querySelector('#ctx-fetch-url');
+  const fetchButton = form.querySelector('#ctx-fetch');
+  const fetchNote = form.querySelector('#ctx-fetch-note');
+  const refreshCounts = () => {
+    summaryInput.dispatchEvent(new Event('input'));
+    servicesInput.dispatchEvent(new Event('input'));
+    areasInput.dispatchEvent(new Event('input'));
+    faqsInput.dispatchEvent(new Event('input'));
+  };
+  fetchButton?.addEventListener('click', async () => {
+    const url = fetchUrlInput.value.trim() || websiteInput.value.trim();
+    if (!url) {
+      error.textContent = 'Enter a website address to fetch.';
+      fetchUrlInput.focus();
+      return;
+    }
+    const hasContent = [nameInput, summaryInput, servicesInput, areasInput, hoursInput, phoneInput, emailInput, faqsInput, pricingInput, policiesInput, bookingInput, handoffInput]
+      .some((n) => n.value.trim());
+    if (hasContent && !confirm('Replace the form contents with freshly fetched website details?')) return;
+    error.textContent = '';
+    fetchButton.disabled = true;
+    const original = fetchButton.textContent;
+    fetchButton.textContent = 'Fetching…';
+    try {
+      const payload = JSON.stringify({ websiteUrl: url });
+      let response = await apiFetch('/api/enrich-website', { method: 'POST', body: payload });
+      let data = await response.json().catch(() => ({}));
+      if (response.status === 404 && runtimeConfig.apiBase) {
+        // The deployed Edge API predates the new route — retry on the local preview server.
+        try {
+          const headers = { 'Content-Type': 'application/json' };
+          const token = await getAccessToken();
+          if (token) headers.Authorization = `Bearer ${token}`;
+          const tenantId = getTenantId();
+          if (tenantId) headers['X-Tenant-ID'] = tenantId;
+          response = await fetch('/api/enrich-website', { method: 'POST', headers, body: payload });
+          data = await response.json().catch(() => ({}));
+        } catch {
+          // Fall through to the not-deployed message below.
+        }
+      }
+      if (response.status === 404) throw new Error('Website fetch is not deployed yet. Fill in the form manually for now.');
+      if (!response.ok) throw new Error(data.error || 'That website could not be read. Check the address and try again.');
+      if (data.businessName) nameInput.value = String(data.businessName).slice(0, 120);
+      if (data.websiteUrl && !websiteInput.value.trim()) {
+        websiteInput.value = String(data.websiteUrl);
+        fetchUrlInput.value = String(data.websiteUrl);
+      }
+      if (data.summary) summaryInput.value = String(data.summary).slice(0, 2000);
+      if (Array.isArray(data.services) && data.services.length) servicesInput.value = data.services.join('\n');
+      if (Array.isArray(data.locations) && data.locations.length) areasInput.value = data.locations.join('\n');
+      if (data.hours) hoursInput.value = String(data.hours).slice(0, 200);
+      if (data.contactPhone) phoneInput.value = String(data.contactPhone).slice(0, 32);
+      refreshCounts();
+      captureDraft();
+      const host = (() => { try { return new URL(data.websiteUrl || url).hostname; } catch { return url; } })();
+      fetchNote.textContent = `Populated from ${host} — review every field and save. Fetched text is a draft, not the truth.`;
+      nameInput.focus();
+    } catch (failure) {
+      error.textContent = failure.message;
+    } finally {
+      fetchButton.disabled = false;
+      fetchButton.textContent = original;
+    }
+  });
+
+  form.addEventListener('submit', async (event) => {
+    event.preventDefault();
+    const businessName = nameInput.value.trim();
+    const websiteUrl = websiteInput.value.trim();
+    const summary = summaryInput.value.trim();
+    const services = lines(servicesInput.value);
+    const locations = lines(areasInput.value);
+    const hours = hoursInput.value.trim();
+    const contactPhone = phoneInput.value.trim();
+    const contactEmail = emailInput.value.trim();
+    const tone = toneInput.value;
+    const faqs = lines(faqsInput.value);
+    const pricing=lines(pricingInput.value),policies=lines(policiesInput.value),bookingRules=bookingInput.value.trim();
+    const handoff = handoffInput.value.trim();
+    const fail = (message, node) => {
+      error.textContent = message;
+      saveButton.disabled = false;
+      node?.focus?.();
+    };
+    error.textContent = '';
+    saveButton.disabled = true;
+    if (!businessName) return fail('Business name is required.', nameInput);
+    if (websiteUrl && !/^https:\/\/\S+/.test(websiteUrl)) return fail('Website must start with https:// — or leave it blank.', websiteInput);
+    if (summary && (summary.length < 20 || summary.length > 2000)) return fail('Summary must be 20–2000 characters — or leave it blank.', summaryInput);
+    if (!services.length || services.length > 30 || services.some((s) => s.length > 160)) {
+      return fail('Add 1–30 services, one per line, with no more than 160 characters per service.', servicesInput);
+    }
+    if (!locations.length || locations.length > 20 || locations.some((s) => s.length > 160)) {
+      return fail('Add 1–20 service areas, one per line, with no more than 160 characters per area.', areasInput);
+    }
+    if (hours.length > 200) return fail('Hours must be 200 characters or fewer.', hoursInput);
+    if (contactPhone.length > 32) return fail('Contact phone must be 32 characters or fewer.', phoneInput);
+    if (contactEmail && !/^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(contactEmail)) return fail('Enter a valid contact email.', emailInput);
+    if (tone && !['friendly', 'professional', 'casual'].includes(tone)) return fail('Choose a brand voice.', toneInput);
+    if (faqs.length > 20 || faqs.some((s) => s.length > 300)) {
+      return fail('Add up to 20 FAQs, one per line, with no more than 300 characters each.', faqsInput);
+    }
+    if (handoff.length > 1000) return fail('Handoff rule must be 1000 characters or fewer.', handoffInput);
+    if (pricing.length > 200 || policies.length > 100 || bookingRules.length > 2000) return fail('Pricing, policies, or booking rules exceed the allowed limits.', bookingInput);
+    try {
+      if (!form.reportValidity()) {
+        saveButton.disabled = false;
+        return;
+      }
+      const result = await saveOnboarding({ businessName, websiteUrl, summary, services, locations, hours, contactPhone, contactEmail, tone, faqs, pricing, policies, bookingRules, handoff });
+      state.setupOnboarding = {
+        onboarding: result.data.onboarding || {},
+        onboardingComplete: Boolean(result.data.onboardingComplete),
+        source: result.source,
+      };
+      state.businessContextDraft = null;
+      state.view = 'overview';
+      setActiveNav();
+      await load();
+    } catch (failure) {
+      error.textContent = failure.message;
+      saveButton.disabled = false;
+    }
+  });
+  nameInput.focus();
+}
+
 const titles = {
-  overview: ['Overview', 'Pipeline health across all SMS traffic'],
+  overview: ['Dashboard', 'Your messages, contacts, and follow-ups in one place.'],
   messaging: ['Messaging', 'Inbox of customer responses and conversations'],
-  call: ['Call', 'Place ElevenLabs outbound calls with editable system prompts'],
+  call: ['Calls', 'Track inbound calls from your customers.'],
   messages: ['Messages', 'Searchable CRM log for every SMS'],
-  contacts: ['Contacts', 'Leads from Opek site — quotes, bookings, forms, phone agent'],
+  contacts: ['Contacts', 'Find customers and manage your contacts.'],
   optouts: ['Opt-Outs', 'Numbers that asked to stop receiving SMS'],
   deliverability: ['Deliverability', 'Delivery outcomes across the message store'],
   automations: ['Automations', 'Lifecycle-driven SMS sequences and enrollment rules'],
+  'business-setup': ['Business setup', 'Phone number and Twilio registration for this business.'],
+  'business-context': ['Business context', 'What you sell, where, and how replies should sound.'],
+  knowledge: ['AI knowledge', 'Approve evidence, review leads, and resolve human handoffs.'],
 };
+
+async function renderKnowledge() {
+  setTitle(...titles.knowledge);el.kpi.innerHTML='';el.pager.hidden=true;el.root.innerHTML='<div class="card"><div class="empty">Loading approved knowledge…</div></div>';
+  const response=await apiFetch('/api/knowledge'),data=await response.json();if(!response.ok)throw new Error(data.error||'Could not load knowledge');
+  const versions=data.sourceVersions||[],sources=data.sources||[],leads=data.leads||[],handoffs=data.handoffs||[];
+  const rows=sources.map(source=>{const draft=versions.find(v=>v.source_id===source.id&&v.status==='ready'),archived=source.status==='archived';return `<tr><td><strong>${esc(source.title||source.type)}</strong><br><span class="muted">${esc(source.origin||source.storage_path||'Manual')}</span></td><td><span class="status ${esc(source.status)}">${esc(source.status)}</span></td><td>${source.active_version_id?'Approved':'Not live'}</td><td>${archived?'—':`${draft?`<button class="btn ghost" data-approve-version="${esc(draft.id)}">Review & approve v${draft.version}</button>`:`<button class="btn ghost" data-refresh-source="${esc(source.id)}">Refresh</button>`} <button class="btn ghost" data-archive-source="${esc(source.id)}">Archive</button>`}</td></tr>`;}).join('');
+  el.root.innerHTML=`<div class="setup-page"><div class="card setup-hero"><div><span class="eyebrow">Approved source of truth</span><h2>Ground every SMS answer.</h2><p class="muted">Imports remain drafts until you approve them. Unsupported or conflicting questions create a human handoff.</p></div><dl class="setup-facts"><div><dt>Approved profile</dt><dd>${data.profile?'active':'required'}</dd></div><div><dt>Sources</dt><dd>${sources.length}</dd></div></dl></div>
+  <div class="setup-layout"><div class="setup-main"><section class="card"><div class="card-head"><div><span class="eyebrow">Sources</span><h2>Websites and private documents</h2></div></div><div class="setup-body"><form id="knowledge-url-form" class="setup-fetch-row"><label class="setup-fetch-url"><span class="compose-label">Public HTTPS website</span><input id="knowledge-url" type="url" required placeholder="https://example.com" /></label><button class="btn">Import draft</button></form><form id="knowledge-file-form" class="setup-fetch-row" style="margin-top:12px"><label class="setup-fetch-url"><span class="compose-label">PDF, DOCX, TXT, or Markdown · max 10 MB</span><input id="knowledge-file" type="file" required accept=".pdf,.docx,.txt,.md,application/pdf,application/vnd.openxmlformats-officedocument.wordprocessingml.document,text/plain,text/markdown" /></label><button class="btn">Upload draft</button></form><p id="knowledge-error" class="login-error" role="alert"></p><div class="table-wrap"><table><thead><tr><th>Source</th><th>Processing</th><th>Live</th><th></th></tr></thead><tbody>${rows||'<tr><td colspan="4" class="empty">No imported sources yet.</td></tr>'}</tbody></table></div></div></section>
+  <section class="card"><div class="card-head"><div><span class="eyebrow">CRM</span><h2>Open leads and handoffs</h2></div></div><div class="setup-body"><div class="table-wrap"><table><thead><tr><th>Type</th><th>Summary / reason</th><th>Priority</th><th>Status</th></tr></thead><tbody>${[...handoffs.map(x=>({...x,_type:'Handoff',_text:x.reason})),...leads.map(x=>({...x,_type:'Lead',_text:x.summary}))].map(x=>`<tr><td>${x._type}</td><td>${esc(x._text||'Customer follow-up')}</td><td>${esc(x.priority)}</td><td>${esc(x.status)}</td></tr>`).join('')||'<tr><td colspan="4" class="empty">Nothing needs attention.</td></tr>'}</tbody></table></div></div></section></div>
+  <aside class="setup-side"><div class="card setup-card setup-help"><div class="card-head"><h2>Precedence</h2></div><ol class="setup-help-list"><li>Structured business profile</li><li>Admin-authored FAQs, pricing, policies</li><li>Approved imported content</li><li>Automation style instructions</li></ol><p class="muted">Scanned documents are intentionally rejected in v1.</p></div></aside></div></div>`;
+  const error=el.root.querySelector('#knowledge-error'),reload=()=>renderKnowledge().catch(console.error);
+  el.root.querySelector('#knowledge-url-form')?.addEventListener('submit',async event=>{event.preventDefault();error.textContent='';const origin=el.root.querySelector('#knowledge-url').value.trim();try{const res=await apiFetch('/api/knowledge/sources',{method:'POST',body:JSON.stringify({type:'website',title:new URL(origin).hostname,origin})});const body=await res.json();if(!res.ok)throw new Error(body.error||'Import failed');await reload();}catch(e){error.textContent=e.message;}});
+  el.root.querySelector('#knowledge-file-form')?.addEventListener('submit',async event=>{event.preventDefault();error.textContent='';const file=el.root.querySelector('#knowledge-file').files?.[0];if(!file)return;try{const sign=await apiFetch('/api/knowledge/uploads/sign',{method:'POST',body:JSON.stringify({fileName:file.name,size:file.size,contentType:file.type||'text/plain'})}),signed=await sign.json();if(!sign.ok)throw new Error(signed.error||'Upload could not start');const uploadUrl=/^https?:/.test(signed.signedUrl)?signed.signedUrl:`${runtimeConfig.supabaseUrl||''}${signed.signedUrl}`;const upload=await fetch(uploadUrl,{method:'PUT',headers:{'Content-Type':file.type||'text/plain'},body:file});if(!upload.ok)throw new Error('Private upload failed');const create=await apiFetch('/api/knowledge/sources',{method:'POST',body:JSON.stringify({type:'file',title:file.name,storagePath:signed.path})});const created=await create.json();if(!create.ok)throw new Error(created.error||'Import failed');await reload();}catch(e){error.textContent=e.message;}});
+  el.root.querySelectorAll('[data-refresh-source]').forEach(button=>button.addEventListener('click',async()=>{await apiFetch(`/api/knowledge/sources/${button.dataset.refreshSource}/refresh`,{method:'POST',body:'{}'});await reload();}));
+  el.root.querySelectorAll('[data-archive-source]').forEach(button=>button.addEventListener('click',async()=>{if(!confirm('Archive this source and remove it from live AI retrieval?'))return;const res=await apiFetch(`/api/knowledge/sources/${button.dataset.archiveSource}`,{method:'DELETE'}),body=await res.json();if(!res.ok){error.textContent=body.error||'Archive failed';return;}await reload();}));
+  el.root.querySelectorAll('[data-approve-version]').forEach(button=>button.addEventListener('click',()=>{const draft=versions.find(v=>v.id===button.dataset.approveVersion),source=sources.find(s=>s.id===draft?.source_id),previous=versions.find(v=>v.id===source?.active_version_id),oldText=String(previous?.extracted_text||''),newText=String(draft?.extracted_text||'');openDrawer(`Review ${source?.title||'knowledge'} v${draft?.version||''}`,`<div class="kv"><div class="row"><div class="k">Change</div><div class="v">${previous?`${newText.length-oldText.length>=0?'+':''}${newText.length-oldText.length} characters`:'First approved version'}</div></div><div class="row"><div class="k">Previous approved text</div><div class="v"><pre style="white-space:pre-wrap;max-height:220px;overflow:auto">${esc(oldText.slice(0,8000)||'No previous version')}</pre></div></div><div class="row"><div class="k">New extracted text</div><div class="v"><pre style="white-space:pre-wrap;max-height:320px;overflow:auto">${esc(newText.slice(0,12000))}</pre></div></div></div><div class="compose-actions"><span id="approve-error" class="login-error"></span><button class="btn" id="approve-knowledge-now">Approve and make live</button></div>`);el.drawerBody.querySelector('#approve-knowledge-now')?.addEventListener('click',async event=>{event.currentTarget.disabled=true;const res=await apiFetch(`/api/knowledge/versions/${draft.id}/approve`,{method:'POST',body:'{}'}),body=await res.json();if(!res.ok){el.drawerBody.querySelector('#approve-error').textContent=body.error||'Approval failed';event.currentTarget.disabled=false;return;}closeDrawer();await reload();});}));
+}
+
+function contactTypeLabel(source) {
+  const labels = {
+    prebooking: 'Lead', booking: 'Appointment', contact: 'Inquiry',
+    phone_agent: 'Phone contact', customer: 'Customer', in_home_estimate: 'Inquiry',
+  };
+  return labels[source] || String(source).replaceAll('_', ' ');
+}
 
 document.getElementById('nav').addEventListener('click', (e) => {
   const btn = e.target.closest('[data-view]');
@@ -190,10 +1158,59 @@ function setActiveNav() {
   });
 
   const parent = document.getElementById('nav-automations-root');
-  if (parent) parent.classList.toggle('parent-open', onAutomations && Boolean(state.categoryId));
+  if (parent) {
+    parent.classList.toggle('parent-open', onAutomations && Boolean(state.categoryId));
+    parent.classList.toggle('expanded', onAutomations);
+    parent.setAttribute('aria-expanded', String(onAutomations));
+  }
+}
+
+function syncSidebarBrand() {
+  const name = state.tenant?.shortName || state.tenant?.name || 'Opek';
+  const brandName = document.getElementById('sidebar-brand-name');
+  if (brandName) brandName.textContent = name;
+  const dot = document.getElementById('tenant-dot');
+  if (dot) {
+    const initials = String(name).trim().slice(0, 1).toUpperCase() || 'O';
+    dot.textContent = initials;
+  }
+}
+
+function initNavFind() {
+  const input = document.getElementById('nav-find');
+  if (!input || input.dataset.bound) return;
+  input.dataset.bound = 'true';
+  input.addEventListener('input', () => {
+    const q = input.value.trim().toLowerCase();
+    document.querySelectorAll('#nav .nav-item').forEach((item) => {
+      const hay = `${item.textContent || ''} ${item.dataset.find || ''}`.toLowerCase();
+      item.hidden = Boolean(q) && !hay.includes(q);
+    });
+    document.querySelectorAll('#nav section').forEach((section) => {
+      const visible = [...section.querySelectorAll('.nav-item')].some((n) => !n.hidden);
+      section.hidden = !visible;
+    });
+    if (q && el.navAutomations && !el.navAutomations.hidden) {
+      el.navAutomations.querySelectorAll('.nav-item').forEach((item) => {
+        const hay = `${item.textContent || ''}`.toLowerCase();
+        item.hidden = !hay.includes(q);
+      });
+    }
+  });
+  document.addEventListener('keydown', (event) => {
+    if (event.key.toLowerCase() !== 'f' || event.metaKey || event.ctrlKey || event.altKey) return;
+    const tag = String(document.activeElement?.tagName || '').toLowerCase();
+    if (tag === 'input' || tag === 'textarea' || tag === 'select') return;
+    event.preventDefault();
+    input.focus();
+  });
 }
 
 async function load() {
+  document.getElementById('crm-app').dataset.view = state.view;
+  el.search.closest('.search-wrap').hidden = ['overview', 'call', 'deliverability', 'business-setup', 'business-context', 'knowledge'].includes(state.view);
+  el.status.hidden = !['messages', 'deliverability'].includes(state.view) && !(state.view === 'automations' && state.categoryId);
+  if (state.view === 'business-setup') el.pager.hidden = true;
   try {
     if (!state.categories.length) {
       const catRes = await apiFetch('/api/categories');
@@ -214,6 +1231,9 @@ async function load() {
     else if (state.view === 'optouts') await renderOptOuts();
     else if (state.view === 'deliverability') await renderDeliverability();
     else if (state.view === 'automations') await renderAutomations();
+    else if (state.view === 'business-setup') await renderBusinessSetup();
+    else if (state.view === 'business-context') await renderBusinessContext();
+    else if (state.view === 'knowledge') await renderKnowledge();
     else await renderMessages();
   } catch (err) {
     console.error(err);
@@ -228,11 +1248,18 @@ function renderNavAutomations() {
       (c) => `
       <button type="button" class="nav-item nav-subitem" data-view="automations" data-category="${esc(
         c.id
-      )}">
+      )}" data-find="${esc(`${c.name} ${c.description || ''}`.toLowerCase())}">
         ${esc(c.name)}
       </button>`
     )
     .join('');
+  const count = document.getElementById('nav-automations-count');
+  if (count) {
+    const n = state.categories.length;
+    count.hidden = !n;
+    count.textContent = String(n);
+  }
+  initNavFind();
 }
 
 function openAutomationGroup(categoryId = null) {
@@ -245,223 +1272,164 @@ function openAutomationGroup(categoryId = null) {
   load();
 }
 
-function openCallSection({ phone = '', name = '' } = {}) {
-  state.view = 'call';
-  state.callPhone = phone || '';
-  state.callName = name || '';
-  state.categoryId = null;
-  state.page = 1;
-  closeDrawer();
-  setActiveNav();
-  load();
-}
-
 async function renderCall() {
   setTitle(...titles.call);
   el.kpi.innerHTML = '';
+  el.status.disabled = true;
   el.pager.hidden = true;
-  el.storeMeta.textContent = 'Outbound voice via ElevenLabs';
-
-  let config = { configured: false, presets: [], from: '+18313187139' };
-  try {
-    config = await apiFetch('/api/ai/outbound-call').then((r) => r.json());
-  } catch {
-    /* keep defaults */
-  }
-
-  const presets = config.presets || [];
-  const defaultPreset =
-    presets.find((p) => p.id === config.defaultPresetId) || presets[0] || null;
-  const phoneVal = state.callPhone || '';
-  const nameVal = state.callName || '';
-  const firstMessage =
-    defaultPreset?.firstMessage ||
-    'Hello, Macy with Opek Junk Removal, Is this {{customer_name}}?';
-  const promptVal = defaultPreset?.prompt || '';
-
+  el.storeMeta.textContent = 'Inbound calls';
+  const params = new URLSearchParams({ page: String(state.page), pageSize: String(state.pageSize) });
+  const response = await apiFetch(`/api/calls?${params}`);
+  if (!response.ok) throw new Error('Could not load inbound calls');
+  const data = await response.json();
+  state.totalPages = data.totalPages || 1;
+  renderPager(data);
+  el.pager.hidden = !(data.total > 0);
   el.root.innerHTML = `
-    <div class="card call-card">
-      <div class="card-head">
-        <div>
-          <strong>Outbound call</strong>
-          <p class="muted" style="margin:4px 0 0">
-            From ${esc(config.from || '+18313187139')} ·
-            ${
-              config.configured
-                ? '<span class="consent ok">Ready</span>'
-                : '<span class="consent out">Not configured</span>'
-            }
-          </p>
-        </div>
-      </div>
-
-      <div class="call-form">
-        <div class="call-grid">
-          <div>
-            <label class="compose-label" for="call-phone">Phone</label>
-            <input id="call-phone" type="tel" value="${esc(phoneVal)}" placeholder="+1…" />
-          </div>
-          <div>
-            <label class="compose-label" for="call-name">Name</label>
-            <input id="call-name" type="text" value="${esc(nameVal)}" placeholder="Customer name" />
-          </div>
-        </div>
-
-        <label class="compose-label" for="call-preset">System prompt preset</label>
-        <select id="call-preset">
-          ${presets
-            .map(
-              (p) =>
-                `<option value="${esc(p.id)}" ${
-                  defaultPreset && p.id === defaultPreset.id ? 'selected' : ''
-                }>${esc(p.name)}</option>`
-            )
-            .join('')}
-          <option value="custom">Custom prompt</option>
-        </select>
-        <p class="muted call-preset-desc" id="call-preset-desc">${esc(
-          defaultPreset?.description || 'Write your own system prompt below.'
-        )}</p>
-
-        <label class="compose-label" for="call-first-message">First message</label>
-        <input id="call-first-message" type="text" value="${esc(firstMessage)}" />
-
-        <label class="compose-label" for="call-prompt">System prompt</label>
-        <textarea id="call-prompt" rows="18" spellcheck="false">${esc(promptVal)}</textarea>
-
-        <div class="call-options">
-          <label class="check">
-            <input type="checkbox" id="call-include-sms" checked />
-            Include SMS history + CRM context
-          </label>
-        </div>
-
-        <div class="compose-actions">
-          <span class="muted" id="call-hint"></span>
-          <button type="button" class="btn" id="call-place" ${
-            config.configured ? '' : 'disabled'
-          }>Place call</button>
-        </div>
-      </div>
-    </div>
-  `;
-
-  const phoneInput = el.root.querySelector('#call-phone');
-  const nameInput = el.root.querySelector('#call-name');
-  const presetSelect = el.root.querySelector('#call-preset');
-  const presetDesc = el.root.querySelector('#call-preset-desc');
-  const firstInput = el.root.querySelector('#call-first-message');
-  const promptInput = el.root.querySelector('#call-prompt');
-  const hint = el.root.querySelector('#call-hint');
-  const placeBtn = el.root.querySelector('#call-place');
-
-  phoneInput?.addEventListener('input', () => {
-    state.callPhone = phoneInput.value.trim();
-  });
-  nameInput?.addEventListener('input', () => {
-    state.callName = nameInput.value.trim();
-  });
-
-  presetSelect?.addEventListener('change', () => {
-    const id = presetSelect.value;
-    if (id === 'custom') {
-      presetDesc.textContent = 'Write your own system prompt. Dynamic vars like {{customer_name}} still work.';
-      return;
-    }
-    const preset = presets.find((p) => p.id === id);
-    if (!preset) return;
-    presetDesc.textContent = preset.description || '';
-    firstInput.value = preset.firstMessage || firstInput.value;
-    promptInput.value = preset.prompt || '';
-  });
-
-  placeBtn?.addEventListener('click', async () => {
-    const phone = phoneInput?.value.trim() || '';
-    const name = nameInput?.value.trim() || '';
-    const systemPrompt = promptInput?.value.trim() || '';
-    const firstMessageVal = firstInput?.value.trim() || '';
-    if (!phone) {
-      hint.textContent = 'Enter a phone number.';
-      return;
-    }
-    if (!systemPrompt) {
-      hint.textContent = 'System prompt cannot be empty.';
-      return;
-    }
-    if (
-      !confirm(
-        `Place an outbound call to ${name || phone}?\n\nThis will dial the contact with ElevenLabs.`
-      )
-    ) {
-      return;
-    }
-
-    placeBtn.disabled = true;
-    hint.textContent = 'Starting call…';
-    state.callPhone = phone;
-    state.callName = name;
-
-    try {
-      const res = await apiFetch(`/api/conversations/${encodeURIComponent(phone)}/call`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          name: name || null,
-          systemPrompt,
-          firstMessage: firstMessageVal || null,
-          includeSmsHistory: Boolean(el.root.querySelector('#call-include-sms')?.checked),
-          pauseAi: false,
-        }),
-      });
-      const json = await res.json();
-      if (!res.ok) throw new Error(json.detail || json.error || 'Call failed');
-      const sid = json.call?.callSid || json.call?.conversationId || '';
-      hint.textContent = `Call started${sid ? ` · ${sid}` : ''}`;
-    } catch (err) {
-      hint.textContent = err.message || 'Failed to start call';
-      placeBtn.disabled = false;
-    }
-  });
+    <div class="card">
+      <div class="card-head"><h2>Inbound calls</h2><span class="muted">${fmt(data.total || 0)} calls</span></div>
+      <div class="table-scroll"><table class="data">
+        <thead><tr><th>Caller</th><th>Received</th><th>Status</th><th>Duration</th></tr></thead>
+        <tbody>${(data.calls || []).filter(call => call.direction === 'inbound').map(call => `
+          <tr><td>${esc(call.phone || 'Unknown caller')}</td><td>${esc(fmtTime(call.started_at))}</td>
+          <td>${esc(call.status || 'Unknown')}</td><td>${call.duration_secs == null ? '—' : `${Math.max(0, Math.round(Number(call.duration_secs) || 0))} sec`}</td></tr>
+        `).join('') || '<tr><td colspan="4"><div class="empty">No inbound calls yet.</div></td></tr>'}</tbody>
+      </table></div>
+    </div>`;
 }
 
 async function renderOverview() {
-  setTitle('Overview', 'Pipeline health across all SMS traffic');
+  setTitle(...titles.overview);
   el.pager.hidden = true;
   el.status.disabled = true;
 
-  const res = await apiFetch('/api/overview');
-  const data = await res.json();
-  renderKpis(data);
-  el.storeMeta.textContent = `${fmt(data.total)} messages · ${fmt(
-    data.conversationCount || data.contactCount || 0
-  )} conversations · ${fmt(data.optedOutTotal || 0)} opted out`;
+  let data = {};
+  let provisioning = null;
+  let totalsAvailable = false;
+  try {
+    const res = await apiFetch('/api/overview');
+    if (res.status === 401 || res.status === 403) {
+      await forceLogin('Session expired. Please sign in again.');
+      return;
+    }
+    if (!res.ok) throw new Error('Could not load dashboard totals');
+    data = await res.json();
+    totalsAvailable = true;
+  } catch (err) {
+    console.error(err);
+  }
+  try {
+    const response = await apiFetch('/api/provisioning');
+    if (response.ok) provisioning = await response.json();
+  } catch (error) { console.error(error); }
+  state.setupProvisioning = provisioning;
+  let onboardingComplete = state.setupOnboarding?.onboardingComplete;
+  if (onboardingComplete == null) {
+    try {
+      const onb = await fetchOnboarding();
+      state.setupOnboarding = onb;
+      onboardingComplete = onb.onboardingComplete;
+    } catch (error) { console.error(error); onboardingComplete = false; }
+  }
+  el.kpi.innerHTML = [
+    kpiCard('Conversations', totalsAvailable ? data.conversationCount ?? data.contactCount ?? 0 : '—'),
+    kpiCard('Total SMS', totalsAvailable ? data.total ?? 0 : '—'),
+    kpiCard('Delivery rate', data.deliveryRate == null ? '—' : `${data.deliveryRate}%`),
+  ].join('');
+  el.storeMeta.textContent = state.tenant?.name || 'Your workspace';
 
   el.root.innerHTML = `
+    ${totalsAvailable ? '' : '<p class="muted" role="status">Message totals are unavailable. Select Refresh to try again.</p>'}
+    ${provisioning && !provisioning.sendingEnabled ? `
+      <details class="card dashboard-details" open>
+        <summary>Business messaging setup</summary>
+        <p><strong>${esc({pending:'Preparing Twilio account',creating_account:'Creating Twilio subaccount',account_created:'Twilio subaccount created',creating_service:'Creating Messaging Service',awaiting_number:'Ready for phone number and registration',submission_unknown:'Twilio setup needs review',ready:'Messaging setup complete'}[provisioning.state] || String(provisioning.state || 'Setup pending').replaceAll('_',' '))}</strong></p>
+        <p class="muted">${provisioning.state === 'awaiting_number'
+          ? 'This business now has a separate Twilio subaccount under the parent billing account. Select and purchase its phone number, then complete the applicable campaign registration before enabling sending.'
+          : provisioning.state === 'submission_unknown'
+            ? 'Twilio may have created a resource before the response was interrupted. Review the parent Twilio account and reconcile it before retrying.'
+            : 'Setup runs in the background. Sending stays disabled until a phone number and the applicable registration are complete.'}</p>
+        <p class="muted">Twilio details: ${provisioning.detailsComplete ? 'saved · registration submission is next' : 'required'}</p>
+        <button type="button" class="btn" data-complete-business-setup>${provisioning.detailsComplete ? 'Review setup details' : 'Complete business setup'}</button>
+        <p class="muted" style="margin-top:12px">Business context for SMS + AI: ${onboardingComplete ? 'saved' : 'required'}</p>
+        <button type="button" class="btn ghost" data-open-business-context>${onboardingComplete ? 'Review business context' : 'Add business context'}</button>
+      </details>` : ''}
+    <div class="dashboard-actions" aria-label="Quick actions">
+      <button type="button" class="dashboard-action" data-dashboard-view="messaging"><strong>Open inbox <span aria-hidden="true">→</span></strong><span>Read and reply to customers</span></button>
+      <button type="button" class="dashboard-action" data-dashboard-view="contacts"><strong>View contacts <span aria-hidden="true">→</span></strong><span>Find a customer or lead</span></button>
+      <button type="button" class="dashboard-action" data-dashboard-view="automations"><strong>Manage follow-ups <span aria-hidden="true">→</span></strong><span>Review your automated messages</span></button>
+    </div>
+    <details class="card dashboard-details">
+      <summary>More message statistics</summary>
+      <dl class="dashboard-stats">
+        <div><dt>Delivered messages</dt><dd>${totalsAvailable ? fmt(data.counts?.delivered ?? 0) : '—'}</dd></div>
+        <div><dt>Opted-out contacts</dt><dd>${totalsAvailable ? fmt(data.optedOutTotal ?? 0) : '—'}</dd></div>
+      </dl>
+      <button type="button" class="btn ghost" data-dashboard-view="deliverability">View delivery report</button>
+      <button type="button" class="btn ghost" data-dashboard-view="optouts">View opt-outs</button>
+    </details>
     <div class="card">
       <div class="card-head">
-        <h2>Automation groups</h2>
-        <span class="muted">Open Automations for group workspaces</span>
+        <h2>Follow-ups</h2>
+        <button type="button" class="btn ghost" data-dashboard-view="automations">Manage</button>
       </div>
-      <div class="category-grid">
+      <div class="dashboard-groups">
         ${state.categories
           .map((c) => {
             const s = data.byCategory?.find((x) => x.id === c.id);
             return `
-              <button type="button" class="category-tile as-button" data-open-automation="${esc(
+              <div class="dashboard-group">
+              <button type="button" class="dashboard-group-open" data-open-automation="${esc(
                 c.id
               )}">
-                <h3>${esc(c.name)}</h3>
-                <p>${esc(c.description || '')}</p>
-                <p class="muted">${fmt(s?.total || 0)} messages · ${
+                <strong>${esc(c.name)}</strong><span aria-hidden="true">→</span>
+              </button>
+              <details><summary>Details</summary>
+                <p>${esc(c.description || 'Automated customer follow-up.')}</p>
+                <p class="muted">${totalsAvailable ? fmt(s?.total ?? 0) : '—'} messages · ${
                   s?.deliveryRate == null ? '—' : `${s.deliveryRate}% delivered`
                 }</p>
-                <div class="blank">${automationBlankLabel(c)}</div>
-              </button>`;
+                <p class="muted">${automationBlankLabel(c)}</p>
+              </details></div>`;
           })
-          .join('')}
+          .join('') || '<p class="empty">No follow-ups yet. Select Manage to create one.</p>'}
       </div>
     </div>
   `;
+
+  if (globalThis.SMS_CONFIG?.apiBase) {
+    el.root.insertAdjacentHTML('beforeend', '<details class="card dashboard-details" id="worker-status"><summary>Automation status</summary><div class="worker-status-content muted">Open to check automation status.</div></details>');
+    const details = el.root.querySelector('#worker-status');
+    details.addEventListener('toggle', async () => {
+      if (!details.open) return;
+      const node = details.querySelector('.worker-status-content');
+      try {
+        const response = await apiFetch('/api/operations');
+        if (!response.ok) throw new Error('Status is temporarily unavailable');
+        const data = await response.json();
+        const active = (data.workers || []).filter(w => Date.now() - new Date(w.seen_at).getTime() < 120000);
+        node.innerHTML = `<p>Scheduling: ${data.scheduler?.scheduler_enabled ? 'On' : 'Paused'} · ${active.length} worker connections active</p>` +
+          (data.jobs || []).map(j => `<p>${esc(j.queue.replaceAll('_', ' '))}: ${fmt(j.count)} ${esc(j.status.replaceAll('_', ' '))}</p>`).join('') +
+          (data.problems || []).map(j => `<p>${esc(j.status === 'submission_unknown' ? 'Needs review — delivery could not be confirmed. Automatic retry is held.' : j.error_code || 'Job failed')}${j.status === 'failed' ? ` <button class="btn ghost" data-retry-job="${esc(j.id)}">Retry</button>` : ''}</p>`).join('');
+        node.querySelectorAll('[data-retry-job]').forEach(button => button.addEventListener('click', async () => {
+          button.disabled = true;
+          const res = await apiFetch(`/api/jobs/${encodeURIComponent(button.dataset.retryJob)}/retry`, { method: 'POST' });
+          button.textContent = res.ok ? 'Queued' : 'Retry unavailable';
+        }));
+      } catch (error) { node.textContent = error.message; }
+    });
+  }
+  el.root.querySelectorAll('[data-dashboard-view]').forEach((btn) => {
+    btn.addEventListener('click', () => {
+      document.querySelector(`.nav-item[data-view="${btn.dataset.dashboardView}"]`)?.click();
+    });
+  });
+  el.root.querySelector('[data-complete-business-setup]')?.addEventListener('click', () => {
+    openBusinessSetup();
+  });
+  el.root.querySelector('[data-open-business-context]')?.addEventListener('click', () => {
+    openBusinessContext();
+  });
 
   el.root.querySelectorAll('[data-open-automation]').forEach((btn) => {
     btn.addEventListener('click', () => openAutomationGroup(btn.getAttribute('data-open-automation')));
@@ -774,12 +1742,29 @@ function groupAiBuilderHtml(group) {
       <div class="automation-form-grid">
         <label class="check field-wide">
           <input id="group-ai-enabled" type="checkbox" ${group.ai?.enabled ? 'checked' : ''} />
-          Apply custom AI instructions when a customer is enrolled in this group
+          Enable these AI instructions
+        </label>
+        <label class="check field-wide">
+          <input id="group-ai-default-inbound" type="checkbox" ${group.ai?.defaultForInbound ? 'checked' : ''} />
+          Respond to eligible inbound texts even when the customer is not enrolled in this group
+        </label>
+        <label class="check field-wide">
+          <input id="group-ai-grounded" type="checkbox" ${group.ai?.grounded_enabled||group.ai?.groundedEnabled ? 'checked' : ''} />
+          Answer only from approved business knowledge
+        </label>
+        <label class="check field-wide">
+          <input id="group-ai-shadow" type="checkbox" ${(group.ai?.shadow_mode??group.ai?.shadowMode??true) ? 'checked' : ''} />
+          Shadow mode (record evaluations without replying or creating CRM work)
+        </label>
+        <label class="field-wide">
+          <span class="compose-label">Staff alert phone</span>
+          <input id="group-ai-alert-phone" type="tel" placeholder="+15551234567" value="${esc(group.ai?.alert_phone||group.ai?.alertPhone||'')}" />
+          <small class="muted">One deduplicated alert is queued for an unsupported conversation. Use E.164.</small>
         </label>
         <label class="field-wide">
           <span class="compose-label">AI instructions</span>
           <textarea id="group-ai-instructions" maxlength="6000" rows="8" placeholder="Describe the goal, questions to ask, tone, escalation conditions, and facts the AI may use.">${esc(group.ai?.instructions || '')}</textarea>
-          <small class="muted">Group instructions supplement platform safety, consent, privacy, and tool restrictions.</small>
+          <small class="muted">Style and workflow guidance only. Approved structured facts and sources remain authoritative.</small>
         </label>
       </div>
       <div class="automation-builder-actions">
@@ -809,7 +1794,11 @@ function bindGroupAiBuilder(group) {
           method: 'PUT',
           body: JSON.stringify({
             enabled: form.querySelector('#group-ai-enabled').checked,
+            defaultForInbound: form.querySelector('#group-ai-default-inbound').checked,
             instructions: form.querySelector('#group-ai-instructions').value.trim(),
+            groundedEnabled: form.querySelector('#group-ai-grounded').checked,
+            shadowMode: form.querySelector('#group-ai-shadow').checked,
+            alertPhone: form.querySelector('#group-ai-alert-phone').value.trim()||null,
           }),
         }
       );
@@ -1206,9 +2195,6 @@ async function renderMessaging() {
               }</p>
             </div>
             <div class="thread-actions">
-              <button type="button" class="btn btn-ghost" id="call-btn" ${
-                thread.optedOut ? 'disabled' : ''
-              }>Call</button>
               <button type="button" class="btn btn-ghost" id="ai-pause-btn">
                 ${thread.aiPausedAt ? 'Resume AI' : 'Pause AI'}
               </button>
@@ -1305,14 +2291,6 @@ async function renderMessaging() {
     }
   });
 
-  el.root.querySelector('#call-btn')?.addEventListener('click', () => {
-    if (!state.conversationPhone || thread?.optedOut) return;
-    openCallSection({
-      phone: state.conversationPhone,
-      name: thread?.name || '',
-    });
-  });
-
   const form = el.root.querySelector('#reply-form');
   form?.addEventListener('submit', async (e) => {
     e.preventDefault();
@@ -1393,35 +2371,33 @@ async function renderContacts() {
   const rows = data.contacts || [];
   const consentedCount = rows.filter((c) => c.canEnroll || c.smsMarketingConsent === true).length;
   el.kpi.innerHTML = [
-    kpiCard('Directory', data.configured === false ? '—' : data.total ?? rows.length),
-    kpiCard('Consented (page)', consentedCount),
-    kpiCard('Configured', data.supabaseConfigured || data.configured ? 'Yes' : 'No'),
+    kpiCard('Contacts', data.configured === false ? '—' : data.total ?? rows.length),
+    kpiCard('SMS consent (this page)', consentedCount),
   ].join('');
   el.storeMeta.textContent = data.configured
-    ? `${fmt(rows.length)} contacts · enroll only if SMS marketing consent = yes`
-    : data.error || 'Connect Supabase to load contacts';
+    ? `${fmt(data.total ?? rows.length)} contacts`
+    : 'No contacts yet.';
 
   el.root.innerHTML = `
     <div class="card">
       <div class="card-head contact-tabs">
         <div class="subcat-chips" style="padding:0">
-          <button type="button" class="chip active" data-contact-tab="directory">Supabase directory</button>
+          <button type="button" class="chip active" data-contact-tab="directory">Contacts</button>
           <button type="button" class="chip" data-contact-tab="activity">SMS activity</button>
         </div>
         <div class="contact-filters">
           <label class="unread-toggle">
             <input type="checkbox" id="consented-only" ${state.consentedOnly ? 'checked' : ''} />
-            Consented only
+            Has SMS consent
           </label>
-          <select id="source-filter" aria-label="Source filter">
-            <option value="">All sources</option>
+          <select id="source-filter" aria-label="Contact type">
+            <option value="">All contact types</option>
             ${[
-              ['prebooking', 'Quote / prebooking'],
-              ['booking', 'Booking'],
-              ['contact', 'Contact form'],
-              ['in_home_estimate', 'In-home estimate'],
-              ['phone_agent', 'Phone agent'],
-              ['customer', 'Customers table'],
+              ['prebooking', 'Lead'],
+              ['booking', 'Appointment'],
+              ['contact', 'Inquiry'],
+              ['phone_agent', 'Phone contact'],
+              ['customer', 'Customer'],
             ]
               .map(
                 ([s, label]) =>
@@ -1432,12 +2408,12 @@ async function renderContacts() {
         </div>
       </div>
       <p class="muted directory-note">
-        Consented contacts can be enrolled in automation groups or sent a custom SMS. Not auto-enrolled.
+        Choose an automation group to enroll a contact. Sending SMS requires consent.
       </p>
       ${
         data.configured === false
           ? `<div class="empty">${esc(
-              data.error || 'Set SUPABASE_URL and SUPABASE_SERVICE_ROLE_KEY to pull contacts.'
+              'No contacts yet.'
             )}</div>`
           : `
       <div class="table-scroll">
@@ -1446,12 +2422,11 @@ async function renderContacts() {
             <tr>
               <th>Name</th>
               <th>Phone</th>
-              <th>Source</th>
+              <th>Contact type</th>
               <th>Consent</th>
               <th>Enrolled</th>
               <th>Automation group</th>
               <th>Message</th>
-              <th>Call</th>
             </tr>
           </thead>
           <tbody>
@@ -1461,12 +2436,12 @@ async function renderContacts() {
                     .map((c) => {
                       const canEnroll = c.canEnroll || c.smsMarketingConsent === true;
                       return `
-              <tr class="contact-row" data-open-call="${esc(c.phone)}" data-name="${esc(
+              <tr class="contact-row" data-name="${esc(
                         c.name || ''
                       )}">
                 <td>${esc(c.name || '—')}</td>
                 <td>${esc(c.phone || '—')}</td>
-                <td class="muted">${esc((c.sources || [c.primarySource]).filter(Boolean).join(', '))}</td>
+                <td class="muted">${esc((c.sources || [c.primarySource]).filter(Boolean).map(contactTypeLabel).join(', '))}</td>
                 <td>${
                   c.smsMarketingConsent === true
                     ? '<span class="consent ok">Yes</span>'
@@ -1527,15 +2502,10 @@ async function renderContacts() {
                       : `<span class="muted">—</span>`
                   }
                 </td>
-                <td>
-                  <button type="button" class="btn ghost call-contact-btn"
-                    data-phone="${esc(c.phone)}"
-                    data-name="${esc(c.name || '')}">Call</button>
-                </td>
               </tr>`;
                     })
                     .join('')
-                : `<tr><td colspan="8"><div class="empty">No contacts found.</div></td></tr>`
+                : `<tr><td colspan="7"><div class="empty">No contacts found.</div></td></tr>`
             }
           </tbody>
         </table>
@@ -1611,16 +2581,6 @@ async function renderContacts() {
       });
     });
   });
-  bindCallContactButtons();
-  el.root.querySelectorAll('[data-open-call]').forEach((row) => {
-    row.addEventListener('click', (e) => {
-      if (e.target.closest('button, select, a, input')) return;
-      openCallSection({
-        phone: row.getAttribute('data-open-call') || '',
-        name: row.getAttribute('data-name') || '',
-      });
-    });
-  });
 }
 
 function openMessageComposer({ phone, name }) {
@@ -1678,7 +2638,7 @@ function openMessageComposer({ phone, name }) {
       });
       const json = await res.json();
       if (!res.ok) throw new Error(json.detail || json.error || 'Send failed');
-      hint.textContent = `Sent${json.message?.sid ? ` · ${json.message.sid}` : ''}`;
+      hint.textContent = 'Queued for sending';
       body.value = '';
       count.textContent = '0 / 1600';
       setTimeout(() => {
@@ -1746,7 +2706,7 @@ async function renderLocalContacts() {
     <div class="card">
       <div class="card-head contact-tabs">
         <div class="subcat-chips" style="padding:0">
-          <button type="button" class="chip" data-contact-tab="directory">Supabase directory</button>
+          <button type="button" class="chip" data-contact-tab="directory">Contacts</button>
           <button type="button" class="chip active" data-contact-tab="activity">SMS activity</button>
         </div>
         <select id="contact-status" aria-label="Consent filter">
@@ -1767,7 +2727,6 @@ async function renderLocalContacts() {
               <th>Messages</th>
               <th>Last status</th>
               <th>Last activity</th>
-              <th>Call</th>
             </tr>
           </thead>
           <tbody>
@@ -1776,9 +2735,7 @@ async function renderLocalContacts() {
                 ? rows
                     .map(
                       (c) => `
-              <tr data-contact="${esc(c.phone)}" data-open-call="${esc(
-                        c.phone
-                      )}" data-name="${esc(c.name || '')}" class="contact-row">
+              <tr data-contact="${esc(c.phone)}" data-name="${esc(c.name || '')}" class="contact-row">
                 <td>${esc(c.phone)}</td>
                 <td class="muted">${esc(c.name || '—')}</td>
                 <td>${consentBadge(c)}</td>
@@ -1787,15 +2744,10 @@ async function renderLocalContacts() {
                         c.lastDeliverability || '—'
                       )}</span></td>
                 <td class="muted">${esc(fmtTime(c.lastMessageAt))}</td>
-                <td>
-                  <button type="button" class="btn ghost call-contact-btn"
-                    data-phone="${esc(c.phone)}"
-                    data-name="${esc(c.name || '')}">Call</button>
-                </td>
               </tr>`
                     )
                     .join('')
-                : `<tr><td colspan="7"><div class="empty">No SMS activity contacts yet.</div></td></tr>`
+                : `<tr><td colspan="6"><div class="empty">No SMS activity contacts yet.</div></td></tr>`
             }
           </tbody>
         </table>
@@ -1892,7 +2844,10 @@ async function renderOptOuts() {
     btn.addEventListener('click', async (e) => {
       e.stopPropagation();
       const phone = btn.getAttribute('data-opt-in');
-      await apiFetch(`/api/contacts/${encodeURIComponent(phone)}/opt-in`, { method: 'POST' });
+      const evidence = prompt('Record how and when this contact agreed to receive SMS:');
+    if (!evidence?.trim()) return;
+    const response = await apiFetch(`/api/contacts/${encodeURIComponent(phone)}/opt-in`, { method: 'POST', body: JSON.stringify({ evidence }) });
+    if (!response.ok) { alert((await response.json()).error || 'Could not record consent'); return; }
       await load();
     });
   });
@@ -1901,31 +2856,11 @@ async function renderOptOuts() {
 }
 
 function bindContactRows(rows) {
-  bindCallContactButtons();
   el.root.querySelectorAll('[data-contact]').forEach((row) => {
     row.addEventListener('click', (e) => {
-      if (e.target.closest('[data-opt-in], button, select, a, input')) return;
-      openCallSection({
-        phone: row.getAttribute('data-open-call') || row.getAttribute('data-contact') || '',
-        name: row.getAttribute('data-name') || byPhoneName(rows, row.getAttribute('data-contact')),
-      });
-    });
-  });
-}
-
-function byPhoneName(rows, phone) {
-  const hit = (rows || []).find((c) => c.phone === phone);
-  return hit?.name || '';
-}
-
-function bindCallContactButtons() {
-  el.root.querySelectorAll('.call-contact-btn').forEach((btn) => {
-    btn.addEventListener('click', (e) => {
-      e.stopPropagation();
-      openCallSection({
-        phone: btn.getAttribute('data-phone') || '',
-        name: btn.getAttribute('data-name') || '',
-      });
+      if (e.target.closest('button, select, a, input')) return;
+      const contact = rows.find(c => c.phone === row.getAttribute('data-contact'));
+      if (contact) openDrawer(contact.name || contact.phone, contactDetail(contact));
     });
   });
 }
@@ -1942,8 +2877,9 @@ async function renderDeliverability() {
   el.pager.hidden = true;
   el.status.disabled = true;
 
-  const res = await apiFetch('/api/deliverability');
-  const data = await res.json();
+  const [res,operationsRes] = await Promise.all([apiFetch('/api/deliverability'),apiFetch('/api/operations')]);
+  const data = await res.json(),operations=operationsRes.ok?await operationsRes.json():{},grounded=operations.grounded||{};
+  const estimatedUsd = value => value == null ? 'Rate not set' : `$${(Number(value)/1000000).toFixed(4)}`;
   renderKpis(data);
   el.storeMeta.textContent = `${fmt(data.total)} messages tracked`;
 
@@ -1967,6 +2903,23 @@ async function renderDeliverability() {
             : `<div class="empty" style="grid-column:1/-1">No deliverability data yet.</div>`
         }
       </div>
+    </div>
+    <div class="card" style="margin-top:16px">
+      <div class="card-head"><div><span class="eyebrow">Grounded AI operations</span><h2>Knowledge, handoffs, and compliance</h2></div></div>
+      <div class="facet-grid">
+        <div class="facet"><div class="n">${fmt(grounded.ingestionFailures||0)}</div><div class="l">Ingestion failures</div></div>
+        <div class="facet"><div class="n">${fmt(grounded.retrievalMisses||0)}</div><div class="l">Retrieval misses · 30d</div></div>
+        <div class="facet"><div class="n">${fmt(grounded.aiValidationFailures||0)}</div><div class="l">AI validation failures · 30d</div></div>
+        <div class="facet"><div class="n">${Math.round(Number(grounded.handoffRate||0)*100)}%</div><div class="l">Handoff rate · 30d</div></div>
+        <div class="facet"><div class="n">${fmt(grounded.aiUsage?.runs||0)}</div><div class="l">AI runs this month</div></div>
+        <div class="facet"><div class="n">${estimatedUsd(grounded.aiUsage?.estimatedCostMicros)}</div><div class="l">Estimated AI cost · month</div></div>
+        <div class="facet"><div class="n">${estimatedUsd(grounded.smsUsage?.estimatedCostMicros)}</div><div class="l">Estimated SMS cost · month</div></div>
+        <div class="facet"><div class="n">${fmt(grounded.smsUsage?.segments||0)}</div><div class="l">SMS segments · month</div></div>
+        <div class="facet"><div class="n">${fmt(grounded.responseLatencyP95Ms||0)}ms</div><div class="l">AI latency p95 · 30d</div></div>
+        <div class="facet"><div class="n">${fmt(grounded.deliveryFailures||0)}</div><div class="l">Delivery failures · 30d</div></div>
+        <div class="facet"><div class="n">${esc(grounded.registration?.state||'not started')}</div><div class="l">Twilio registration</div></div>
+      </div>
+      <div class="table-wrap"><table><thead><tr><th>Queue</th><th>Backlog</th><th>Oldest age</th><th>Failed</th></tr></thead><tbody>${(grounded.queues||[]).map(q=>`<tr><td>${esc(q.queue)}</td><td>${fmt(q.backlog)}</td><td>${q.oldest_age_seconds==null?'—':fmt(q.oldest_age_seconds)+'s'}</td><td>${fmt(q.failed)}</td></tr>`).join('')||'<tr><td colspan="4" class="empty">No grounded-AI queue activity.</td></tr>'}</tbody></table></div>
     </div>
   `;
 }
@@ -2066,10 +3019,10 @@ function contactDetail(c) {
   if (!c) return `<div class="empty">Contact not found</div>`;
   return `
     <div class="kv">
-      <div class="row"><div class="k">Phone</div><div class="v" id="drawer-call-phone">${esc(
+      <div class="row"><div class="k">Phone</div><div class="v">${esc(
         c.phone
       )}</div></div>
-      <div class="row"><div class="k">Name</div><div class="v" id="drawer-call-name">${esc(
+      <div class="row"><div class="k">Name</div><div class="v">${esc(
         c.name || '—'
       )}</div></div>
       <div class="row"><div class="k">Consent</div><div class="v">${consentBadge(c)}</div></div>
@@ -2107,7 +3060,6 @@ function contactDetail(c) {
               : `<button type="button" class="btn ghost" id="drawer-opt-out">Mark opted out</button>`
           }
           <button type="button" class="btn ghost" id="drawer-open-thread">Open thread</button>
-          <button type="button" class="btn" id="drawer-open-call">Call</button>
         </div>
       </div>
     </div>
@@ -2171,7 +3123,10 @@ function openDrawer(title, html) {
   el.drawerBody.querySelector('#drawer-opt-in')?.addEventListener('click', async () => {
     const phone = el.drawerBody.querySelector('.kv .v')?.textContent;
     if (!phone) return;
-    await apiFetch(`/api/contacts/${encodeURIComponent(phone)}/opt-in`, { method: 'POST' });
+    const evidence = prompt('Record how and when this contact agreed to receive SMS:');
+    if (!evidence?.trim()) return;
+    const response = await apiFetch(`/api/contacts/${encodeURIComponent(phone)}/opt-in`, { method: 'POST', body: JSON.stringify({ evidence }) });
+    if (!response.ok) { alert((await response.json()).error || 'Could not record consent'); return; }
     closeDrawer();
     await load();
   });
@@ -2191,14 +3146,6 @@ function openDrawer(title, html) {
     closeDrawer();
     setActiveNav();
     load();
-  });
-  el.drawerBody.querySelector('#drawer-open-call')?.addEventListener('click', () => {
-    const phone =
-      el.drawerBody.querySelector('#drawer-call-phone')?.textContent ||
-      el.drawerBody.querySelector('.kv .v')?.textContent;
-    const name = el.drawerBody.querySelector('#drawer-call-name')?.textContent || '';
-    if (!phone) return;
-    openCallSection({ phone, name: name === '—' ? '' : name });
   });
 }
 
@@ -2349,6 +3296,8 @@ function updateAuthChrome() {
       .toUpperCase();
   }
   if (tenant) document.title = `${tenant.shortName || tenant.name} · SMS CRM`;
+  syncSidebarBrand();
+  initNavFind();
 }
 
 async function loadTenantContext() {
@@ -2438,6 +3387,10 @@ function setLiveStatus(online, label) {
 }
 
 function connectLive() {
+  if (globalThis.SMS_CONFIG?.apiBase) {
+    connectSupabaseLive(() => refreshFromBackground().catch(() => {}), setLiveStatus).catch(() => setLiveStatus(false, 'Live updates unavailable'));
+    return;
+  }
   const proto = location.protocol === 'https:' ? 'wss:' : 'ws:';
   let ws;
   let retryMs = 1000;
@@ -2455,7 +3408,7 @@ function connectLive() {
         String(evt.record.contactPhone).replace(/\D/g, '').slice(-10) ===
           String(state.conversationPhone).replace(/\D/g, '').slice(-10)
       ) {
-        load().catch(() => {});
+        refreshFromBackground().catch(() => {});
         return;
       }
       if (
@@ -2466,16 +3419,16 @@ function connectLive() {
         String(evt.record.phone).replace(/\D/g, '').slice(-10) ===
           String(state.conversationPhone).replace(/\D/g, '').slice(-10)
       ) {
-        load().catch(() => {});
+        refreshFromBackground().catch(() => {});
         return;
       }
-      load().catch(() => {});
+      refreshFromBackground().catch(() => {});
     }, 250);
   };
 
   const startPollFallback = () => {
     if (pollTimer) return;
-    pollTimer = setInterval(() => load().catch(() => {}), 15000);
+    pollTimer = setInterval(() => refreshFromBackground().catch(() => {}), 15000);
   };
   const stopPollFallback = () => {
     if (!pollTimer) return;

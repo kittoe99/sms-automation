@@ -1,3 +1,7 @@
+# Supabase SMS automation
+
+The active implementation uses WPacquisition Postgres, durable queues, Cron and bounded Edge workers. Start with [the deployment guide](docs/WORKER_DEPLOYMENT.md). Render is optional static frontend hosting only. The DigitalOcean instructions below are retained for cutover reference and are not the current deployment path.
+
 # opek-sms
 
 SMS automation foundation for **Opek Junk Removal** — Twilio Messaging + DigitalOcean App Platform (RPS autoscaling 1–3).
@@ -138,6 +142,13 @@ curl -sS -X POST 'https://opek-sms-zllz4.ondigitalocean.app/api/send' \
 Requires `OPEK_SMS_API_KEY` on the SMS server. Opt-outs still block sends; marketing consent is not required for this transactional path.
 
 ## Local
+
+To prepare an empty CRM before connecting record storage, set `CRM_DATA_MODE=empty`
+and `AUTOMATION_RULES_STORE=file` in `.env`, then restart. Record tabs return empty
+lists, customer actions and webhooks wait for storage, and automation definitions
+and editors continue using local files. No existing database records are deleted.
+To reconnect, clear `CRM_DATA_MODE`, configure the database credentials, choose
+the automation store, and restart.
 
 ```bash
 cp .env.example .env

@@ -1,8 +1,13 @@
 /** Clerk-backed CRM authentication and tenant request context. */
 
 let clerk = null;
+export const runtimeConfig = globalThis.SMS_CONFIG || {};
+export const apiUrl = url => runtimeConfig.apiBase && url.startsWith('/api/')
+  ? runtimeConfig.apiBase.replace(/\/$/, '') + url.slice(4) : url;
 let demoMode = false;
+let localMode = false;
 let bootstrapped = false;
+const requestKeys = new Map();
 let loginNode = null;
 let loginUnsubscribe = null;
 let organizationSwitcherNode = null;
@@ -67,6 +72,7 @@ export function setTenantId(tenantId) {
 }
 
 export function getSession() {
+  if (localMode) return { id: 'local-development', user: { id: 'local-developer', name: 'Local developer', email: '' } };
   if (!clerk?.user || !clerk?.session) return null;
   const email = clerk.user.primaryEmailAddress?.emailAddress ||
     clerk.user.emailAddresses?.[0]?.emailAddress || '';
@@ -85,6 +91,7 @@ export function getSession() {
 }
 
 export async function getAccessToken() {
+  if (localMode) return 'local-development';
   return clerk?.session ? clerk.session.getToken() : null;
 }
 
@@ -92,9 +99,16 @@ export async function initAuth() {
   if (bootstrapped) return { session: getSession(), configured: Boolean(clerk), demo: demoMode };
   bootstrapped = true;
 
-  const cfgRes = await fetch('/api/auth/config');
+  const cfgRes = await fetch(apiUrl('/api/auth/config'));
   if (!cfgRes.ok) throw new Error('Could not load authentication configuration.');
   const cfg = await cfgRes.json();
+  const addBusinessButton = document.getElementById('add-business');
+  if (addBusinessButton) addBusinessButton.hidden = cfg.manualBusinesses !== true;
+  if (cfg?.mode === 'local') {
+    localMode = true;
+    document.getElementById('sign-out-btn')?.setAttribute('hidden', '');
+    return { session: getSession(), configured: true };
+  }
   if (cfg?.mode === 'demo' && cfg.demo === true) {
     demoMode = true;
     return { session: null, configured: false, demo: true };
@@ -150,7 +164,15 @@ export async function apiFetch(url, options = {}) {
   if (options.body && !headers.has('Content-Type') && !(options.body instanceof FormData)) {
     headers.set('Content-Type', 'application/json');
   }
-  return fetch(url, { ...fetchOptions, headers });
+  const mutation = String(options.method || 'GET').toUpperCase() === 'POST';
+  const fingerprint = `${tenantId}:${url}:${options.body || ''}`;
+  if (mutation && !headers.has('Idempotency-Key')) {
+    if (!requestKeys.has(fingerprint)) requestKeys.set(fingerprint, crypto.randomUUID());
+    headers.set('Idempotency-Key', requestKeys.get(fingerprint));
+  }
+  const response = await fetch(apiUrl(url), { ...fetchOptions, headers });
+  if (response.ok || (response.status >= 400 && response.status < 500)) requestKeys.delete(fingerprint);
+  return response;
 }
 
 export function renderLoginScreen({ onSuccess, errorMessage = '' } = {}) {

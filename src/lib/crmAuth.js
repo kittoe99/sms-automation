@@ -8,6 +8,14 @@
 import { getAuth, verifyToken } from '@clerk/express';
 import { tenantMatchesClerkAuth } from './tenantContext.js';
 
+export function isLocalAuthDisabled(env = process.env) {
+  return env.NODE_ENV === 'development' && env.CRM_AUTH_DISABLED === 'true';
+}
+
+function localUser() {
+  return toCrmUser({ userId: 'local-developer', sessionId: 'local-development' });
+}
+
 export function getClerkPublishableKey(env = process.env) {
   return String(
     env.CLERK_PUBLISHABLE_KEY || env.NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY || ''
@@ -96,6 +104,7 @@ function authFromVerifiedClaims(claims) {
 
 /** Verify a raw Clerk session token, used by the WebSocket upgrade path. */
 export async function verifyCrmAccessToken(accessToken, { tenant = null } = {}) {
+  if (isLocalAuthDisabled()) return localUser();
   if (!accessToken || !isCrmAuthConfigured()) return null;
 
   try {
@@ -115,6 +124,10 @@ export async function verifyCrmAccessToken(accessToken, { tenant = null } = {}) 
 
 /** Express middleware requiring a verified Clerk user session. */
 export function requireClerkSession(req, res, next) {
+  if (isLocalAuthDisabled()) {
+    req.crmUser = { ...localUser(), tenantId: req.tenant?.id || null };
+    return next();
+  }
   try {
     if (!isCrmAuthConfigured()) {
       return res.status(503).json({
@@ -140,6 +153,7 @@ export function requireClerkSession(req, res, next) {
 
 /** Express middleware requiring both a Clerk session and tenant membership. */
 export function requireCrmAuth(req, res, next) {
+  if (isLocalAuthDisabled()) return requireClerkSession(req, res, next);
   return requireClerkSession(req, res, () => {
     if (!tenantMatchesClerkAuth(req.tenant, req.crmUser)) {
       return res.status(403).json({
