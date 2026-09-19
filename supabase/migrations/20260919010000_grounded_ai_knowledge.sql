@@ -480,10 +480,10 @@ begin
     from public.sms_knowledge_chunks c join public.sms_knowledge_sources s on s.tenant_id=c.tenant_id and s.id=c.source_id and s.active_version_id=c.source_version_id
     join public.sms_knowledge_source_versions v on v.tenant_id=c.tenant_id and v.id=c.source_version_id and v.status='approved'
     where c.tenant_id=$1 and s.status='ready' and c.fts @@ websearch_to_tsquery('english',$2) limit 30), semantic as (
-    select c.id,row_number() over(order by c.embedding <=> $3::extensions.vector) r
+    select c.id,row_number() over(order by c.embedding OPERATOR(extensions.<=>) $3::extensions.vector) r
     from public.sms_knowledge_chunks c join public.sms_knowledge_sources s on s.tenant_id=c.tenant_id and s.id=c.source_id and s.active_version_id=c.source_version_id
     join public.sms_knowledge_source_versions v on v.tenant_id=c.tenant_id and v.id=c.source_version_id and v.status='approved'
-    where c.tenant_id=$1 and s.status='ready' and c.embedding is not null order by c.embedding <=> $3::extensions.vector limit 30), ranked as (
+    where c.tenant_id=$1 and s.status='ready' and c.embedding is not null order by c.embedding OPERATOR(extensions.<=>) $3::extensions.vector limit 30), ranked as (
     select coalesce(k.id,s.id) id,coalesce(1.0/(50+k.r),0)+coalesce(1.0/(50+s.r),0) score from keyword k full join semantic s using(id))
     select coalesce(jsonb_agg(x),'[]') from (select c.id,c.content,c.metadata,c.precedence,src.title,src.origin,r.score
     from ranked r join public.sms_knowledge_chunks c on c.tenant_id=$1 and c.id=r.id join public.sms_knowledge_sources src on src.tenant_id=c.tenant_id and src.id=c.source_id
@@ -842,7 +842,7 @@ end $$;
 
 create function sms_private.activation_readiness(u text,t text) returns jsonb
 language plpgsql security definer set search_path='' as $$
-declare reasons jsonb:='[]'; p sms_private.providers; r public.sms_twilio_registrations; b public.sms_businesses;
+declare reasons jsonb:='[]'::jsonb; p sms_private.providers; r public.sms_twilio_registrations; b public.sms_businesses;
 begin
  perform sms_private.require_admin(u); select * into strict b from public.sms_businesses where tenant_id=t; select * into p from sms_private.providers where tenant_id=t; select * into r from public.sms_twilio_registrations where tenant_id=t;
  if b.active_profile_version_id is null then reasons:=reasons||'"approved_business_profile_required"'; end if;

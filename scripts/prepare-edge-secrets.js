@@ -25,6 +25,10 @@ for(const name of [
   'AI_OUTPUT_USD_PER_MILLION',
   'EMBEDDING_USD_PER_MILLION',
 ]) if(local[name]) result[name]=local[name];
+result.CRM_ALLOWED_ORIGINS=[
+  'https://wpacquisition-crm.onrender.com',
+  ...(result.CRM_ALLOWED_ORIGINS || '').split(','),
+].map(value=>value.trim()).filter((value,index,values)=>value && values.indexOf(value)===index).join(',');
 result.SMS_WEBHOOK_BASE_URL='https://wxamwhfmelxqahkdtcci.supabase.co/functions/v1/twilio-webhook';
 result.SMS_CALLBACK_URL=result.SMS_WEBHOOK_BASE_URL+'/status';
 result.AI_MODEL='gpt-5.4-mini-2026-03-17';
