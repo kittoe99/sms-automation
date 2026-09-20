@@ -9,7 +9,6 @@
     "start": "node src/index.js",
     "start:forms": "node src/formsServer.js",
     "preview:forms": "node scripts/preview-forms.js",
-    "preview:forms:synthetic": "node scripts/preview-forms-synthetic.js",
     "dev": "node --watch src/index.js",
     "demo": "node src/demo.js",
     "test": "node --test \"test/*.test.js\"",

@@ -127,8 +127,7 @@ references block enrollment without silently switching to a different group.
 - `node --test test/formBuilder.test.js`: real migrations, atomic publication,
   consent, suppression, routing, idempotency, tenants, MCP transport and agent sessions.
 - `npm test`: existing CRM, booking, AI, automation and worker regression tests.
-- `npm run preview:forms`: local frontend connected to the deployed HTTPS Forms service
-- `npm run preview:forms:synthetic`: localhost-only editor with disposable synthetic data; the OpenAI agent cannot connect to this non-public MCP endpoint
+- `npm run preview:forms`: localhost-only editor with disposable synthetic data
   in PGlite. It does not load production credentials or send SMS. AI is not
   available because the local MCP server is not reachable from OpenAI.
 - `npm run build:frontend`: requires the existing documented build variables and
