@@ -876,6 +876,9 @@ async function renderBusinessContext() {
           </div>
         </aside>
       </form>
+      <section id="business-knowledge" class="business-knowledge" aria-label="AI knowledge">
+        <div class="card"><div class="empty">Loading AI knowledge…</div></div>
+      </section>
     </div>`;
 
   const form = el.root.querySelector('#business-context-form');
@@ -959,31 +962,33 @@ async function renderBusinessContext() {
       fetchUrlInput.focus();
       return;
     }
-    const hasContent = [nameInput, summaryInput, servicesInput, areasInput, hoursInput, phoneInput, emailInput, faqsInput, pricingInput, policiesInput, bookingInput, handoffInput]
-      .some((n) => n.value.trim());
-    if (hasContent && !confirm('Replace the form contents with freshly fetched website details?')) return;
     error.textContent = '';
     fetchButton.disabled = true;
     const original = fetchButton.textContent;
     fetchButton.textContent = 'Fetching…';
     try {
       const payload = JSON.stringify({ websiteUrl: url });
-      let response = await apiFetch('/api/enrich-website', { method: 'POST', body: payload });
-      let data = await response.json().catch(() => ({}));
-      if (response.status === 404 && runtimeConfig.apiBase) {
-        // The deployed Edge API predates the new route — retry on the local preview server.
-        try {
-          const headers = { 'Content-Type': 'application/json' };
-          const token = await getAccessToken();
-          if (token) headers.Authorization = `Bearer ${token}`;
-          const tenantId = getTenantId();
-          if (tenantId) headers['X-Tenant-ID'] = tenantId;
-          response = await fetch('/api/enrich-website', { method: 'POST', headers, body: payload });
-          data = await response.json().catch(() => ({}));
-        } catch {
-          // Fall through to the not-deployed message below.
-        }
+      const headers = { 'Content-Type': 'application/json' };
+      const token = await getAccessToken();
+      if (token) headers.Authorization = `Bearer ${token}`;
+      const tenantId = getTenantId();
+      if (tenantId) headers['X-Tenant-ID'] = tenantId;
+
+      // Prefer the project server: it owns the Firecrawl credential and keeps it
+      // out of the browser. Hosted static builds can fall back to the Edge API.
+      let response;
+      let data = {};
+      try {
+        response = await fetch('/api/enrich-website', { method: 'POST', headers, body: payload });
+        data = await response.json().catch(() => ({}));
+      } catch {
+        response = null;
       }
+      if ((!response || response.status === 404) && runtimeConfig.apiBase) {
+        response = await apiFetch('/api/enrich-website', { method: 'POST', body: payload });
+        data = await response.json().catch(() => ({}));
+      }
+      if (!response) throw new Error('Website fetch is unavailable. Check the server and try again.');
       if (response.status === 404) throw new Error('Website fetch is not deployed yet. Fill in the form manually for now.');
       if (!response.ok) throw new Error(data.error || 'That website could not be read. Check the address and try again.');
       if (data.businessName) nameInput.value = String(data.businessName).slice(0, 120);
@@ -1068,6 +1073,10 @@ async function renderBusinessContext() {
       saveButton.disabled = false;
     }
   });
+  mountKnowledgePanel().catch((failure) => {
+    const host = el.root.querySelector('#business-knowledge');
+    if (host) host.innerHTML = `<div class="card"><div class="empty">${esc(failure.message || 'AI knowledge could not be loaded.')}</div></div>`;
+  });
   nameInput.focus();
 }
 
@@ -1081,27 +1090,47 @@ const titles = {
   deliverability: ['Deliverability', 'Delivery outcomes across the message store'],
   automations: ['Automations', 'Lifecycle-driven SMS sequences and enrollment rules'],
   'business-setup': ['Business setup', 'Phone number and Twilio registration for this business.'],
-  'business-context': ['Business context', 'What you sell, where, and how replies should sound.'],
+  'business-context': ['Business context', 'Business details, AI guidance, and approved knowledge in one place.'],
   knowledge: ['AI knowledge', 'Approve evidence, review leads, and resolve human handoffs.'],
   bookings: ['Bookings', 'Confirmed appointments created securely for this business.'],
   'booking-setup': ['Booking setup', 'Availability and questions collected before an SMS booking.'],
 };
 
-async function renderKnowledge() {
-  setTitle(...titles.knowledge);el.kpi.innerHTML='';el.pager.hidden=true;el.root.innerHTML='<div class="card"><div class="empty">Loading approved knowledge…</div></div>';
-  const response=await apiFetch('/api/knowledge'),data=await response.json();if(!response.ok)throw new Error(data.error||'Could not load knowledge');
+function knowledgePanelMarkup(data) {
   const versions=data.sourceVersions||[],sources=data.sources||[],leads=data.leads||[],handoffs=data.handoffs||[];
-  const rows=sources.map(source=>{const draft=versions.find(v=>v.source_id===source.id&&v.status==='ready'),archived=source.status==='archived';return `<tr><td><strong>${esc(source.title||source.type)}</strong><br><span class="muted">${esc(source.origin||source.storage_path||'Manual')}</span></td><td><span class="status ${esc(source.status)}">${esc(source.status)}</span></td><td>${source.active_version_id?'Approved':'Not live'}</td><td>${archived?'—':`${draft?`<button class="btn ghost" data-approve-version="${esc(draft.id)}">Review & approve v${draft.version}</button>`:`<button class="btn ghost" data-refresh-source="${esc(source.id)}">Refresh</button>`} <button class="btn ghost" data-archive-source="${esc(source.id)}">Archive</button>`}</td></tr>`;}).join('');
-  el.root.innerHTML=`<div class="setup-page"><div class="card setup-hero"><div><span class="eyebrow">Approved source of truth</span><h2>Ground every SMS answer.</h2><p class="muted">Imports remain drafts until you approve them. Unsupported or conflicting questions create a human handoff.</p></div><dl class="setup-facts"><div><dt>Approved profile</dt><dd>${data.profile?'active':'required'}</dd></div><div><dt>Sources</dt><dd>${sources.length}</dd></div></dl></div>
-  <div class="setup-layout"><div class="setup-main"><section class="card"><div class="card-head"><div><span class="eyebrow">Sources</span><h2>Websites and private documents</h2></div></div><div class="setup-body"><form id="knowledge-url-form" class="setup-fetch-row"><label class="setup-fetch-url"><span class="compose-label">Public HTTPS website</span><input id="knowledge-url" type="url" required placeholder="https://example.com" /></label><button class="btn">Import draft</button></form><form id="knowledge-file-form" class="setup-fetch-row" style="margin-top:12px"><label class="setup-fetch-url"><span class="compose-label">PDF, DOCX, TXT, or Markdown · max 10 MB</span><input id="knowledge-file" type="file" required accept=".pdf,.docx,.txt,.md,application/pdf,application/vnd.openxmlformats-officedocument.wordprocessingml.document,text/plain,text/markdown" /></label><button class="btn">Upload draft</button></form><p id="knowledge-error" class="login-error" role="alert"></p><div class="table-wrap"><table><thead><tr><th>Source</th><th>Processing</th><th>Live</th><th></th></tr></thead><tbody>${rows||'<tr><td colspan="4" class="empty">No imported sources yet.</td></tr>'}</tbody></table></div></div></section>
-  <section class="card"><div class="card-head"><div><span class="eyebrow">CRM</span><h2>Open leads and handoffs</h2></div></div><div class="setup-body"><div class="table-wrap"><table><thead><tr><th>Type</th><th>Summary / reason</th><th>Priority</th><th>Status</th></tr></thead><tbody>${[...handoffs.map(x=>({...x,_type:'Handoff',_text:x.reason})),...leads.map(x=>({...x,_type:'Lead',_text:x.summary}))].map(x=>`<tr><td>${x._type}</td><td>${esc(x._text||'Customer follow-up')}</td><td>${esc(x.priority)}</td><td>${esc(x.status)}</td></tr>`).join('')||'<tr><td colspan="4" class="empty">Nothing needs attention.</td></tr>'}</tbody></table></div></div></section></div>
-  <aside class="setup-side"><div class="card setup-card setup-help"><div class="card-head"><h2>Precedence</h2></div><ol class="setup-help-list"><li>Structured business profile</li><li>Admin-authored FAQs, pricing, policies</li><li>Approved imported content</li><li>Automation style instructions</li></ol><p class="muted">Scanned documents are intentionally rejected in v1.</p></div></aside></div></div>`;
-  const error=el.root.querySelector('#knowledge-error'),reload=()=>renderKnowledge().catch(console.error);
-  el.root.querySelector('#knowledge-url-form')?.addEventListener('submit',async event=>{event.preventDefault();error.textContent='';const origin=el.root.querySelector('#knowledge-url').value.trim();try{const res=await apiFetch('/api/knowledge/sources',{method:'POST',body:JSON.stringify({type:'website',title:new URL(origin).hostname,origin})});const body=await res.json();if(!res.ok)throw new Error(body.error||'Import failed');await reload();}catch(e){error.textContent=e.message;}});
-  el.root.querySelector('#knowledge-file-form')?.addEventListener('submit',async event=>{event.preventDefault();error.textContent='';const file=el.root.querySelector('#knowledge-file').files?.[0];if(!file)return;try{const sign=await apiFetch('/api/knowledge/uploads/sign',{method:'POST',body:JSON.stringify({fileName:file.name,size:file.size,contentType:file.type||'text/plain'})}),signed=await sign.json();if(!sign.ok)throw new Error(signed.error||'Upload could not start');const uploadUrl=/^https?:/.test(signed.signedUrl)?signed.signedUrl:`${runtimeConfig.supabaseUrl||''}${signed.signedUrl}`;const upload=await fetch(uploadUrl,{method:'PUT',headers:{'Content-Type':file.type||'text/plain'},body:file});if(!upload.ok)throw new Error('Private upload failed');const create=await apiFetch('/api/knowledge/sources',{method:'POST',body:JSON.stringify({type:'file',title:file.name,storagePath:signed.path})});const created=await create.json();if(!create.ok)throw new Error(created.error||'Import failed');await reload();}catch(e){error.textContent=e.message;}});
-  el.root.querySelectorAll('[data-refresh-source]').forEach(button=>button.addEventListener('click',async()=>{await apiFetch(`/api/knowledge/sources/${button.dataset.refreshSource}/refresh`,{method:'POST',body:'{}'});await reload();}));
-  el.root.querySelectorAll('[data-archive-source]').forEach(button=>button.addEventListener('click',async()=>{if(!confirm('Archive this source and remove it from live AI retrieval?'))return;const res=await apiFetch(`/api/knowledge/sources/${button.dataset.archiveSource}`,{method:'DELETE'}),body=await res.json();if(!res.ok){error.textContent=body.error||'Archive failed';return;}await reload();}));
-  el.root.querySelectorAll('[data-approve-version]').forEach(button=>button.addEventListener('click',()=>{const draft=versions.find(v=>v.id===button.dataset.approveVersion),source=sources.find(s=>s.id===draft?.source_id),previous=versions.find(v=>v.id===source?.active_version_id),oldText=String(previous?.extracted_text||''),newText=String(draft?.extracted_text||'');openDrawer(`Review ${source?.title||'knowledge'} v${draft?.version||''}`,`<div class="kv"><div class="row"><div class="k">Change</div><div class="v">${previous?`${newText.length-oldText.length>=0?'+':''}${newText.length-oldText.length} characters`:'First approved version'}</div></div><div class="row"><div class="k">Previous approved text</div><div class="v"><pre style="white-space:pre-wrap;max-height:220px;overflow:auto">${esc(oldText.slice(0,8000)||'No previous version')}</pre></div></div><div class="row"><div class="k">New extracted text</div><div class="v"><pre style="white-space:pre-wrap;max-height:320px;overflow:auto">${esc(newText.slice(0,12000))}</pre></div></div></div><div class="compose-actions"><span id="approve-error" class="login-error"></span><button class="btn" id="approve-knowledge-now">Approve and make live</button></div>`);el.drawerBody.querySelector('#approve-knowledge-now')?.addEventListener('click',async event=>{event.currentTarget.disabled=true;const res=await apiFetch(`/api/knowledge/versions/${draft.id}/approve`,{method:'POST',body:'{}'}),body=await res.json();if(!res.ok){el.drawerBody.querySelector('#approve-error').textContent=body.error||'Approval failed';event.currentTarget.disabled=false;return;}closeDrawer();await reload();});}));
+  const rows=sources.map(source=>{const draft=versions.find(v=>v.source_id===source.id&&v.status==='ready'),archived=source.status==='archived';return `<tr><td><strong>${esc(source.title||source.type)}</strong><br><span class="muted">${esc(source.origin||source.storage_path||'Manual')}</span></td><td><span class="status ${esc(source.status)}">${esc(source.status)}</span></td><td>${source.active_version_id?'Approved':'Not live'}</td><td>${archived?'—':`${draft?`<button class="btn ghost" data-approve-version="${esc(draft.id)}">Review & approve v${esc(draft.version)}</button>`:`<button class="btn ghost" data-refresh-source="${esc(source.id)}">Refresh</button>`} <button class="btn ghost" data-archive-source="${esc(source.id)}">Archive</button>`}</td></tr>`;}).join('');
+  const work=[...handoffs.map(x=>({...x,_type:'Handoff',_text:x.reason})),...leads.map(x=>({...x,_type:'Lead',_text:x.summary}))];
+  return `<div class="card setup-hero business-knowledge-hero"><div><span class="eyebrow">AI knowledge</span><h2>Ground every SMS answer.</h2><p class="muted">Import reference material here. Sources remain drafts until approved, while unsupported or conflicting questions create a human handoff.</p></div><dl class="setup-facts"><div><dt>Approved profile</dt><dd>${data.profile?'active':'required'}</dd></div><div><dt>Sources</dt><dd>${sources.length}</dd></div></dl></div>
+  <div class="setup-layout"><div class="setup-main"><section class="card"><div class="card-head"><div><span class="eyebrow">Sources</span><h2>Websites and private documents</h2></div></div><div class="setup-body"><form id="knowledge-url-form" class="setup-fetch-row"><label class="setup-fetch-url"><span class="compose-label">Public HTTPS website</span><input id="knowledge-url" type="url" required placeholder="https://example.com" /></label><button class="btn">Import draft</button></form><form id="knowledge-file-form" class="setup-fetch-row"><label class="setup-fetch-url"><span class="compose-label">PDF, DOCX, TXT, or Markdown · max 10 MB</span><input id="knowledge-file" type="file" required accept=".pdf,.docx,.txt,.md,application/pdf,application/vnd.openxmlformats-officedocument.wordprocessingml.document,text/plain,text/markdown" /></label><button class="btn">Upload draft</button></form><p id="knowledge-error" class="login-error" role="alert"></p><div class="table-wrap"><table><thead><tr><th>Source</th><th>Processing</th><th>Live</th><th></th></tr></thead><tbody>${rows||'<tr><td colspan="4" class="empty">No imported sources yet.</td></tr>'}</tbody></table></div></div></section>
+  <section class="card"><div class="card-head"><div><span class="eyebrow">CRM</span><h2>Open leads and handoffs</h2></div></div><div class="setup-body"><div class="table-wrap"><table><thead><tr><th>Type</th><th>Summary / reason</th><th>Priority</th><th>Status</th></tr></thead><tbody>${work.map(x=>`<tr><td>${esc(x._type)}</td><td>${esc(x._text||'Customer follow-up')}</td><td>${esc(x.priority)}</td><td>${esc(x.status)}</td></tr>`).join('')||'<tr><td colspan="4" class="empty">Nothing needs attention.</td></tr>'}</tbody></table></div></div></section></div>
+  <aside class="setup-side"><div class="card setup-card setup-help"><div class="card-head"><h2>Answer precedence</h2></div><ol class="setup-help-list"><li>Structured business profile</li><li>Admin-authored FAQs, pricing, policies</li><li>Approved imported content</li><li>Automation style instructions</li></ol><p class="muted">Scanned documents are intentionally rejected in v1.</p></div></aside></div>`;
+}
+
+function bindKnowledgePanel(host,data) {
+  const versions=data.sourceVersions||[],sources=data.sources||[];
+  const error=host.querySelector('#knowledge-error'),reload=()=>mountKnowledgePanel().catch(console.error);
+  host.querySelector('#knowledge-url-form')?.addEventListener('submit',async event=>{event.preventDefault();error.textContent='';const origin=host.querySelector('#knowledge-url').value.trim();try{const res=await apiFetch('/api/knowledge/sources',{method:'POST',body:JSON.stringify({type:'website',title:new URL(origin).hostname,origin})});const body=await res.json();if(!res.ok)throw new Error(body.error||'Import failed');await reload();}catch(e){error.textContent=e.message;}});
+  host.querySelector('#knowledge-file-form')?.addEventListener('submit',async event=>{event.preventDefault();error.textContent='';const file=host.querySelector('#knowledge-file').files?.[0];if(!file)return;try{const sign=await apiFetch('/api/knowledge/uploads/sign',{method:'POST',body:JSON.stringify({fileName:file.name,size:file.size,contentType:file.type||'text/plain'})}),signed=await sign.json();if(!sign.ok)throw new Error(signed.error||'Upload could not start');const uploadUrl=/^https?:/.test(signed.signedUrl)?signed.signedUrl:`${runtimeConfig.supabaseUrl||''}${signed.signedUrl}`;const upload=await fetch(uploadUrl,{method:'PUT',headers:{'Content-Type':file.type||'text/plain'},body:file});if(!upload.ok)throw new Error('Private upload failed');const create=await apiFetch('/api/knowledge/sources',{method:'POST',body:JSON.stringify({type:'file',title:file.name,storagePath:signed.path})});const created=await create.json();if(!create.ok)throw new Error(created.error||'Import failed');await reload();}catch(e){error.textContent=e.message;}});
+  host.querySelectorAll('[data-refresh-source]').forEach(button=>button.addEventListener('click',async()=>{await apiFetch(`/api/knowledge/sources/${button.dataset.refreshSource}/refresh`,{method:'POST',body:'{}'});await reload();}));
+  host.querySelectorAll('[data-archive-source]').forEach(button=>button.addEventListener('click',async()=>{if(!confirm('Archive this source and remove it from live AI retrieval?'))return;const res=await apiFetch(`/api/knowledge/sources/${button.dataset.archiveSource}`,{method:'DELETE'}),body=await res.json();if(!res.ok){error.textContent=body.error||'Archive failed';return;}await reload();}));
+  host.querySelectorAll('[data-approve-version]').forEach(button=>button.addEventListener('click',()=>{const draft=versions.find(v=>v.id===button.dataset.approveVersion),source=sources.find(s=>s.id===draft?.source_id),previous=versions.find(v=>v.id===source?.active_version_id),oldText=String(previous?.extracted_text||''),newText=String(draft?.extracted_text||'');openDrawer(`Review ${source?.title||'knowledge'} v${draft?.version||''}`,`<div class="kv"><div class="row"><div class="k">Change</div><div class="v">${previous?`${newText.length-oldText.length>=0?'+':''}${newText.length-oldText.length} characters`:'First approved version'}</div></div><div class="row"><div class="k">Previous approved text</div><div class="v"><pre style="white-space:pre-wrap;max-height:220px;overflow:auto">${esc(oldText.slice(0,8000)||'No previous version')}</pre></div></div><div class="row"><div class="k">New extracted text</div><div class="v"><pre style="white-space:pre-wrap;max-height:320px;overflow:auto">${esc(newText.slice(0,12000))}</pre></div></div></div><div class="compose-actions"><span id="approve-error" class="login-error"></span><button class="btn" id="approve-knowledge-now">Approve and make live</button></div>`);el.drawerBody.querySelector('#approve-knowledge-now')?.addEventListener('click',async event=>{event.currentTarget.disabled=true;const res=await apiFetch(`/api/knowledge/versions/${draft.id}/approve`,{method:'POST',body:'{}'}),body=await res.json();if(!res.ok){el.drawerBody.querySelector('#approve-error').textContent=body.error||'Approval failed';event.currentTarget.disabled=false;return;}closeDrawer();await reload();});}));
+}
+
+async function mountKnowledgePanel() {
+  const host=el.root.querySelector('#business-knowledge');
+  if(!host)return;
+  host.innerHTML='<div class="card"><div class="empty">Loading AI knowledge…</div></div>';
+  const response=await apiFetch('/api/knowledge'),data=await response.json();
+  if(!response.ok)throw new Error(data.error||'Could not load AI knowledge');
+  if(!host.isConnected||state.view!=='business-context')return;
+  host.innerHTML=knowledgePanelMarkup(data);
+  bindKnowledgePanel(host,data);
+}
+
+async function renderKnowledge() {
+  state.view='business-context';
+  setActiveNav();
+  await renderBusinessContext();
 }
 
 function contactTypeLabel(source) {
@@ -1424,37 +1453,46 @@ async function renderOverview() {
       <button type="button" class="btn ghost" data-dashboard-view="deliverability">View delivery report</button>
       <button type="button" class="btn ghost" data-dashboard-view="optouts">View opt-outs</button>
     </details>
-    <div class="card">
-      <div class="card-head">
-        <h2>Follow-ups</h2>
-        <button type="button" class="btn ghost" data-dashboard-view="automations">Manage</button>
+    <section class="card followup-section" aria-labelledby="dashboard-followups-title">
+      <div class="followup-section-head">
+        <div>
+          <span class="eyebrow">Automations</span>
+          <h2 id="dashboard-followups-title">Follow-ups</h2>
+          <p>Monitor the sequences that keep customer conversations moving.</p>
+        </div>
+        <button type="button" class="btn ghost" data-dashboard-view="automations">Manage automations</button>
       </div>
-      <div class="dashboard-groups">
+      <div class="followup-grid">
         ${state.categories
           .map((c) => {
             const s = data.byCategory?.find((x) => x.id === c.id);
+            const active = c.activeAutomation !== false;
+            const total = totalsAvailable ? fmt(s?.total ?? 0) : '—';
+            const delivery = s?.deliveryRate == null ? '—' : `${s.deliveryRate}%`;
             return `
-              <div class="dashboard-group">
-              <button type="button" class="dashboard-group-open" data-open-automation="${esc(
+              <button type="button" class="followup-card" data-open-automation="${esc(
                 c.id
-              )}">
-                <strong>${esc(c.name)}</strong><span aria-hidden="true">→</span>
-              </button>
-              <details><summary>Details</summary>
-                <p>${esc(c.description || 'Automated customer follow-up.')}</p>
-                <p class="muted">${totalsAvailable ? fmt(s?.total ?? 0) : '—'} messages · ${
-                  s?.deliveryRate == null ? '—' : `${s.deliveryRate}% delivered`
-                }</p>
-                <p class="muted">${automationBlankLabel(c)}</p>
-              </details></div>`;
+              )}" aria-label="Open ${esc(c.name)} automation">
+                <span class="followup-card-top">
+                  <span class="followup-state ${active ? 'is-active' : 'is-paused'}"><i aria-hidden="true"></i>${active ? 'Active' : 'Inactive'}</span>
+                  <span class="followup-arrow" aria-hidden="true">→</span>
+                </span>
+                <strong class="followup-name">${esc(c.name)}</strong>
+                <span class="followup-description">${esc(c.description || 'Automated customer follow-up.')}</span>
+                <span class="followup-schedule">${esc(automationBlankLabel(c))}</span>
+                <span class="followup-metrics">
+                  <span><b>${total}</b> messages</span>
+                  <span><b>${delivery}</b> delivered</span>
+                </span>
+              </button>`;
           })
-          .join('') || '<p class="empty">No follow-ups yet. Select Manage to create one.</p>'}
+          .join('') || '<div class="followup-empty"><strong>No follow-ups yet</strong><span>Create an automation to start nurturing customer conversations.</span></div>'}
       </div>
-    </div>
+    </section>
   `;
 
   if (globalThis.SMS_CONFIG?.apiBase) {
-    el.root.insertAdjacentHTML('beforeend', '<details class="card dashboard-details" id="worker-status"><summary>Automation status</summary><div class="worker-status-content muted">Open to check automation status.</div></details>');
+    el.root.insertAdjacentHTML('beforeend', '<details class="card automation-health" id="worker-status"><summary><span class="automation-health-dot" aria-hidden="true"></span><span><strong>Automation system</strong><small>Scheduler, queues, and worker health</small></span><span class="automation-health-action">View status</span></summary><div class="worker-status-content muted">Open to check automation status.</div></details>');
     const details = el.root.querySelector('#worker-status');
     details.addEventListener('toggle', async () => {
       if (!details.open) return;
@@ -1496,9 +1534,11 @@ function automationBlankLabel(category) {
   if (category.id === 'quote-requests') return 'Quote Request drip · 6 steps';
   if (category.id === 'appointment-reminders') return 'Appointment reminder · 24h before';
   if (category.custom && category.rule) {
-    return `${category.rule.firstSendAt ? `Scheduled ${fmtTime(category.rule.firstSendAt)}` : cadenceDisplay(category.rule)} · ${category.rule.repeatCount} send${
-      category.rule.repeatCount === 1 ? '' : 's'
-    }${category.activeAutomation ? '' : ' · inactive'}`;
+    const sendCount = Number.isFinite(Number(category.rule.repeatCount))
+      ? Math.max(0, Number(category.rule.repeatCount))
+      : Array.isArray(category.rule.steps) ? category.rule.steps.length : 0;
+    const sendLabel = sendCount ? `${sendCount} send${sendCount === 1 ? '' : 's'}` : 'No messages';
+    return `${category.rule.firstSendAt ? `Scheduled ${fmtTime(category.rule.firstSendAt)}` : cadenceDisplay(category.rule)} · ${sendLabel}${category.activeAutomation ? '' : ' · inactive'}`;
   }
   return 'No automations yet';
 }
@@ -1514,18 +1554,12 @@ function automationBuilderHtml(group = null) {
   const initialPreset = group
     ? null
     : state.rulePresets.find((preset) => preset.id === state.automationPresetId) || state.rulePresets[0] || null;
-  const draftType = group?.kind === 'quote' || group?.id === 'quote-requests' || initialPreset?.id === 'quote-followup'
-    ? 'Quote follow-up'
-    : initialPreset?.id === 'review-request' ? 'Review request'
-      : initialPreset?.id === 'new-lead-nurture' ? 'New lead nurture'
-        : initialPreset?.id === 'customer-reengagement' ? 'Customer re-engagement'
-          : 'Custom';
   const rule = group?.rule || initialPreset?.rule || {
     cadence: 'daily',
     intervalCount: 1,
     intervalUnit: 'day',
     repeatCount: 3,
-    deliveryMode: 'deterministic',
+    aiDraft: true,
     template: 'Hi {{first_name}}, {{business_name}} here about your {{service_name}}. How can we help with the next step? Reply STOP to opt out.',
     startHour: 9,
     endHour: 19,
@@ -1605,22 +1639,10 @@ function automationBuilderHtml(group = null) {
           <input id="automation-first-send" type="datetime-local" value="${esc(toDateTimeLocal(rule.firstSendAt))}" />
           <small class="muted">Set this for a scheduled campaign. Leave blank to start after the first message delay.</small>
         </label>
-        <div class="field-wide automation-ai-generator">
-          <div class="automation-message-head">
-            <div><span class="compose-label">Draft the full sequence with AI</span><small class="muted">AI fills every message editor once. Review and edit the drafts, then save explicitly. Scheduled sends never call AI.</small></div>
-            <button type="button" class="btn ghost" id="generate-automation-messages">Draft all messages with AI</button>
-          </div>
-          <div class="automation-form-grid">
-            <label><span class="compose-label">Automation type</span><select id="automation-draft-type">
-              ${['Quote follow-up','Hiring follow-up','Review request','New lead nurture','Customer re-engagement','Custom'].map((type)=>`<option value="${esc(type)}" ${type===draftType?'selected':''}>${esc(type)}</option>`).join('')}
-            </select></label>
-            <label><span class="compose-label">Service, role, or subject</span><input id="automation-context-label" maxlength="160" required value="${esc(rule.contextLabel||'')}" placeholder="Roof replacement, HVAC tune-up, Service technician" /></label>
-            <label class="field-wide"><span class="compose-label">Automation goal</span><input id="automation-draft-goal" maxlength="500" value="" placeholder="Help the customer decide and invite questions" /></label>
-            <label><span class="compose-label">Tone</span><input id="automation-draft-tone" maxlength="120" value="Friendly and professional" /></label>
-            <label><span class="compose-label">Optional drafting instructions</span><input id="automation-draft-instructions" maxlength="1000" placeholder="Mention financing without promising approval" /></label>
-          </div>
-          <small class="muted" id="automation-draft-status">20 new generations are available per rolling 24 hours for each business.</small>
-        </div>
+        <label class="check field-wide">
+          <input id="automation-ai-draft" type="checkbox" ${rule.aiDraft === false ? '' : 'checked'} />
+          <span><strong>AI-draft each message before sending</strong><br/><small class="muted">On by default. AI personalizes the saved message using business and conversation context; the saved text is used if AI is unavailable.</small></span>
+        </label>
         <div class="field-wide automation-message-head">
           <div>
             <span class="compose-label">Automated messages</span>
@@ -1712,9 +1734,6 @@ function bindAutomationBuilder(group = null) {
   const customInterval = form.querySelector('#custom-interval');
   const repeatCount = form.querySelector('#automation-repeat-count');
   const stepEditor = form.querySelector('#automation-step-editor');
-  const protectedRule=Boolean(group?.system&&(group.kind==='quote'||group.id==='quote-requests'));
-  let generatedDraft=group?.rule?.generationProvenance||null;
-  let generatedBodies=null;
   const cadenceDefaults = Object.fromEntries(
     state.cadences.map((item) => [item.id, [item.intervalCount, item.intervalUnit]])
   );
@@ -1783,6 +1802,7 @@ function bindAutomationBuilder(group = null) {
     form.querySelector('#automation-start-hour').innerHTML = hourOptions(rule.startHour ?? 9, 0, 23);
     form.querySelector('#automation-end-hour').innerHTML = hourOptions(rule.endHour ?? 19, 1, 24);
     form.querySelector('#automation-first-send').value = '';
+    form.querySelector('#automation-ai-draft').checked = rule.aiDraft !== false;
     renderSteps((rule.steps || []).map((step, index) => ({ ...step, id: `send-${index + 1}` })));
   });
 
@@ -1796,40 +1816,6 @@ function bindAutomationBuilder(group = null) {
     resizeSteps(readSteps().length + 1);
   });
   renderSteps(readSteps());
-  if(protectedRule){
-    [cadence,customInterval,repeatCount,form.querySelector('#automation-start-hour'),form.querySelector('#automation-end-hour'),form.querySelector('#automation-first-send'),form.querySelector('#add-automation-message'),presetSelect]
-      .filter(Boolean).forEach(node=>{node.disabled=true;node.querySelectorAll?.('input,select,button').forEach(child=>child.disabled=true);});
-    form.querySelectorAll('.step-delay-count,.step-delay-unit,.remove-automation-message').forEach(node=>node.disabled=true);
-  }
-  form.querySelector('#generate-automation-messages')?.addEventListener('click',async()=>{
-    const button=form.querySelector('#generate-automation-messages'),status=form.querySelector('#automation-draft-status');
-    const contextLabel=form.querySelector('#automation-context-label').value.trim();
-    if(!contextLabel){status.textContent='Enter the service, role, or subject first.';return;}
-    const currentSteps=readSteps();button.disabled=true;status.textContent='Drafting the complete sequence…';
-    try{
-      const response=await apiFetch('/api/automation-drafts',{method:'POST',headers:{'Idempotency-Key':crypto.randomUUID()},body:JSON.stringify({
-        automationType:form.querySelector('#automation-draft-type').value,customType:form.querySelector('#automation-draft-type').value==='Custom'?form.querySelector('#automation-name').value.trim():null,
-        contextLabel,goal:form.querySelector('#automation-draft-goal').value.trim(),tone:form.querySelector('#automation-draft-tone').value.trim(),instructions:form.querySelector('#automation-draft-instructions').value.trim(),
-        steps:currentSteps.map(({delayCount,delayUnit},stepIndex)=>({stepIndex,delayCount,delayUnit}))
-      })});
-      const created=await response.json();if(!response.ok)throw new Error(created.detail||created.error||'Could not start AI drafting');
-      let draft;
-      for(let attempt=0;attempt<60;attempt++){
-        await new Promise(resolve=>setTimeout(resolve,1000));
-        const poll=await apiFetch(`/api/automation-drafts/${encodeURIComponent(created.draftId)}`);draft=await poll.json();
-        if(!poll.ok)throw new Error(draft.detail||draft.error||'Could not check AI draft');
-        if(draft.status==='completed'||draft.status==='failed')break;
-      }
-      if(draft?.status!=='completed')throw new Error(draft?.errorCode?'AI drafting failed. Try again without changing your saved messages.':'AI drafting is taking longer than expected. Your saved messages were not changed.');
-      const messages=[...(draft.messages||[])].sort((a,b)=>a.stepIndex-b.stepIndex);
-      if(messages.length!==currentSteps.length)throw new Error('AI returned an incomplete sequence. Your messages were not changed.');
-      generatedBodies=messages.map(item=>item.message);
-      generatedDraft={draftId:draft.draftId,generatedAt:draft.completedAt,promptVersion:draft.promptVersion,contextLabel,edited:false};
-      renderSteps(currentSteps.map((step,index)=>({...step,template:generatedBodies[index]})));
-      if(protectedRule)form.querySelectorAll('.step-delay-count,.step-delay-unit,.remove-automation-message').forEach(node=>node.disabled=true);
-      status.textContent='Draft complete. Review every message, make any edits, then click Save changes.';
-    }catch(err){status.textContent=err.message||'AI drafting failed. Your messages were not changed.';}finally{button.disabled=false;}
-  });
   form.querySelector('#cancel-automation-builder')?.addEventListener('click', () => {
     state.automationBuilderOpen = false;
     state.automationPresetId = null;
@@ -1853,15 +1839,12 @@ function bindAutomationBuilder(group = null) {
         intervalCount: Number(form.querySelector('#automation-interval-count').value),
         intervalUnit: form.querySelector('#automation-interval-unit').value,
         repeatCount: steps.length,
-        deliveryMode: 'deterministic',
-        ...(group?.rule?.trigger?{trigger:group.rule.trigger}:{}),
-        contextLabel: form.querySelector('#automation-context-label').value.trim(),
+        aiDraft: form.querySelector('#automation-ai-draft').checked,
         startHour: Number(form.querySelector('#automation-start-hour').value),
         endHour: Number(form.querySelector('#automation-end-hour').value),
         template: steps[0]?.template.trim(),
         firstSendAt,
         steps,
-        ...(generatedDraft?{generationProvenance:{...generatedDraft,edited:Boolean(generatedBodies&&steps.some((step,index)=>step.template.trim()!==generatedBodies[index]))}}:{}),
       },
     };
     try {
@@ -1916,14 +1899,14 @@ function groupAiBuilderHtml(group) {
           <small class="muted">One deduplicated alert is queued for an unsupported conversation. Use E.164.</small>
         </label>
         <label class="field-wide">
-          <span class="compose-label">Inbound reply AI instructions</span>
+          <span class="compose-label">AI instructions</span>
           <textarea id="group-ai-instructions" maxlength="6000" rows="8" placeholder="Describe the goal, questions to ask, tone, escalation conditions, and facts the AI may use.">${esc(group.ai?.instructions || '')}</textarea>
           <small class="muted">Style and workflow guidance only. Approved structured facts and sources remain authoritative.</small>
         </label>
       </div>
       <div class="automation-builder-actions">
         <span class="login-error" id="group-ai-error"></span>
-        <button type="submit" class="btn" id="save-group-ai">Save inbound reply AI</button>
+        <button type="submit" class="btn" id="save-group-ai">Save AI instructions</button>
       </div>
     </form>`;
 }
@@ -2102,16 +2085,16 @@ async function renderAutomations() {
 
   const cadenceNote =
     category.id === 'quote-requests'
-      ? 'Cadence: 1 text/day for 3 days, then 1 after 48h, another after 48h, and a final text after 7 days. Messages are saved templates and are delivered without a send-time AI call. Marketing sends stay between 9am and 7pm. A customer reply postpones the next touch for at least 24 hours; a booking, opt-out, manual removal, or final send ends the sequence.'
+      ? 'Cadence: 1 text/day for 3 days, then 1 after 48h, another after 48h, and a final text after 7 days. AI drafts each outgoing follow-up from approved business and conversation context; the saved message is the fallback. Marketing sends stay between 9am and 7pm. A customer reply postpones the next touch for at least 24 hours; a booking, opt-out, manual removal, or final send ends the sequence.'
       : category.id === 'appointment-reminders'
         ? 'Sends one fixed-template SMS ~24 hours before an upcoming appointment without using AI. New bookings enroll automatically, booking changes reschedule the reminder, and cancellations or expired appointments remove it without sending.'
         : category.custom
-          ? `${category.rule.firstSendAt ? `First send scheduled for ${fmtTime(category.rule.firstSendAt)}.` : `${cadenceDisplay(category.rule)} cadence.`} ${category.rule.repeatCount} custom message${category.rule.repeatCount === 1 ? '' : 's'} constrained to ${category.rule.startHour}:00–${category.rule.endHour}:00 in the business account timezone. Messages use saved deterministic templates.`
+          ? `${category.rule.firstSendAt ? `First send scheduled for ${fmtTime(category.rule.firstSendAt)}.` : `${cadenceDisplay(category.rule)} cadence.`} ${category.rule.repeatCount} custom message${category.rule.repeatCount === 1 ? '' : 's'} constrained to ${category.rule.startHour}:00–${category.rule.endHour}:00 in the business account timezone. ${category.rule.aiDraft === false ? 'Messages use the saved templates.' : 'AI drafts each outgoing message by default; the saved template is the fallback.'}`
           : '';
 
   const triggerNote =
     category.kind === 'quote' || category.id === 'quote-requests'
-      ? 'Quote created — the contact is enrolled automatically after submitting a quote request. Its saved messages may be drafted as a complete sequence in the dashboard, but every scheduled send is deterministic.'
+      ? 'Quote created — the contact is enrolled automatically after submitting a quote request. Each send is drafted by AI immediately before delivery using the full available message thread; the step text below is the approved fallback.'
       : category.kind === 'reminder' || category.id === 'appointment-reminders'
         ? 'Booking created or updated — the reminder is scheduled automatically and uses the fixed template without AI.'
         : category.rule?.trigger
@@ -2150,14 +2133,13 @@ async function renderAutomations() {
           <p class="muted" style="margin:4px 0 0">${esc(category.description || '')}</p>
         </div>
         <div class="automation-head-actions">
-          <button type="button" class="btn ghost" id="edit-group-ai">Inbound reply AI</button>
-          ${category.custom||(category.kind==='quote'||category.id==='quote-requests') ? '<button type="button" class="btn ghost" id="edit-automation-group">Edit messages</button>' : ''}
-          ${category.custom ? '<button type="button" class="btn danger" id="delete-automation-group">Delete</button>' : ''}
+          <button type="button" class="btn ghost" id="edit-group-ai">AI instructions</button>
+          ${category.custom ? '<button type="button" class="btn ghost" id="edit-automation-group">Edit rule</button><button type="button" class="btn danger" id="delete-automation-group">Delete</button>' : ''}
           <button type="button" class="btn ghost" id="back-automations">All groups</button>
         </div>
       </div>
       ${state.aiBuilderOpen ? groupAiBuilderHtml(category) : ''}
-      ${state.automationBuilderOpen && (category.custom||category.kind==='quote'||category.id==='quote-requests') ? automationBuilderHtml(category) : ''}
+      ${state.automationBuilderOpen && category.custom ? automationBuilderHtml(category) : ''}
       <div class="subcat-chips">
         ${state.categories
           .map(
@@ -2271,7 +2253,7 @@ async function renderAutomations() {
     btn.addEventListener('click', () => openAutomationGroup(btn.getAttribute('data-open-automation')));
   });
   bindUnenrollButtons();
-  bindAutomationBuilder(category.custom||category.kind==='quote'||category.id==='quote-requests' ? category : null);
+  bindAutomationBuilder(category.custom ? category : null);
   bindGroupAiBuilder(category);
   bindMessageRows(data.messages || []);
 }

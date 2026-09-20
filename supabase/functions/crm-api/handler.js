@@ -35,13 +35,8 @@ export function createCrmHandler(db,verify=authenticate) {
    }
    if(!tenant) return json({error:'Select a business'},400,headers);
    if(method==='GET') {
-    const automationDraft=path.match(/^\/automation-drafts\/([0-9a-f-]+)$/i);
-    if(automationDraft) {
-     const draft=await db.call('get_automation_draft',user,tenant,automationDraft[1]);
-     return draft?json(draft,200,headers):json({error:'Draft not found'},404,headers);
-    }
     if(path==='/overview'||path==='/deliverability') {
-     const data=await db.call('usage_summary',user,tenant);const sent=Object.entries(data.counts).filter(([s])=>s!=='received').reduce((n,[,v])=>n+Number(v),0);
+     const data=await read('overview');const sent=Object.entries(data.counts).filter(([s])=>s!=='received').reduce((n,[,v])=>n+Number(v),0);
      return json({...data,deliveryRate:sent?Math.round(100*(data.counts.delivered||0)/sent):null},200,headers);
     }
    if(path==='/operations') {const [base,grounded]=await Promise.all([read('operations'),db.call('grounded_operations',user,tenant)]);return json({...base,grounded},200,headers);}
@@ -81,11 +76,6 @@ export function createCrmHandler(db,verify=authenticate) {
     }
    } else {
     const p=await readJson(request);
-    if(path==='/automation-drafts'&&method==='POST') {
-     const key=request.headers.get('Idempotency-Key')||p.idempotencyKey;
-     if(!key)return json({error:'Idempotency-Key required'},400,headers);
-     return json(await db.call('create_automation_draft',user,tenant,p,key),202,headers);
-    }
     if(path==='/twilio/registration-session'||path==='/twilio/number-search') {
      const upstream=await fetch(`${env('SUPABASE_URL')}/functions/v1/compliance-session`,{method:'POST',headers:{Authorization:request.headers.get('Authorization')||'','X-Tenant-ID':tenant,'Content-Type':'application/json','Origin':request.headers.get('Origin')||''},body:JSON.stringify(path.endsWith('number-search')?{...p,action:'search_numbers'}:p)});
      return json(await upstream.json().catch(()=>({error:'Registration session failed'})),upstream.status,headers);

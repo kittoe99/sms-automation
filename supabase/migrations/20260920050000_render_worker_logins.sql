@@ -1,3 +1,0 @@
--- Remote history alias for one-time scoped Render login provisioning.
--- Credentials were generated out of band and are stored only in Render.
--- Rotate or recreate worker logins through the deployment runbook; never commit passwords.

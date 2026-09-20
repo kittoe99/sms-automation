@@ -145,17 +145,7 @@ export function normalizeCustomRule(input = {}) {
     intervalCount,
     intervalUnit,
     repeatCount: steps.length,
-    deliveryMode: 'deterministic',
-    contextLabel: clean(input.contextLabel, 160),
-    ...(input.generationProvenance && typeof input.generationProvenance === 'object'
-      ? { generationProvenance: {
-          draftId: clean(input.generationProvenance.draftId, 80),
-          generatedAt: clean(input.generationProvenance.generatedAt, 80),
-          promptVersion: clean(input.generationProvenance.promptVersion, 100),
-          contextLabel: clean(input.generationProvenance.contextLabel, 160),
-          edited: Boolean(input.generationProvenance.edited),
-        } }
-      : {}),
+    aiDraft: input.aiDraft !== false,
     template,
     startHour,
     endHour,

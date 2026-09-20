@@ -125,5 +125,3 @@ do $$ declare r record; begin
 end $$;
 
 revoke all on function sms_private.auto_enable_inbound_ai(text) from public,anon,authenticated,sms_api,sms_webhook,sms_sender,sms_automation,sms_ai;
-
-

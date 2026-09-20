@@ -56,6 +56,9 @@ test('business onboarding saves trimmed context and reports completion', async (
     contactPhone: '+17205551234',
     tone: 'friendly',
     faqs: ['  Estimates are free.  '],
+    pricing: ['Safe disposal: $189', 'Mattress: $89'],
+    policies: ['Free cancellation with 24 hours notice.'],
+    bookingRules: 'Collect service, address, and preferred date.',
     handoff: 'Hand off angry customers.',
   });
   assert.equal(saved.onboardingComplete, true);
@@ -67,10 +70,15 @@ test('business onboarding saves trimmed context and reports completion', async (
   assert.equal(saved.onboarding.contactPhone, '+17205551234');
   assert.equal(saved.onboarding.tone, 'friendly');
   assert.deepEqual(saved.onboarding.faqs, ['Estimates are free.']);
+  assert.deepEqual(saved.onboarding.pricing, ['Safe disposal: $189', 'Mattress: $89']);
+  assert.deepEqual(saved.onboarding.policies, ['Free cancellation with 24 hours notice.']);
+  assert.equal(saved.onboarding.bookingRules, 'Collect service, address, and preferred date.');
   assert.equal(saved.onboarding.handoff, 'Hand off angry customers.');
   assert.ok(saved.onboarding.completedAt);
   const after = await call(db, 'business_profile', 'admin', 'bello');
   assert.equal(after.onboardingComplete, true);
+  assert.deepEqual(after.onboarding.pricing, ['Safe disposal: $189', 'Mattress: $89']);
+  assert.deepEqual(after.onboarding.policies, ['Free cancellation with 24 hours notice.']);
   await assert.rejects(call(db, 'business_profile', 'admin', 'unknown'), /Unknown business/);
   await db.close();
 });

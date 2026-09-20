@@ -1,4 +1,5 @@
 import { constrainToSendWindow, getZonedParts, zonedDateTimeToUtc } from '../lib/automations/timeRules.js';
+import { draftAutomationMessage } from '../lib/automations/aiDraft.js';
 
 export function calendarDelay(value, count, unit, timeZone) {
   const p = getZonedParts(value, timeZone);
@@ -11,11 +12,11 @@ export function calendarDelay(value, count, unit, timeZone) {
   } else date.setUTCDate(date.getUTCDate() + count * (unit === 'week' ? 7 : 1));
   return zonedDateTimeToUtc({ y: date.getUTCFullYear(), m: date.getUTCMonth()+1, d: date.getUTCDate(), hour:p.hour, minute:p.minute }, timeZone);
 }
-export function renderBusinessTemplate(template, { contact, business, enrollment, group }) {
+export function renderBusinessTemplate(template, { contact, business, enrollment }) {
   const metadata = enrollment.metadata || {};
-  const contextName = metadata.service_name || metadata.role_name || metadata.context_name || metadata.service_type || metadata.serviceType || metadata.service || metadata.role || metadata.request_type || group?.rule?.contextLabel || 'service request';
+  const serviceName = metadata.service_name || metadata.service_type || metadata.serviceType || metadata.service || metadata.request_type || 'service request';
   const vars = { ...metadata, name:contact.name || 'there', first_name:contact.name?.split(/\s+/)[0] || 'there', phone:contact.phone,
-    business_name:business.name || 'our team', service_name:contextName,role_name:contextName,context_name:contextName,
+    business_name:business.name || 'our team', service_name:serviceName,
     appointment_date:enrollment.appointment_at ? new Date(enrollment.appointment_at).toLocaleString('en-US',{timeZone:business.time_zone}) : '' };
   const body = String(template).replace(/\{\{#(\w+)\}\}([\s\S]*?)\{\{\/\1\}\}/g,(_,k,s)=>vars[k] ? s : '')
     .replace(/\{\{\s*(\w+)\s*\}\}/g,(_,k)=>String(vars[k] ?? '')).trim();
@@ -48,5 +49,10 @@ export async function processAutomation(job,db,options={}) {
   const context = await db.call('job_context',job.id,job.lease_token);
   if (!context?.enrollment || !context.group || context.enrollment.status!=='active') return db.call('finish',job.id,job.lease_token,'cancelled','INACTIVE',0);
   const result=evaluateAutomation(context);
+  if(result.action==='send') {
+    const draft=await draftAutomationMessage(context,result.body,options);
+    result.body=draft.body;
+    result.ai_drafted=draft.aiDrafted;
+  }
   return db.call('complete_automation',job.id,job.lease_token,result);
 }

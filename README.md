@@ -1,6 +1,6 @@
 # Supabase SMS automation
 
-The implementation uses WPacquisition Postgres/PGMQ for durable queues and Render background workers for primary consumption. Supabase Edge workers remain a disabled emergency fallback after queue-by-queue cutover. Start with [the deployment guide](docs/WORKER_DEPLOYMENT.md). Scheduled automations render saved templates deterministically; AI is used for inbound replies and one-time dashboard sequence generation only.
+The active implementation uses WPacquisition Postgres, durable queues, Cron and bounded Edge workers. Start with [the deployment guide](docs/WORKER_DEPLOYMENT.md). Render is optional static frontend hosting only. The DigitalOcean instructions below are retained for cutover reference and are not the current deployment path.
 
 # opek-sms
 

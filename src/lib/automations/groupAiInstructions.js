@@ -21,6 +21,10 @@ function normalize(row) {
     groupId,
     enabled: row.enabled === true,
     instructions: String(row.instructions || '').trim().slice(0, 6000),
+    defaultForInbound: row.defaultForInbound ?? row.default_for_inbound ?? false,
+    groundedEnabled: row.groundedEnabled ?? row.grounded_enabled ?? false,
+    shadowMode: row.shadowMode ?? row.shadow_mode ?? true,
+    alertPhone: row.alertPhone ?? row.alert_phone ?? null,
     updatedAt: row.updatedAt || row.updated_at || null,
   };
 }
@@ -73,16 +77,38 @@ export function normalizeGroupAiSettingsInput(input = {}) {
     err.status = 400;
     throw err;
   }
-  return { enabled, instructions };
+  let alertPhone = input.alertPhone ?? input.alert_phone ?? null;
+  if (typeof alertPhone === 'string') {
+    alertPhone = alertPhone.trim() || null;
+    if (alertPhone && !/^\+[1-9][0-9]{7,14}$/.test(alertPhone)) {
+      const err = new Error('Staff alert phone must be E.164');
+      err.status = 400;
+      throw err;
+    }
+  } else if (alertPhone != null) {
+    alertPhone = null;
+  }
+  return {
+    enabled,
+    instructions,
+    defaultForInbound: input.defaultForInbound ?? input.default_for_inbound ?? false,
+    groundedEnabled: input.groundedEnabled ?? input.grounded_enabled ?? false,
+    shadowMode: input.shadowMode ?? input.shadow_mode ?? false,
+    alertPhone,
+  };
 }
 
 export async function saveGroupAiSettings(groupId, input = {}) {
-  const { enabled, instructions } = normalizeGroupAiSettingsInput(input);
+  const { enabled, instructions, defaultForInbound, groundedEnabled, shadowMode, alertPhone } = normalizeGroupAiSettingsInput(input);
   const setting = {
     tenantId: getCurrentTenantId(),
     groupId: String(groupId || '').trim(),
     enabled,
     instructions,
+    defaultForInbound: Boolean(defaultForInbound),
+    groundedEnabled: Boolean(groundedEnabled),
+    shadowMode: shadowMode !== false,
+    alertPhone,
     updatedAt: new Date().toISOString(),
   };
   if (!setting.groupId) {

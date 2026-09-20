@@ -21,14 +21,19 @@ test('Edge worker obeys the deadline and never retries an ambiguous SMS in the r
  const handler=createWorkerHandler({queue:'sms_send_jobs',secret,db,now:()=>clock,budgetMs:10,processJob:async()=>{clock=20;throw new Error('Disconnected');}});
  await handler(request());assert.equal(calls.filter(x=>x==='claim').length,1);assert.ok(!calls.includes('finish'));assert.equal(calls.at(-1),'edge_exit');
 });
-test('inbound AI fails safely without approved context and does not call the model',async()=>{
+test('AI answers directly with a live reply when grounded context is not enabled',async()=>{
  let requests=0;const completed=[];
  const db={call:async(name,...args)=>{
   if(name==='job_context')return {settings:{enabled:true,grounded_enabled:false},thread:{generation:7},contact:{},business:{name:'General business'},history:[{direction:'inbound',body:'Hello'}]};
-  completed.push([name,...args]);return {status:'cancelled'};
+  completed.push([name,...args]);return args[2] || {status:'completed'};
  }};
  await processAi({id:'ai-job',lease_token:'token',payload:{generation:7}},db,{apiKey:'test',fetchImpl:async()=>{requests++;}});
- assert.equal(requests,0);assert.equal(completed[0][0],'complete_grounded_ai');assert.equal(completed[0][3].disposition,'collect_lead');
+ assert.equal(requests,0);
+ assert.equal(completed[0][0],'complete_grounded_ai');
+ assert.equal(completed[0][3].disposition,'collect_lead');
+ assert.equal(completed[0][3].mode,'live');
+ assert.ok(String(completed[0][3].reply).length>0);
+ assert.ok(!/staff member|teammate/i.test(String(completed[0][3].reply)));
 });
 test('grounded AI supplies a valid input when a conversation has no history',async()=>{
  const db={call:async name=>name==='job_context'?{settings:{enabled:true,grounded_enabled:true},thread:{generation:0},contact:{},business:{name:'Test'},profile:{id:'profile',facts:{}},history:[]}:name==='search_job_knowledge'?[]:null};let requests=0;
