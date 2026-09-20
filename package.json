@@ -15,6 +15,8 @@
     "worker:sms": "node src/workers/run.js sms",
     "worker:automation": "node src/workers/run.js automation",
     "worker:ai": "node src/workers/run.js ai",
+    "worker:draft": "node src/workers/run.js draft",
+    "worker:support": "node src/workers/run.js support",
     "build:frontend": "node scripts/build-frontend.js",
     "db:assemble": "node scripts/assemble-migration.js",
     "test:workers": "node --test test/workerArchitecture.test.js test/edgeWorkers.test.js"

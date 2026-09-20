@@ -202,3 +202,22 @@ test('only the SMS worker contains Twilio message submission code',async()=>{
  for(const path of paths.filter(p=>/\.[jt]s$/.test(p))) if(/\.messages\.create\(/.test(await readFile(path,'utf8'))) senders.push(path.replace(root,''));
  assert.deepEqual(senders,['src/workers/sms.js']);
 });
+
+test('dashboard automation drafts are idempotent, quota tracked, and isolated from delivery context',async()=>{
+ const db=await testDatabase();try{
+  await activeBusiness(db);await call(db,'api_action','admin','alpha','consent',{phone:'+13035551234',consent:true,evidence:'Test'});
+  const input={automationType:'Quote follow-up',contextLabel:'roof replacement',goal:'Follow up',tone:'Friendly',steps:[{stepIndex:0,delayCount:1,delayUnit:'day'}]};
+  const first=await call(db,'create_automation_draft','admin','alpha',input,'draft-key-123');
+  const retry=await call(db,'create_automation_draft','admin','alpha',input,'draft-key-123');
+  assert.equal(first.draftId,retry.draftId);assert.equal(retry.idempotent,true);
+  await assert.rejects(()=>call(db,'create_automation_draft','admin','alpha',{...input,goal:'Changed'},'draft-key-123'),/conflicts/i);
+  const draftJob=await call(db,'claim','automation_draft_jobs','draft-worker');
+  const draftContext=await call(db,'draft_job_context',draftJob.id,draftJob.lease_token);assert.equal(draftContext.draft.input.contextLabel,'roof replacement');
+  await call(db,'complete_automation_draft',draftJob.id,draftJob.lease_token,{messages:[{stepIndex:0,message:'Hi {{first_name}}, {{business_name}} about {{service_name}}. Reply STOP to opt out.'}],model:'small',promptVersion:'v1',inputTokens:10,outputTokens:20,estimatedCostMicros:3});
+  const saved=await call(db,'get_automation_draft','admin','alpha',first.draftId);assert.equal(saved.status,'completed');assert.equal(saved.messages.length,1);
+  await call(db,'api_action','admin','alpha','group',{id:'followup',name:'Follow-up',rule:{contextLabel:'roof replacement',startHour:0,endHour:24,steps:[{template:'Hello {{service_name}}',delayCount:0,delayUnit:'day'}]}});
+  const enrollment=await call(db,'api_action','admin','alpha','enroll',{phone:'+13035551234',categoryId:'followup'});await db.exec('update sms_private.runtime set scheduler_enabled=true');await call(db,'tick');
+  const deliveryJob=await call(db,'claim','automation_jobs','delivery-worker');const delivery=await call(db,'job_context',deliveryJob.id,deliveryJob.lease_token);
+  assert.equal(delivery.profile,undefined);assert.equal(delivery.settings,undefined);assert.equal(delivery.history,undefined);assert.equal(delivery.enrollment.id,enrollment.id);
+ }finally{await db.close();}
+});

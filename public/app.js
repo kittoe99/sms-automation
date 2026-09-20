@@ -1514,12 +1514,18 @@ function automationBuilderHtml(group = null) {
   const initialPreset = group
     ? null
     : state.rulePresets.find((preset) => preset.id === state.automationPresetId) || state.rulePresets[0] || null;
+  const draftType = group?.kind === 'quote' || group?.id === 'quote-requests' || initialPreset?.id === 'quote-followup'
+    ? 'Quote follow-up'
+    : initialPreset?.id === 'review-request' ? 'Review request'
+      : initialPreset?.id === 'new-lead-nurture' ? 'New lead nurture'
+        : initialPreset?.id === 'customer-reengagement' ? 'Customer re-engagement'
+          : 'Custom';
   const rule = group?.rule || initialPreset?.rule || {
     cadence: 'daily',
     intervalCount: 1,
     intervalUnit: 'day',
     repeatCount: 3,
-    aiDraft: true,
+    deliveryMode: 'deterministic',
     template: 'Hi {{first_name}}, {{business_name}} here about your {{service_name}}. How can we help with the next step? Reply STOP to opt out.',
     startHour: 9,
     endHour: 19,
@@ -1599,10 +1605,22 @@ function automationBuilderHtml(group = null) {
           <input id="automation-first-send" type="datetime-local" value="${esc(toDateTimeLocal(rule.firstSendAt))}" />
           <small class="muted">Set this for a scheduled campaign. Leave blank to start after the first message delay.</small>
         </label>
-        <label class="check field-wide">
-          <input id="automation-ai-draft" type="checkbox" ${rule.aiDraft === false ? '' : 'checked'} />
-          <span><strong>AI-draft each message before sending</strong><br/><small class="muted">On by default. AI personalizes the saved message using business and conversation context; the saved text is used if AI is unavailable.</small></span>
-        </label>
+        <div class="field-wide automation-ai-generator">
+          <div class="automation-message-head">
+            <div><span class="compose-label">Draft the full sequence with AI</span><small class="muted">AI fills every message editor once. Review and edit the drafts, then save explicitly. Scheduled sends never call AI.</small></div>
+            <button type="button" class="btn ghost" id="generate-automation-messages">Draft all messages with AI</button>
+          </div>
+          <div class="automation-form-grid">
+            <label><span class="compose-label">Automation type</span><select id="automation-draft-type">
+              ${['Quote follow-up','Hiring follow-up','Review request','New lead nurture','Customer re-engagement','Custom'].map((type)=>`<option value="${esc(type)}" ${type===draftType?'selected':''}>${esc(type)}</option>`).join('')}
+            </select></label>
+            <label><span class="compose-label">Service, role, or subject</span><input id="automation-context-label" maxlength="160" required value="${esc(rule.contextLabel||'')}" placeholder="Roof replacement, HVAC tune-up, Service technician" /></label>
+            <label class="field-wide"><span class="compose-label">Automation goal</span><input id="automation-draft-goal" maxlength="500" value="" placeholder="Help the customer decide and invite questions" /></label>
+            <label><span class="compose-label">Tone</span><input id="automation-draft-tone" maxlength="120" value="Friendly and professional" /></label>
+            <label><span class="compose-label">Optional drafting instructions</span><input id="automation-draft-instructions" maxlength="1000" placeholder="Mention financing without promising approval" /></label>
+          </div>
+          <small class="muted" id="automation-draft-status">20 new generations are available per rolling 24 hours for each business.</small>
+        </div>
         <div class="field-wide automation-message-head">
           <div>
             <span class="compose-label">Automated messages</span>
@@ -1694,6 +1712,9 @@ function bindAutomationBuilder(group = null) {
   const customInterval = form.querySelector('#custom-interval');
   const repeatCount = form.querySelector('#automation-repeat-count');
   const stepEditor = form.querySelector('#automation-step-editor');
+  const protectedRule=Boolean(group?.system&&(group.kind==='quote'||group.id==='quote-requests'));
+  let generatedDraft=group?.rule?.generationProvenance||null;
+  let generatedBodies=null;
   const cadenceDefaults = Object.fromEntries(
     state.cadences.map((item) => [item.id, [item.intervalCount, item.intervalUnit]])
   );
@@ -1762,7 +1783,6 @@ function bindAutomationBuilder(group = null) {
     form.querySelector('#automation-start-hour').innerHTML = hourOptions(rule.startHour ?? 9, 0, 23);
     form.querySelector('#automation-end-hour').innerHTML = hourOptions(rule.endHour ?? 19, 1, 24);
     form.querySelector('#automation-first-send').value = '';
-    form.querySelector('#automation-ai-draft').checked = rule.aiDraft !== false;
     renderSteps((rule.steps || []).map((step, index) => ({ ...step, id: `send-${index + 1}` })));
   });
 
@@ -1776,6 +1796,40 @@ function bindAutomationBuilder(group = null) {
     resizeSteps(readSteps().length + 1);
   });
   renderSteps(readSteps());
+  if(protectedRule){
+    [cadence,customInterval,repeatCount,form.querySelector('#automation-start-hour'),form.querySelector('#automation-end-hour'),form.querySelector('#automation-first-send'),form.querySelector('#add-automation-message'),presetSelect]
+      .filter(Boolean).forEach(node=>{node.disabled=true;node.querySelectorAll?.('input,select,button').forEach(child=>child.disabled=true);});
+    form.querySelectorAll('.step-delay-count,.step-delay-unit,.remove-automation-message').forEach(node=>node.disabled=true);
+  }
+  form.querySelector('#generate-automation-messages')?.addEventListener('click',async()=>{
+    const button=form.querySelector('#generate-automation-messages'),status=form.querySelector('#automation-draft-status');
+    const contextLabel=form.querySelector('#automation-context-label').value.trim();
+    if(!contextLabel){status.textContent='Enter the service, role, or subject first.';return;}
+    const currentSteps=readSteps();button.disabled=true;status.textContent='Drafting the complete sequence…';
+    try{
+      const response=await apiFetch('/api/automation-drafts',{method:'POST',headers:{'Idempotency-Key':crypto.randomUUID()},body:JSON.stringify({
+        automationType:form.querySelector('#automation-draft-type').value,customType:form.querySelector('#automation-draft-type').value==='Custom'?form.querySelector('#automation-name').value.trim():null,
+        contextLabel,goal:form.querySelector('#automation-draft-goal').value.trim(),tone:form.querySelector('#automation-draft-tone').value.trim(),instructions:form.querySelector('#automation-draft-instructions').value.trim(),
+        steps:currentSteps.map(({delayCount,delayUnit},stepIndex)=>({stepIndex,delayCount,delayUnit}))
+      })});
+      const created=await response.json();if(!response.ok)throw new Error(created.detail||created.error||'Could not start AI drafting');
+      let draft;
+      for(let attempt=0;attempt<60;attempt++){
+        await new Promise(resolve=>setTimeout(resolve,1000));
+        const poll=await apiFetch(`/api/automation-drafts/${encodeURIComponent(created.draftId)}`);draft=await poll.json();
+        if(!poll.ok)throw new Error(draft.detail||draft.error||'Could not check AI draft');
+        if(draft.status==='completed'||draft.status==='failed')break;
+      }
+      if(draft?.status!=='completed')throw new Error(draft?.errorCode?'AI drafting failed. Try again without changing your saved messages.':'AI drafting is taking longer than expected. Your saved messages were not changed.');
+      const messages=[...(draft.messages||[])].sort((a,b)=>a.stepIndex-b.stepIndex);
+      if(messages.length!==currentSteps.length)throw new Error('AI returned an incomplete sequence. Your messages were not changed.');
+      generatedBodies=messages.map(item=>item.message);
+      generatedDraft={draftId:draft.draftId,generatedAt:draft.completedAt,promptVersion:draft.promptVersion,contextLabel,edited:false};
+      renderSteps(currentSteps.map((step,index)=>({...step,template:generatedBodies[index]})));
+      if(protectedRule)form.querySelectorAll('.step-delay-count,.step-delay-unit,.remove-automation-message').forEach(node=>node.disabled=true);
+      status.textContent='Draft complete. Review every message, make any edits, then click Save changes.';
+    }catch(err){status.textContent=err.message||'AI drafting failed. Your messages were not changed.';}finally{button.disabled=false;}
+  });
   form.querySelector('#cancel-automation-builder')?.addEventListener('click', () => {
     state.automationBuilderOpen = false;
     state.automationPresetId = null;
@@ -1799,12 +1853,15 @@ function bindAutomationBuilder(group = null) {
         intervalCount: Number(form.querySelector('#automation-interval-count').value),
         intervalUnit: form.querySelector('#automation-interval-unit').value,
         repeatCount: steps.length,
-        aiDraft: form.querySelector('#automation-ai-draft').checked,
+        deliveryMode: 'deterministic',
+        ...(group?.rule?.trigger?{trigger:group.rule.trigger}:{}),
+        contextLabel: form.querySelector('#automation-context-label').value.trim(),
         startHour: Number(form.querySelector('#automation-start-hour').value),
         endHour: Number(form.querySelector('#automation-end-hour').value),
         template: steps[0]?.template.trim(),
         firstSendAt,
         steps,
+        ...(generatedDraft?{generationProvenance:{...generatedDraft,edited:Boolean(generatedBodies&&steps.some((step,index)=>step.template.trim()!==generatedBodies[index]))}}:{}),
       },
     };
     try {
@@ -1859,14 +1916,14 @@ function groupAiBuilderHtml(group) {
           <small class="muted">One deduplicated alert is queued for an unsupported conversation. Use E.164.</small>
         </label>
         <label class="field-wide">
-          <span class="compose-label">AI instructions</span>
+          <span class="compose-label">Inbound reply AI instructions</span>
           <textarea id="group-ai-instructions" maxlength="6000" rows="8" placeholder="Describe the goal, questions to ask, tone, escalation conditions, and facts the AI may use.">${esc(group.ai?.instructions || '')}</textarea>
           <small class="muted">Style and workflow guidance only. Approved structured facts and sources remain authoritative.</small>
         </label>
       </div>
       <div class="automation-builder-actions">
         <span class="login-error" id="group-ai-error"></span>
-        <button type="submit" class="btn" id="save-group-ai">Save AI instructions</button>
+        <button type="submit" class="btn" id="save-group-ai">Save inbound reply AI</button>
       </div>
     </form>`;
 }
@@ -2045,16 +2102,16 @@ async function renderAutomations() {
 
   const cadenceNote =
     category.id === 'quote-requests'
-      ? 'Cadence: 1 text/day for 3 days, then 1 after 48h, another after 48h, and a final text after 7 days. AI drafts each outgoing follow-up from approved business and conversation context; the saved message is the fallback. Marketing sends stay between 9am and 7pm. A customer reply postpones the next touch for at least 24 hours; a booking, opt-out, manual removal, or final send ends the sequence.'
+      ? 'Cadence: 1 text/day for 3 days, then 1 after 48h, another after 48h, and a final text after 7 days. Messages are saved templates and are delivered without a send-time AI call. Marketing sends stay between 9am and 7pm. A customer reply postpones the next touch for at least 24 hours; a booking, opt-out, manual removal, or final send ends the sequence.'
       : category.id === 'appointment-reminders'
         ? 'Sends one fixed-template SMS ~24 hours before an upcoming appointment without using AI. New bookings enroll automatically, booking changes reschedule the reminder, and cancellations or expired appointments remove it without sending.'
         : category.custom
-          ? `${category.rule.firstSendAt ? `First send scheduled for ${fmtTime(category.rule.firstSendAt)}.` : `${cadenceDisplay(category.rule)} cadence.`} ${category.rule.repeatCount} custom message${category.rule.repeatCount === 1 ? '' : 's'} constrained to ${category.rule.startHour}:00–${category.rule.endHour}:00 in the business account timezone. ${category.rule.aiDraft === false ? 'Messages use the saved templates.' : 'AI drafts each outgoing message by default; the saved template is the fallback.'}`
+          ? `${category.rule.firstSendAt ? `First send scheduled for ${fmtTime(category.rule.firstSendAt)}.` : `${cadenceDisplay(category.rule)} cadence.`} ${category.rule.repeatCount} custom message${category.rule.repeatCount === 1 ? '' : 's'} constrained to ${category.rule.startHour}:00–${category.rule.endHour}:00 in the business account timezone. Messages use saved deterministic templates.`
           : '';
 
   const triggerNote =
     category.kind === 'quote' || category.id === 'quote-requests'
-      ? 'Quote created — the contact is enrolled automatically after submitting a quote request. Each send is drafted by AI immediately before delivery using the full available message thread; the step text below is the approved fallback.'
+      ? 'Quote created — the contact is enrolled automatically after submitting a quote request. Its saved messages may be drafted as a complete sequence in the dashboard, but every scheduled send is deterministic.'
       : category.kind === 'reminder' || category.id === 'appointment-reminders'
         ? 'Booking created or updated — the reminder is scheduled automatically and uses the fixed template without AI.'
         : category.rule?.trigger
@@ -2093,13 +2150,14 @@ async function renderAutomations() {
           <p class="muted" style="margin:4px 0 0">${esc(category.description || '')}</p>
         </div>
         <div class="automation-head-actions">
-          <button type="button" class="btn ghost" id="edit-group-ai">AI instructions</button>
-          ${category.custom ? '<button type="button" class="btn ghost" id="edit-automation-group">Edit rule</button><button type="button" class="btn danger" id="delete-automation-group">Delete</button>' : ''}
+          <button type="button" class="btn ghost" id="edit-group-ai">Inbound reply AI</button>
+          ${category.custom||(category.kind==='quote'||category.id==='quote-requests') ? '<button type="button" class="btn ghost" id="edit-automation-group">Edit messages</button>' : ''}
+          ${category.custom ? '<button type="button" class="btn danger" id="delete-automation-group">Delete</button>' : ''}
           <button type="button" class="btn ghost" id="back-automations">All groups</button>
         </div>
       </div>
       ${state.aiBuilderOpen ? groupAiBuilderHtml(category) : ''}
-      ${state.automationBuilderOpen && category.custom ? automationBuilderHtml(category) : ''}
+      ${state.automationBuilderOpen && (category.custom||category.kind==='quote'||category.id==='quote-requests') ? automationBuilderHtml(category) : ''}
       <div class="subcat-chips">
         ${state.categories
           .map(
@@ -2213,7 +2271,7 @@ async function renderAutomations() {
     btn.addEventListener('click', () => openAutomationGroup(btn.getAttribute('data-open-automation')));
   });
   bindUnenrollButtons();
-  bindAutomationBuilder(category.custom ? category : null);
+  bindAutomationBuilder(category.custom||category.kind==='quote'||category.id==='quote-requests' ? category : null);
   bindGroupAiBuilder(category);
   bindMessageRows(data.messages || []);
 }

@@ -23,7 +23,12 @@ export function groupRule(input={},timeZone='America/Denver') {
  if(!Number.isInteger(startHour)||!Number.isInteger(endHour)||startHour<0||endHour>24||endHour<=startHour) throw new Error('Invalid sending window');
  let firstSendAt=null;
  if(input.firstSendAt) firstSendAt=localDateTime(input.firstSendAt,timeZone).toISOString();
- return {cadence,intervalCount,intervalUnit,repeatCount:steps.length,aiDraft:input.aiDraft!==false,steps,template:steps[0].template,startHour,endHour,firstSendAt};
+ const provenance=input.generationProvenance&&typeof input.generationProvenance==='object'?{
+  draftId:String(input.generationProvenance.draftId||''),generatedAt:String(input.generationProvenance.generatedAt||''),
+  promptVersion:String(input.generationProvenance.promptVersion||''),contextLabel:String(input.generationProvenance.contextLabel||'').slice(0,160),
+  edited:Boolean(input.generationProvenance.edited)
+ }:null;
+ return {cadence,intervalCount,intervalUnit,repeatCount:steps.length,deliveryMode:'deterministic',contextLabel:String(input.contextLabel||'').slice(0,160),...(input.trigger?{trigger:String(input.trigger).slice(0,100)}:{}),...(provenance?{generationProvenance:provenance}:{}),steps,template:steps[0].template,startHour,endHour,firstSendAt};
 }
 export function localDateTime(value,timeZone) {
  if(/(?:Z|[+-]\d\d:\d\d)$/i.test(value)) { const date=new Date(value); if(!Number.isFinite(+date)) throw new Error('Invalid date'); return date; }

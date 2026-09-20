@@ -3,7 +3,7 @@
  */
 
 import { getSupabaseAdmin, isSupabaseConfigured } from '../supabase.js';
-import { getConversation, isOptedOut } from '../messageStore.js';
+import { isOptedOut } from '../messageStore.js';
 import { sendSms } from '../twilioClient.js';
 import { publish } from '../realtime.js';
 import { toE164 } from '../supabaseContacts.js';
@@ -38,8 +38,6 @@ import {
   listAllActiveCustomAutomationGroups,
   seedCustomDrip,
 } from './customAutomations.js';
-import { getGroupAiSettings } from './groupAiInstructions.js';
-import { draftAutomationMessage } from './aiDraft.js';
 import { assertTenantDataAccessSafe, findTenant, getCurrentTenant, runWithTenant } from '../tenantContext.js';
 
 const BATCH_LIMIT = 50;
@@ -330,13 +328,7 @@ async function processDueQuoteEnrollment(enrollment, now) {
     service_name: serviceType,
     business_name: getCurrentTenant().name,
   });
-  const draft = await draftForLegacyRunner(enrollment, {
-    id: QUOTE_REQUESTS_CATEGORY_ID,
-    name: 'Quote Requests',
-    kind: 'quote',
-    rule: { aiDraft: true },
-  }, fallbackBody);
-  const body = draft.body;
+  const body = fallbackBody;
 
   try {
     await sendSms({
@@ -351,7 +343,7 @@ async function processDueQuoteEnrollment(enrollment, now) {
         dripStepIndex: stepIndex,
         enrollmentId: enrollment.id,
         quotedPrice: quotedPrice || null,
-        aiDrafted: draft.aiDrafted,
+        deterministicDelivery: true,
       },
     });
   } catch (err) {
@@ -475,10 +467,11 @@ async function processDueCustomEnrollment(enrollment, now, group) {
     name: enrollment.name,
     phone: enrollment.phone,
     business_name: getCurrentTenant().name,
-    service_name: enrollment.metadata?.service_name || enrollment.metadata?.service_type || enrollment.metadata?.serviceType || enrollment.metadata?.service || 'service request',
+    service_name: enrollment.metadata?.service_name || enrollment.metadata?.service_type || enrollment.metadata?.serviceType || enrollment.metadata?.service || group.rule.contextLabel || 'service request',
+    role_name: enrollment.metadata?.role_name || enrollment.metadata?.role || group.rule.contextLabel || 'service request',
+    context_name: enrollment.metadata?.context_name || group.rule.contextLabel || 'service request',
   });
-  const draft = await draftForLegacyRunner(enrollment, group, fallbackBody);
-  const body = draft.body;
+  const body = fallbackBody;
 
   try {
     await sendSms({
@@ -493,7 +486,7 @@ async function processDueCustomEnrollment(enrollment, now, group) {
         dripStepId: customStep.id || `send-${stepIndex + 1}`,
         dripStepIndex: stepIndex,
         enrollmentId: enrollment.id,
-        aiDrafted: draft.aiDrafted,
+        deterministicDelivery: true,
       },
     });
   } catch (err) {
@@ -508,38 +501,6 @@ async function processDueCustomEnrollment(enrollment, now, group) {
   }
   await updateEnrollmentMetadata(claimed.id, advanced.metadata, now);
   return { sent: true };
-}
-
-async function draftForLegacyRunner(enrollment, group, fallbackBody) {
-  let settings = null;
-  try {
-    settings = await getGroupAiSettings(group.id);
-  } catch {
-    // Drafting is best-effort; the saved template remains deliverable.
-  }
-  const tenant = getCurrentTenant();
-  let history = [];
-  try {
-    const conversation = await getConversation(enrollment.phone);
-    history = (conversation?.messages || []).map(({ direction, body, createdAt, created_at }) => ({
-      direction,
-      body,
-      created_at: created_at || createdAt || null,
-    }));
-  } catch {
-    // The approved contextual fallback remains safe if history cannot be loaded.
-  }
-  return draftAutomationMessage(
-    {
-      enrollment,
-      group,
-      settings,
-      business: { name: tenant.name, timeZone: tenant.timeZone },
-      contact: { name: enrollment.name, phone: enrollment.phone },
-      history,
-    },
-    fallbackBody
-  );
 }
 
 async function resolveQuoteFields(enrollment) {
