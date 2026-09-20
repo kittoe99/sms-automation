@@ -7,10 +7,7 @@ export function formsDatabase(url=process.env.FORMS_DATABASE_URL) {
       if(!operations.has(name)) throw new Error('Unknown forms operation');
       if(!url) throw new Error('FORMS_DATABASE_URL is required');
       sql??=postgres(url,{ssl:process.env.NODE_ENV==='test'?false:'require',prepare:false,max:3,connect_timeout:5,idle_timeout:10,connection:{statement_timeout:10000}});
-      // postgres.js serializes objects as JSON. Passing JSON.stringify here
-      // creates a JSON string scalar, so PL/pgSQL expressions such as p->'id'
-      // return null instead of reading the object.
-      return (await sql.unsafe(`select sms_private.${name}(${args.map((_,i)=>'$'+(i+1)).join(',')}) as result`,args))[0]?.result;
+      return (await sql.unsafe(`select sms_private.${name}(${args.map((_,i)=>'$'+(i+1)).join(',')}) as result`,args.map(v=>v&&typeof v==='object'?JSON.stringify(v):v)))[0]?.result;
     },
     close:async()=>{await sql?.end({timeout:5});},
   };
