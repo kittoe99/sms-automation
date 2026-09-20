@@ -1,7 +1,7 @@
 import {conditionMatches} from './form-schema.js';
 const node=(tag,props={},text)=>{const el=document.createElement(tag);Object.assign(el,props);if(text!==undefined)el.textContent=text;return el;};
 /** Only trusted components render the schema. No form content is interpreted as HTML. */
-export function renderForm(container,definition,{onSubmit=()=>{},preview=false}={}) {
+export function renderForm(container,definition,{onSubmit=()=>{},preview=false,previewSubmitLabel='Test submission'}={}) {
   container.replaceChildren();
   const form=node('form',{className:'fb-rendered'});form.style.setProperty('--form-color',definition.theme?.color||'#087f5b');
   form.append(node('h2',{},definition.title),node('p',{className:'fb-description'},definition.description));
@@ -47,7 +47,7 @@ export function renderForm(container,definition,{onSubmit=()=>{},preview=false}=
   };
   const honeypot=node('input',{name:'website',tabIndex:-1,autocomplete:'off',className:'fb-honey'});honeypot.setAttribute('aria-hidden','true');
   const challenge=node('div',{className:'fb-challenge'}),status=node('p',{className:'fb-status'});status.setAttribute('role','status');status.setAttribute('aria-live','polite');
-  const button=node('button',{type:'submit',className:'fb-submit'},preview?'Test submission':definition.submitLabel);
+  const button=node('button',{type:'submit',className:'fb-submit'},preview?previewSubmitLabel:definition.submitLabel);
   form.append(honeypot,challenge,button,status);container.append(form);form.addEventListener('input',visibility);visibility();
   form.addEventListener('submit',async event=>{
     event.preventDefault();status.textContent='';button.disabled=true;

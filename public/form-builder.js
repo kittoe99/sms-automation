@@ -54,7 +54,7 @@ export async function mountFormBuilder(root,{apiFetch,runtimeConfig}) {
     },'btn'));
     const more=h('details',{className:'fb-more'});more.append(h('summary',{},'More'));
     more.append(button('Reload saved form',reload));
-    if(!needsGeneration)more.append(button('Test follow-ups',async()=>{
+    if(!needsGeneration)more.append(button('Simulate follow-ups',async()=>{
       await save();const result=await request(`/${form.id}/simulate`,'POST',{answers:preview.getAnswers()});showResult(result);
     }));
     if(form.published_version){actions.append(button('Embed code',embed));more.append(button('Unpublish',async()=>{if(!confirm('Stop accepting new submissions on this form?'))return;form=await request(`/${form.id}/unpublish`,'POST',{revision:form.revision});draw();notice('Unpublished.');}));}
@@ -131,8 +131,8 @@ export async function mountFormBuilder(root,{apiFetch,runtimeConfig}) {
     previewPanel.append(h('h3',{},'Live preview'),button(mobile?'Desktop preview':'Mobile preview',()=>{mobile=!mobile;draw();}));
     const previewRoot=h('div',{className:mobile?'fb-preview mobile':'fb-preview'}),result=h('pre',{className:'fb-test-result'});previewPanel.append(previewRoot,result);
     let preview;
-    function showResult(r){result.textContent=`${r.eligible?'Eligible for enrollment':'Enrollment blocked'}\n${r.instantSms?.enabled?'Instant SMS: queued before automation\n':''}Group: ${r.groupName||r.groupId||'Not selected'}\n${r.note}\n${r.validation.errors.join('\n')}`;}
-    function refreshPreview(){preview=renderForm(previewRoot,d,{preview:true,onSubmit:async answers=>{await save();const r=await request(`/${form.id}/simulate`,'POST',{answers});showResult(r);return 'Simulation finished. No SMS sent.';}});}
+    function showResult(r){result.textContent=`${r.eligible?'Eligible for enrollment':'Enrollment blocked'}\n${r.instantSms?.enabled?'Instant SMS: will be sent before automation\n':''}Group: ${r.groupName||r.groupId||'Not selected'}\n${r.note}\n${r.validation.errors.join('\n')}`;}
+    function refreshPreview(){preview=renderForm(previewRoot,d,{preview:true,previewSubmitLabel:'Send live test SMS',onSubmit:async answers=>{await save();const r=await request(`/${form.id}/live-test`,'POST',{revision:form.revision,answers,idempotencyKey:crypto.randomUUID()});result.textContent=`Live SMS queued\nGroup: ${r.groupName}\nMessage: ${r.body}\nNo automation enrollment was created.`;return 'Live test SMS queued. Check the entered phone.';}});}
     const controls=h('div',{className:'fb-controls'});controls.append(chat,editor);grid.append(controls,previewPanel);root.append(grid);refreshPreview();
     const submissions=h('details',{className:'card fb-submissions'});submissions.append(h('summary',{},'Submissions'),button('Refresh submissions',()=>loadSubmissions(submissions)));root.append(submissions);submissions.addEventListener('toggle',()=>{if(submissions.open)loadSubmissions(submissions).catch(e=>notice(e.message));});
   }
@@ -144,7 +144,7 @@ export async function mountFormBuilder(root,{apiFetch,runtimeConfig}) {
   }
   async function loadSubmissions(section) {
     const data=await request(`/${form.id}/submissions`);if(disposed||!section.isConnected)return;section.querySelector('.fb-log')?.remove();const log=h('div',{className:'fb-log'});
-    if(!data.submissions.length)log.append(h('p',{className:'muted'},'No submissions yet. Preview tests do not create submissions.'));
+    if(!data.submissions.length)log.append(h('p',{className:'muted'},'No customer submissions yet. Live tests send one SMS but do not create an automation enrollment.'));
     for(const s of data.submissions){const row=h('details');row.append(h('summary',{},`${new Date(s.created_at).toLocaleString()} · ${s.mapped.name||s.mapped.phone} · ${s.status}${s.reason?' · '+s.reason:''}`),h('pre',{},JSON.stringify(s.answers,null,2)));if(s.status==='failed')row.append(button('Retry processing',async()=>{await request(`/${form.id}/submissions/${s.id}/retry`,'POST',{});await loadSubmissions(section);}));log.append(row);}section.append(log);
   }
   async function embed() {

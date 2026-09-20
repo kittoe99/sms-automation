@@ -19,8 +19,9 @@ The Blueprint uses the free plan for initial setup. Its idle spin-down means it
 is not suitable for dependable background processing; select an always-on plan
 before accepting production submissions.
 
-1. Apply `supabase/migrations/20260920040000_form_builder.sql` using the existing
-   migration workflow. The migration is additive and leaves every tenant disabled.
+1. Apply `supabase/migrations/20260920060000_form_builder.sql` and
+   `supabase/migrations/20260920070000_form_live_tests.sql` using the existing
+   migration workflow. The migrations are additive and leave every tenant disabled.
 2. Provision a database login with membership **only** in `sms_forms` and set its
    connection string as `FORMS_DATABASE_URL`. Do not use the CRM API, database
    owner, or Supabase service-role credentials. The role can execute only the
@@ -93,6 +94,14 @@ lifetime, a fresh remote session reads the existing draft. User-visible messages
 tool names/outcomes, turn usage and revisions remain in the audit log. A failed
 server instance loses its live stream, but its tool authorization expires; a
 subsequent request cancels stale remote work before resuming.
+
+The editor offers both a no-send routing simulation and an authenticated live SMS
+test. A live test requires a valid phone and affirmative consent in the preview,
+is limited to five sends per administrator per business per hour, preserves STOP
+suppression, and queues exactly one SMS through the existing fenced outbox. It
+does not activate a draft, create an automation enrollment, or grant marketing
+consent. The test uses the instant SMS when enabled; otherwise it renders the
+first message in the selected automation.
 
 ## Public submissions
 

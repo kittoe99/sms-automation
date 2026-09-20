@@ -97,6 +97,24 @@ test('optional instant SMS is queued once before a delayed automation enrollment
  assert.equal((await sql.query("select count(*)::int n from sms_private.jobs where tenant_id=$1 and dedupe_key like 'form-instant:%'",[tenant])).rows[0].n,1);
 });
 
+test('authenticated live tests send one real SMS without enrolling or granting marketing consent',async()=>{
+ const {service,tenant,form:initial}=await setup();
+ initial.draft.instantSms={enabled:true,body:'Thanks {{name}} — we received your {{service_name}} request.'};
+ const form=await service.save(initial.id,initial.revision,initial.draft,[]);
+ await sql.query("update public.sms_businesses set sending_enabled=true,status='active' where tenant_id=$1",[tenant]);
+ const key=crypto.randomUUID(),result=await service.liveTest(form.id,form.revision,answers(),key);
+ assert.equal(result.queued,true);assert.equal(result.body,'Thanks Alex — we received your residential request.');
+ await service.liveTest(form.id,form.revision,answers(),key);
+ const jobs=(await sql.query("select payload from sms_private.jobs where tenant_id=$1 and queue='sms_send_jobs' and dedupe_key like 'form-live-test:%'",[tenant])).rows;
+ assert.equal(jobs.length,1);assert.equal(jobs[0].payload.request.form_test,true);
+ assert.equal((await sql.query('select count(*)::int n from public.sms_automation_enrollments where tenant_id=$1',[tenant])).rows[0].n,0);
+ const contact=(await sql.query('select marketing_consent,opted_out,source from public.sms_contacts where tenant_id=$1',[tenant])).rows[0];
+ assert.equal(contact.marketing_consent,false);assert.equal(contact.opted_out,false);assert.equal(contact.source,'form_test');
+ await assert.rejects(()=>service.liveTest(form.id,form.revision,answers(false),crypto.randomUUID()),/consent box/);
+ await call(sql,'api_action','admin',tenant,'consent',{phone:'+13035550123',consent:false,evidence:'Customer STOP'});
+ await assert.rejects(()=>service.liveTest(form.id,form.revision,answers(),crypto.randomUUID()),/opted out/);
+});
+
 test('missing consent and STOP suppression save leads without creating SMS enrollments',async()=>{
  const {service,tenant,form:initial}=await setup();const form=await service.publish(initial.id,initial.revision);
  await submit(service,form,{input:answers(false)});assert.equal((await db.call('forms_process')).reason,'CONSENT_REQUIRED');
