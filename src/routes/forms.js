@@ -82,10 +82,6 @@ export function createFormsRouter(db,{verify=authenticate,runAgent=runBuilderTur
   router.put('/api/forms/:id',wrap(async(req,res)=>res.json(await req.forms.save(req.params.id,req.body.revision,req.body.definition,req.body.draftGroups))));
   router.post('/api/forms/:id/validate',wrap(async(req,res)=>res.json(await req.forms.validate(req.params.id))));
   router.post('/api/forms/:id/simulate',wrap(async(req,res)=>res.json(await req.forms.simulate(req.params.id,req.body.answers))));
-  router.post('/api/forms/:id/live-test',wrap(async(req,res)=>{
-    if(!await db.call('forms_rate',`form-live-test:${req.forms.tenant}:${req.forms.user}`,5,3600)) throw bad('This business has reached its hourly live test limit.',429);
-    res.status(202).json(await req.forms.liveTest(req.params.id,req.body.revision,req.body.answers,req.body.idempotencyKey));
-  }));
   router.post('/api/forms/:id/publish',wrap(async(req,res)=>res.json(await req.forms.publish(req.params.id,req.body.revision))));
   router.post('/api/forms/:id/unpublish',wrap(async(req,res)=>res.json(await req.forms.call('unpublish',{id:req.params.id,revision:req.body.revision}))));
   router.get('/api/forms/:id/embed',wrap(async(req,res)=>{

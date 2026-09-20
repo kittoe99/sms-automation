@@ -1,5 +1,5 @@
 import postgres from 'postgres';
-const operations=new Set(['forms_admin','forms_public','forms_agent','forms_rate','forms_process','forms_live_test']);
+const operations=new Set(['forms_admin','forms_public','forms_agent','forms_rate','forms_process']);
 export function formsDatabase(url=process.env.FORMS_DATABASE_URL) {
   let sql;
   return {

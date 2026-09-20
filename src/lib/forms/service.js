@@ -53,22 +53,4 @@ export class FormService {
     return {simulation:true,answers,mapped,groupId,groupName:g?.name,instantSms:form.draft.instantSms?.enabled?form.draft.instantSms:null,steps:g?.rule?.steps||[],eligible:mapped.consent===true&&validation.valid,
       note:mapped.consent===true?'Routing simulation only. Live intake also checks contact suppression and active enrollments.':'Saved as a lead; SMS enrollment blocked without consent.',validation};
   }
-  async liveTest(id,revision,input,idempotencyKey) {
-    const form=await this.get(id),validation=await this.validate(id);
-    if(!validation.valid) throw bad(validation.errors.join(' '));
-    if(Number(revision)!==Number(form.revision)) throw bad('Draft changed. Reload before testing.',409);
-    const answers=normalizeAnswers(form.draft,input),mapped=mapAnswers(form.draft,answers),groupId=routeSubmission(form.draft,answers);
-    if(mapped.consent!==true) throw bad('Check the SMS consent box before sending a live test.');
-    if(!mapped.phone) throw bad('Enter a valid test phone number.');
-    if(!/^[a-zA-Z0-9_-]{8,100}$/.test(idempotencyKey||'')) throw bad('Valid test key required');
-    const {groups,business}=await this.catalog();
-    const group=[...groups,...form.draft_groups].find(item=>item.id===groupId);
-    if(!group) throw bad('The selected automation is unavailable.');
-    const template=form.draft.instantSms?.enabled?form.draft.instantSms.body:group.rule?.steps?.[0]?.template;
-    if(!template) throw bad('Configure an instant SMS or at least one automation message before live testing.');
-    const values={...mapped,first_name:String(mapped.name||'').trim().split(/\s+/)[0]||'',business_name:business.name};
-    const body=template.replace(/\{\{\s*([a-z_]+)\s*\}\}/gi,(_match,key)=>String(values[key]??''));
-    const queued=await this.db.call('forms_live_test',this.user,this.tenant,id,{revision:form.revision,idempotencyKey,groupId,body,mapped,consent:true});
-    return {liveTest:true,queued:true,groupId,groupName:group.name,instantSms:Boolean(form.draft.instantSms?.enabled),body,...queued};
-  }
 }
