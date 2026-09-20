@@ -3,18 +3,21 @@ export const CATEGORIES = [
     id: 'appointment-reminders',
     name: 'Appointment Reminders',
     description: 'Pickup and booking reminder texts',
+    kind: 'reminder',
     activeAutomation: true,
   },
   {
     id: 'quote-requests',
     name: 'Quote Requests',
     description: 'Quote follow-ups and estimate requests',
+    kind: 'quote',
     activeAutomation: true,
   },
   {
     id: 'followup-automations',
     name: 'Followup Automations',
     description: 'Reserved for post-job and nurture sequences',
+    kind: 'custom',
     activeAutomation: false,
   },
 ];

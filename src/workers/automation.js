@@ -1,4 +1,5 @@
 import { constrainToSendWindow, getZonedParts, zonedDateTimeToUtc } from '../lib/automations/timeRules.js';
+import { draftAutomationMessage } from '../lib/automations/aiDraft.js';
 
 export function calendarDelay(value, count, unit, timeZone) {
   const p = getZonedParts(value, timeZone);
@@ -41,8 +42,14 @@ export function evaluateAutomation(context, now = new Date()) {
     start_hour:window.startHour,end_hour:window.endHour,
     next_run_at:next ? constrain(delay(now,next)).toISOString() : null };
 }
-export async function processAutomation(job,db) {
+export async function processAutomation(job,db,options={}) {
   const context = await db.call('job_context',job.id,job.lease_token);
   if (!context?.enrollment || !context.group || context.enrollment.status!=='active') return db.call('finish',job.id,job.lease_token,'cancelled','INACTIVE',0);
-  return db.call('complete_automation',job.id,job.lease_token,evaluateAutomation(context));
+  const result=evaluateAutomation(context);
+  if(result.action==='send') {
+    const draft=await draftAutomationMessage(context,result.body,options);
+    result.body=draft.body;
+    result.ai_drafted=draft.aiDrafted;
+  }
+  return db.call('complete_automation',job.id,job.lease_token,result);
 }

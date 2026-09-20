@@ -19,6 +19,8 @@ import {
   getGroupAiSettings,
   saveGroupAiSettings,
 } from '../src/lib/automations/groupAiInstructions.js';
+import { AUTOMATION_RULE_PRESETS, CADENCE_PRESETS } from '../src/lib/automations/rulePresets.js';
+import { groupRule } from '../supabase/functions/_shared/domain.js';
 
 test('normalizes the common manual cadence presets', () => {
   const everyOtherDay = normalizeCustomRule({
@@ -29,6 +31,7 @@ test('normalizes the common manual cadence presets', () => {
   assert.equal(everyOtherDay.intervalCount, 2);
   assert.equal(everyOtherDay.intervalUnit, 'day');
   assert.equal(everyOtherDay.repeatCount, 3);
+  assert.equal(everyOtherDay.aiDraft, true);
 
   const custom = normalizeCustomRule({
     cadence: 'custom',
@@ -39,6 +42,7 @@ test('normalizes the common manual cadence presets', () => {
   });
   assert.equal(custom.intervalCount, 5);
   assert.equal(custom.intervalUnit, 'week');
+  assert.equal(normalizeCustomRule({ template: 'Manual', aiDraft: false }).aiDraft, false);
   assert.equal(
     normalizeCustomRule({ cadence: 'daily', template: 'Midnight', startHour: 0 }).startHour,
     0
@@ -47,6 +51,24 @@ test('normalizes the common manual cadence presets', () => {
     () => normalizeCustomRule({ cadence: 'sometimes', template: 'Hello' }),
     /Unknown cadence/
   );
+});
+
+test('ready-made automation rules are valid, varied, and AI-drafted by default', () => {
+  assert.ok(AUTOMATION_RULE_PRESETS.length >= 7);
+  assert.ok(CADENCE_PRESETS.every_5_days);
+  assert.ok(CADENCE_PRESETS.every_2_weeks);
+  assert.ok(CADENCE_PRESETS.quarterly);
+  const ids = new Set();
+  for (const preset of AUTOMATION_RULE_PRESETS) {
+    assert.ok(!ids.has(preset.id));
+    ids.add(preset.id);
+    const rule = normalizeCustomRule(preset.rule);
+    assert.equal(rule.aiDraft, true);
+    assert.ok(rule.steps.length >= 2);
+    assert.ok(rule.steps.every((step) => /STOP/i.test(step.template)));
+  }
+  assert.equal(groupRule({ cadence: 'every_2_weeks', template: 'Hello' }).intervalCount, 2);
+  assert.equal(groupRule({ cadence: 'quarterly', template: 'Hello' }).intervalUnit, 'month');
 });
 
 test('monthly cadence clamps dates to the end of a shorter month', () => {

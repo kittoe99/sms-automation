@@ -8,15 +8,23 @@ declare j sms_private.jobs; e public.sms_automation_enrollments; c public.sms_co
    select * into c from public.sms_contacts where tenant_id=j.tenant_id and id=e.contact_id;
    return jsonb_build_object('enrollment',to_jsonb(e),'contact',to_jsonb(c),
      'business',(select to_jsonb(b) from public.sms_businesses b where tenant_id=j.tenant_id),
+     'profile',(select to_jsonb(v) from public.sms_business_profile_versions v join public.sms_businesses b on b.tenant_id=v.tenant_id and b.active_profile_version_id=v.id where v.tenant_id=j.tenant_id and v.status='approved'),
      'group',(select to_jsonb(g) from public.sms_automation_groups g where tenant_id=j.tenant_id and id=e.category_id),
+     'settings',(select to_jsonb(a) from public.sms_ai_settings a where tenant_id=j.tenant_id and group_id=e.category_id),
+     'history',(select coalesce(jsonb_agg(m order by created_at),'[]') from (select direction,body,created_at from public.sms_messages where tenant_id=j.tenant_id and contact_phone=c.phone order by created_at desc limit 20)m),
      'steps',(select jsonb_agg(s order by step_index) from public.sms_automation_steps s where tenant_id=j.tenant_id and group_id=e.category_id));
  elsif j.queue='ai_reply_jobs' then
    ph:=j.payload->>'phone';
+   select * into c from public.sms_contacts where tenant_id=j.tenant_id and phone=ph;
    return jsonb_build_object('business',(select to_jsonb(b) from public.sms_businesses b where tenant_id=j.tenant_id),
-     'contact',(select to_jsonb(c) from public.sms_contacts c where tenant_id=j.tenant_id and phone=ph),
+     'profile',(select to_jsonb(v) from public.sms_business_profile_versions v join public.sms_businesses b on b.tenant_id=v.tenant_id and b.active_profile_version_id=v.id where v.tenant_id=j.tenant_id and v.status='approved'),
+     'contact',to_jsonb(c),
      'thread',(select to_jsonb(th) from public.sms_thread_contacts th where tenant_id=j.tenant_id and phone=ph),
      'settings',(select to_jsonb(a) from public.sms_ai_settings a where tenant_id=j.tenant_id and group_id=j.payload->>'group_id'),
-     'history',(select coalesce(jsonb_agg(m order by created_at),'[]') from (select direction,body,created_at from public.sms_messages where tenant_id=j.tenant_id and contact_phone=ph order by created_at desc limit 20)m));
+     'open_lead',(select to_jsonb(l) from public.sms_leads l where l.tenant_id=j.tenant_id and l.contact_id=c.id and l.status in ('open','assigned') order by l.updated_at desc limit 1),
+     'booking_settings',(select to_jsonb(s) from public.sms_booking_settings s where s.tenant_id=j.tenant_id and s.enabled),
+     'booking_session',(select to_jsonb(s) from public.sms_booking_sessions s where s.tenant_id=j.tenant_id and s.contact_id=c.id and s.expires_at>now()),
+     'history',(select coalesce(jsonb_agg(m order by created_at),'[]') from (select id,direction,body,created_at from public.sms_messages where tenant_id=j.tenant_id and contact_phone=ph order by created_at desc limit 20)m));
  elsif j.queue='provisioning_jobs' then
    return (select jsonb_build_object('account_sid',p.account_sid,'messaging_service_sid',p.messaging_service_sid,
      'phone_number_sid',p.phone_number_sid,'state',p.provisioning_state,'business_name',b.name)
@@ -138,12 +146,16 @@ declare c public.sms_contacts; mid uuid; th public.sms_thread_contacts; gid text
    end if;
    update public.sms_automation_enrollments set next_run_at=greatest(next_run_at,now()+interval '24 hours'),generation=generation+1
    where tenant_id=t and contact_id=c.id and status='active' and category_id in(select id from public.sms_automation_groups where tenant_id=t and kind<>'reminder');
-   select a.group_id into gid from public.sms_ai_settings a
-   where a.tenant_id=t and a.enabled and (a.default_for_inbound or exists(
-     select from public.sms_automation_enrollments e where e.tenant_id=a.tenant_id and e.category_id=a.group_id and e.contact_id=c.id and e.status='active'
-   )) order by exists(select from public.sms_automation_enrollments e where e.tenant_id=a.tenant_id and e.category_id=a.group_id and e.contact_id=c.id and e.status='active') desc,
-     a.default_for_inbound desc,a.updated_at desc limit 1;
-   if gid is not null and not th.ai_paused and not c.opted_out then
+    select a.group_id into gid from public.sms_ai_settings a
+    where a.tenant_id=t and a.enabled and (a.default_for_inbound or exists(
+      select from public.sms_automation_enrollments e where e.tenant_id=a.tenant_id and e.category_id=a.group_id and e.contact_id=c.id and e.status='active'
+    )) order by exists(select from public.sms_automation_enrollments e where e.tenant_id=a.tenant_id and e.category_id=a.group_id and e.contact_id=c.id and e.status='active') desc,
+      a.default_for_inbound desc,a.updated_at desc limit 1;
+    if gid is null then
+      select a.group_id into gid from public.sms_ai_settings a
+      where a.tenant_id=t and a.enabled order by a.updated_at desc limit 1;
+    end if;
+    if gid is not null and not th.ai_paused and not c.opted_out then
      perform sms_private.enqueue(t,'ai_reply_jobs',p->>'MessageSid',jsonb_build_object('phone',c.phone,'generation',th.generation,'group_id',gid));
    end if;
  elsif event='status' then

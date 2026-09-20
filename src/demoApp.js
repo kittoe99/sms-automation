@@ -1,6 +1,7 @@
 // Deliberately standalone: never import live auth, database, Twilio, or AI modules.
 import express from 'express';
 import { fileURLToPath } from 'node:url';
+import { AUTOMATION_RULE_PRESETS, CADENCE_PRESETS } from './lib/automations/rulePresets.js';
 
 const tenants = [
   { id: 'demo-opek', name: 'Opek — Demo', shortName: 'Opek Demo' },
@@ -79,7 +80,7 @@ export function createDemoApp() {
     const stats = summary(messages, contacts);
     let result;
     const path = req.path;
-    if (path === '/categories') result = { categories, cadences: [] };
+    if (path === '/categories') result = { categories, cadences: Object.entries(CADENCE_PRESETS).map(([id, value]) => ({ id, ...value })), rulePresets: AUTOMATION_RULE_PRESETS };
     else if (path === '/overview' || path === '/deliverability') result = { ...stats,
       byCategory: categories.map(c => ({ id: c.id, ...summary(messages.filter(m => m.categoryId === c.id), contacts) })) };
     else if (path === '/messages') {

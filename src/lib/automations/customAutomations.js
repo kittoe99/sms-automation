@@ -12,15 +12,9 @@ import { getCurrentTenantId } from '../tenantContext.js';
 import { getSupabaseAdmin } from '../supabase.js';
 import { getGroupAiSettings, listGroupAiSettings } from './groupAiInstructions.js';
 import { automationStoreError, usesSharedAutomationStore } from './automationStore.js';
+import { CADENCE_PRESETS } from './rulePresets.js';
 
-export const CADENCE_PRESETS = Object.freeze({
-  daily: { label: 'Daily', intervalCount: 1, intervalUnit: 'day' },
-  every_other_day: { label: 'Every other day', intervalCount: 2, intervalUnit: 'day' },
-  every_3_days: { label: 'Every 3 days', intervalCount: 3, intervalUnit: 'day' },
-  weekly: { label: 'Weekly', intervalCount: 1, intervalUnit: 'week' },
-  monthly: { label: 'Monthly', intervalCount: 1, intervalUnit: 'month' },
-  custom: { label: 'Custom interval', intervalCount: 1, intervalUnit: 'day' },
-});
+export { CADENCE_PRESETS } from './rulePresets.js';
 
 const MAX_GROUPS_PER_TENANT = 100;
 const DEFAULT_RULES_FILE = path.join(process.cwd(), 'data', 'automation-groups.json');
@@ -151,6 +145,7 @@ export function normalizeCustomRule(input = {}) {
     intervalCount,
     intervalUnit,
     repeatCount: steps.length,
+    aiDraft: input.aiDraft !== false,
     template,
     startHour,
     endHour,

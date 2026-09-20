@@ -1,3 +1,5 @@
+import {CADENCE_PRESETS} from '../../../src/lib/automations/rulePresets.js';
+
 export function phone(value) {
  const raw=String(value || '').trim(); let digits=raw.replace(/\D/g,'');
  if(!raw.startsWith('+') && digits.length===10) digits='1'+digits;
@@ -6,7 +8,8 @@ export function phone(value) {
  return result;
 }
 export function groupRule(input={},timeZone='America/Denver') {
- const units={daily:[1,'day'],every_other_day:[2,'day'],every_3_days:[3,'day'],weekly:[1,'week'],monthly:[1,'month'],custom:[input.intervalCount || 1,input.intervalUnit || 'day']};
+ const units=Object.fromEntries(Object.entries(CADENCE_PRESETS).map(([id,value])=>[id,[value.intervalCount,value.intervalUnit]]));
+ units.custom=[input.intervalCount || 1,input.intervalUnit || 'day'];
  const cadence=input.cadence || 'daily'; if(!units[cadence]) throw new Error('Invalid cadence');
  const [intervalCount,intervalUnit]=units[cadence];
  const source=input.steps?.length?input.steps:Array.from({length:input.repeatCount || 1},()=>({template:input.template,delayCount:intervalCount,delayUnit:intervalUnit}));
@@ -20,7 +23,7 @@ export function groupRule(input={},timeZone='America/Denver') {
  if(!Number.isInteger(startHour)||!Number.isInteger(endHour)||startHour<0||endHour>24||endHour<=startHour) throw new Error('Invalid sending window');
  let firstSendAt=null;
  if(input.firstSendAt) firstSendAt=localDateTime(input.firstSendAt,timeZone).toISOString();
- return {cadence,intervalCount,intervalUnit,repeatCount:steps.length,steps,template:steps[0].template,startHour,endHour,firstSendAt};
+ return {cadence,intervalCount,intervalUnit,repeatCount:steps.length,aiDraft:input.aiDraft!==false,steps,template:steps[0].template,startHour,endHour,firstSendAt};
 }
 export function localDateTime(value,timeZone) {
  if(/(?:Z|[+-]\d\d:\d\d)$/i.test(value)) { const date=new Date(value); if(!Number.isFinite(+date)) throw new Error('Invalid date'); return date; }

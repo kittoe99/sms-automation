@@ -38,7 +38,9 @@ import {
   listAllActiveCustomAutomationGroups,
   seedCustomDrip,
 } from './customAutomations.js';
-import { assertTenantDataAccessSafe, findTenant, runWithTenant } from '../tenantContext.js';
+import { getGroupAiSettings } from './groupAiInstructions.js';
+import { draftAutomationMessage } from './aiDraft.js';
+import { assertTenantDataAccessSafe, findTenant, getCurrentTenant, runWithTenant } from '../tenantContext.js';
 
 const BATCH_LIMIT = 50;
 
@@ -320,12 +322,19 @@ async function processDueQuoteEnrollment(enrollment, now) {
   if (!claimed) return { skipped: true };
 
   const { quotedPrice, serviceType } = await resolveQuoteFields(enrollment);
-  const body = renderTemplate(step.template, {
+  const fallbackBody = renderTemplate(step.template, {
     name: enrollment.name,
     phone: enrollment.phone,
     quoted_price: quotedPrice,
     service_type: serviceType,
   });
+  const draft = await draftForLegacyRunner(enrollment, {
+    id: QUOTE_REQUESTS_CATEGORY_ID,
+    name: 'Quote Requests',
+    kind: 'quote',
+    rule: { aiDraft: true },
+  }, fallbackBody);
+  const body = draft.body;
 
   try {
     await sendSms({
@@ -340,6 +349,7 @@ async function processDueQuoteEnrollment(enrollment, now) {
         dripStepIndex: stepIndex,
         enrollmentId: enrollment.id,
         quotedPrice: quotedPrice || null,
+        aiDrafted: draft.aiDrafted,
       },
     });
   } catch (err) {
@@ -458,10 +468,12 @@ async function processDueCustomEnrollment(enrollment, now, group) {
     await completeAndRemove(enrollment, now, { completedReason: 'sequence_finished' });
     return { completed: true };
   }
-  const body = renderTemplate(customStep.template, {
+  const fallbackBody = renderTemplate(customStep.template, {
     name: enrollment.name,
     phone: enrollment.phone,
   });
+  const draft = await draftForLegacyRunner(enrollment, group, fallbackBody);
+  const body = draft.body;
 
   try {
     await sendSms({
@@ -476,6 +488,7 @@ async function processDueCustomEnrollment(enrollment, now, group) {
         dripStepId: customStep.id || `send-${stepIndex + 1}`,
         dripStepIndex: stepIndex,
         enrollmentId: enrollment.id,
+        aiDrafted: draft.aiDrafted,
       },
     });
   } catch (err) {
@@ -490,6 +503,27 @@ async function processDueCustomEnrollment(enrollment, now, group) {
   }
   await updateEnrollmentMetadata(claimed.id, advanced.metadata, now);
   return { sent: true };
+}
+
+async function draftForLegacyRunner(enrollment, group, fallbackBody) {
+  let settings = null;
+  try {
+    settings = await getGroupAiSettings(group.id);
+  } catch {
+    // Drafting is best-effort; the saved template remains deliverable.
+  }
+  const tenant = getCurrentTenant();
+  return draftAutomationMessage(
+    {
+      enrollment,
+      group,
+      settings,
+      business: { name: tenant.name, timeZone: tenant.timeZone },
+      contact: { name: enrollment.name, phone: enrollment.phone },
+      history: [],
+    },
+    fallbackBody
+  );
 }
 
 async function resolveQuoteFields(enrollment) {

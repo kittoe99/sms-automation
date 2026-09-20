@@ -48,6 +48,7 @@ import {
 import { runAutomationTick } from '../lib/automations/runner.js';
 import { QUOTE_REQUESTS_SEQUENCE } from '../lib/automations/quoteRequestsSequence.js';
 import { APPOINTMENT_REMINDERS_SEQUENCE } from '../lib/automations/appointmentRemindersSequence.js';
+import { AUTOMATION_RULE_PRESETS } from '../lib/automations/rulePresets.js';
 import { removeActiveEnrollmentsForPhone } from '../lib/automations/lifecycle.js';
 import {
   CADENCE_PRESETS,
@@ -285,6 +286,7 @@ apiRouter.get('/categories', async (_req, res) => {
     return res.json({
       categories,
       cadences: Object.entries(CADENCE_PRESETS).map(([id, value]) => ({ id, ...value })),
+      rulePresets: AUTOMATION_RULE_PRESETS,
     });
   } catch (err) {
     return res.status(err.status || 500).json({ error: 'Failed to load automation groups', detail: err.message });

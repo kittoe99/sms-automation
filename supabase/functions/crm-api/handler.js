@@ -1,6 +1,7 @@
 import {json,readJson,cors,failure,authenticate,env} from '../_shared/http.js';
 import {phone,groupRule,localDateTime,business,message,contact,thread,group} from '../_shared/domain.js';
 import {enrichBusinessFromWebsite} from '../../../src/lib/websiteEnrich.js';
+import {AUTOMATION_RULE_PRESETS,CADENCE_PRESETS} from '../../../src/lib/automations/rulePresets.js';
 const KNOWLEDGE_MIME=new Set(['application/pdf','application/vnd.openxmlformats-officedocument.wordprocessingml.document','text/plain','text/markdown']);
 async function signedKnowledgeUpload(tenant,input,fetchImpl=fetch) {
  const size=Number(input.size),contentType=String(input.contentType||'').toLowerCase();
@@ -49,7 +50,7 @@ export function createCrmHandler(db,verify=authenticate) {
     const bookingDetail=path.match(/^\/bookings\/([^/]+)$/);if(bookingDetail)return json({booking:await db.call('booking_detail',user,tenant,decodeURIComponent(bookingDetail[1]))},200,headers);
     if(path==='/categories'||path==='/automation-groups') {
      const [data,ai]=await Promise.all([read('groups',{pageSize:250}),read('ai_settings',{pageSize:250})]);
-     const groups=data.rows.map(g=>{const setting=ai.rows.find(a=>a.group_id===g.id);return {...group(g),ai:setting?{...setting,defaultForInbound:Boolean(setting.default_for_inbound)}:{enabled:false,instructions:'',defaultForInbound:false}}});return json({categories:groups,groups},200,headers);
+     const groups=data.rows.map(g=>{const setting=ai.rows.find(a=>a.group_id===g.id);return {...group(g),ai:setting?{...setting,defaultForInbound:Boolean(setting.default_for_inbound)}:{enabled:false,instructions:'',defaultForInbound:false}}});return json({categories:groups,groups,cadences:Object.entries(CADENCE_PRESETS).map(([id,value])=>({id,...value})),rulePresets:AUTOMATION_RULE_PRESETS},200,headers);
     }
     if(path.startsWith('/automations/')) {
      const id=decodeURIComponent(path.split('/')[2]);const [data,steps]=await Promise.all([read('groups',{id}),read('steps',{id,pageSize:250})]);
