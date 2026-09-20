@@ -11,7 +11,7 @@ declare j sms_private.jobs; e public.sms_automation_enrollments; c public.sms_co
      'profile',(select to_jsonb(v) from public.sms_business_profile_versions v join public.sms_businesses b on b.tenant_id=v.tenant_id and b.active_profile_version_id=v.id where v.tenant_id=j.tenant_id and v.status='approved'),
      'group',(select to_jsonb(g) from public.sms_automation_groups g where tenant_id=j.tenant_id and id=e.category_id),
      'settings',(select to_jsonb(a) from public.sms_ai_settings a where tenant_id=j.tenant_id and group_id=e.category_id),
-     'history',(select coalesce(jsonb_agg(m order by created_at),'[]') from (select direction,body,created_at from public.sms_messages where tenant_id=j.tenant_id and contact_phone=c.phone order by created_at desc limit 20)m),
+     'history',(select coalesce(jsonb_agg(m order by created_at),'[]'::jsonb) from (select direction,body,created_at from public.sms_messages where tenant_id=j.tenant_id and contact_phone=c.phone order by created_at)m),
      'steps',(select jsonb_agg(s order by step_index) from public.sms_automation_steps s where tenant_id=j.tenant_id and group_id=e.category_id));
  elsif j.queue='ai_reply_jobs' then
    ph:=j.payload->>'phone';

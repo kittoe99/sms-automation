@@ -2052,11 +2052,23 @@ async function renderAutomations() {
           ? `${category.rule.firstSendAt ? `First send scheduled for ${fmtTime(category.rule.firstSendAt)}.` : `${cadenceDisplay(category.rule)} cadence.`} ${category.rule.repeatCount} custom message${category.rule.repeatCount === 1 ? '' : 's'} constrained to ${category.rule.startHour}:00–${category.rule.endHour}:00 in the business account timezone. ${category.rule.aiDraft === false ? 'Messages use the saved templates.' : 'AI drafts each outgoing message by default; the saved template is the fallback.'}`
           : '';
 
+  const triggerNote =
+    category.kind === 'quote' || category.id === 'quote-requests'
+      ? 'Quote created — the contact is enrolled automatically after submitting a quote request. Each send is drafted by AI immediately before delivery using the full available message thread; the step text below is the approved fallback.'
+      : category.kind === 'reminder' || category.id === 'appointment-reminders'
+        ? 'Booking created or updated — the reminder is scheduled automatically and uses the fixed template without AI.'
+        : category.rule?.trigger
+          ? String(category.rule.trigger)
+          : 'Contact enrolled manually or through an integration.';
+
   const sequenceHtml = sequence
     ? `
       <div class="drip-sequence" style="margin:0 16px 16px">
         <h3 style="margin:0 0 8px">${esc(sequence.name)}</h3>
         <p class="muted" style="margin:0 0 12px">${esc(sequence.description || '')}</p>
+        <div class="automation-trigger" style="margin:0 0 14px;padding:10px 12px;border:1px solid var(--border);border-radius:10px">
+          <strong>Trigger</strong><br><span class="muted">${esc(triggerNote)}</span>
+        </div>
         <ol class="drip-steps">
           ${(sequence.steps || [])
             .map(

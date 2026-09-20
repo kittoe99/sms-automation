@@ -64,6 +64,20 @@ test('AI drafting falls back safely when unavailable', async () => {
   assert.match(buildAutomationDraftPrompt(context(), fallback), /Approved fallback message/);
 });
 
+test('AI drafting receives the complete conversation in chronological order', () => {
+  const fullContext = context();
+  fullContext.history = Array.from({ length: 25 }, (_, index) => ({
+    direction: index % 2 ? 'outbound' : 'inbound',
+    body: `message-${index + 1}`,
+    created_at: new Date(Date.UTC(2026, 8, 1, 0, index)).toISOString(),
+  }));
+  const prompt = buildAutomationDraftPrompt(fullContext, 'Approved fallback.');
+  assert.match(prompt, /Full conversation \(oldest to newest\)/);
+  assert.match(prompt, /message-1/);
+  assert.match(prompt, /message-25/);
+  assert.ok(prompt.indexOf('message-1') < prompt.indexOf('message-25'));
+});
+
 test('the automation worker sends the AI draft through the fenced completion path', async () => {
   const calls = [];
   const workerContext = {
