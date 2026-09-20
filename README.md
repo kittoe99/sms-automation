@@ -2,6 +2,11 @@
 
 The active implementation uses WPacquisition Postgres, durable queues, Cron and bounded Edge workers. Start with [the deployment guide](docs/WORKER_DEPLOYMENT.md). Render is optional static frontend hosting only. The DigitalOcean instructions below are retained for cutover reference and are not the current deployment path.
 
+The **Form Builder** adds AI-assisted forms, draft-only MCP access, embed snippets,
+and deterministic automation routing. Its separate Node service uses the same
+production database and workers. See [Form Builder setup](docs/form-builder.md)
+or run `npm run preview:forms` for a local synthetic-data workspace.
+
 # opek-sms
 
 SMS automation foundation for **Opek Junk Removal** — Twilio Messaging + DigitalOcean App Platform (RPS autoscaling 1–3).

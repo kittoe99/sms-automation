@@ -1,4 +1,5 @@
 import { connectSupabaseLive } from './live.js';
+import {mountFormBuilder} from './form-builder.js';
 import {
   apiFetch,
   getAccessToken,
@@ -70,6 +71,7 @@ const el = {
 };
 
 let drawerReturnFocus = null;
+let disposeFormBuilder = null;
 
 function syncOverlayLock() {
   const crm = document.querySelector('.crm');
@@ -144,6 +146,7 @@ function openBusinessContext() {
 }
 
 function refreshFromBackground() {
+  if (state.view === 'form-builder') return Promise.resolve(false);
   if (el.root.querySelector('form[data-dirty="true"]')) return Promise.resolve(false);
   return load();
 }
@@ -1289,8 +1292,9 @@ function initNavFind() {
 }
 
 async function load() {
+  disposeFormBuilder?.();disposeFormBuilder=null;
   document.getElementById('crm-app').dataset.view = state.view;
-  el.search.closest('.search-wrap').hidden = ['overview', 'call', 'deliverability', 'business-setup', 'business-context', 'booking-setup', 'knowledge'].includes(state.view);
+  el.search.closest('.search-wrap').hidden = ['overview', 'call', 'deliverability', 'business-setup', 'business-context', 'booking-setup', 'knowledge', 'form-builder'].includes(state.view);
   el.status.hidden = !['messages', 'deliverability'].includes(state.view) && !(state.view === 'automations' && state.categoryId);
   if (state.view === 'business-setup') el.pager.hidden = true;
   try {
@@ -1314,6 +1318,11 @@ async function load() {
     else if (state.view === 'optouts') await renderOptOuts();
     else if (state.view === 'deliverability') await renderDeliverability();
     else if (state.view === 'automations') await renderAutomations();
+    else if (state.view === 'form-builder') {
+      el.title.textContent='Form Builder';el.sub.textContent='Create forms and connect automated follow-ups';el.kpi.replaceChildren();el.pager.hidden=true;
+      if(!document.getElementById('form-builder-styles')){const link=document.createElement('link');link.id='form-builder-styles';link.rel='stylesheet';link.href='/form-builder.css';document.head.append(link);}
+      disposeFormBuilder=await mountFormBuilder(el.root,{apiFetch,runtimeConfig});
+    }
     else if (state.view === 'business-setup') await renderBusinessSetup();
     else if (state.view === 'business-context') await renderBusinessContext();
     else if (state.view === 'booking-setup') await renderBookingSetup();

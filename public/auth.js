@@ -2,8 +2,9 @@
 
 let clerk = null;
 export const runtimeConfig = globalThis.SMS_CONFIG || {};
-export const apiUrl = url => runtimeConfig.apiBase && url.startsWith('/api/')
-  ? runtimeConfig.apiBase.replace(/\/$/, '') + url.slice(4) : url;
+export const apiUrl = url => runtimeConfig.formsApiBase && (url === '/api/forms' || url.startsWith('/api/forms/'))
+  ? runtimeConfig.formsApiBase.replace(/\/$/, '') + url
+  : runtimeConfig.apiBase && url.startsWith('/api/') ? runtimeConfig.apiBase.replace(/\/$/, '') + url.slice(4) : url;
 let demoMode = false;
 let localMode = false;
 let bootstrapped = false;

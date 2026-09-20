@@ -1,10 +1,10 @@
 import {cp,mkdir,writeFile} from 'node:fs/promises';
 import {build} from 'esbuild';
-const {CRM_API_BASE,SUPABASE_URL,SUPABASE_PUBLISHABLE_KEY}=process.env;
+const {CRM_API_BASE,SUPABASE_URL,SUPABASE_PUBLISHABLE_KEY,FORMS_API_BASE}=process.env;
 if(!CRM_API_BASE||!SUPABASE_URL||!SUPABASE_PUBLISHABLE_KEY) throw new Error('CRM_API_BASE, SUPABASE_URL and SUPABASE_PUBLISHABLE_KEY are required');
 if(SUPABASE_URL!=='https://wxamwhfmelxqahkdtcci.supabase.co') throw new Error('Deployment must target WPacquisition');
 if(!/^sb_publishable_/.test(SUPABASE_PUBLISHABLE_KEY)) throw new Error('Use a Supabase publishable key, never a secret or service role key');
 await cp('public','dist',{recursive:true});await mkdir('dist/vendor',{recursive:true});
 await build({stdin:{contents:"export {createClient} from '@supabase/supabase-js'",resolveDir:process.cwd()},bundle:true,format:'esm',platform:'browser',outfile:'dist/vendor/supabase.js',minify:true});
 await build({entryPoints:['src/frontend/complianceEmbed.jsx'],bundle:true,format:'esm',platform:'browser',outfile:'dist/vendor/compliance-embed.js',minify:true});
-await writeFile('dist/config.js',`globalThis.SMS_CONFIG=${JSON.stringify({apiBase:CRM_API_BASE,supabaseUrl:SUPABASE_URL,supabasePublishableKey:SUPABASE_PUBLISHABLE_KEY})};\n`);
+await writeFile('dist/config.js',`globalThis.SMS_CONFIG=${JSON.stringify({apiBase:CRM_API_BASE,supabaseUrl:SUPABASE_URL,supabasePublishableKey:SUPABASE_PUBLISHABLE_KEY,...(FORMS_API_BASE?{formsApiBase:FORMS_API_BASE}:{})})};\n`);
