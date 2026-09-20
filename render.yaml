@@ -11,11 +11,6 @@ services:
         value: https://wxamwhfmelxqahkdtcci.supabase.co
       - key: SUPABASE_PUBLISHABLE_KEY
         sync: false
-      - key: FORMS_API_BASE
-        fromService:
-          type: web
-          name: wpacquisition-forms
-          envVarKey: FORMS_PUBLIC_BASE_URL
     routes:
       - type: rewrite
         source: /*
@@ -27,31 +22,3 @@ services:
       - path: /*
         name: Referrer-Policy
         value: strict-origin-when-cross-origin
-  - type: web
-    name: wpacquisition-forms
-    runtime: node
-    plan: free
-    buildCommand: npm ci
-    startCommand: npm run start:forms
-    healthCheckPath: /health
-    envVars:
-      - key: NODE_ENV
-        value: production
-      - key: FORMS_PUBLIC_BASE_URL
-        sync: false
-      - key: FORMS_DATABASE_URL
-        sync: false
-      - key: FORMS_SIGNING_SECRET
-        generateValue: true
-      - key: CLERK_ISSUER
-        sync: false
-      - key: CRM_ALLOWED_ORIGINS
-        sync: false
-      - key: OPENAI_API_KEY
-        sync: false
-      - key: FORM_BUILDER_MODEL
-        value: gpt-6-astra
-      - key: FORMS_TURNSTILE_SITE_KEY
-        sync: false
-      - key: FORMS_TURNSTILE_SECRET
-        sync: false
