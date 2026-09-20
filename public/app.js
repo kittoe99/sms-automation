@@ -984,7 +984,8 @@ async function renderBusinessContext() {
       } catch {
         response = null;
       }
-      if ((!response || response.status === 404) && runtimeConfig.apiBase) {
+      const localResponseIsJson = response?.headers.get('content-type')?.toLowerCase().includes('application/json');
+      if ((!response || response.status === 404 || !localResponseIsJson) && runtimeConfig.apiBase) {
         response = await apiFetch('/api/enrich-website', { method: 'POST', body: payload });
         data = await response.json().catch(() => ({}));
       }

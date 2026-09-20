@@ -27,6 +27,8 @@ test('business context website enrichment prefers the project Firecrawl endpoint
   assert.ok(handlerStart >= 0);
   assert.ok(localFetch > handlerStart);
   assert.ok(hostedFallback > localFetch);
+  assert.match(app,/localResponseIsJson/);
+  assert.match(app,/response\.status === 404 \|\| !localResponseIsJson/);
   assert.doesNotMatch(app,/Replace the form contents with freshly fetched website details/);
 });
 
