@@ -64,6 +64,10 @@ test('ready-made automation rules are valid, varied, and AI-drafted by default',
     ids.add(preset.id);
     const rule = normalizeCustomRule(preset.rule);
     assert.equal(rule.aiDraft, true);
+    for (const step of rule.steps) {
+      assert.match(step.template, /\{\{business_name\}\}/);
+      assert.match(step.template, /\{\{service_name\}\}/);
+    }
     assert.ok(rule.steps.length >= 2);
     assert.ok(rule.steps.every((step) => /STOP/i.test(step.template)));
   }

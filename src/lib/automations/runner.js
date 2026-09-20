@@ -3,7 +3,7 @@
  */
 
 import { getSupabaseAdmin, isSupabaseConfigured } from '../supabase.js';
-import { isOptedOut } from '../messageStore.js';
+import { getConversation, isOptedOut } from '../messageStore.js';
 import { sendSms } from '../twilioClient.js';
 import { publish } from '../realtime.js';
 import { toE164 } from '../supabaseContacts.js';
@@ -327,6 +327,8 @@ async function processDueQuoteEnrollment(enrollment, now) {
     phone: enrollment.phone,
     quoted_price: quotedPrice,
     service_type: serviceType,
+    service_name: serviceType,
+    business_name: getCurrentTenant().name,
   });
   const draft = await draftForLegacyRunner(enrollment, {
     id: QUOTE_REQUESTS_CATEGORY_ID,
@@ -469,8 +471,11 @@ async function processDueCustomEnrollment(enrollment, now, group) {
     return { completed: true };
   }
   const fallbackBody = renderTemplate(customStep.template, {
+    ...(enrollment.metadata || {}),
     name: enrollment.name,
     phone: enrollment.phone,
+    business_name: getCurrentTenant().name,
+    service_name: enrollment.metadata?.service_name || enrollment.metadata?.service_type || enrollment.metadata?.serviceType || enrollment.metadata?.service || 'service request',
   });
   const draft = await draftForLegacyRunner(enrollment, group, fallbackBody);
   const body = draft.body;
@@ -513,6 +518,17 @@ async function draftForLegacyRunner(enrollment, group, fallbackBody) {
     // Drafting is best-effort; the saved template remains deliverable.
   }
   const tenant = getCurrentTenant();
+  let history = [];
+  try {
+    const conversation = await getConversation(enrollment.phone);
+    history = (conversation?.messages || []).map(({ direction, body, createdAt, created_at }) => ({
+      direction,
+      body,
+      created_at: created_at || createdAt || null,
+    }));
+  } catch {
+    // The approved contextual fallback remains safe if history cannot be loaded.
+  }
   return draftAutomationMessage(
     {
       enrollment,
@@ -520,7 +536,7 @@ async function draftForLegacyRunner(enrollment, group, fallbackBody) {
       settings,
       business: { name: tenant.name, timeZone: tenant.timeZone },
       contact: { name: enrollment.name, phone: enrollment.phone },
-      history: [],
+      history,
     },
     fallbackBody
   );

@@ -78,6 +78,15 @@ test('AI drafting receives the complete conversation in chronological order', ()
   assert.ok(prompt.indexOf('message-1') < prompt.indexOf('message-25'));
 });
 
+test('AI prompt requires branded, service-specific automation copy', () => {
+  const branded = context();
+  branded.enrollment.metadata = { service_type: 'gutter cleaning' };
+  const prompt = buildAutomationDraftPrompt(branded, 'Alpha Services follow-up for gutter cleaning.');
+  assert.match(prompt, /Service\/request: "gutter cleaning"/);
+  assert.match(prompt, /Identify the business by name/);
+  assert.match(prompt, /Never produce a context-free generic check-in/);
+});
+
 test('the automation worker sends the AI draft through the fenced completion path', async () => {
   const calls = [];
   const workerContext = {

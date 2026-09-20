@@ -22,10 +22,10 @@ export const AUTOMATION_RULE_PRESETS = Object.freeze([
     rule: {
       cadence: 'custom', intervalCount: 1, intervalUnit: 'day', startHour: 9, endHour: 19, aiDraft: true,
       steps: [
-        { template: `Hi {{first_name}}, just checking in on your request. Is there anything I can help clarify? ${optOut}`, delayCount: 1, delayUnit: 'day' },
-        { template: `Hi {{first_name}}, I wanted to make sure you have what you need to move forward. ${optOut}`, delayCount: 2, delayUnit: 'day' },
-        { template: `Hi {{first_name}}, are you still looking for help with your request? ${optOut}`, delayCount: 4, delayUnit: 'day' },
-        { template: `Hi {{first_name}}, this is my final check-in for now. Reach out anytime if we can help. ${optOut}`, delayCount: 7, delayUnit: 'day' },
+        { template: `Hi {{first_name}}, {{business_name}} here about your {{service_name}}. What can we clarify so you have the information you need? ${optOut}`, delayCount: 1, delayUnit: 'day' },
+        { template: `Hi {{first_name}}, following up from {{business_name}} about your {{service_name}}. Do you have questions about scope, timing, or next steps? ${optOut}`, delayCount: 2, delayUnit: 'day' },
+        { template: `Hi {{first_name}}, are you still looking for help from {{business_name}} with your {{service_name}}? Reply with what you need and we will help. ${optOut}`, delayCount: 4, delayUnit: 'day' },
+        { template: `Hi {{first_name}}, final follow-up from {{business_name}} about your {{service_name}} for now. You can reply anytime to pick this back up. ${optOut}`, delayCount: 7, delayUnit: 'day' },
       ],
     },
   },
@@ -37,10 +37,10 @@ export const AUTOMATION_RULE_PRESETS = Object.freeze([
     rule: {
       cadence: 'custom', intervalCount: 1, intervalUnit: 'day', startHour: 9, endHour: 19, aiDraft: true,
       steps: [
-        { template: `Hi {{first_name}}, do you have any questions about your quote? ${optOut}`, delayCount: 1, delayUnit: 'day' },
-        { template: `Hi {{first_name}}, checking whether you'd like help with the next step on your quote. ${optOut}`, delayCount: 2, delayUnit: 'day' },
-        { template: `Hi {{first_name}}, is timing, scope, or something else holding up your decision? ${optOut}`, delayCount: 3, delayUnit: 'day' },
-        { template: `Hi {{first_name}}, I'll close the loop for now. Reply anytime if you'd like to revisit your quote. ${optOut}`, delayCount: 7, delayUnit: 'day' },
+        { template: `Hi {{first_name}}, {{business_name}} here about the quote for your {{service_name}}. What questions can we answer about the estimate? ${optOut}`, delayCount: 1, delayUnit: 'day' },
+        { template: `Hi {{first_name}}, following up from {{business_name}} on your {{service_name}} quote. Would you like help with the next step? ${optOut}`, delayCount: 2, delayUnit: 'day' },
+        { template: `Hi {{first_name}}, is timing, scope, or another concern holding up your {{service_name}} quote with {{business_name}}? ${optOut}`, delayCount: 3, delayUnit: 'day' },
+        { template: `Hi {{first_name}}, final quote follow-up from {{business_name}} about your {{service_name}}. Reply anytime if you would like to revisit it. ${optOut}`, delayCount: 7, delayUnit: 'day' },
       ],
     },
   },
@@ -52,9 +52,9 @@ export const AUTOMATION_RULE_PRESETS = Object.freeze([
     rule: {
       cadence: 'custom', intervalCount: 1, intervalUnit: 'day', startHour: 8, endHour: 20, aiDraft: true,
       steps: [
-        { template: `Hi {{first_name}}, sorry we missed your call. What can we help you with? ${optOut}`, delayCount: 0, delayUnit: 'day' },
-        { template: `Hi {{first_name}}, following up on your call. Is there a good time or way to help? ${optOut}`, delayCount: 1, delayUnit: 'day' },
-        { template: `Hi {{first_name}}, one last check-in after your call. Reply whenever you're ready. ${optOut}`, delayCount: 3, delayUnit: 'day' },
+        { template: `Hi {{first_name}}, {{business_name}} here. Sorry we missed your call about your {{service_name}}. What can we help with? ${optOut}`, delayCount: 0, delayUnit: 'day' },
+        { template: `Hi {{first_name}}, following up from {{business_name}} about your call and {{service_name}}. Is there a good time or way to help? ${optOut}`, delayCount: 1, delayUnit: 'day' },
+        { template: `Hi {{first_name}}, final callback from {{business_name}} about your {{service_name}}. Reply whenever you are ready and we will help. ${optOut}`, delayCount: 3, delayUnit: 'day' },
       ],
     },
   },
@@ -66,8 +66,8 @@ export const AUTOMATION_RULE_PRESETS = Object.freeze([
     rule: {
       cadence: 'custom', intervalCount: 1, intervalUnit: 'day', startHour: 9, endHour: 19, aiDraft: true,
       steps: [
-        { template: `Hi {{first_name}}, thanks for choosing us. How did everything go with your service? ${optOut}`, delayCount: 1, delayUnit: 'day' },
-        { template: `Hi {{first_name}}, just making sure everything was handled to your satisfaction. ${optOut}`, delayCount: 3, delayUnit: 'day' },
+        { template: `Hi {{first_name}}, thanks for choosing {{business_name}} for your {{service_name}}. How did everything go? ${optOut}`, delayCount: 1, delayUnit: 'day' },
+        { template: `Hi {{first_name}}, {{business_name}} checking that your {{service_name}} was completed to your satisfaction. Is there anything we should address? ${optOut}`, delayCount: 3, delayUnit: 'day' },
       ],
     },
   },
@@ -79,8 +79,8 @@ export const AUTOMATION_RULE_PRESETS = Object.freeze([
     rule: {
       cadence: 'weekly', intervalCount: 1, intervalUnit: 'week', startHour: 9, endHour: 19, aiDraft: true,
       steps: [
-        { template: `Hi {{first_name}}, thank you for working with us. Would you be willing to share a quick review? ${optOut}`, delayCount: 1, delayUnit: 'day' },
-        { template: `Hi {{first_name}}, a quick review would mean a lot to us. No worries if now isn't a good time. ${optOut}`, delayCount: 1, delayUnit: 'week' },
+        { template: `Hi {{first_name}}, thank you for choosing {{business_name}} for your {{service_name}}. Would you be willing to share a quick review? ${optOut}`, delayCount: 1, delayUnit: 'day' },
+        { template: `Hi {{first_name}}, a review of your {{service_name}} experience would mean a lot to the {{business_name}} team. No worries if now is not a good time. ${optOut}`, delayCount: 1, delayUnit: 'week' },
       ],
     },
   },
@@ -92,9 +92,9 @@ export const AUTOMATION_RULE_PRESETS = Object.freeze([
     rule: {
       cadence: 'custom', intervalCount: 2, intervalUnit: 'week', startHour: 9, endHour: 19, aiDraft: true,
       steps: [
-        { template: `Hi {{first_name}}, it's been a while. Is there anything we can help you with? ${optOut}`, delayCount: 2, delayUnit: 'week' },
-        { template: `Hi {{first_name}}, checking in to see whether you have any upcoming service needs. ${optOut}`, delayCount: 4, delayUnit: 'week' },
-        { template: `Hi {{first_name}}, we're here whenever you need us. ${optOut}`, delayCount: 4, delayUnit: 'week' },
+        { template: `Hi {{first_name}}, {{business_name}} here. Do you need any more help with your {{service_name}} or a related project? ${optOut}`, delayCount: 2, delayUnit: 'week' },
+        { template: `Hi {{first_name}}, checking in from {{business_name}} about your previous {{service_name}}. Do you have another project coming up? ${optOut}`, delayCount: 4, delayUnit: 'week' },
+        { template: `Hi {{first_name}}, the {{business_name}} team is here whenever you need help with your {{service_name}} or another service request. ${optOut}`, delayCount: 4, delayUnit: 'week' },
       ],
     },
   },
@@ -106,9 +106,9 @@ export const AUTOMATION_RULE_PRESETS = Object.freeze([
     rule: {
       cadence: 'monthly', intervalCount: 1, intervalUnit: 'month', startHour: 9, endHour: 19, aiDraft: true,
       steps: [
-        { template: `Hi {{first_name}}, checking in to see whether your plans have changed or you need any help. ${optOut}`, delayCount: 1, delayUnit: 'month' },
-        { template: `Hi {{first_name}}, is your project still on the horizon? We're happy to answer questions. ${optOut}`, delayCount: 1, delayUnit: 'month' },
-        { template: `Hi {{first_name}}, we're available whenever the timing is right for you. ${optOut}`, delayCount: 1, delayUnit: 'month' },
+        { template: `Hi {{first_name}}, {{business_name}} checking in about your {{service_name}}. Have your plans changed, or can we answer anything? ${optOut}`, delayCount: 1, delayUnit: 'month' },
+        { template: `Hi {{first_name}}, is your {{service_name}} still on the horizon? The {{business_name}} team is happy to answer questions about scope or timing. ${optOut}`, delayCount: 1, delayUnit: 'month' },
+        { template: `Hi {{first_name}}, {{business_name}} is available whenever the timing is right for your {{service_name}}. Reply if you would like to restart the conversation. ${optOut}`, delayCount: 1, delayUnit: 'month' },
       ],
     },
   },

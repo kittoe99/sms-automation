@@ -24,7 +24,7 @@ export const QUOTE_REQUESTS_SEQUENCE = {
       label: 'Day 1 — 1 SMS, 24h after enroll',
       delayMs: 1 * DAY,
       template:
-        'Hi {{first_name}} — Opek here. Your estimate is {{quoted_price}}. Want help choosing a pickup day? Reply here or book at https://opekjunkremoval.com/booking Reply STOP to opt out.',
+        'Hi {{first_name}}, {{business_name}} here about your {{service_name}} quote. Your estimate is {{quoted_price}}. Want help choosing a service day? Reply STOP to opt out.',
     },
     {
       index: 1,
@@ -32,7 +32,7 @@ export const QUOTE_REQUESTS_SEQUENCE = {
       label: 'Day 2 — 1 SMS, 24h after previous',
       delayMs: 1 * DAY,
       template:
-        'Hi {{first_name}}, any questions about your {{quoted_price}} estimate? Reply with the items, timing, or access details you want us to review. Reply STOP to opt out.',
+        'Hi {{first_name}}, {{business_name}} checking in on your {{service_name}} estimate of {{quoted_price}}. Any questions about scope, timing, or access? Reply STOP to opt out.',
     },
     {
       index: 2,
@@ -40,7 +40,7 @@ export const QUOTE_REQUESTS_SEQUENCE = {
       label: 'Day 3 — 1 SMS, 24h after previous',
       delayMs: 1 * DAY,
       template:
-        'Opek follow-up: if you would like to move ahead with the {{quoted_price}} estimate, send a preferred day and time window or book online: https://opekjunkremoval.com/booking Reply STOP to opt out.',
+        '{{business_name}} follow-up: if you want to move ahead with your {{service_name}} estimate of {{quoted_price}}, send a preferred day and time window. Reply STOP to opt out.',
     },
     {
       index: 3,
@@ -48,7 +48,7 @@ export const QUOTE_REQUESTS_SEQUENCE = {
       label: '1 SMS, 48h after Day 3',
       delayMs: 2 * DAY,
       template:
-        'Hi {{first_name}}, are you still planning this project? Your Opek estimate is {{quoted_price}}. Reply with a date if you want us to help schedule it. Reply STOP to opt out.',
+        'Hi {{first_name}}, are you still planning your {{service_name}}? Your {{business_name}} estimate is {{quoted_price}}. Reply with a date if you want scheduling help. Reply STOP to opt out.',
     },
     {
       index: 4,
@@ -56,7 +56,7 @@ export const QUOTE_REQUESTS_SEQUENCE = {
       label: '1 SMS, 48h after previous',
       delayMs: 2 * DAY,
       template:
-        'Checking in from Opek — if your plans or item list changed, reply and we can update the {{quoted_price}} estimate before you book. Reply STOP to opt out.',
+        'Checking in from {{business_name}} about your {{service_name}}. If the details changed, reply and we can review the {{quoted_price}} estimate. Reply STOP to opt out.',
     },
     {
       index: 5,
@@ -64,7 +64,7 @@ export const QUOTE_REQUESTS_SEQUENCE = {
       label: 'Final — 1 SMS, 7 days after previous',
       delayMs: 7 * DAY,
       template:
-        'Final follow-up from Opek: your estimate is {{quoted_price}}. We will close this reminder sequence, but you can reply anytime or book at https://opekjunkremoval.com/booking Reply STOP to opt out.',
+        'Final follow-up from {{business_name}} about your {{service_name}} estimate of {{quoted_price}}. We will close this sequence, but you can reply anytime. Reply STOP to opt out.',
     },
   ],
 };
@@ -80,9 +80,11 @@ export function renderTemplate(template, vars = {}) {
     phone: clean(vars.phone) || '',
     quoted_price:
       formatQuotedPrice(vars.quoted_price, vars.service_type) || 'the estimate we sent you',
+    business_name: clean(vars.business_name) || 'our team',
+    service_name: clean(vars.service_name) || clean(vars.service_type) || 'service request',
   };
   return String(template || '').replace(
-    /\{\{\s*(name|first_name|phone|quoted_price)\s*\}\}/gi,
+    /\{\{\s*(name|first_name|phone|quoted_price|business_name|service_name)\s*\}\}/gi,
     (_, key) => map[String(key).toLowerCase()] ?? ''
   );
 }

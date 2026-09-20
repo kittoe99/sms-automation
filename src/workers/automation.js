@@ -13,8 +13,11 @@ export function calendarDelay(value, count, unit, timeZone) {
   return zonedDateTimeToUtc({ y: date.getUTCFullYear(), m: date.getUTCMonth()+1, d: date.getUTCDate(), hour:p.hour, minute:p.minute }, timeZone);
 }
 export function renderBusinessTemplate(template, { contact, business, enrollment }) {
-  const vars = { ...enrollment.metadata, name:contact.name || 'there', first_name:contact.name?.split(/\s+/)[0] || 'there', phone:contact.phone,
-    business_name:business.name, appointment_date:enrollment.appointment_at ? new Date(enrollment.appointment_at).toLocaleString('en-US',{timeZone:business.time_zone}) : '' };
+  const metadata = enrollment.metadata || {};
+  const serviceName = metadata.service_name || metadata.service_type || metadata.serviceType || metadata.service || metadata.request_type || 'service request';
+  const vars = { ...metadata, name:contact.name || 'there', first_name:contact.name?.split(/\s+/)[0] || 'there', phone:contact.phone,
+    business_name:business.name || 'our team', service_name:serviceName,
+    appointment_date:enrollment.appointment_at ? new Date(enrollment.appointment_at).toLocaleString('en-US',{timeZone:business.time_zone}) : '' };
   const body = String(template).replace(/\{\{#(\w+)\}\}([\s\S]*?)\{\{\/\1\}\}/g,(_,k,s)=>vars[k] ? s : '')
     .replace(/\{\{\s*(\w+)\s*\}\}/g,(_,k)=>String(vars[k] ?? '')).trim();
   if (!body || body.length > 1600) throw new Error('Rendered message must contain 1–1600 characters');

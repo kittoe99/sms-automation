@@ -1520,7 +1520,7 @@ function automationBuilderHtml(group = null) {
     intervalUnit: 'day',
     repeatCount: 3,
     aiDraft: true,
-    template: 'Hi {{first_name}}, this is a quick follow-up. Reply STOP to opt out.',
+    template: 'Hi {{first_name}}, {{business_name}} here about your {{service_name}}. How can we help with the next step? Reply STOP to opt out.',
     startHour: 9,
     endHour: 19,
     firstSendAt: null,
@@ -1738,7 +1738,7 @@ function bindAutomationBuilder(group = null) {
         id: `send-${rows.length + 1}`,
         delayCount,
         delayUnit,
-        template: rows.at(-1)?.template || 'Hi {{first_name}}, this is a quick follow-up. Reply STOP to opt out.',
+        template: rows.at(-1)?.template || 'Hi {{first_name}}, {{business_name}} here about your {{service_name}}. How can we help with the next step? Reply STOP to opt out.',
       });
     }
     rows.length = desired;
