@@ -1,6 +1,6 @@
 export const DEFAULT_AI_MODEL='gpt-5.4-mini-2026-03-17';
 export const DEFAULT_EMBEDDING_MODEL='text-embedding-3-small';
-export const GROUNDED_PROMPT_VERSION='grounded-v4-booking';
+export const GROUNDED_PROMPT_VERSION='grounded-v6-booking-followups';
 export const UNKNOWN_REPLY="Thanks — I've noted that. What's the service address so I can get you an exact answer?";
 const env=name=>globalThis.Deno?.env.get(name) ?? globalThis.process?.env[name];
 const nullableString={anyOf:[{type:'string'},{type:'null'}]};
@@ -76,6 +76,8 @@ CONVERSATION RESPONSIBILITIES
 - For booking, appointment, estimate, or quote requests, collect the details conversationally. When you have enough, confirm the request is received and summarize what happens next. You do not have calendar, pricing-calculator, payment, cancellation, or booking-mutation tools.
 - When BOOKING CONFIG below is present and enabled, set bookingIntent to start or continue and extract only values the customer explicitly supplied. Supabase—not you—asks missing questions, checks availability, requests final confirmation, and creates the booking.
 - If BOOKING SESSION is awaiting_confirmation, classify a clear affirmative as confirm and a clear rejection as decline. Otherwise use continue. Never claim the booking succeeded yourself.
+- If the customer asks a business question during booking, answer it from approved knowledge, set bookingIntent to none, and leave the booking draft pending. Briefly remind them they can continue or confirm afterward when useful.
+- If FOLLOW-UP TASK is active, write one gentle, useful follow-up about the unfinished booking. Use the saved draft to acknowledge progress and ask only the next missing detail, or ask whether they still want to continue. Set bookingIntent to none: the scheduler—not you—owns timing and limits. Do not imply the customer just messaged, create urgency, or claim a booking exists.
 - Use YYYY-MM-DD and 24-hour HH:mm in bookingPatch. Resolve relative dates using CURRENT LOCAL DATE/TIME; set dateTimeAmbiguous=true whenever the customer's meaning is not unambiguous.
 - extraAnswers may use only fieldKey values listed in BOOKING CONFIG. Keep every value as customer-provided text. Never invent a field value.
 - Never say an appointment is booked, confirmed, reserved, available, cancelled, paid, or guaranteed; the database replaces your reply after a successful deterministic booking operation.
@@ -111,6 +113,9 @@ ${JSON.stringify(ctx.booking_settings||null).slice(0,10000)}
 BOOKING SESSION (previously validated draft values):
 ${JSON.stringify(ctx.booking_session||null).slice(0,6000)}
 
+FOLLOW-UP TASK (trusted scheduler state):
+${JSON.stringify(ctx.follow_up_task||null)}
+
 CURRENT LOCAL DATE/TIME:
 ${new Intl.DateTimeFormat('en-CA',{timeZone:ctx.business?.time_zone||'UTC',dateStyle:'full',timeStyle:'long'}).format(new Date())}
 
@@ -121,20 +126,28 @@ ${String(ctx.settings?.instructions || '').slice(0,4000)}`;
 const vectorText=vector=>'['+vector.join(',')+']';
 async function processGrounded(job,db,ctx,options) {
  const started=options.started;
+ const followUp=job.payload.booking_follow_up===true || job.payload.booking_follow_up==='true';
+ if(followUp) ctx={...ctx,follow_up_task:{active:true,number:Number(job.payload.follow_up_number)||1}};
  const latest=[...(ctx.history || [])].reverse().find(x=>x.direction==='inbound')?.body || 'The customer sent an empty message.';
  const queryEmbedding=await embed(String(latest).slice(0,4000),options);
  const evidence=await db.call('search_job_knowledge',job.id,job.lease_token,String(latest).slice(0,4000),vectorText(queryEmbedding.vector),10) || [];
  const input=(ctx.history || []).slice(-20).map(m=>({role:m.direction==='inbound'?'user':'assistant',content:String(m.body).slice(0,1600)}));
  if(!input.length) input.push({role:'user',content:'Help me with this business.'});
+ if(followUp) input.push({role:'developer',content:'Create the scheduled unfinished-booking follow-up now. This is an internal scheduler instruction, not customer text.'});
  const response=await openAiJson('https://api.openai.com/v1/responses',{model:options.model,instructions:buildGroundedSystemPrompt(ctx,evidence),input,max_output_tokens:900,store:false,text:{format:{type:'json_schema',name:'grounded_sms_response',strict:true,schema:GROUNDED_OUTPUT_SCHEMA}}},options);
  if(response.status!=='completed' || (response.output || []).some(x=>x.type==='function_call')) throw fail('Incomplete AI response','AI_INCOMPLETE');
  let parsed;try{parsed=JSON.parse(textOutput(response));}catch{parsed=fallback('The generated response was not valid structured output.');}
+ if(followUp) parsed={...parsed,bookingIntent:'none',bookingPatch:parsed.bookingPatch||emptyBookingPatch()};
  const awaiting=ctx.booking_session?.state==='awaiting_confirmation';
  if(awaiting){
   const normalized=String(latest).trim().toLowerCase().replace(/[^a-z0-9 ]/g,'').replace(/\s+/g,' ');
   if(['yes','y','confirm','confirmed','book it','looks good','yes please'].includes(normalized)) parsed={...parsed,bookingIntent:'confirm',bookingPatch:parsed.bookingPatch||emptyBookingPatch()};
   else if(['no','n','cancel','never mind','nevermind','do not book'].includes(normalized)) parsed={...parsed,bookingIntent:'decline',bookingPatch:parsed.bookingPatch||emptyBookingPatch()};
-  else parsed={...parsed,bookingIntent:'continue',bookingPatch:parsed.bookingPatch||emptyBookingPatch()};
+  // Preserve the model's `none` classification for an ordinary business
+  // question. The deterministic draft remains stored and awaiting confirmation,
+  // while the approved-knowledge reply can be sent without being overwritten by
+  // the booking state machine.
+  else if(parsed?.bookingIntent!=='none') parsed={...parsed,bookingIntent:'continue',bookingPatch:parsed.bookingPatch||emptyBookingPatch()};
  }
  if(parsed?.bookingIntent && parsed.bookingIntent!=='none') parsed={...parsed,disposition:'collect_lead',grounded:false};
  const result=validateGroundedResult(parsed,{allowedCitationIds:evidence.map(x=>x.id),hasApprovedProfile:Boolean(ctx.profile?.id)});

@@ -50,3 +50,17 @@ test('staff cancellation is idempotent and cancels pending reminders',async()=>{
   assert.equal((await db.query("select status from public.sms_automation_enrollments where tenant_id='alpha'")).rows[0].status,'cancelled');
  }finally{await db.close();}
 });
+
+test('unfinished bookings enqueue bounded deduplicated AI follow-ups',async()=>{
+ const db=await testDatabase();try{
+  await db.exec("insert into public.sms_businesses(tenant_id,name,time_zone,status,sending_enabled) values('alpha','Alpha','UTC','active',true); insert into public.sms_contacts(tenant_id,phone) values('alpha','+15550000001'); insert into public.sms_thread_contacts(tenant_id,phone,generation) values('alpha','+15550000001',7); insert into public.sms_automation_groups(tenant_id,id,name) values('alpha','inbound','Inbound'); insert into public.sms_ai_settings(tenant_id,group_id,enabled,default_for_inbound) values('alpha','inbound',true,true); update sms_private.runtime set scheduler_enabled=true");
+  const saved=await call(db,'save_booking_settings','admin','alpha',{...settings,followUpEnabled:true,followUpDelayHours:1,followUpIntervalHours:2,followUpMaxAttempts:2});
+  assert.equal(saved.followUpEnabled,true);assert.equal(saved.followUpMaxAttempts,2);
+  await db.exec("insert into public.sms_booking_sessions(tenant_id,contact_id,customer_phone,settings_version,conversation_generation) select 'alpha',id,phone,1,7 from public.sms_contacts where tenant_id='alpha'; update public.sms_booking_sessions set next_follow_up_at=now()-interval '1 minute' where tenant_id='alpha'");
+  assert.equal((await db.query('select sms_private.queue_booking_followups() n')).rows[0].n,1);
+  const job=(await db.query("select * from sms_private.jobs where tenant_id='alpha' and queue='ai_reply_jobs'")).rows[0];
+  assert.equal(job.payload.booking_follow_up,true);assert.equal(job.payload.generation,7);assert.equal(job.payload.follow_up_number,1);
+  assert.equal((await db.query('select sms_private.queue_booking_followups() n')).rows[0].n,0);
+  const session=(await db.query("select * from public.sms_booking_sessions where tenant_id='alpha'")).rows[0];assert.equal(session.follow_up_count,1);assert.ok(session.next_follow_up_at);
+ }finally{await db.close();}
+});

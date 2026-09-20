@@ -9,7 +9,7 @@ const base={reply:'We are open Monday through Friday.',disposition:'answered',gr
 
 test('system prompt covers inbound support, follow-ups, and safe booking intake',()=>{
  const prompt=buildGroundedSystemPrompt({business:{name:'Acme'},profile:{facts:{bookingRules:'Collect service, address, and preferred date.'}},contact:{name:'Alex'},open_lead:{fields:{service:'Repair'}},settings:{instructions:'Friendly and brief.'}},[]);
- assert.equal(GROUNDED_PROMPT_VERSION,'grounded-v4-booking');
+ assert.equal(GROUNDED_PROMPT_VERSION,'grounded-v6-booking-followups');
  assert.match(prompt,/inbound and follow-up SMS assistant/i);
  assert.match(prompt,/booking, appointment, estimate, or quote requests/i);
   assert.match(prompt,/collect_lead/);
@@ -25,6 +25,31 @@ test('booking extraction remains structured and clear confirmation is classified
  const db={call:async(name,...args)=>{calls.push([name,...args]);if(name==='job_context')return {settings:{enabled:true,grounded_enabled:true},thread:{generation:4},contact:{},business:{name:'Acme',time_zone:'UTC'},profile:{id:'profile-1',facts:{}},booking_settings:{enabled:true,extra_fields:[]},booking_session:{state:'awaiting_confirmation'},history:[{direction:'inbound',body:'YES'}]};if(name==='search_job_knowledge')return [];if(name==='complete_grounded_ai')return args[2];}};
  const result=await processAi({id:'job',lease_token:'lease',payload:{generation:4}},db,{apiKey:'test',fetchImpl:async(url)=>url.endsWith('/embeddings')?Response.json({data:[{embedding:vector}]}):output({...base,disposition:'collect_lead',grounded:false,citationIds:[],bookingIntent:'none',bookingPatch:{name:null,address:null,localDate:null,localTime:null,dateTimeAmbiguous:false,extraAnswers:[]}})});
  assert.equal(result.bookingIntent,'confirm');assert.deepEqual(result.bookingPatch.extraAnswers,[]);assert.equal(calls.at(-1)[0],'complete_grounded_ai');
+});
+
+test('business questions are answered while a booking awaits confirmation without consuming the draft',async()=>{
+ const db={call:async(name,...args)=>{
+  if(name==='job_context')return {settings:{enabled:true,grounded_enabled:true},thread:{generation:5},contact:{},business:{name:'Acme',time_zone:'UTC'},profile:{id:'profile-1',facts:{insured:true}},booking_settings:{enabled:true,extra_fields:[]},booking_session:{state:'awaiting_confirmation'},history:[{direction:'inbound',body:'Are you insured?'}]};
+  if(name==='search_job_knowledge')return [];
+  if(name==='complete_grounded_ai')return args[2];
+ }};
+ const result=await processAi({id:'job',lease_token:'lease',payload:{generation:5}},db,{apiKey:'test',fetchImpl:async(url)=>url.endsWith('/embeddings')?Response.json({data:[{embedding:vector}]}):output({...base,reply:'Yes, we are insured. Reply YES when you are ready to book.',citationIds:[],bookingIntent:'none',bookingPatch:{name:null,address:null,localDate:null,localTime:null,dateTimeAmbiguous:false,extraAnswers:[]}})});
+ assert.equal(result.disposition,'answered');
+ assert.equal(result.bookingIntent,'none');
+ assert.match(result.reply,/insured/i);
+});
+
+test('scheduled booking follow-up is AI-written but cannot mutate the booking draft',async()=>{
+ let request;
+ const db={call:async(name,...args)=>{
+  if(name==='job_context')return {settings:{enabled:true,grounded_enabled:true},thread:{generation:6},contact:{},business:{name:'Acme',time_zone:'UTC'},profile:{id:'profile-1',facts:{}},booking_settings:{enabled:true},booking_session:{state:'collecting',customer_name:'Alex',service_address:null},history:[{direction:'inbound',body:'I am not ready yet'}]};
+  if(name==='search_job_knowledge')return [];
+  if(name==='complete_grounded_ai')return args[2];
+ }};
+ const result=await processAi({id:'job',lease_token:'lease',payload:{generation:6,booking_follow_up:true,follow_up_number:1}},db,{apiKey:'test',fetchImpl:async(url,options)=>{if(url.endsWith('/embeddings'))return Response.json({data:[{embedding:vector}]});request=JSON.parse(options.body);return output({...base,reply:'Hi Alex, would you still like to finish your booking? What service address should we use?',disposition:'collect_lead',grounded:false,citationIds:[],bookingIntent:'continue',bookingPatch:{name:null,address:null,localDate:null,localTime:null,dateTimeAmbiguous:false,extraAnswers:[]}});}});
+ assert.equal(result.bookingIntent,'none');
+ assert.equal(request.input.at(-1).role,'developer');
+ assert.match(request.instructions,/FOLLOW-UP TASK/);
 });
 
 test('grounded AI embeds, retrieves approved tenant evidence, uses strict output, and stores citations',async()=>{
