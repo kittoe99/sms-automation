@@ -44,6 +44,9 @@ export function createCrmHandler(db,verify=authenticate) {
     if(path==='/knowledge'||path==='/crm') return json(await db.call('knowledge_overview',user,tenant),200,headers);
     if(path==='/twilio/registration') return json(await db.call('twilio_registration',user,tenant),200,headers);
     if(path==='/twilio/readiness') return json(await db.call('activation_readiness',user,tenant),200,headers);
+    if(path==='/booking-settings') return json(await db.call('booking_settings',user,tenant),200,headers);
+    if(path==='/bookings') return json(await db.call('list_bookings',user,tenant,params),200,headers);
+    const bookingDetail=path.match(/^\/bookings\/([^/]+)$/);if(bookingDetail)return json({booking:await db.call('booking_detail',user,tenant,decodeURIComponent(bookingDetail[1]))},200,headers);
     if(path==='/categories'||path==='/automation-groups') {
      const [data,ai]=await Promise.all([read('groups',{pageSize:250}),read('ai_settings',{pageSize:250})]);
      const groups=data.rows.map(g=>{const setting=ai.rows.find(a=>a.group_id===g.id);return {...group(g),ai:setting?{...setting,defaultForInbound:Boolean(setting.default_for_inbound)}:{enabled:false,instructions:'',defaultForInbound:false}}});return json({categories:groups,groups},200,headers);
@@ -106,6 +109,8 @@ export function createCrmHandler(db,verify=authenticate) {
     const retry=path.match(/^\/jobs\/([^/]+)\/retry$/);if(retry) return json(await write('retry_job',{id:retry[1]}),202,headers);
     if(path==='/provisioning/details') return json(await db.call('save_provider_setup',user,tenant,p),200,headers);
     if(path==='/onboarding') return json(await db.call('save_business_profile',user,tenant,p),200,headers);
+    if(path==='/booking-settings'&&method==='PUT') return json(await db.call('save_booking_settings',user,tenant,p),200,headers);
+    const bookingCancel=path.match(/^\/bookings\/([^/]+)\/cancel$/);if(bookingCancel)return json({booking:await db.call('cancel_booking',user,tenant,decodeURIComponent(bookingCancel[1]),request.headers.get('Idempotency-Key')||p.idempotencyKey||'')},200,headers);
     if(path==='/profile-versions') return json(await db.call('save_profile_version',user,tenant,p,false),201,headers);
     const profileApproval=path.match(/^\/profile-versions\/([^/]+)\/approve$/);if(profileApproval)return json(await db.call('approve_profile_version',user,tenant,profileApproval[1]),200,headers);
     if(path==='/knowledge/uploads/sign') return json(await signedKnowledgeUpload(tenant,p),201,headers);

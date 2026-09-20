@@ -35,6 +35,8 @@ const state = {
   automationBuilderOpen: false,
   aiBuilderOpen: false,
   businessContextDraft: null,
+  bookingSettingsDraft: null,
+  bookingStatus: '',
 };
 
 const el = {
@@ -166,6 +168,44 @@ function writeLocalOnboarding(data) {
   } catch {
     // Private browsing etc. must not block onboarding.
   }
+}
+
+const bookingDays=['Sunday','Monday','Tuesday','Wednesday','Thursday','Friday','Saturday'];
+const defaultBookingSettings=()=>({enabled:false,version:0,slotDurationMinutes:60,capacityPerSlot:1,minimumNoticeMinutes:120,maximumAdvanceDays:90,weeklyAvailability:{0:[],1:[],2:[],3:[],4:[],5:[],6:[]},dateExceptions:[],extraFields:[]});
+const bookingKey=value=>String(value||'').trim().toLowerCase().replace(/[^a-z0-9]+/g,'_').replace(/^_|_$/g,'').slice(0,40);
+
+async function renderBookingSetup(){
+ setTitle(...titles['booking-setup']);el.kpi.innerHTML='';el.pager.hidden=true;
+ if(!state.bookingSettingsDraft){const response=await apiFetch('/api/booking-settings'),data=await response.json();if(!response.ok)throw new Error(data.error||'Could not load booking settings');state.bookingSettingsDraft={...defaultBookingSettings(),...data};}
+ const draft=state.bookingSettingsDraft;
+ const draw=()=>{
+  const weekly=bookingDays.map((day,index)=>{const window=draft.weeklyAvailability?.[index]?.[0]||{};return `<div class="booking-window"><label><input type="checkbox" data-day-enabled="${index}" ${window.start?'checked':''}/> ${day}</label><input type="time" data-day-start="${index}" value="${esc(window.start||'09:00')}" ${window.start?'':'disabled'}/><span>to</span><input type="time" data-day-end="${index}" value="${esc(window.end||'17:00')}" ${window.start?'':'disabled'}/></div>`;}).join('');
+  const exceptions=(draft.dateExceptions||[]).map((x,index)=>`<div class="booking-config-row" data-exception-row="${index}"><input type="date" value="${esc(x.date||'')}" data-exception-date/><label><input type="checkbox" data-exception-closed ${x.closed?'checked':''}/> Closed</label><input type="time" data-exception-start value="${esc(x.windows?.[0]?.start||'09:00')}" ${x.closed?'disabled':''}/><span>to</span><input type="time" data-exception-end value="${esc(x.windows?.[0]?.end||'17:00')}" ${x.closed?'disabled':''}/><button type="button" class="btn ghost" data-remove-exception="${index}">Remove</button></div>`).join('');
+  const fields=(draft.extraFields||[]).map((f,index)=>`<div class="booking-field-row" data-field-row="${index}"><span class="drag-hint">${index+1}</span><input data-field-question maxlength="240" placeholder="Question to ask" value="${esc(f.question||'')}"/><input data-field-key maxlength="40" placeholder="field_key" value="${esc(f.key||'')}"/><select data-field-type><option value="short_text">Short text</option><option value="long_text">Long text</option><option value="number">Number</option><option value="boolean">Yes / no</option><option value="single_select">Single select</option></select><label><input type="checkbox" data-field-required ${f.required?'checked':''}/> Required</label><input data-field-options placeholder="Options, comma separated" value="${esc((f.options||[]).join(', '))}" ${f.type==='single_select'?'':'hidden'}/><button type="button" class="btn ghost" data-remove-field="${index}">Remove</button></div>`).join('');
+  el.root.innerHTML=`<form id="booking-settings-form" class="setup-page" data-dirty="${draft._dirty?'true':'false'}"><section class="card setup-hero"><div><span class="eyebrow">Deterministic SMS booking</span><h2>Let customers book from a text.</h2><p class="muted">The AI collects values; Supabase checks the slot and creates the booking only after the customer replies YES.</p></div><label class="setup-radio"><input id="booking-enabled" type="checkbox" ${draft.enabled?'checked':''}/><span><strong>Enable booking by SMS</strong><small>Existing inbound answers continue normally when disabled.</small></span></label></section><div class="setup-layout"><div class="setup-main"><section class="card"><div class="card-head"><h2>Availability</h2></div><div class="setup-body"><div class="automation-form-grid"><label>Slot length (minutes)<input id="booking-duration" type="number" min="15" max="480" value="${esc(draft.slotDurationMinutes)}"/></label><label>Capacity per slot<input id="booking-capacity" type="number" min="1" max="100" value="${esc(draft.capacityPerSlot)}"/></label><label>Minimum notice (minutes)<input id="booking-notice" type="number" min="0" max="43200" value="${esc(draft.minimumNoticeMinutes)}"/></label><label>Maximum advance (days)<input id="booking-advance" type="number" min="1" max="730" value="${esc(draft.maximumAdvanceDays)}"/></label></div><div class="booking-windows">${weekly}</div></div></section><section class="card"><div class="card-head"><h2>Date exceptions</h2><button type="button" class="btn ghost" id="add-booking-exception">Add date</button></div><div class="setup-body" id="booking-exceptions">${exceptions||'<p class="muted">No closures or custom-date hours.</p>'}</div></section><section class="card"><div class="card-head"><div><h2>Extra questions</h2><span class="muted">Name, phone, address, date, and time are always collected.</span></div><button type="button" class="btn ghost" id="add-booking-field">Add question</button></div><div class="setup-body" id="booking-fields">${fields||'<p class="muted">No additional questions.</p>'}</div></section><div class="compose-actions"><span id="booking-settings-error" class="login-error" role="alert"></span><span id="booking-settings-saved" class="muted"></span><button class="btn" type="submit">Save booking setup</button></div></div><aside class="setup-side"><div class="card setup-card"><div class="card-head"><h2>How confirmation works</h2></div><div class="setup-body"><ol class="setup-help-list"><li>The assistant asks one missing question at a time.</li><li>The database validates the requested slot.</li><li>The customer receives a summary and replies YES.</li><li>The slot is checked again and booked atomically.</li></ol><p class="muted">Configuration version ${esc(draft.version||'new')}</p></div></div></aside></div></form>`;
+  el.root.querySelectorAll('[data-field-type]').forEach((select,index)=>{select.value=draft.extraFields[index]?.type||'short_text';select.addEventListener('change',()=>{select.closest('[data-field-row]').querySelector('[data-field-options]').hidden=select.value!=='single_select';mark();});});
+  const mark=()=>{draft._dirty=true;el.root.querySelector('#booking-settings-form')?.setAttribute('data-dirty','true');};
+  const sync=()=>{draft.enabled=el.root.querySelector('#booking-enabled').checked;draft.slotDurationMinutes=Number(el.root.querySelector('#booking-duration').value);draft.capacityPerSlot=Number(el.root.querySelector('#booking-capacity').value);draft.minimumNoticeMinutes=Number(el.root.querySelector('#booking-notice').value);draft.maximumAdvanceDays=Number(el.root.querySelector('#booking-advance').value);draft.weeklyAvailability={};bookingDays.forEach((_,i)=>{const on=el.root.querySelector(`[data-day-enabled="${i}"]`).checked;draft.weeklyAvailability[i]=on?[{start:el.root.querySelector(`[data-day-start="${i}"]`).value,end:el.root.querySelector(`[data-day-end="${i}"]`).value}]:[];});draft.dateExceptions=[...el.root.querySelectorAll('[data-exception-row]')].map(row=>{const closed=row.querySelector('[data-exception-closed]').checked;return {date:row.querySelector('[data-exception-date]').value,closed,windows:closed?[]:[{start:row.querySelector('[data-exception-start]').value,end:row.querySelector('[data-exception-end]').value}]};});draft.extraFields=[...el.root.querySelectorAll('[data-field-row]')].map(row=>{const question=row.querySelector('[data-field-question]').value.trim(),type=row.querySelector('[data-field-type]').value;return {key:bookingKey(row.querySelector('[data-field-key]').value||question),question,type,required:row.querySelector('[data-field-required]').checked,options:type==='single_select'?row.querySelector('[data-field-options]').value.split(',').map(x=>x.trim()).filter(Boolean):[]};});};
+  el.root.querySelectorAll('input,select').forEach(input=>input.addEventListener('input',()=>{sync();mark();}));
+  el.root.querySelectorAll('[data-day-enabled]').forEach(box=>box.addEventListener('change',()=>{const i=box.dataset.dayEnabled;el.root.querySelector(`[data-day-start="${i}"]`).disabled=!box.checked;el.root.querySelector(`[data-day-end="${i}"]`).disabled=!box.checked;}));
+  el.root.querySelectorAll('[data-exception-closed]').forEach(box=>box.addEventListener('change',()=>box.closest('[data-exception-row]').querySelectorAll('[type="time"]').forEach(x=>x.disabled=box.checked)));
+  el.root.querySelector('#add-booking-exception')?.addEventListener('click',()=>{sync();draft.dateExceptions.push({date:'',closed:true,windows:[]});mark();draw();});
+  el.root.querySelector('#add-booking-field')?.addEventListener('click',()=>{sync();draft.extraFields.push({key:'',question:'',type:'short_text',required:false,options:[]});mark();draw();});
+  el.root.querySelectorAll('[data-remove-exception]').forEach(button=>button.addEventListener('click',()=>{sync();draft.dateExceptions.splice(Number(button.dataset.removeException),1);mark();draw();}));
+  el.root.querySelectorAll('[data-remove-field]').forEach(button=>button.addEventListener('click',()=>{sync();draft.extraFields.splice(Number(button.dataset.removeField),1);mark();draw();}));
+  el.root.querySelector('#booking-settings-form')?.addEventListener('submit',async event=>{event.preventDefault();sync();const error=el.root.querySelector('#booking-settings-error'),saved=el.root.querySelector('#booking-settings-saved'),button=event.currentTarget.querySelector('[type="submit"]');error.textContent='';saved.textContent='';button.disabled=true;try{const payload={...draft};delete payload._dirty;delete payload.version;const response=await apiFetch('/api/booking-settings',{method:'PUT',body:JSON.stringify(payload)}),data=await response.json();if(!response.ok)throw new Error(data.error||'Could not save booking setup');state.bookingSettingsDraft={...defaultBookingSettings(),...data};saved.textContent='Saved';draw();}catch(failure){error.textContent=failure.message;button.disabled=false;mark();}});
+ };
+ draw();
+}
+
+async function renderBookings(){
+ setTitle(...titles.bookings);el.kpi.innerHTML='';el.pager.hidden=false;el.status.hidden=true;el.search.placeholder='Search name, phone, or address…';
+ const params=new URLSearchParams({page:String(state.page),pageSize:String(state.pageSize)});if(state.q)params.set('q',state.q);if(state.bookingStatus)params.set('status',state.bookingStatus);
+ const response=await apiFetch(`/api/bookings?${params}`),data=await response.json();if(!response.ok)throw new Error(data.error||'Could not load bookings');state.totalPages=data.totalPages||1;renderPager(data);
+ const rows=(data.bookings||[]).map(b=>`<tr data-booking-id="${esc(b.id)}"><td><strong>${esc(b.customer_name||'—')}</strong><br><span class="muted">${esc(b.customer_phone||b.contact_phone||'')}</span></td><td>${esc(fmtTime(b.appointment_at))}</td><td>${esc(b.service_address||'—')}</td><td><span class="status ${esc(b.status)}">${esc(b.status)}</span></td><td>${esc(b.source||'—')}</td></tr>`).join('');
+ el.root.innerHTML=`<section class="card"><div class="card-head"><div><h2>Appointments</h2><span class="muted">${fmt(data.total)} booking${Number(data.total)===1?'':'s'}</span></div><select id="booking-status-filter"><option value="">All statuses</option><option value="confirmed">Confirmed</option><option value="cancelled">Cancelled</option><option value="requested">Requested</option></select></div><div class="table-scroll"><table class="data"><thead><tr><th>Customer</th><th>Date and time</th><th>Address</th><th>Status</th><th>Source</th></tr></thead><tbody>${rows||'<tr><td colspan="5" class="empty">No bookings yet.</td></tr>'}</tbody></table></div></section>`;
+ const filter=el.root.querySelector('#booking-status-filter');filter.value=state.bookingStatus;filter.addEventListener('change',()=>{state.bookingStatus=filter.value;state.page=1;renderBookings();});
+ el.root.querySelectorAll('[data-booking-id]').forEach(row=>row.addEventListener('click',async()=>{const id=row.dataset.bookingId,res=await apiFetch(`/api/bookings/${encodeURIComponent(id)}`),body=await res.json();if(!res.ok)throw new Error(body.error||'Could not load booking');const b=body.booking,answers=Object.entries(b.extra_answers||{}).map(([key,value])=>`<div class="row"><div class="k">${esc(key.replaceAll('_',' '))}</div><div class="v">${esc(value)}</div></div>`).join('');openDrawer(`Booking ${id}`,`<div class="kv"><div class="row"><div class="k">Customer</div><div class="v">${esc(b.customer_name||'—')}</div></div><div class="row"><div class="k">Phone</div><div class="v">${esc(b.customer_phone||b.contact_phone||'—')}</div></div><div class="row"><div class="k">Appointment</div><div class="v">${esc(fmtTime(b.appointment_at))} · ${esc(b.time_zone||'')}</div></div><div class="row"><div class="k">Address</div><div class="v">${esc(b.service_address||'—')}</div></div><div class="row"><div class="k">Status</div><div class="v">${esc(b.status)}</div></div>${answers}</div><div class="compose-actions"><span id="booking-action-error" class="login-error"></span><button class="btn ghost" id="booking-open-thread">Open conversation</button>${b.status==='confirmed'?'<button class="btn danger" id="booking-cancel">Cancel booking</button>':''}</div>`);el.drawerBody.querySelector('#booking-open-thread')?.addEventListener('click',()=>{state.view='messaging';state.conversationPhone=b.customer_phone||b.contact_phone;closeDrawer();setActiveNav();load();});el.drawerBody.querySelector('#booking-cancel')?.addEventListener('click',async event=>{if(!confirm('Cancel this booking and its pending reminders?'))return;event.currentTarget.disabled=true;const cancel=await apiFetch(`/api/bookings/${encodeURIComponent(id)}/cancel`,{method:'POST',headers:{'Idempotency-Key':crypto.randomUUID()},body:'{}'}),result=await cancel.json();if(!cancel.ok){el.drawerBody.querySelector('#booking-action-error').textContent=result.error||'Cancellation failed';event.currentTarget.disabled=false;return;}closeDrawer();await renderBookings();});}));
 }
 
 async function fetchOnboarding() {
@@ -672,22 +712,30 @@ async function renderBusinessContext() {
   el.pager.hidden = true;
   el.storeMeta.textContent = state.tenant?.name || 'Your workspace';
 
-  let onboardingState = state.setupOnboarding || null;
+  const cachedOnboarding = state.setupOnboarding || null;
   let provisioning = state.setupProvisioning || null;
-  if (!onboardingState || !provisioning) {
+  // Always refetch server truth when opening this view: a cached copy from an
+  // earlier save (or another device) must never masquerade as what is stored.
+  if (!cachedOnboarding || !provisioning) {
     el.root.innerHTML = '<div class="card"><div class="empty">Loading business context…</div></div>';
-    try {
-      const [onb, provRes] = await Promise.all([
-        onboardingState ? null : fetchOnboarding(),
-        provisioning ? null : apiFetch('/api/provisioning'),
-      ]);
-      if (onb) onboardingState = onb;
-      if (provRes && provRes.ok) provisioning = await provRes.json();
-    } catch (error) {
-      console.error(error);
-    }
   }
-  state.setupOnboarding = onboardingState || { onboarding: {}, onboardingComplete: false };
+  try {
+    const [onb, provRes] = await Promise.all([
+      fetchOnboarding(),
+      provisioning ? null : apiFetch('/api/provisioning'),
+    ]);
+    // Never let an empty/failed response or a device-only fallback clobber a
+    // known-good server copy. An api result is trusted when it carries data;
+    // a device copy is used only when there is nothing cached yet.
+    const apiHasData = onb && onb.source === 'api' &&
+      (onb.onboardingComplete || Object.keys(onb.onboarding || {}).length > 0);
+    if (onb && (apiHasData || (!cachedOnboarding && onb.source !== 'api'))) state.setupOnboarding = onb;
+    if (provRes && provRes.ok) provisioning = await provRes.json();
+  } catch (error) {
+    console.error(error);
+  }
+  const onboardingState = state.setupOnboarding || { onboarding: {}, onboardingComplete: false };
+  state.setupOnboarding = onboardingState;
   state.setupProvisioning = provisioning;
   const defaults = onboardingDefaults(provisioning);
   const localNote = state.setupOnboarding.source === 'local';
@@ -695,7 +743,7 @@ async function renderBusinessContext() {
     <div class="setup-page">
       <div class="setup-topbar">
         <button type="button" class="btn ghost" id="setup-back">← Back to dashboard</button>
-        <span class="setup-status ${state.setupOnboarding.onboardingComplete ? 'ok' : ''}">${esc(state.setupOnboarding.onboardingComplete ? 'Context saved' : 'Context required for smarter SMS + AI')}</span>
+        <span class="setup-status ${state.setupOnboarding.onboardingComplete && !localNote ? 'ok' : ''}">${esc(localNote ? 'Saved on this device only — not synced' : state.setupOnboarding.onboardingComplete ? 'Context saved' : 'Context required for smarter SMS + AI')}</span>
       </div>
       <div class="card setup-hero">
         <div>
@@ -820,7 +868,7 @@ async function renderBusinessContext() {
           </div>
           <div class="card setup-card setup-actions">
             <span id="ctx-error" class="login-error" role="alert"></span>
-            ${localNote ? '<p class="muted" style="margin:0">API is not deployed yet — saving on this device for now.</p>' : ''}
+            ${localNote ? '<p class="login-error" style="margin:0">Not synced — the server could not be reached, so this is stored only in this browser. Other devices and the live AI will NOT see it. Reconnect and save again to sync.</p>' : ''}
             <button type="submit" class="btn" id="ctx-save">Save business context</button>
             <button type="button" class="btn ghost" id="ctx-cancel">Cancel</button>
           </div>
@@ -1033,6 +1081,8 @@ const titles = {
   'business-setup': ['Business setup', 'Phone number and Twilio registration for this business.'],
   'business-context': ['Business context', 'What you sell, where, and how replies should sound.'],
   knowledge: ['AI knowledge', 'Approve evidence, review leads, and resolve human handoffs.'],
+  bookings: ['Bookings', 'Confirmed appointments created securely for this business.'],
+  'booking-setup': ['Booking setup', 'Availability and questions collected before an SMS booking.'],
 };
 
 async function renderKnowledge() {
@@ -1208,7 +1258,7 @@ function initNavFind() {
 
 async function load() {
   document.getElementById('crm-app').dataset.view = state.view;
-  el.search.closest('.search-wrap').hidden = ['overview', 'call', 'deliverability', 'business-setup', 'business-context', 'knowledge'].includes(state.view);
+  el.search.closest('.search-wrap').hidden = ['overview', 'call', 'deliverability', 'business-setup', 'business-context', 'booking-setup', 'knowledge'].includes(state.view);
   el.status.hidden = !['messages', 'deliverability'].includes(state.view) && !(state.view === 'automations' && state.categoryId);
   if (state.view === 'business-setup') el.pager.hidden = true;
   try {
@@ -1233,6 +1283,8 @@ async function load() {
     else if (state.view === 'automations') await renderAutomations();
     else if (state.view === 'business-setup') await renderBusinessSetup();
     else if (state.view === 'business-context') await renderBusinessContext();
+    else if (state.view === 'booking-setup') await renderBookingSetup();
+    else if (state.view === 'bookings') await renderBookings();
     else if (state.view === 'knowledge') await renderKnowledge();
     else await renderMessages();
   } catch (err) {

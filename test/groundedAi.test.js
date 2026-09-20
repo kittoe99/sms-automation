@@ -9,14 +9,22 @@ const base={reply:'We are open Monday through Friday.',disposition:'answered',gr
 
 test('system prompt covers inbound support, follow-ups, and safe booking intake',()=>{
  const prompt=buildGroundedSystemPrompt({business:{name:'Acme'},profile:{facts:{bookingRules:'Collect service, address, and preferred date.'}},contact:{name:'Alex'},open_lead:{fields:{service:'Repair'}},settings:{instructions:'Friendly and brief.'}},[]);
- assert.equal(GROUNDED_PROMPT_VERSION,'grounded-v3-direct');
+ assert.equal(GROUNDED_PROMPT_VERSION,'grounded-v4-booking');
  assert.match(prompt,/inbound and follow-up SMS assistant/i);
  assert.match(prompt,/booking, appointment, estimate, or quote requests/i);
   assert.match(prompt,/collect_lead/);
   assert.match(prompt,/confirm the request is received/i);
   assert.match(prompt,/ask at most one next question/i);
  assert.match(prompt,/Collect service, address, and preferred date/);
+ assert.match(prompt,/Supabase—not you—asks missing questions/i);
  assert.match(prompt,/"service":"Repair"/);
+});
+
+test('booking extraction remains structured and clear confirmation is classified deterministically',async()=>{
+ const calls=[];
+ const db={call:async(name,...args)=>{calls.push([name,...args]);if(name==='job_context')return {settings:{enabled:true,grounded_enabled:true},thread:{generation:4},contact:{},business:{name:'Acme',time_zone:'UTC'},profile:{id:'profile-1',facts:{}},booking_settings:{enabled:true,extra_fields:[]},booking_session:{state:'awaiting_confirmation'},history:[{direction:'inbound',body:'YES'}]};if(name==='search_job_knowledge')return [];if(name==='complete_grounded_ai')return args[2];}};
+ const result=await processAi({id:'job',lease_token:'lease',payload:{generation:4}},db,{apiKey:'test',fetchImpl:async(url)=>url.endsWith('/embeddings')?Response.json({data:[{embedding:vector}]}):output({...base,disposition:'collect_lead',grounded:false,citationIds:[],bookingIntent:'none',bookingPatch:{name:null,address:null,localDate:null,localTime:null,dateTimeAmbiguous:false,extraAnswers:[]}})});
+ assert.equal(result.bookingIntent,'confirm');assert.deepEqual(result.bookingPatch.extraAnswers,[]);assert.equal(calls.at(-1)[0],'complete_grounded_ai');
 });
 
 test('grounded AI embeds, retrieves approved tenant evidence, uses strict output, and stores citations',async()=>{

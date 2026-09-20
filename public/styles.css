@@ -3130,6 +3130,14 @@ table.data tbody tr:hover { background: #fafafa; }
 .setup-hero, .setup-body, .automation-form-grid { border-radius: 12px; }
 .setup-radio, .setup-sample, .automation-step-row, .drip-steps li { border-radius: 10px; }
 .drawer { box-shadow: -16px 0 40px rgba(0, 0, 0, 0.08); }
+.booking-windows { display: grid; gap: 8px; margin-top: 18px; }
+.booking-window, .booking-config-row, .booking-field-row { display: grid; align-items: center; gap: 10px; border: 1px solid #eaeaec; border-radius: 10px; padding: 10px; }
+.booking-window { grid-template-columns: minmax(130px,1fr) 120px auto 120px; }
+.booking-config-row { grid-template-columns: 150px 100px 115px auto 115px auto; margin-bottom: 8px; }
+.booking-field-row { grid-template-columns: 28px minmax(180px,2fr) minmax(120px,1fr) 130px 90px minmax(160px,1fr) auto; margin-bottom: 8px; }
+.booking-window input, .booking-config-row input, .booking-field-row input, .booking-field-row select { min-height: 36px; }
+.drag-hint { color: #a1a1aa; text-align: center; }
+tr[data-booking-id] { cursor: pointer; }
 @media (max-width: 1180px) {
   .kpi-row { grid-template-columns: repeat(3, minmax(0, 1fr)); }
 }
@@ -3139,4 +3147,5 @@ table.data tbody tr:hover { background: #fafafa; }
   .page-heading h1 { font-size: 1.5rem; }
   .kpi-row { width: calc(100% - 28px); }
   .main-panel { padding: 12px 14px 40px; }
+  .booking-window, .booking-config-row, .booking-field-row { grid-template-columns: 1fr; }
 }

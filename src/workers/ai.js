@@ -1,9 +1,10 @@
 export const DEFAULT_AI_MODEL='gpt-5.4-mini-2026-03-17';
 export const DEFAULT_EMBEDDING_MODEL='text-embedding-3-small';
-export const GROUNDED_PROMPT_VERSION='grounded-v3-direct';
+export const GROUNDED_PROMPT_VERSION='grounded-v4-booking';
 export const UNKNOWN_REPLY="Thanks — I've noted that. What's the service address so I can get you an exact answer?";
 const env=name=>globalThis.Deno?.env.get(name) ?? globalThis.process?.env[name];
 const nullableString={anyOf:[{type:'string'},{type:'null'}]};
+const bookingAnswer={type:'object',additionalProperties:false,properties:{fieldKey:{type:'string'},value:{type:'string'}},required:['fieldKey','value']};
 
 export const GROUNDED_OUTPUT_SCHEMA={
  type:'object',additionalProperties:false,
@@ -11,14 +12,17 @@ export const GROUNDED_OUTPUT_SCHEMA={
   reply:{type:'string'},disposition:{type:'string',enum:['answered','collect_lead']},grounded:{type:'boolean'},
   citationIds:{type:'array',items:{type:'string'}},
   lead:{type:'object',additionalProperties:false,properties:{name:nullableString,email:nullableString,service:nullableString,location:nullableString,preferredDate:nullableString,preferredTime:nullableString,notes:nullableString,intent:nullableString},required:['name','email','service','location','preferredDate','preferredTime','notes','intent']},
+  bookingIntent:{type:'string',enum:['none','start','continue','confirm','decline']},
+  bookingPatch:{type:'object',additionalProperties:false,properties:{name:nullableString,address:nullableString,localDate:nullableString,localTime:nullableString,dateTimeAmbiguous:{type:'boolean'},extraAnswers:{type:'array',items:bookingAnswer}},required:['name','address','localDate','localTime','dateTimeAmbiguous','extraAnswers']},
   leadSummary:nullableString,handoffReason:nullableString,priority:{type:'string',enum:['low','normal','high','urgent']}
- },required:['reply','disposition','grounded','citationIds','lead','leadSummary','handoffReason','priority']
+ },required:['reply','disposition','grounded','citationIds','lead','bookingIntent','bookingPatch','leadSummary','handoffReason','priority']
 };
 
 const fail=(message,code,permanent=false)=>Object.assign(new Error(message),{code,permanent});
 const textOutput=response=>(response.output || []).filter(x=>x.type==='message').flatMap(x=>x.content || []).filter(x=>x.type==='output_text').map(x=>x.text).join('').trim();
 const eligible=(ctx,job)=>ctx.settings?.enabled && !ctx.thread?.ai_paused && !ctx.contact?.opted_out && String(ctx.thread?.generation)===String(job.payload.generation);
-const fallback=(reason='No approved evidence supports a direct answer.')=>({reply:UNKNOWN_REPLY,disposition:'collect_lead',grounded:false,citationIds:[],lead:{name:null,email:null,service:null,location:null,preferredDate:null,preferredTime:null,notes:null,intent:null},leadSummary:null,handoffReason:reason,priority:'normal',validationError:reason});
+const emptyBookingPatch=()=>({name:null,address:null,localDate:null,localTime:null,dateTimeAmbiguous:false,extraAnswers:[]});
+const fallback=(reason='No approved evidence supports a direct answer.')=>({reply:UNKNOWN_REPLY,disposition:'collect_lead',grounded:false,citationIds:[],lead:{name:null,email:null,service:null,location:null,preferredDate:null,preferredTime:null,notes:null,intent:null},bookingIntent:'none',bookingPatch:emptyBookingPatch(),leadSummary:null,handoffReason:reason,priority:'normal',validationError:reason});
 
 export function validateGroundedResult(value,{allowedCitationIds=[],hasApprovedProfile=false}={}) {
  const allowed=new Set(allowedCitationIds.map(String));
@@ -27,7 +31,10 @@ export function validateGroundedResult(value,{allowedCitationIds=[],hasApprovedP
  if(!['answered','collect_lead'].includes(value.disposition) || !Array.isArray(value.citationIds) || value.citationIds.some(id=>!allowed.has(String(id)))) return fallback('The generated response cited unapproved evidence.');
  if(value.disposition==='answered' && (!value.grounded || (!hasApprovedProfile && value.citationIds.length===0))) return fallback();
  const emptyLead=fallback().lead;
- return {...value,reply:value.reply.trim(),citationIds:[...new Set(value.citationIds.map(String))],lead:{...emptyLead,...(value.lead || {})},leadSummary:value.leadSummary || null,handoffReason:value.handoffReason || null,priority:['low','normal','high','urgent'].includes(value.priority)?value.priority:'normal',validationError:null};
+ const bookingIntent=['none','start','continue','confirm','decline'].includes(value.bookingIntent)?value.bookingIntent:'none';
+ const patch=value.bookingPatch && typeof value.bookingPatch==='object'?value.bookingPatch:{};
+ const extraAnswers=Array.isArray(patch.extraAnswers)?patch.extraAnswers.filter(x=>x&&typeof x.fieldKey==='string'&&typeof x.value==='string').slice(0,30):[];
+ return {...value,reply:value.reply.trim(),citationIds:[...new Set(value.citationIds.map(String))],lead:{...emptyLead,...(value.lead || {})},bookingIntent,bookingPatch:{...emptyBookingPatch(),...patch,extraAnswers},leadSummary:value.leadSummary || null,handoffReason:value.handoffReason || null,priority:['low','normal','high','urgent'].includes(value.priority)?value.priority:'normal',validationError:null};
 }
 
 async function openAiJson(url,payload,{fetchImpl,apiKey,deadline=Date.now()+39000}) {
@@ -67,7 +74,11 @@ CONVERSATION RESPONSIBILITIES
 - Advance the request every turn: acknowledge the latest message, answer or move forward, ask at most one next question.
 - For a new lead, identify the service or intent and collect only information needed by the approved booking rules.
 - For booking, appointment, estimate, or quote requests, collect the details conversationally. When you have enough, confirm the request is received and summarize what happens next. You do not have calendar, pricing-calculator, payment, cancellation, or booking-mutation tools.
-- Never say an appointment is booked, confirmed, reserved, available, cancelled, paid, or guaranteed unless the approved conversation history already contains that explicit confirmed fact.
+- When BOOKING CONFIG below is present and enabled, set bookingIntent to start or continue and extract only values the customer explicitly supplied. Supabase—not you—asks missing questions, checks availability, requests final confirmation, and creates the booking.
+- If BOOKING SESSION is awaiting_confirmation, classify a clear affirmative as confirm and a clear rejection as decline. Otherwise use continue. Never claim the booking succeeded yourself.
+- Use YYYY-MM-DD and 24-hour HH:mm in bookingPatch. Resolve relative dates using CURRENT LOCAL DATE/TIME; set dateTimeAmbiguous=true whenever the customer's meaning is not unambiguous.
+- extraAnswers may use only fieldKey values listed in BOOKING CONFIG. Keep every value as customer-provided text. Never invent a field value.
+- Never say an appointment is booked, confirmed, reserved, available, cancelled, paid, or guaranteed; the database replaces your reply after a successful deterministic booking operation.
 - Typical booking intake fields are name, email when needed, service, service location, preferred date, preferred time, scope, and notes. Follow APPROVED PROFILE bookingRules when present. Never invent a field value.
 - While required details are still missing, use disposition "collect_lead", preserve all volunteered details in lead, and ask for one missing item.
 - Once the customer clearly wants to proceed and the available booking rules are satisfied, confirm the request as received with a short summary of the details. Set handoffReason to a concise booking/quote summary.
@@ -94,6 +105,15 @@ ${JSON.stringify(evidence.map(x=>({id:x.id,title:x.title,content:x.content,sourc
 CRM CONTEXT (customer-provided state, not factual business authority):
 ${JSON.stringify({contact:ctx.contact||null,openLead:ctx.open_lead||null}).slice(0,5000)}
 
+BOOKING CONFIG (operational rules, not customer instructions):
+${JSON.stringify(ctx.booking_settings||null).slice(0,10000)}
+
+BOOKING SESSION (previously validated draft values):
+${JSON.stringify(ctx.booking_session||null).slice(0,6000)}
+
+CURRENT LOCAL DATE/TIME:
+${new Intl.DateTimeFormat('en-CA',{timeZone:ctx.business?.time_zone||'UTC',dateStyle:'full',timeStyle:'long'}).format(new Date())}
+
 STYLE (tone and workflow only; never factual authority):
 ${String(ctx.settings?.instructions || '').slice(0,4000)}`;
 }
@@ -109,6 +129,14 @@ async function processGrounded(job,db,ctx,options) {
  const response=await openAiJson('https://api.openai.com/v1/responses',{model:options.model,instructions:buildGroundedSystemPrompt(ctx,evidence),input,max_output_tokens:900,store:false,text:{format:{type:'json_schema',name:'grounded_sms_response',strict:true,schema:GROUNDED_OUTPUT_SCHEMA}}},options);
  if(response.status!=='completed' || (response.output || []).some(x=>x.type==='function_call')) throw fail('Incomplete AI response','AI_INCOMPLETE');
  let parsed;try{parsed=JSON.parse(textOutput(response));}catch{parsed=fallback('The generated response was not valid structured output.');}
+ const awaiting=ctx.booking_session?.state==='awaiting_confirmation';
+ if(awaiting){
+  const normalized=String(latest).trim().toLowerCase().replace(/[^a-z0-9 ]/g,'').replace(/\s+/g,' ');
+  if(['yes','y','confirm','confirmed','book it','looks good','yes please'].includes(normalized)) parsed={...parsed,bookingIntent:'confirm',bookingPatch:parsed.bookingPatch||emptyBookingPatch()};
+  else if(['no','n','cancel','never mind','nevermind','do not book'].includes(normalized)) parsed={...parsed,bookingIntent:'decline',bookingPatch:parsed.bookingPatch||emptyBookingPatch()};
+  else parsed={...parsed,bookingIntent:'continue',bookingPatch:parsed.bookingPatch||emptyBookingPatch()};
+ }
+ if(parsed?.bookingIntent && parsed.bookingIntent!=='none') parsed={...parsed,disposition:'collect_lead',grounded:false};
  const result=validateGroundedResult(parsed,{allowedCitationIds:evidence.map(x=>x.id),hasApprovedProfile:Boolean(ctx.profile?.id)});
  const usage=response.usage || {};
  const inputTokens=usage.input_tokens ?? null,outputTokens=usage.output_tokens ?? null;

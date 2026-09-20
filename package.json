@@ -9,7 +9,7 @@
     "start": "node src/index.js",
     "dev": "node --watch src/index.js",
     "demo": "node src/demo.js",
-    "test": "node --test",
+    "test": "node --test \"test/*.test.js\"",
     "automation-tick": "node scripts/automation-tick.js",
     "voice-sync": "node scripts/voice-sync.js",
     "worker:sms": "node src/workers/run.js sms",
