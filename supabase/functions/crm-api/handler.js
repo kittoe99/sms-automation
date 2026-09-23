@@ -53,8 +53,8 @@ export function createCrmHandler(db,verify=authenticate) {
      const groups=data.rows.map(g=>{const setting=ai.rows.find(a=>a.group_id===g.id);return {...group(g),ai:setting?{...setting,defaultForInbound:Boolean(setting.default_for_inbound)}:{enabled:false,instructions:'',defaultForInbound:false}}});return json({categories:groups,groups,cadences:Object.entries(CADENCE_PRESETS).map(([id,value])=>({id,...value})),rulePresets:AUTOMATION_RULE_PRESETS},200,headers);
     }
     if(path.startsWith('/automations/')) {
-     const id=decodeURIComponent(path.split('/')[2]);const [data,steps]=await Promise.all([read('groups',{id}),read('steps',{id,pageSize:250})]);
-     return json({sequence:data.rows[0]?{...group(data.rows[0]),steps:steps.rows.map(s=>({...s,index:s.step_index,label:`Message ${s.step_index+1}`,delayMs:s.delay_count*86400000}))}:null},200,headers);
+     const id=decodeURIComponent(path.split('/')[2]);const data=await read('groups',{id});
+     return json({sequence:data.rows[0]?group(data.rows[0]):null},200,headers);
     }
     if(path==='/messages') {const data=await read('messages',params);return json({...data,messages:data.rows.map(message),summary:await read('overview')},200,headers);}
     if(path==='/enrollments') {
@@ -102,11 +102,13 @@ export function createCrmHandler(db,verify=authenticate) {
      const id=decodeURIComponent(groups[1] || p.id || crypto.randomUUID());
      if(groups[2]) return json(await db.call('configure_ai_grounded',user,tenant,id,p),200,headers);
      if(method==='DELETE') return json(await write('delete_group',{id}),200,headers);
+     if(['template','steps','deliveryMode','aiDraft'].some(key=>key in p)) return json({error:'Saved automation messages are not supported'},400,headers);
      const businesses=await read('businesses'),tz=businesses.rows.find(b=>b.tenant_id===tenant)?.time_zone;
      let rule;try{rule=groupRule(p.rule,tz);}catch(error){error.status=400;throw error;}
-     return json({group:group(await write('group',{...p,id,rule}))},200,headers);
+     return json({group:group(await write('group',{...p,id,rule,active:p.activeAutomation!==false}))},200,headers);
     }
     const groundedAi=path.match(/^\/automation-groups\/([^/]+)\/grounded-ai$/);if(groundedAi)return json(await db.call('configure_grounded_ai',user,tenant,decodeURIComponent(groundedAi[1]),p),200,headers);
+    const redraft=path.match(/^\/automation-jobs\/([^/]+)\/redraft$/);if(redraft) return json(await write('retry_job',{id:redraft[1]}),202,headers);
     const retry=path.match(/^\/jobs\/([^/]+)\/retry$/);if(retry) return json(await write('retry_job',{id:retry[1]}),202,headers);
     if(path==='/provisioning/details') return json(await db.call('save_provider_setup',user,tenant,p),200,headers);
     if(path==='/onboarding') return json(await db.call('save_business_profile',user,tenant,p),200,headers);

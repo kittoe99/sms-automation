@@ -7,6 +7,10 @@ import {createCrmHandler} from '../supabase/functions/crm-api/handler.js';
 import {createTwilioHandler,twilioSignature} from '../supabase/functions/twilio-webhook/handler.js';
 import {readFile,readdir} from 'node:fs/promises';
 
+const simpleRule={anchor:'enrollment',firstDelayCount:0,firstDelayUnit:'day',intervalCount:1,
+ intervalUnit:'day',repeatCount:1,leadHours:null,startHour:0,endHour:24};
+const groupInput=(id,intent,overrides={})=>({id,name:id,intent,rule:{...simpleRule,...overrides}});
+
 test('migration preserves website data and isolates queue submissions',async()=>{
  const db=await testDatabase();
  try {
@@ -92,14 +96,17 @@ test('automation, AI replies and enrollment cancellation share fenced outbox beh
  const db=await testDatabase();try {
   await activeBusiness(db);
   await call(db,'api_action','admin','alpha','consent',{phone:'+13035551234',consent:true,evidence:'Test opt-in'});
-  await call(db,'api_action','admin','alpha','group',{id:'followup',name:'Follow-up',rule:{startHour:0,endHour:24,steps:[{template:'Hello',delayCount:0,delayUnit:'day'}]}});
+  await call(db,'api_action','admin','alpha','group',groupInput('followup','Offer a useful follow-up.'));
   const enrollment=await call(db,'api_action','admin','alpha','enroll',{phone:'+13035551234',categoryId:'followup'});
   await db.exec('update sms_private.runtime set scheduler_enabled=true');
   assert.equal(await call(db,'tick'),1);assert.equal(await call(db,'tick'),0);
   const job=await call(db,'claim','automation_jobs','automation');
   const context=await call(db,'job_context',job.id,job.lease_token);
-  const {evaluateAutomation}=await import('../src/workers/automation.js');
-  const send=await call(db,'complete_automation',job.id,job.lease_token,evaluateAutomation(context));
+  const {evaluateAutomation,processAutomation}=await import('../src/workers/automation.js');
+  await assert.rejects(()=>call(db,'complete_automation',job.id,job.lease_token,evaluateAutomation(context)),/Fresh AI draft/);
+  const send=await processAutomation(job,{call:(name,...args)=>call(db,name,...args)},{
+   apiKey:'test',fetchImpl:async()=>Response.json({status:'completed',output:[{type:'message',content:[{type:'output_text',text:JSON.stringify({message:'Alpha checking in. How can we help?'})}]}]})
+  });
   assert.ok(send.messageId);
   const sms=await call(db,'claim','sms_send_jobs','sms');
   await call(db,'api_action','admin','alpha','unenroll',{phone:'+13035551234',categoryId:'followup'});
@@ -120,10 +127,29 @@ test('automation, AI replies and enrollment cancellation share fenced outbox beh
  }finally{await db.close();}
 });
 
+test('a new thread message during drafting prevents the scheduled SMS from being queued',async()=>{
+ const db=await testDatabase();try {
+  await activeBusiness(db);
+  await call(db,'api_action','admin','alpha','consent',{phone:'+13035551234',consent:true,evidence:'Test opt-in'});
+  await call(db,'api_action','admin','alpha','group',groupInput('followup','Ask whether the quote is clear.'));
+  await call(db,'api_action','admin','alpha','enroll',{phone:'+13035551234',categoryId:'followup'});
+  await db.exec('update sms_private.runtime set scheduler_enabled=true');
+  await call(db,'tick');
+  const job=await call(db,'claim','automation_jobs','automation');
+  const context=await call(db,'job_context',job.id,job.lease_token);
+  const {evaluateAutomation}=await import('../src/workers/automation.js');
+  await db.exec("insert into public.sms_thread_contacts(tenant_id,phone,generation) values('alpha','+13035551234',1) on conflict(tenant_id,phone) do update set generation=sms_thread_contacts.generation+1");
+  const draft={...evaluateAutomation(context),body:'Alpha checking in about your quote. Reply STOP to opt out.',ai_drafted:true,thread_generation:context.thread?.generation??0};
+  delete draft.step_intent;
+  await assert.rejects(()=>call(db,'complete_automation',job.id,job.lease_token,draft),/Conversation changed during AI draft/);
+  assert.equal((await db.query("select count(*) from public.sms_messages where tenant_id='alpha' and direction='outbound'")).rows[0].count,0);
+ }finally{await db.close();}
+});
+
 test('default inbound AI replies do not require an automation enrollment',async()=>{
  const db=await testDatabase();try {
   await activeBusiness(db);
-  await call(db,'api_action','admin','alpha','group',{id:'inbound',name:'Inbound AI',rule:{startHour:0,endHour:24,steps:[{template:'Unused',delayCount:1,delayUnit:'day'}]}});
+  await call(db,'api_action','admin','alpha','group',groupInput('inbound','Follow up if enrolled.',{firstDelayCount:1}));
   const setting=await call(db,'configure_ai','admin','alpha','inbound',true,'Reply briefly',true);
   assert.equal(setting.default_for_inbound,true);
   await call(db,'record_webhook','alpha','inbound',{From:'+13035551234',MessageSid:'SM_default_ai',Body:'Can you help?'});
@@ -140,21 +166,92 @@ test('late failure callbacks preserve delivered status and the active next step'
  const db=await testDatabase();try {
   await activeBusiness(db);
   await call(db,'api_action','admin','alpha','consent',{phone:'+13035551234',consent:true,evidence:'Test opt-in'});
-  await call(db,'api_action','admin','alpha','group',{id:'sequence',name:'Sequence',rule:{startHour:0,endHour:24,steps:[{template:'First',delayCount:0,delayUnit:'day'},{template:'Second',delayCount:1,delayUnit:'day'}]}});
+  await call(db,'api_action','admin','alpha','group',groupInput('sequence','Follow up on the request.',{repeatCount:2}));
   await call(db,'api_action','admin','alpha','enroll',{phone:'+13035551234',categoryId:'sequence'});
   await db.exec('update sms_private.runtime set scheduler_enabled=true');
   await call(db,'tick');
   const automation=await call(db,'claim','automation_jobs','automation');
   const context=await call(db,'job_context',automation.id,automation.lease_token);
-  const {evaluateAutomation}=await import('../src/workers/automation.js');
-  const outbox=await call(db,'complete_automation',automation.id,automation.lease_token,evaluateAutomation(context));
+  const {processAutomation}=await import('../src/workers/automation.js');
+  const outbox=await processAutomation(automation,{call:(name,...args)=>call(db,name,...args)},{
+   apiKey:'test',fetchImpl:async()=>Response.json({status:'completed',output:[{type:'message',content:[{type:'output_text',text:JSON.stringify({message:'Alpha here. Is there anything else we can clarify?'})}]}]})
+  });
   const sms=await call(db,'claim','sms_send_jobs','sms');
   const submission=await call(db,'begin_submission',sms.id,sms.lease_token);
+  assert.ok(submission, JSON.stringify((await db.query('select status,error_code,payload from sms_private.jobs where id=$1',[sms.id])).rows[0]));
   for(const status of ['delivered','failed']) await call(db,'record_webhook','alpha','status',{MessageSid:'SM_ordered',MessageStatus:status,attempt_id:submission.attempt_id});
   assert.equal((await db.query('select status from public.sms_messages where id=$1',[outbox.messageId])).rows[0].status,'delivered');
   const enrollment=(await db.query("select status,step_index from public.sms_automation_enrollments where category_id='sequence'")).rows[0];
   assert.equal(enrollment.status,'active');assert.equal(enrollment.step_index,1);
   assert.equal((await db.query('select count(*) from public.sms_message_events where message_id=$1',[outbox.messageId])).rows[0].count,2);
+ }finally{await db.close();}
+});
+
+test('migration removes reusable copy and pauses unreviewed custom groups',async()=>{
+ const db=await testDatabase({beforeMigration:async(db,file)=>{
+  if(file!=='20260923033605_simple_automation_schedule.sql')return;
+  await db.exec("insert into sms_private.admins values('admin') on conflict do nothing");
+  await call(db,'api_action','admin',null,'create_business',{id:'alpha',name:'Alpha',timeZone:'UTC'});
+  await call(db,'api_action','admin','alpha','contact',{phone:'+13035551234',name:'Alex'});
+  await call(db,'api_action','admin','alpha','consent',{phone:'+13035551234',consent:true,evidence:'Test opt-in'});
+  await call(db,'api_action','admin','alpha','group',{id:'custom-old',name:'Old custom',kind:'custom',
+    rule:{steps:[{template:'Hi Alex, checking in. Reply STOP to opt out.',delayCount:1,delayUnit:'day'}]}});
+  await call(db,'api_action','admin','alpha','enroll',{phone:'+13035551234',categoryId:'custom-old'});
+ }});
+ try{
+  const exists=(await db.query("select to_regclass('public.sms_automation_steps') as table_name")).rows[0].table_name;
+  assert.equal(exists,null);
+  const group=(await db.query("select active,rule from public.sms_automation_groups where id='custom-old'")).rows[0];
+  assert.equal(group.active,false);
+  assert.equal(group.rule.steps,undefined);
+  assert.equal(group.rule.template,undefined);
+  const intents=(await db.query("select count(*) from public.sms_automation_intents where group_id='custom-old'")).rows[0].count;
+  assert.equal(intents,0);
+  const enrollment=(await db.query("select status,pause_reason from public.sms_automation_enrollments where category_id='custom-old'")).rows[0];
+  assert.equal(enrollment.status,'paused');
+  assert.equal(enrollment.pause_reason,'INTENT_REVIEW_REQUIRED');
+  await assert.rejects(()=>call(db,'api_action','admin','alpha','group',{id:'bad',name:'Bad',intent:'Ask a question.',
+    rule:{steps:[{template:'Hello',delayCount:1,delayUnit:'day'}]}}),/intent|schedule/i);
+ }finally{await db.close();}
+});
+
+test('exhausted draft retries pause enrollment without sending copy; retry resumes fresh work',async()=>{
+ const db=await testDatabase();try{
+  await activeBusiness(db);
+  await call(db,'api_action','admin','alpha','consent',{phone:'+13035551234',consent:true,evidence:'Test opt-in'});
+  await call(db,'api_action','admin','alpha','group',groupInput('followup','Ask a useful question.'));
+  await call(db,'api_action','admin','alpha','enroll',{phone:'+13035551234',categoryId:'followup'});
+  await db.exec('update sms_private.runtime set scheduler_enabled=true');await call(db,'tick');
+  const job=await call(db,'claim','automation_jobs','automation');
+  await db.query("update sms_private.jobs set status='failed',error_code='AI_REQUEST_FAILED' where id=$1",[job.id]);
+  const enrollment=(await db.query("select status,pause_reason from public.sms_automation_enrollments where category_id='followup'")).rows[0];
+  assert.equal(enrollment.status,'paused');
+  assert.equal(enrollment.pause_reason,'AI_REQUEST_FAILED');
+  assert.equal((await db.query("select count(*) from public.sms_messages where contact_phone='+13035551234'")).rows[0].count,0);
+  const resumed=await call(db,'api_action','admin','alpha','retry_job',{id:job.id});
+  assert.equal(resumed.ok,true);
+  assert.equal((await db.query("select status from public.sms_automation_enrollments where category_id='followup'")).rows[0].status,'active');
+  assert.equal((await db.query("select status from sms_private.jobs where id=$1",[job.id])).rows[0].status,'queued');
+ }finally{await db.close();}
+});
+
+test('a reply after drafting cancels the unsent body and requeues fresh context',async()=>{
+ const db=await testDatabase();try{
+  await activeBusiness(db);
+  await call(db,'api_action','admin','alpha','consent',{phone:'+13035551234',consent:true,evidence:'Test opt-in'});
+  await call(db,'api_action','admin','alpha','group',groupInput('followup','Ask a useful question.'));
+  await call(db,'api_action','admin','alpha','enroll',{phone:'+13035551234',categoryId:'followup'});
+  await db.exec('update sms_private.runtime set scheduler_enabled=true');await call(db,'tick');
+  const job=await call(db,'claim','automation_jobs','automation');
+  const {processAutomation}=await import('../src/workers/automation.js');
+  const outbox=await processAutomation(job,{call:(name,...args)=>call(db,name,...args)},{apiKey:'test',fetchImpl:async()=>Response.json({status:'completed',output:[{type:'message',content:[{type:'output_text',text:JSON.stringify({message:'Alpha here. Can we help with your request?'})}]}]})});
+  const sms=await call(db,'claim','sms_send_jobs','sms');
+  await db.exec("update public.sms_thread_contacts set generation=generation+1 where tenant_id='alpha' and phone='+13035551234'");
+  assert.equal(await call(db,'begin_submission',sms.id,sms.lease_token),null);
+  assert.equal((await db.query('select status from public.sms_messages where id=$1',[outbox.messageId])).rows[0].status,'cancelled');
+  assert.equal((await db.query('select generation from public.sms_automation_enrollments where category_id=$1',['followup'])).rows[0].generation,2);
+  await call(db,'tick');
+  assert.equal((await db.query("select count(*) from sms_private.jobs where queue='automation_jobs' and status='queued'")).rows[0].count,1);
  }finally{await db.close();}
 });
 

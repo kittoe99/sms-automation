@@ -3,226 +3,85 @@ import test from 'node:test';
 import { mkdtemp, rm } from 'node:fs/promises';
 import os from 'node:os';
 import path from 'node:path';
-
-import {
-  advanceCustomDrip,
-  computeCustomFirstSendAt,
-  computeCustomNextSendAt,
-  normalizeCustomRule,
-  seedCustomDrip,
-  createCustomAutomationGroup,
-  deleteCustomAutomationGroup,
-  listCustomAutomationGroups,
-} from '../src/lib/automations/customAutomations.js';
+import { normalizeCustomRule, computeCustomNextSendAt, computeCustomFirstSendAt,
+  seedCustomDrip, advanceCustomDrip, createCustomAutomationGroup,
+  deleteCustomAutomationGroup, listCustomAutomationGroups } from '../src/lib/automations/customAutomations.js';
 import { runWithTenant } from '../src/lib/tenantContext.js';
-import {
-  getGroupAiSettings,
-  saveGroupAiSettings,
-} from '../src/lib/automations/groupAiInstructions.js';
-import { AUTOMATION_RULE_PRESETS, CADENCE_PRESETS } from '../src/lib/automations/rulePresets.js';
+import { AUTOMATION_RULE_PRESETS } from '../src/lib/automations/rulePresets.js';
 import { groupRule } from '../supabase/functions/_shared/domain.js';
 
-test('normalizes the common manual cadence presets', () => {
-  const everyOtherDay = normalizeCustomRule({
-    cadence: 'every_other_day',
-    repeatCount: 3,
-    template: 'Hi {{first_name}}',
-  });
-  assert.equal(everyOtherDay.intervalCount, 2);
-  assert.equal(everyOtherDay.intervalUnit, 'day');
-  assert.equal(everyOtherDay.repeatCount, 3);
-  assert.equal(everyOtherDay.aiDraft, true);
+const schedule = { anchor: 'enrollment', firstDelayCount: 1, firstDelayUnit: 'day',
+  intervalCount: 2, intervalUnit: 'day', repeatCount: 6, startHour: 0, endHour: 24 };
 
-  const custom = normalizeCustomRule({
-    cadence: 'custom',
-    intervalCount: 5,
-    intervalUnit: 'week',
-    repeatCount: 2,
-    template: 'Checking in',
-  });
-  assert.equal(custom.intervalCount, 5);
-  assert.equal(custom.intervalUnit, 'week');
-  assert.equal(normalizeCustomRule({ template: 'Manual', aiDraft: false }).aiDraft, false);
-  assert.equal(
-    normalizeCustomRule({ cadence: 'daily', template: 'Midnight', startHour: 0 }).startHour,
-    0
-  );
-  assert.throws(
-    () => normalizeCustomRule({ cadence: 'sometimes', template: 'Hello' }),
-    /Unknown cadence/
-  );
-});
-
-test('ready-made automation rules are valid, varied, and AI-drafted by default', () => {
-  assert.ok(AUTOMATION_RULE_PRESETS.length >= 7);
-  assert.ok(CADENCE_PRESETS.every_5_days);
-  assert.ok(CADENCE_PRESETS.every_2_weeks);
-  assert.ok(CADENCE_PRESETS.quarterly);
-  const ids = new Set();
-  for (const preset of AUTOMATION_RULE_PRESETS) {
-    assert.ok(!ids.has(preset.id));
-    ids.add(preset.id);
-    const rule = normalizeCustomRule(preset.rule);
-    assert.equal(rule.aiDraft, true);
-    for (const step of rule.steps) {
-      assert.match(step.template, /\{\{business_name\}\}/);
-      assert.match(step.template, /\{\{service_name\}\}/);
-    }
-    assert.ok(rule.steps.length >= 2);
-    assert.ok(rule.steps.every((step) => /STOP/i.test(step.template)));
+test('groups contain only schedule fields and reject stored copy or step rules', () => {
+  const rule = normalizeCustomRule(schedule);
+  assert.equal(rule.repeatCount, 6);
+  for (const key of ['template', 'steps', 'deliveryMode', 'aiDraft', 'intent']) {
+    assert.throws(() => normalizeCustomRule({ ...schedule, [key]: key === 'steps' ? [] : 'x' }), /scheduling fields only/);
   }
-  assert.equal(groupRule({ cadence: 'every_2_weeks', template: 'Hello' }).intervalCount, 2);
-  assert.equal(groupRule({ cadence: 'quarterly', template: 'Hello' }).intervalUnit, 'month');
+  assert.throws(() => groupRule({ ...schedule, startHour: 20, endHour: 9 }), /window/i);
+  for (const preset of AUTOMATION_RULE_PRESETS) {
+    assert.ok(preset.intent.length > 15);
+    assert.equal(preset.rule.steps, undefined);
+    assert.equal(preset.rule.template, undefined);
+    assert.deepEqual(normalizeCustomRule(preset.rule), { ...preset.rule, leadHours: null });
+  }
 });
 
-test('monthly cadence clamps dates to the end of a shorter month', () => {
-  const rule = normalizeCustomRule({
-    cadence: 'monthly',
-    repeatCount: 2,
-    template: 'Monthly note',
-    startHour: 0,
-    endHour: 24,
-  });
-  const next = computeCustomNextSendAt(rule, new Date('2028-01-31T10:00:00.000Z'), 'UTC');
-  assert.equal(next.toISOString(), '2028-02-29T10:00:00.000Z');
+test('quote follow-up has six sends on days 1, 3, 5, 7, 9, 11', () => {
+  const rule = normalizeCustomRule(AUTOMATION_RULE_PRESETS.find(p => p.id === 'quote-followup').rule);
+  let date = new Date('2026-09-01T10:00:00Z');
+  const days = [];
+  for (let i = 0; i < rule.repeatCount; i++) {
+    date = computeCustomNextSendAt(rule, date, 'UTC', i);
+    days.push(date.getUTCDate());
+  }
+  assert.deepEqual(days, [2, 4, 6, 8, 10, 12]);
 });
 
-test('daily cadence preserves business-local time across daylight saving changes', () => {
-  const rule = normalizeCustomRule({
-    cadence: 'daily',
-    repeatCount: 2,
-    template: 'Daily note',
-    startHour: 0,
-    endHour: 24,
-  });
-  const next = computeCustomNextSendAt(
-    rule,
-    new Date('2026-03-07T17:00:00.000Z'),
-    'America/Denver'
-  );
-  assert.equal(next.toISOString(), '2026-03-08T16:00:00.000Z');
+test('monthly intervals clamp month ends and daily intervals respect DST', () => {
+  const monthly = normalizeCustomRule({ ...schedule, intervalCount: 1, intervalUnit: 'month' });
+  assert.equal(computeCustomNextSendAt(monthly, new Date('2028-01-31T10:00:00Z'), 'UTC').toISOString(), '2028-02-29T10:00:00.000Z');
+  const daily = normalizeCustomRule({ ...schedule, intervalCount: 1 });
+  assert.equal(computeCustomNextSendAt(daily, new Date('2026-03-07T17:00:00Z'), 'America/Denver').toISOString(), '2026-03-08T16:00:00.000Z');
 });
 
-test('supports a scheduled first send and different messages per step', () => {
-  const rule = normalizeCustomRule({
-    cadence: 'daily',
-    firstSendAt: '2026-10-02T16:00:00.000Z',
-    template: 'First',
-    startHour: 0,
-    endHour: 24,
-    steps: [
-      { template: 'First message', delayCount: 0, delayUnit: 'day' },
-      { template: 'Second message', delayCount: 2, delayUnit: 'week' },
-    ],
-  });
-  assert.equal(rule.repeatCount, 2);
-  assert.equal(rule.steps[1].template, 'Second message');
-  assert.equal(rule.steps[1].delayCount, 2);
-  assert.equal(
-    computeCustomFirstSendAt(
-      rule,
-      new Date('2026-09-10T00:00:00.000Z'),
-      new Date('2026-09-10T00:00:00.000Z'),
-      'UTC'
-    ).toISOString(),
-    '2026-10-02T16:00:00.000Z'
-  );
-  const denverLocal = runWithTenant({ id: 'opek', timeZone: 'America/Denver' }, () =>
-    normalizeCustomRule({
-      cadence: 'daily',
-      firstSendAt: '2026-10-02T10:00',
-      template: 'Local schedule',
-    })
-  );
-  assert.equal(denverLocal.firstSendAt, '2026-10-02T16:00:00.000Z');
-});
-
-test('custom drip advances and completes after the configured sends', () => {
-  const group = {
-    id: 'custom-opek-review-followup-test',
-    updatedAt: '2026-09-10T00:00:00.000Z',
-    rule: normalizeCustomRule({
-      cadence: 'daily',
-      repeatCount: 2,
-      template: 'Hi {{first_name}}',
-      startHour: 0,
-      endHour: 24,
-    }),
-  };
-  const enrollment = {
-    enrolled_at: '2026-09-10T10:00:00.000Z',
-    metadata: {},
-  };
-  const seeded = { ...enrollment, metadata: seedCustomDrip(enrollment, group) };
+test('first delay and send count control a local drip without saved messages', () => {
+  const group = { id: 'custom-test', updatedAt: '2026-09-01T00:00:00Z', rule: normalizeCustomRule({ ...schedule, repeatCount: 2 }) };
+  const enrollment = { enrolled_at: '2026-09-01T10:00:00Z', metadata: {} };
+  const first = computeCustomFirstSendAt(group.rule, new Date(enrollment.enrolled_at), new Date(enrollment.enrolled_at), 'UTC');
+  assert.equal(first.toISOString(), '2026-09-02T10:00:00.000Z');
+  const seeded = { ...enrollment, metadata: seedCustomDrip(enrollment, group, new Date(enrollment.enrolled_at)) };
   assert.equal(seeded.metadata.drip.stepIndex, 0);
-
-  const first = advanceCustomDrip(seeded, group, new Date('2026-09-11T10:00:00.000Z'));
-  assert.equal(first.completed, false);
-  assert.equal(first.metadata.drip.stepIndex, 1);
-
-  const second = advanceCustomDrip(
-    { ...seeded, metadata: first.metadata },
-    group,
-    new Date('2026-09-12T10:00:00.000Z')
-  );
-  assert.equal(second.completed, true);
-  assert.equal(second.metadata.drip.nextSendAt, null);
+  const afterFirst = advanceCustomDrip(seeded, group, new Date('2026-09-02T10:00:00Z'));
+  assert.equal(afterFirst.completed, false);
+  assert.equal(afterFirst.metadata.drip.stepIndex, 1);
+  const afterSecond = advanceCustomDrip({ ...seeded, metadata: afterFirst.metadata }, group, new Date('2026-09-04T10:00:00Z'));
+  assert.equal(afterSecond.completed, true);
 });
 
-test('file registry creates, isolates, and deletes tenant groups', async () => {
-  const directory = await mkdtemp(path.join(os.tmpdir(), 'opek-automation-rules-'));
-  const previousFile = process.env.AUTOMATION_RULES_FILE;
-  const previousStore = process.env.AUTOMATION_RULES_STORE;
-  const previousAiFile = process.env.AUTOMATION_AI_SETTINGS_FILE;
+test('file registry keeps one separate intent per tenant group', async () => {
+  const directory = await mkdtemp(path.join(os.tmpdir(), 'automation-schedule-'));
+  const oldFile = process.env.AUTOMATION_RULES_FILE;
+  const oldStore = process.env.AUTOMATION_RULES_STORE;
   process.env.AUTOMATION_RULES_FILE = path.join(directory, 'rules.json');
-  process.env.AUTOMATION_AI_SETTINGS_FILE = path.join(directory, 'ai-settings.json');
   process.env.AUTOMATION_RULES_STORE = 'file';
-
   try {
-    const opekGroup = await runWithTenant({ id: 'opek', timeZone: 'UTC' }, () =>
-      createCustomAutomationGroup({
-        name: 'Review request',
-        rule: { cadence: 'weekly', repeatCount: 2, template: 'Hi {{first_name}}' },
-      })
-    );
-    await runWithTenant({ id: 'acme', timeZone: 'UTC' }, () =>
-      createCustomAutomationGroup({
-        name: 'Acme check-in',
-        rule: { cadence: 'daily', repeatCount: 1, template: 'Hello' },
-      })
-    );
-
-    const opekGroups = await runWithTenant({ id: 'opek', timeZone: 'UTC' }, () =>
-      listCustomAutomationGroups()
-    );
-    assert.deepEqual(opekGroups.map((group) => group.name), ['Review request']);
-
-    await runWithTenant({ id: 'opek', timeZone: 'UTC' }, () =>
-      saveGroupAiSettings(opekGroup.id, {
-        enabled: true,
-        instructions: 'Ask for a review only after confirming satisfaction.',
-      })
-    );
-    const ai = await runWithTenant({ id: 'opek', timeZone: 'UTC' }, () =>
-      getGroupAiSettings(opekGroup.id)
-    );
-    assert.equal(ai.enabled, true);
-    assert.match(ai.instructions, /confirming satisfaction/);
-
-    await runWithTenant({ id: 'opek', timeZone: 'UTC' }, () =>
-      deleteCustomAutomationGroup(opekGroup.id)
-    );
-    const afterDelete = await runWithTenant({ id: 'opek', timeZone: 'UTC' }, () =>
-      listCustomAutomationGroups()
-    );
-    assert.equal(afterDelete.length, 0);
+    const created = await runWithTenant({ id: 'alpha', timeZone: 'UTC' }, () =>
+      createCustomAutomationGroup({ name: 'Check-in', intent: 'Ask about the original request.', rule: schedule }));
+    assert.equal(created.intent, 'Ask about the original request.');
+    assert.equal(created.rule.intent, undefined);
+    await assert.rejects(() => runWithTenant({ id: 'beta', timeZone: 'UTC' }, () =>
+      createCustomAutomationGroup({ name: 'No intent', rule: schedule })), /intent/i);
+    const own = await runWithTenant({ id: 'alpha', timeZone: 'UTC' }, () => listCustomAutomationGroups());
+    const other = await runWithTenant({ id: 'beta', timeZone: 'UTC' }, () => listCustomAutomationGroups());
+    assert.equal(own.length, 1);
+    assert.equal(other.length, 0);
+    await runWithTenant({ id: 'alpha', timeZone: 'UTC' }, () => deleteCustomAutomationGroup(created.id));
+    assert.equal((await runWithTenant({ id: 'alpha', timeZone: 'UTC' }, () => listCustomAutomationGroups())).length, 0);
   } finally {
-    if (previousFile === undefined) delete process.env.AUTOMATION_RULES_FILE;
-    else process.env.AUTOMATION_RULES_FILE = previousFile;
-    if (previousStore === undefined) delete process.env.AUTOMATION_RULES_STORE;
-    else process.env.AUTOMATION_RULES_STORE = previousStore;
-    if (previousAiFile === undefined) delete process.env.AUTOMATION_AI_SETTINGS_FILE;
-    else process.env.AUTOMATION_AI_SETTINGS_FILE = previousAiFile;
+    if (oldFile === undefined) delete process.env.AUTOMATION_RULES_FILE; else process.env.AUTOMATION_RULES_FILE = oldFile;
+    if (oldStore === undefined) delete process.env.AUTOMATION_RULES_STORE; else process.env.AUTOMATION_RULES_STORE = oldStore;
     await rm(directory, { recursive: true, force: true });
   }
 });

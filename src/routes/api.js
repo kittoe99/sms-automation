@@ -45,15 +45,11 @@ import {
   isElevenLabsOutboundConfigured,
   placeOutboundFollowUpCall,
 } from '../lib/elevenlabsOutbound.js';
-import { runAutomationTick } from '../lib/automations/runner.js';
-import { QUOTE_REQUESTS_SEQUENCE } from '../lib/automations/quoteRequestsSequence.js';
-import { APPOINTMENT_REMINDERS_SEQUENCE } from '../lib/automations/appointmentRemindersSequence.js';
 import { AUTOMATION_RULE_PRESETS } from '../lib/automations/rulePresets.js';
 import { removeActiveEnrollmentsForPhone } from '../lib/automations/lifecycle.js';
 import {
   CADENCE_PRESETS,
   createCustomAutomationGroup,
-  customGroupToSequence,
   deleteCustomAutomationGroup,
   getAutomationGroup,
   listAutomationGroups,
@@ -394,28 +390,8 @@ apiRouter.delete('/automation-groups/:id', async (req, res) => {
 });
 
 function automationsForGroup(group) {
-  if (group.id === QUOTE_REQUESTS_SEQUENCE.categoryId) return [QUOTE_REQUESTS_SEQUENCE];
-  if (group.id === APPOINTMENT_REMINDERS_SEQUENCE.categoryId) {
-    return [APPOINTMENT_REMINDERS_SEQUENCE];
-  }
-  if (group.custom) return [customGroupToSequence(group)];
-  return [];
+  return group ? [{ ...group, steps: undefined }] : [];
 }
-
-/**
- * Cron / internal tick for drip automations. Requires OPEK_SMS_API_KEY.
- */
-apiRouter.post('/internal/automation-tick', requireApiKey, serverActionLimiter, async (req, res) => {
-  try {
-    const limit = req.body?.limit;
-    const summary = await runAutomationTick({ limit });
-    console.log('[opek-sms] automation tick', summary);
-    res.json({ ok: true, summary });
-  } catch (err) {
-    console.error('[opek-sms] automation tick failed', err);
-    res.status(500).json({ error: 'Automation tick failed', detail: err.message || String(err) });
-  }
-});
 
 /**
  * Server-to-server lifecycle trigger for quotes and bookings.

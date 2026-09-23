@@ -4,6 +4,8 @@ import {testDatabase,call} from './helpers/database.js';
 
 const weekly=Object.fromEntries(Array.from({length:7},(_,i)=>[String(i),[{start:'00:00',end:'23:59'}]]));
 const settings={enabled:true,slotDurationMinutes:60,capacityPerSlot:1,minimumNoticeMinutes:0,maximumAdvanceDays:90,weeklyAvailability:weekly,dateExceptions:[],extraFields:[{key:'service_type',question:'What service do you need?',type:'single_select',required:true,options:['Repair','Install']}]};
+const reminderRule='{"anchor":"appointment","firstDelayCount":0,"firstDelayUnit":"day","intervalCount":1,"intervalUnit":"day","repeatCount":1,"leadHours":24,"startHour":0,"endHour":24}';
+const inboundRule='{"anchor":"enrollment","firstDelayCount":1,"firstDelayUnit":"day","intervalCount":1,"intervalUnit":"day","repeatCount":1,"leadHours":null,"startHour":0,"endHour":24}';
 
 test('booking configuration is versioned, validated, and tenant scoped',async()=>{
  const db=await testDatabase();try{
@@ -18,7 +20,7 @@ test('booking configuration is versioned, validated, and tenant scoped',async()=
 
 test('SMS booking waits for confirmation, books once, enforces capacity, and enrolls a reminder',async()=>{
  const db=await testDatabase();try{
-  await db.exec("insert into public.sms_businesses(tenant_id,name,time_zone) values('alpha','Alpha','UTC'); insert into public.sms_contacts(tenant_id,phone,name) values('alpha','+15550000001','Alex'),('alpha','+15550000002','Blair'); insert into public.sms_automation_groups(tenant_id,id,name,kind) values('alpha','reminders','Appointment reminder','reminder')");
+  await db.exec(`insert into public.sms_businesses(tenant_id,name,time_zone) values('alpha','Alpha','UTC'); insert into public.sms_contacts(tenant_id,phone,name) values('alpha','+15550000001','Alex'),('alpha','+15550000002','Blair'); insert into public.sms_automation_groups(tenant_id,id,name,kind,rule) values('alpha','reminders','Appointment reminder','reminder','${reminderRule}'::jsonb)`);
   await call(db,'save_booking_settings','admin','alpha',settings);
   const day=(await db.query("select ((now() at time zone 'UTC')+interval '10 days')::date as booking_day")).rows[0].booking_day.toISOString().slice(0,10);
   const contacts=(await db.query("select id,phone from public.sms_contacts where tenant_id='alpha' order by phone")).rows;
@@ -44,7 +46,7 @@ test('SMS booking waits for confirmation, books once, enforces capacity, and enr
 
 test('staff cancellation is idempotent and cancels pending reminders',async()=>{
  const db=await testDatabase();try{
-  await db.exec("insert into public.sms_businesses(tenant_id,name) values('alpha','Alpha'); insert into public.sms_contacts(tenant_id,phone) values('alpha','+15550000001'); insert into public.sms_automation_groups(tenant_id,id,name,kind) values('alpha','reminders','Reminder','reminder'); insert into public.sms_bookings(tenant_id,id,contact_id,appointment_at,status,customer_phone,source,confirmed_at) select 'alpha','book-1',id,now()+interval '2 days','confirmed',phone,'sms_ai',now() from public.sms_contacts where tenant_id='alpha'; insert into public.sms_automation_enrollments(tenant_id,contact_id,category_id,appointment_at,next_run_at,metadata) select 'alpha',id,'reminders',now()+interval '2 days',now(),'{\"booking_id\":\"book-1\"}' from public.sms_contacts where tenant_id='alpha'");
+  await db.exec(`insert into public.sms_businesses(tenant_id,name) values('alpha','Alpha'); insert into public.sms_contacts(tenant_id,phone) values('alpha','+15550000001'); insert into public.sms_automation_groups(tenant_id,id,name,kind,rule) values('alpha','reminders','Reminder','reminder','${reminderRule}'::jsonb); insert into public.sms_bookings(tenant_id,id,contact_id,appointment_at,status,customer_phone,source,confirmed_at) select 'alpha','book-1',id,now()+interval '2 days','confirmed',phone,'sms_ai',now() from public.sms_contacts where tenant_id='alpha'; insert into public.sms_automation_enrollments(tenant_id,contact_id,category_id,appointment_at,next_run_at,metadata) select 'alpha',id,'reminders',now()+interval '2 days',now(),'{\"booking_id\":\"book-1\"}' from public.sms_contacts where tenant_id='alpha'`);
   const first=await call(db,'cancel_booking','admin','alpha','book-1','cancel-key-123');assert.equal(first.status,'cancelled');
   const second=await call(db,'cancel_booking','admin','alpha','book-1','cancel-key-123');assert.equal(second.status,'cancelled');
   assert.equal((await db.query("select status from public.sms_automation_enrollments where tenant_id='alpha'")).rows[0].status,'cancelled');
@@ -53,7 +55,7 @@ test('staff cancellation is idempotent and cancels pending reminders',async()=>{
 
 test('unfinished bookings enqueue bounded deduplicated AI follow-ups',async()=>{
  const db=await testDatabase();try{
-  await db.exec("insert into public.sms_businesses(tenant_id,name,time_zone,status,sending_enabled) values('alpha','Alpha','UTC','active',true); insert into public.sms_contacts(tenant_id,phone) values('alpha','+15550000001'); insert into public.sms_thread_contacts(tenant_id,phone,generation) values('alpha','+15550000001',7); insert into public.sms_automation_groups(tenant_id,id,name) values('alpha','inbound','Inbound'); insert into public.sms_ai_settings(tenant_id,group_id,enabled,default_for_inbound) values('alpha','inbound',true,true); update sms_private.runtime set scheduler_enabled=true");
+  await db.exec(`insert into public.sms_businesses(tenant_id,name,time_zone,status,sending_enabled) values('alpha','Alpha','UTC','active',true); insert into public.sms_contacts(tenant_id,phone) values('alpha','+15550000001'); insert into public.sms_thread_contacts(tenant_id,phone,generation) values('alpha','+15550000001',7); insert into public.sms_automation_groups(tenant_id,id,name,rule) values('alpha','inbound','Inbound','${inboundRule}'::jsonb); insert into public.sms_ai_settings(tenant_id,group_id,enabled,default_for_inbound) values('alpha','inbound',true,true); update sms_private.runtime set scheduler_enabled=true`);
   const saved=await call(db,'save_booking_settings','admin','alpha',{...settings,followUpEnabled:true,followUpDelayHours:1,followUpIntervalHours:2,followUpMaxAttempts:2});
   assert.equal(saved.followUpEnabled,true);assert.equal(saved.followUpMaxAttempts,2);
   await db.exec("insert into public.sms_booking_sessions(tenant_id,contact_id,customer_phone,settings_version,conversation_generation) select 'alpha',id,phone,1,7 from public.sms_contacts where tenant_id='alpha'; update public.sms_booking_sessions set next_follow_up_at=now()-interval '1 minute' where tenant_id='alpha'");

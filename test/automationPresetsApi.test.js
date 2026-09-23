@@ -2,7 +2,7 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import { createCrmHandler } from '../supabase/functions/crm-api/handler.js';
 
-test('production categories API exposes ready-made rules and expanded cadences', async () => {
+test('production categories API exposes schedule-only presets with separate intents', async () => {
   process.env.CRM_ALLOWED_ORIGINS = 'https://crm.example.com';
   const db = {
     call: async (name, _user, _tenant, resource) => {
@@ -18,8 +18,14 @@ test('production categories API exposes ready-made rules and expanded cadences',
   assert.equal(response.status, 200);
   const body = await response.json();
   assert.ok(body.rulePresets.length >= 7);
-  assert.ok(body.cadences.some((item) => item.id === 'every_5_days'));
-  assert.ok(body.cadences.some((item) => item.id === 'every_2_weeks'));
-  assert.ok(body.cadences.some((item) => item.id === 'quarterly'));
+  for (const preset of body.rulePresets) {
+    assert.ok(preset.intent);
+    assert.equal(preset.rule.intent, undefined);
+    assert.equal(preset.rule.steps, undefined);
+  }
+  const quote = body.rulePresets.find(item => item.id === 'quote-followup');
+  assert.equal(quote.rule.repeatCount, 6);
+  assert.equal(quote.rule.firstDelayCount, 1);
+  assert.equal(quote.rule.intervalCount, 2);
   delete process.env.CRM_ALLOWED_ORIGINS;
 });

@@ -12,7 +12,8 @@ import { getCurrentTenantId } from '../tenantContext.js';
 import { getSupabaseAdmin } from '../supabase.js';
 import { getGroupAiSettings, listGroupAiSettings } from './groupAiInstructions.js';
 import { automationStoreError, usesSharedAutomationStore } from './automationStore.js';
-import { CADENCE_PRESETS } from './rulePresets.js';
+import { CADENCE_PRESETS, AUTOMATION_RULE_PRESETS } from './rulePresets.js';
+import { normalizeSchedule, calendarDelay } from './schedule.js';
 
 export { CADENCE_PRESETS } from './rulePresets.js';
 
@@ -52,186 +53,26 @@ function integerInRange(value, fallback, min, max) {
 }
 
 export function normalizeCustomRule(input = {}) {
-  if (input.cadence && !CADENCE_PRESETS[input.cadence]) {
-    throw inputError(`Unknown cadence: ${input.cadence}`);
-  }
-  const cadence = CADENCE_PRESETS[input.cadence] ? input.cadence : 'daily';
-  const preset = CADENCE_PRESETS[cadence];
-  const intervalCount =
-    cadence === 'custom'
-      ? integerInRange(input.intervalCount, 1, 1, 365)
-      : preset.intervalCount;
-  const intervalUnit =
-    cadence === 'custom'
-      ? input.intervalUnit || 'day'
-      : preset.intervalUnit;
-  if (!['day', 'week', 'month'].includes(intervalUnit)) {
-    throw inputError('Custom interval unit must be day, week, or month');
-  }
-  const repeatCount = integerInRange(
-    input.repeatCount,
-    Array.isArray(input.steps) && input.steps.length ? input.steps.length : 1,
-    1,
-    30
-  );
-  const template = clean(input.template || input.steps?.[0]?.template, 1600);
-  if (!template) throw inputError('At least one message template is required');
-
-  const startHour = integerInRange(input.startHour, 9, 0, 23);
-  const endHour = integerInRange(input.endHour, 19, 1, 24);
-  if (endHour <= startHour) throw inputError('Send window end must be after its start');
-
-  let firstSendAt = null;
-  if (clean(input.firstSendAt, 80)) {
-    const rawFirstSend = clean(input.firstSendAt, 80);
-    const localMatch = rawFirstSend.match(
-      /^(\d{4})-(\d{2})-(\d{2})T(\d{2}):(\d{2})(?::\d{2})?$/
-    );
-    const parsed = localMatch
-      ? zonedDateTimeToUtc(
-          {
-            y: Number(localMatch[1]),
-            m: Number(localMatch[2]),
-            d: Number(localMatch[3]),
-            hour: Number(localMatch[4]),
-            minute: Number(localMatch[5]),
-          },
-          getBusinessTimeZone()
-        )
-      : new Date(rawFirstSend);
-    if (!parsed || Number.isNaN(parsed.getTime())) {
-      throw inputError('First send date and time is invalid');
-    }
-    if (localMatch) {
-      const observed = getZonedParts(parsed, getBusinessTimeZone());
-      if (
-        !observed ||
-        observed.year !== Number(localMatch[1]) ||
-        observed.month !== Number(localMatch[2]) ||
-        observed.day !== Number(localMatch[3]) ||
-        observed.hour !== Number(localMatch[4]) ||
-        observed.minute !== Number(localMatch[5])
-      ) {
-        throw inputError('First send date and time is invalid in the business timezone');
-      }
-    }
-    firstSendAt = parsed.toISOString();
-  }
-
-  const sourceSteps = Array.isArray(input.steps) && input.steps.length
-    ? input.steps.slice(0, 30)
-    : Array.from({ length: repeatCount }, () => ({
-        template,
-        delayCount: intervalCount,
-        delayUnit: intervalUnit,
-      }));
-  const steps = sourceSteps.map((step, index) => {
-    const stepTemplate = clean(step?.template || template, 1600);
-    if (!stepTemplate) throw inputError(`Message ${index + 1} cannot be empty`);
-    const delayUnit = step?.delayUnit || intervalUnit;
-    if (!['day', 'week', 'month'].includes(delayUnit)) {
-      throw inputError(`Message ${index + 1} delay unit must be day, week, or month`);
-    }
-    return {
-      id: clean(step?.id, 60) || `send-${index + 1}`,
-      template: stepTemplate,
-      delayCount: integerInRange(step?.delayCount, intervalCount, 0, 365),
-      delayUnit,
-    };
-  });
-
-  return {
-    cadence,
-    intervalCount,
-    intervalUnit,
-    repeatCount: steps.length,
-    aiDraft: input.aiDraft !== false,
-    template,
-    startHour,
-    endHour,
-    firstSendAt,
-    steps,
-  };
+  try { return normalizeSchedule(input); }
+  catch (error) { throw inputError(error.message); }
 }
 
 export function cadenceLabel(rule) {
   if (!rule) return 'Not configured';
-  if (rule.cadence !== 'custom') return CADENCE_PRESETS[rule.cadence]?.label || 'Custom';
-  const unit = rule.intervalUnit === 'day' ? 'day' : rule.intervalUnit;
-  return `Every ${rule.intervalCount} ${unit}${rule.intervalCount === 1 ? '' : 's'}`;
+  return `Every ${rule.intervalCount} ${rule.intervalUnit}${rule.intervalCount === 1 ? '' : 's'}`;
+}
+export function computeCustomNextSendAt(rule, fromDate = new Date(), timeZone = getBusinessTimeZone(), stepIndex = null) {
+  const first = stepIndex === 0;
+  const count = first ? rule.firstDelayCount : rule.intervalCount;
+  const unit = first ? rule.firstDelayUnit : rule.intervalUnit;
+  const due = calendarDelay(fromDate, count, unit, timeZone);
+  return constrainToSendWindow(due, { timeZone, startHour: rule.startHour, endHour: rule.endHour });
 }
 
-/** Compute the next calendar-aware send time, then apply the tenant's send window. */
-export function computeCustomNextSendAt(
-  rule,
-  fromDate = new Date(),
-  timeZone = getBusinessTimeZone(),
-  stepIndex = null
-) {
-  const from = new Date(fromDate);
-  if (!rule || Number.isNaN(from.getTime())) return null;
-  const step = stepIndex == null ? null : rule.steps?.[stepIndex];
-  const count = Math.max(Number(step?.delayCount ?? rule.intervalCount) || 0, 0);
-  const intervalUnit = step?.delayUnit || rule.intervalUnit;
-  const local = getZonedParts(from, timeZone);
-  if (!local) return null;
-  let target;
-
-  if (intervalUnit === 'month') {
-    const targetMonth = new Date(Date.UTC(local.year, local.month - 1 + count, 1));
-    const endOfTargetMonth = new Date(
-      Date.UTC(targetMonth.getUTCFullYear(), targetMonth.getUTCMonth() + 1, 0)
-    ).getUTCDate();
-    target = {
-      y: targetMonth.getUTCFullYear(),
-      m: targetMonth.getUTCMonth() + 1,
-      d: Math.min(local.day, endOfTargetMonth),
-      hour: local.hour,
-      minute: local.minute,
-    };
-  } else {
-    const days = intervalUnit === 'week' ? count * 7 : count;
-    const targetDay = new Date(Date.UTC(local.year, local.month - 1, local.day + days));
-    target = {
-      y: targetDay.getUTCFullYear(),
-      m: targetDay.getUTCMonth() + 1,
-      d: targetDay.getUTCDate(),
-      hour: local.hour,
-      minute: local.minute,
-    };
-  }
-
-  const next = zonedDateTimeToUtc(target, timeZone);
-  if (!next) return null;
-
-  return constrainToSendWindow(next, {
-    timeZone,
-    startHour: rule.startHour,
-    endHour: rule.endHour,
-  });
-}
-
-export function computeCustomFirstSendAt(
-  rule,
-  enrolledAt = new Date(),
-  now = new Date(),
-  timeZone = getBusinessTimeZone()
-) {
-  const enrolled = new Date(enrolledAt);
-  const current = new Date(now);
-  if (Number.isNaN(enrolled.getTime()) || Number.isNaN(current.getTime())) return null;
-  let first;
-  if (rule.firstSendAt) {
-    const scheduled = new Date(rule.firstSendAt);
-    if (Number.isNaN(scheduled.getTime())) return null;
-    first = scheduled.getTime() > current.getTime() ? scheduled : current;
-  } else {
-    first = computeCustomNextSendAt(rule, enrolled, timeZone, 0);
-  }
-  return constrainToSendWindow(first, {
-    timeZone,
-    startHour: rule.startHour,
-    endHour: rule.endHour,
+export function computeCustomFirstSendAt(rule, enrolledAt = new Date(), now = new Date(), timeZone = getBusinessTimeZone()) {
+  const first = computeCustomNextSendAt(rule, enrolledAt, timeZone, 0);
+  return first && first > now ? first : constrainToSendWindow(now, {
+    timeZone, startHour: rule.startHour, endHour: rule.endHour,
   });
 }
 
@@ -305,7 +146,8 @@ function normalizeStoredGroup(group) {
       tenantId,
       name,
       description: clean(group.description, 300),
-      activeAutomation: (group.activeAutomation ?? group.active) !== false,
+      intent: clean(group.intent, 1600),
+      activeAutomation: (group.activeAutomation ?? group.active) !== false && Boolean(clean(group.intent, 1600)),
       custom: true,
       system: false,
       rule: normalizeCustomRule(group.rule),
@@ -319,14 +161,15 @@ function normalizeStoredGroup(group) {
 
 async function readRegistry() {
   if (usesSharedAutomationStore()) {
-    const { data, error } = await getSupabaseAdmin()
-      .from('sms_automation_groups')
-      .select('*')
-      .order('created_at', { ascending: true });
-    if (error) throw automationStoreError('automation', error);
+    const [groups, intents] = await Promise.all([
+      getSupabaseAdmin().from('sms_automation_groups').select('*').order('created_at', { ascending: true }),
+      getSupabaseAdmin().from('sms_automation_intents').select('tenant_id,group_id,intent'),
+    ]);
+    if (groups.error || intents.error) throw automationStoreError('automation', groups.error || intents.error);
+    const intentMap = new Map((intents.data || []).map(row => [`${row.tenant_id}:${row.group_id}`, row.intent]));
     return {
       version: 1,
-      groups: (data || []).map(normalizeStoredGroup).filter(Boolean),
+      groups: (groups.data || []).map(row => normalizeStoredGroup({ ...row, intent: intentMap.get(`${row.tenant_id}:${row.id}`) })).filter(Boolean),
     };
   }
   try {
@@ -361,6 +204,9 @@ async function writeRegistry(registry, changedGroup = null) {
       .from('sms_automation_groups')
       .upsert(rows, { onConflict: 'tenant_id,id' });
     if (error) throw automationStoreError('automation', error);
+    const { error: intentError } = await getSupabaseAdmin().from('sms_automation_intents')
+      .upsert(groups.map(group => ({ tenant_id: group.tenantId, group_id: group.id, intent: group.intent })), { onConflict: 'tenant_id,group_id' });
+    if (intentError) throw automationStoreError('automation', intentError);
     return;
   }
   const file = rulesFile();
@@ -402,8 +248,17 @@ export async function listAutomationGroups() {
     listCustomAutomationGroups(),
     listGroupAiSettings(),
   ]);
+  const quotePreset = AUTOMATION_RULE_PRESETS.find(preset => preset.id === 'quote-followup');
   const groups = [
-    ...CATEGORIES.map((group) => ({ ...group, custom: false, system: true, rule: null })),
+    ...CATEGORIES.map((group) => ({
+      ...group, custom: false, system: true,
+      intent: group.kind === 'quote' ? quotePreset.intent : group.kind === 'reminder' ?
+        'Remind the customer of the confirmed appointment using its actual local date and time.' : null,
+      rule: group.kind === 'quote' ? quotePreset.rule : group.kind === 'reminder' ? {
+        anchor: 'appointment', firstDelayCount: 0, firstDelayUnit: 'day', intervalCount: 1,
+        intervalUnit: 'day', repeatCount: 1, leadHours: 24, startHour: 0, endHour: 24,
+      } : null,
+    })),
     ...custom,
   ];
   return groups.map((group) => ({
@@ -420,13 +275,7 @@ export async function listAutomationGroups() {
 export async function getAutomationGroup(id) {
   const system = getCategory(id);
   if (system) {
-    return {
-      ...system,
-      custom: false,
-      system: true,
-      rule: null,
-      ai: await getGroupAiSettings(id),
-    };
+    return (await listAutomationGroups()).find(group => group.id === id) || null;
   }
   const custom = await listCustomAutomationGroups();
   const group = custom.find((item) => item.id === id);
@@ -447,11 +296,14 @@ export async function createCustomAutomationGroup(input = {}) {
     const id = `custom-${tenantId}-${base}-${randomUUID().slice(0, 8)}`;
     const now = new Date().toISOString();
     const rule = normalizeCustomRule(input.rule);
+    const intent = clean(input.intent, 1600);
+    if (!intent || /\{\{/.test(intent)) throw inputError('One automation intent is required');
     const group = normalizeStoredGroup({
       id,
       tenantId,
       name,
       description: input.description,
+      intent,
       activeAutomation: input.activeAutomation !== false,
       rule,
       createdAt: now,
@@ -479,10 +331,13 @@ export async function updateCustomAutomationGroup(id, input = {}) {
     const name = clean(input.name ?? current.name, 100);
     if (!name) throw inputError('Group name is required');
     const rule = normalizeCustomRule(input.rule ?? current.rule);
+    const intent = clean(input.intent ?? current.intent, 1600);
+    if (!intent || /\{\{/.test(intent)) throw inputError('One automation intent is required');
     const next = normalizeStoredGroup({
       ...current,
       name,
       description: input.description ?? current.description,
+      intent,
       activeAutomation: input.activeAutomation ?? current.activeAutomation,
       rule,
       updatedAt: new Date().toISOString(),
@@ -517,18 +372,11 @@ export function customGroupToSequence(group) {
     id: group.id,
     categoryId: group.id,
     name: group.name,
-    description: `${group.rule.firstSendAt ? 'Scheduled start' : cadenceLabel(group.rule)} · ${group.rule.repeatCount} send${
+    description: `${cadenceLabel(group.rule)} · ${group.rule.repeatCount} send${
       group.rule.repeatCount === 1 ? '' : 's'
     } · ${group.rule.startHour}:00–${group.rule.endHour}:00`,
     custom: true,
+    intent: group.intent,
     rule: group.rule,
-    steps: group.rule.steps.map((step, index) => ({
-      index,
-      id: step.id || `send-${index + 1}`,
-      label: `${index === 0 && group.rule.firstSendAt ? 'Scheduled' : `After ${step.delayCount} ${step.delayUnit}${step.delayCount === 1 ? '' : 's'}`} · send ${index + 1} of ${group.rule.repeatCount}`,
-      template: step.template,
-      delayCount: step.delayCount,
-      delayUnit: step.delayUnit,
-    })),
   };
 }

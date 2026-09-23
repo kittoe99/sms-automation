@@ -1,6 +1,6 @@
 import { PGlite } from '@electric-sql/pglite';
 import { readFile,readdir } from 'node:fs/promises';
-export async function testDatabase() {
+export async function testDatabase({beforeMigration}={}) {
  const db=new PGlite();
  await db.exec(`create role anon; create role authenticated;
  create schema auth; create function auth.jwt() returns jsonb language sql as $$ select coalesce(nullif(current_setting('request.jwt.claims',true),''),'{}')::jsonb $$;
@@ -20,6 +20,7 @@ export async function testDatabase() {
  insert into public.users values('website-user'); insert into public.contacts values(gen_random_uuid(),'Website contact');`);
  const dir=new URL('../../supabase/migrations/',import.meta.url);
  for(const file of (await readdir(dir)).filter(x=>x.endsWith('.sql')).sort()) {
+   if(beforeMigration) await beforeMigration(db,file);
    let migration=await readFile(new URL(file,dir),'utf8');
    migration=migration
     .replace(/^create extension[^;]+;/gm,'')
@@ -29,7 +30,7 @@ export async function testDatabase() {
       'alter table public.sms_knowledge_chunks add column embedding real[];');
    await db.exec(migration);
  }
- await db.exec(`grant sms_sender,sms_automation,sms_ai to postgres; insert into sms_private.admins values('admin');`);
+ await db.exec(`grant sms_sender,sms_automation,sms_ai to postgres; insert into sms_private.admins values('admin') on conflict do nothing;`);
  return db;
 }
 export async function call(db,name,...args) {
