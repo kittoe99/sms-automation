@@ -1503,9 +1503,17 @@ async function renderOverview() {
         if (!response.ok) throw new Error('Status is temporarily unavailable');
         const data = await response.json();
         const active = (data.workers || []).filter(w => Date.now() - new Date(w.seen_at).getTime() < 120000);
+        const automation = data.automationQueue || {};
         node.innerHTML = `<p>Scheduling: ${data.scheduler?.scheduler_enabled ? 'On' : 'Paused'} · ${active.length} worker connections active</p>` +
+          `<p>Automation queue: ${fmt(automation.backlog || 0)} waiting · oldest ${automation.oldestAgeSeconds == null ? '—' : `${fmt(automation.oldestAgeSeconds)}s`} · ${fmt(automation.failed || 0)} failed</p>` +
           (data.jobs || []).map(j => `<p>${esc(j.queue.replaceAll('_', ' '))}: ${fmt(j.count)} ${esc(j.status.replaceAll('_', ' '))}</p>`).join('') +
-          (data.problems || []).map(j => `<p>${esc(j.status === 'submission_unknown' ? 'Needs review — delivery could not be confirmed. Automatic retry is held.' : j.error_code || 'Job failed')}${j.status === 'failed' ? ` <button class="btn ghost" data-retry-job="${esc(j.id)}">Retry</button>` : ''}</p>`).join('');
+          (data.automationFailures || []).map(i => `<p><strong>Paused automation:</strong> ${esc(i.group_name || 'Unknown group')} · ${esc(i.error_code || 'Draft failed')} <button class="btn ghost" data-redraft-job="${esc(i.id)}">Redraft and resume</button></p>`).join('') +
+          (data.problems || []).filter(j => j.queue !== 'automation_jobs').map(j => `<p>${esc(j.status === 'submission_unknown' ? 'Needs review — delivery could not be confirmed. Automatic retry is held.' : j.error_code || 'Job failed')}${j.status === 'failed' ? ` <button class="btn ghost" data-retry-job="${esc(j.id)}">Retry</button>` : ''}</p>`).join('');
+        node.querySelectorAll('[data-redraft-job]').forEach(button => button.addEventListener('click', async () => {
+          button.disabled = true;
+          const res = await apiFetch(`/api/automation-jobs/${encodeURIComponent(button.dataset.redraftJob)}/redraft`, { method: 'POST' });
+          button.textContent = res.ok ? 'Fresh draft queued' : 'Review eligibility before resuming';
+        }));
         node.querySelectorAll('[data-retry-job]').forEach(button => button.addEventListener('click', async () => {
           button.disabled = true;
           const res = await apiFetch(`/api/jobs/${encodeURIComponent(button.dataset.retryJob)}/retry`, { method: 'POST' });
@@ -1532,23 +1540,18 @@ async function renderOverview() {
 }
 
 function automationBlankLabel(category) {
-  if (category.id === 'quote-requests') return 'Quote Request drip · 6 steps';
+  if (category.id === 'quote-requests') return 'Quote follow-up · 6 sends over 11 days';
   if (category.id === 'appointment-reminders') return 'Appointment reminder · 24h before';
   if (category.custom && category.rule) {
-    const sendCount = Number.isFinite(Number(category.rule.repeatCount))
-      ? Math.max(0, Number(category.rule.repeatCount))
-      : Array.isArray(category.rule.steps) ? category.rule.steps.length : 0;
+    const sendCount = Math.max(0, Number(category.rule.repeatCount) || 0);
     const sendLabel = sendCount ? `${sendCount} send${sendCount === 1 ? '' : 's'}` : 'No messages';
-    return `${category.rule.firstSendAt ? `Scheduled ${fmtTime(category.rule.firstSendAt)}` : cadenceDisplay(category.rule)} · ${sendLabel}${category.activeAutomation ? '' : ' · inactive'}`;
+    return `${cadenceDisplay(category.rule)} · ${sendLabel}${category.activeAutomation ? '' : ' · inactive'}`;
   }
   return 'No automations yet';
 }
 
 function cadenceDisplay(rule) {
-  if (rule?.cadence !== 'custom') {
-    return state.cadences.find((cadence) => cadence.id === rule?.cadence)?.label || 'Custom';
-  }
-  return `Every ${rule.intervalCount} ${rule.intervalUnit}${rule.intervalCount === 1 ? '' : 's'}`;
+  return `Every ${rule?.intervalCount || 1} ${rule?.intervalUnit || 'day'}${Number(rule?.intervalCount || 1) === 1 ? '' : 's'}`;
 }
 
 function automationBuilderHtml(group = null) {
@@ -1556,25 +1559,16 @@ function automationBuilderHtml(group = null) {
     ? null
     : state.rulePresets.find((preset) => preset.id === state.automationPresetId) || state.rulePresets[0] || null;
   const rule = group?.rule || initialPreset?.rule || {
-    cadence: 'daily',
+    anchor: 'enrollment',
+    firstDelayCount: 1,
+    firstDelayUnit: 'day',
     intervalCount: 1,
     intervalUnit: 'day',
     repeatCount: 3,
-    aiDraft: true,
-    template: 'Hi {{first_name}}, {{business_name}} here about your {{service_name}}. How can we help with the next step? Reply STOP to opt out.',
     startHour: 9,
     endHour: 19,
-    firstSendAt: null,
-    steps: [],
   };
-  const steps = rule.steps?.length
-    ? rule.steps
-    : Array.from({ length: rule.repeatCount || 1 }, (_, index) => ({
-        id: `send-${index + 1}`,
-        template: rule.template,
-        delayCount: rule.intervalCount,
-        delayUnit: rule.intervalUnit,
-      }));
+  const intent = group?.intent || initialPreset?.intent || '';
   return `
     <form class="automation-builder card" id="automation-builder">
       <div class="card-head">
@@ -1585,14 +1579,14 @@ function automationBuilderHtml(group = null) {
         <button type="button" class="btn ghost" id="cancel-automation-builder">Cancel</button>
       </div>
       <div class="automation-form-grid">
-        <label class="field-wide">
+        ${group?.system ? '' : `<label class="field-wide">
           <span class="compose-label">Start with an automation</span>
           <select id="automation-preset">
             <option value="">${group ? 'Keep the current rule' : 'Start from scratch'}</option>
             ${state.rulePresets.map((preset) => `<option value="${esc(preset.id)}" ${!group && preset.id === initialPreset?.id ? 'selected' : ''}>${esc(preset.label)} — ${esc(preset.description)}</option>`).join('')}
           </select>
-          <small class="muted" id="automation-preset-description">${esc(initialPreset?.description || 'Choose a proven sequence, then adjust any timing or message if needed.')}</small>
-        </label>
+          <small class="muted" id="automation-preset-description">${esc(initialPreset?.description || 'Choose a starting schedule, then adjust the timing and purpose.')}</small>
+        </label>`}
         <label class="field-wide">
           <span class="compose-label">Automation name</span>
           <input id="automation-name" maxlength="100" required value="${esc(group?.name || initialPreset?.defaultName || '')}" placeholder="Post-job follow-up" />
@@ -1601,17 +1595,26 @@ function automationBuilderHtml(group = null) {
           <span class="compose-label">Description</span>
           <input id="automation-description" maxlength="300" value="${esc(group?.description || initialPreset?.description || '')}" placeholder="What this automation is for" />
         </label>
-        <label>
-          <span class="compose-label">Cadence</span>
-          <select id="automation-cadence">
-            ${state.cadences
-              .map(({ id, label }) => `<option value="${esc(id)}" ${rule.cadence === id ? 'selected' : ''}>${esc(label)}</option>`)
-              .join('')}
-          </select>
+        <label class="field-wide">
+          <span class="compose-label">Purpose for each fresh AI draft</span>
+          <textarea id="automation-intent" maxlength="1600" rows="4" required placeholder="What should this automation help the customer accomplish?">${esc(intent)}</textarea>
+          <small class="muted">This is guidance, not a saved SMS. Each send uses the latest conversation and approved business context.</small>
         </label>
-        <div class="custom-interval" id="custom-interval" ${rule.cadence === 'custom' ? '' : 'hidden'}>
+        ${rule.anchor === 'appointment' ? '<p class="muted field-wide">One reminder is scheduled 24 hours before the confirmed appointment. Booking changes reschedule it; cancellation stops it.</p>' : `<div class="custom-interval">
           <label>
-            <span class="compose-label">Every</span>
+            <span class="compose-label">First send after</span>
+            <input id="automation-first-delay-count" type="number" min="0" max="365" value="${esc(rule.firstDelayCount ?? 1)}" required />
+          </label>
+          <label>
+            <span class="compose-label">Unit</span>
+            <select id="automation-first-delay-unit">
+              ${['day', 'week', 'month'].map((unit) => `<option value="${unit}" ${rule.firstDelayUnit === unit ? 'selected' : ''}>${unit}s</option>`).join('')}
+            </select>
+          </label>
+        </div>
+        <div class="custom-interval">
+          <label>
+            <span class="compose-label">Then every</span>
             <input id="automation-interval-count" type="number" min="1" max="365" value="${esc(rule.intervalCount)}" />
           </label>
           <label>
@@ -1623,7 +1626,7 @@ function automationBuilderHtml(group = null) {
         </div>
         <label>
           <span class="compose-label">Number of sends</span>
-          <input id="automation-repeat-count" type="number" min="1" max="30" value="${esc(steps.length)}" required />
+          <input id="automation-repeat-count" type="number" min="1" max="30" value="${esc(rule.repeatCount)}" required />
         </label>
         <div class="send-window-fields">
           <label>
@@ -1635,25 +1638,7 @@ function automationBuilderHtml(group = null) {
             <select id="automation-end-hour">${hourOptions(rule.endHour, 1, 24)}</select>
           </label>
         </div>
-        <label class="field-wide">
-          <span class="compose-label">First send date and time (optional)</span>
-          <input id="automation-first-send" type="datetime-local" value="${esc(toDateTimeLocal(rule.firstSendAt))}" />
-          <small class="muted">Set this for a scheduled campaign. Leave blank to start after the first message delay.</small>
-        </label>
-        <label class="check field-wide">
-          <input id="automation-ai-draft" type="checkbox" ${rule.aiDraft === false ? '' : 'checked'} />
-          <span><strong>AI-draft each message before sending</strong><br/><small class="muted">On by default. AI personalizes the saved message using business and conversation context; the saved text is used if AI is unavailable.</small></span>
-        </label>
-        <div class="field-wide automation-message-head">
-          <div>
-            <span class="compose-label">Automated messages</span>
-            <small class="muted">Each delay is measured after enrollment or the previous successful send.</small>
-          </div>
-          <button type="button" class="btn ghost" id="add-automation-message">Add message</button>
-        </div>
-        <div class="field-wide automation-step-editor" id="automation-step-editor">
-          ${automationStepRows(steps)}
-        </div>
+        <p class="muted field-wide">The first delay starts at enrollment. Later intervals start when Twilio accepts the previous send. AI drafts each SMS when its job is due.</p>`}
         <label class="check field-wide">
           <input id="automation-active" type="checkbox" ${group?.activeAutomation === false ? '' : 'checked'} />
           Active and available for enrollment
@@ -1664,36 +1649,6 @@ function automationBuilderHtml(group = null) {
         <button type="submit" class="btn" id="save-automation-group">${group ? 'Save changes' : 'Create automation'}</button>
       </div>
     </form>`;
-}
-
-function automationStepRows(steps) {
-  return steps
-    .map(
-      (step, index) => `
-      <div class="automation-step-row" data-step-row>
-        <div class="automation-step-title">
-          <strong>Message ${index + 1}</strong>
-          <button type="button" class="btn ghost remove-automation-message" ${steps.length === 1 ? 'disabled' : ''}>Remove</button>
-        </div>
-        <div class="automation-step-delay">
-          <label>
-            <span class="compose-label">Delay</span>
-            <input class="step-delay-count" type="number" min="0" max="365" value="${esc(step.delayCount ?? 1)}" required />
-          </label>
-          <label>
-            <span class="compose-label">Unit</span>
-            <select class="step-delay-unit">
-              ${['day', 'week', 'month'].map((unit) => `<option value="${unit}" ${step.delayUnit === unit ? 'selected' : ''}>${unit}${Number(step.delayCount) === 1 ? '' : 's'}</option>`).join('')}
-            </select>
-          </label>
-        </div>
-        <label>
-          <span class="compose-label">Message</span>
-          <textarea class="step-template" maxlength="1600" rows="4" required>${esc(step.template || '')}</textarea>
-        </label>
-      </div>`
-    )
-    .join('');
 }
 
 function toDateTimeLocal(value) {
@@ -1730,93 +1685,23 @@ function hourOptions(selected, start, end) {
 function bindAutomationBuilder(group = null) {
   const form = el.root.querySelector('#automation-builder');
   if (!form) return;
-  const cadence = form.querySelector('#automation-cadence');
   const presetSelect = form.querySelector('#automation-preset');
-  const customInterval = form.querySelector('#custom-interval');
-  const repeatCount = form.querySelector('#automation-repeat-count');
-  const stepEditor = form.querySelector('#automation-step-editor');
-  const cadenceDefaults = Object.fromEntries(
-    state.cadences.map((item) => [item.id, [item.intervalCount, item.intervalUnit]])
-  );
-
-  const readSteps = () =>
-    [...form.querySelectorAll('[data-step-row]')].map((row, index) => ({
-      id: `send-${index + 1}`,
-      delayCount: Number(row.querySelector('.step-delay-count').value),
-      delayUnit: row.querySelector('.step-delay-unit').value,
-      template: row.querySelector('.step-template').value,
-    }));
-
-  const renderSteps = (steps) => {
-    stepEditor.innerHTML = automationStepRows(steps);
-    repeatCount.value = String(steps.length);
-    stepEditor.querySelectorAll('.remove-automation-message').forEach((button) => {
-      button.addEventListener('click', () => {
-        const rows = readSteps();
-        const index = [...stepEditor.querySelectorAll('[data-step-row]')].indexOf(
-          button.closest('[data-step-row]')
-        );
-        if (rows.length > 1 && index >= 0) rows.splice(index, 1);
-        renderSteps(rows);
-      });
-    });
-  };
-
-  const defaultDelay = () =>
-    cadence.value === 'custom'
-      ? [
-          Number(form.querySelector('#automation-interval-count').value) || 1,
-          form.querySelector('#automation-interval-unit').value,
-        ]
-      : cadenceDefaults[cadence.value] || [1, 'day'];
-
-  const resizeSteps = (size) => {
-    const rows = readSteps();
-    const desired = Math.min(Math.max(Number(size) || 1, 1), 30);
-    const [delayCount, delayUnit] = defaultDelay();
-    while (rows.length < desired) {
-      rows.push({
-        id: `send-${rows.length + 1}`,
-        delayCount,
-        delayUnit,
-        template: rows.at(-1)?.template || 'Hi {{first_name}}, {{business_name}} here about your {{service_name}}. How can we help with the next step? Reply STOP to opt out.',
-      });
-    }
-    rows.length = desired;
-    renderSteps(rows);
-  };
-
   presetSelect?.addEventListener('change', () => {
     const preset = state.rulePresets.find((item) => item.id === presetSelect.value);
-    if (!preset) {
-      form.querySelector('#automation-preset-description').textContent = 'Adjust the current timing and messages below.';
-      return;
-    }
-    const rule = preset.rule || {};
+    if (!preset) return;
+    const rule = preset.rule;
     form.querySelector('#automation-name').value = preset.defaultName || preset.label;
     form.querySelector('#automation-description').value = preset.description || '';
     form.querySelector('#automation-preset-description').textContent = preset.description || '';
-    cadence.value = rule.cadence || 'custom';
-    form.querySelector('#automation-interval-count').value = String(rule.intervalCount || 1);
-    form.querySelector('#automation-interval-unit').value = rule.intervalUnit || 'day';
-    customInterval.hidden = cadence.value !== 'custom';
-    form.querySelector('#automation-start-hour').innerHTML = hourOptions(rule.startHour ?? 9, 0, 23);
-    form.querySelector('#automation-end-hour').innerHTML = hourOptions(rule.endHour ?? 19, 1, 24);
-    form.querySelector('#automation-first-send').value = '';
-    form.querySelector('#automation-ai-draft').checked = rule.aiDraft !== false;
-    renderSteps((rule.steps || []).map((step, index) => ({ ...step, id: `send-${index + 1}` })));
+    form.querySelector('#automation-intent').value = preset.intent || '';
+    form.querySelector('#automation-first-delay-count').value = String(rule.firstDelayCount);
+    form.querySelector('#automation-first-delay-unit').value = rule.firstDelayUnit;
+    form.querySelector('#automation-interval-count').value = String(rule.intervalCount);
+    form.querySelector('#automation-interval-unit').value = rule.intervalUnit;
+    form.querySelector('#automation-repeat-count').value = String(rule.repeatCount);
+    form.querySelector('#automation-start-hour').value = String(rule.startHour);
+    form.querySelector('#automation-end-hour').value = String(rule.endHour);
   });
-
-  cadence?.addEventListener('change', () => {
-    customInterval.hidden = cadence.value !== 'custom';
-    const [delayCount, delayUnit] = defaultDelay();
-    renderSteps(readSteps().map((step) => ({ ...step, delayCount, delayUnit })));
-  });
-  repeatCount?.addEventListener('change', () => resizeSteps(repeatCount.value));
-  form.querySelector('#add-automation-message')?.addEventListener('click', () => {
-    resizeSteps(readSteps().length + 1);
-  });
-  renderSteps(readSteps());
   form.querySelector('#cancel-automation-builder')?.addEventListener('click', () => {
     state.automationBuilderOpen = false;
     state.automationPresetId = null;
@@ -1828,24 +1713,20 @@ function bindAutomationBuilder(group = null) {
     const error = form.querySelector('#automation-builder-error');
     button.disabled = true;
     error.textContent = '';
-    const steps = readSteps();
-    const firstSendValue = form.querySelector('#automation-first-send').value;
-    const firstSendAt = firstSendValue || null;
     const payload = {
       name: form.querySelector('#automation-name').value.trim(),
       description: form.querySelector('#automation-description').value.trim(),
+      intent: form.querySelector('#automation-intent').value.trim(),
       activeAutomation: form.querySelector('#automation-active').checked,
-      rule: {
-        cadence: cadence.value,
+      rule: group?.rule?.anchor === 'appointment' ? group.rule : {
+        anchor: 'enrollment',
+        firstDelayCount: Number(form.querySelector('#automation-first-delay-count').value),
+        firstDelayUnit: form.querySelector('#automation-first-delay-unit').value,
         intervalCount: Number(form.querySelector('#automation-interval-count').value),
         intervalUnit: form.querySelector('#automation-interval-unit').value,
-        repeatCount: steps.length,
-        aiDraft: form.querySelector('#automation-ai-draft').checked,
+        repeatCount: Number(form.querySelector('#automation-repeat-count').value),
         startHour: Number(form.querySelector('#automation-start-hour').value),
         endHour: Number(form.querySelector('#automation-end-hour').value),
-        template: steps[0]?.template.trim(),
-        firstSendAt,
-        steps,
       },
     };
     try {
@@ -1854,14 +1735,14 @@ function bindAutomationBuilder(group = null) {
         { method: group ? 'PUT' : 'POST', body: JSON.stringify(payload) }
       );
       const json = await response.json();
-      if (!response.ok) throw new Error(json.detail || json.error || 'Could not save group');
+      if (!response.ok) throw new Error(json.detail || json.error || 'Could not save automation');
       state.categories = [];
       state.categoryId = json.group.id;
       state.automationBuilderOpen = false;
       state.automationPresetId = null;
       await load();
     } catch (err) {
-      error.textContent = err.message || 'Could not save group';
+      error.textContent = err.message || 'Could not save automation';
       button.disabled = false;
     }
   });
@@ -1988,7 +1869,7 @@ async function renderAutomations() {
         <div class="card-head" style="border-top:1px solid var(--border)">
           <div>
             <h2>Ready-made automations</h2>
-            <span class="muted">Choose one to create it with proven timing and editable messages.</span>
+            <span class="muted">Choose a schedule and edit its single purpose.</span>
           </div>
         </div>
         <div class="category-grid automation-template-grid">
@@ -1996,7 +1877,7 @@ async function renderAutomations() {
             <button type="button" class="category-tile as-button" data-create-automation-preset="${esc(preset.id)}">
               <h3>${esc(preset.label)}</h3>
               <p>${esc(preset.description)}</p>
-              <p class="muted">${fmt(preset.rule?.steps?.length || 0)} messages · AI drafted by default</p>
+              <p class="muted">${fmt(preset.rule?.repeatCount || 0)} sends · drafted at send time</p>
               <div class="blank">Use this automation</div>
             </button>`).join('')}
         </div>
@@ -2086,21 +1967,19 @@ async function renderAutomations() {
 
   const cadenceNote =
     category.id === 'quote-requests'
-      ? 'Cadence: 1 text/day for 3 days, then 1 after 48h, another after 48h, and a final text after 7 days. AI drafts each outgoing follow-up from approved business and conversation context; the saved message is the fallback. Marketing sends stay between 9am and 7pm. A customer reply postpones the next touch for at least 24 hours; a booking, opt-out, manual removal, or final send ends the sequence.'
+      ? 'Six sends on days 1, 3, 5, 7, 9, and 11. AI drafts each follow-up from the latest conversation and approved business context. Marketing sends stay between 9am and 7pm. A reply postpones the next touch for at least 24 hours; booking or opt-out stops the sequence.'
       : category.id === 'appointment-reminders'
-        ? 'Sends one fixed-template SMS ~24 hours before an upcoming appointment without using AI. New bookings enroll automatically, booking changes reschedule the reminder, and cancellations or expired appointments remove it without sending.'
+        ? 'Drafts one contextual reminder ~24 hours before an upcoming appointment. New bookings enroll automatically, booking changes reschedule the reminder, and cancellations or expired appointments remove it without sending.'
         : category.custom
-          ? `${category.rule.firstSendAt ? `First send scheduled for ${fmtTime(category.rule.firstSendAt)}.` : `${cadenceDisplay(category.rule)} cadence.`} ${category.rule.repeatCount} custom message${category.rule.repeatCount === 1 ? '' : 's'} constrained to ${category.rule.startHour}:00–${category.rule.endHour}:00 in the business account timezone. ${category.rule.aiDraft === false ? 'Messages use the saved templates.' : 'AI drafts each outgoing message by default; the saved template is the fallback.'}`
+          ? `First send after ${category.rule.firstDelayCount} ${category.rule.firstDelayUnit}(s), then ${cadenceDisplay(category.rule).toLowerCase()} for ${category.rule.repeatCount} total sends. Sending is limited to ${category.rule.startHour}:00–${category.rule.endHour}:00 in the business timezone.`
           : '';
 
   const triggerNote =
     category.kind === 'quote' || category.id === 'quote-requests'
-      ? 'Quote created — the contact is enrolled automatically after submitting a quote request. Each send is drafted by AI immediately before delivery using the full available message thread; the step text below is the approved fallback.'
+      ? 'Quote created — the contact is enrolled automatically. Each send is freshly drafted from the purpose and latest conversation.'
       : category.kind === 'reminder' || category.id === 'appointment-reminders'
-        ? 'Booking created or updated — the reminder is scheduled automatically and uses the fixed template without AI.'
-        : category.rule?.trigger
-          ? String(category.rule.trigger)
-          : 'Contact enrolled manually or through an integration.';
+        ? 'Booking created or updated — the reminder is scheduled automatically and drafted from the current booking and conversation.'
+        : 'Contact enrolled manually or through an integration.';
 
   const sequenceHtml = sequence
     ? `
@@ -2110,19 +1989,9 @@ async function renderAutomations() {
         <div class="automation-trigger" style="margin:0 0 14px;padding:10px 12px;border:1px solid var(--border);border-radius:10px">
           <strong>Trigger</strong><br><span class="muted">${esc(triggerNote)}</span>
         </div>
-        <ol class="drip-steps">
-          ${(sequence.steps || [])
-            .map(
-              (s, i) => `
-            <li>
-              <div class="drip-step-head"><strong>Step ${i + 1}</strong> · ${esc(s.label || s.id)}</div>
-              <div class="muted drip-step-body">${esc(s.template)}</div>
-            </li>`
-            )
-            .join('')}
-        </ol>
+        <p><strong>Purpose:</strong> ${esc(sequence.intent || 'Administrator review required')}</p>
         ${cadenceNote ? `<p class="muted" style="margin:12px 0 0">${esc(cadenceNote)}</p>` : ''}
-        <p class="muted" style="margin:8px 0 0">Group AI: ${category.ai?.enabled ? 'custom instructions enabled' : 'default assistant behavior'}</p>
+        <p class="muted" style="margin:8px 0 0">Inbound AI: ${category.ai?.enabled ? 'enabled' : 'disabled'}</p>
       </div>`
     : `<div class="blank" style="margin:0 16px 16px">No automations yet in this group</div>`;
 
@@ -2134,13 +2003,14 @@ async function renderAutomations() {
           <p class="muted" style="margin:4px 0 0">${esc(category.description || '')}</p>
         </div>
         <div class="automation-head-actions">
-          <button type="button" class="btn ghost" id="edit-group-ai">AI instructions</button>
-          ${category.custom ? '<button type="button" class="btn ghost" id="edit-automation-group">Edit rule</button><button type="button" class="btn danger" id="delete-automation-group">Delete</button>' : ''}
+          <button type="button" class="btn ghost" id="edit-group-ai">Inbound AI settings</button>
+          ${category.rule ? '<button type="button" class="btn ghost" id="edit-automation-group">Edit automation</button>' : ''}
+          ${category.custom ? '<button type="button" class="btn danger" id="delete-automation-group">Delete</button>' : ''}
           <button type="button" class="btn ghost" id="back-automations">All groups</button>
         </div>
       </div>
       ${state.aiBuilderOpen ? groupAiBuilderHtml(category) : ''}
-      ${state.automationBuilderOpen && category.custom ? automationBuilderHtml(category) : ''}
+      ${state.automationBuilderOpen && category.rule ? automationBuilderHtml(category) : ''}
       <div class="subcat-chips">
         ${state.categories
           .map(
