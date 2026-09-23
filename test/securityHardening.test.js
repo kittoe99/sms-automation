@@ -115,6 +115,7 @@ test('browser security headers block framing and third-party scripts', async () 
   const app = express();
   app.use(securityHeaders);
   app.get('/', (_req, res) => res.send('ok'));
+  app.get('/embed.html', (_req, res) => res.send('embed'));
 
   await withServer(app, async (base) => {
     const response = await fetch(base);
@@ -123,6 +124,10 @@ test('browser security headers block framing and third-party scripts', async () 
     const policy = response.headers.get('content-security-policy');
     assert.match(policy, /script-src 'self'/);
     assert.doesNotMatch(policy, /esm\.sh/);
+    const embed = await fetch(`${base}/embed.html`);
+    assert.equal(embed.status, 200);
+    assert.equal(embed.headers.get('x-frame-options'), null);
+    assert.doesNotMatch(embed.headers.get('content-security-policy'), /frame-ancestors 'none'/);
   });
 });
 

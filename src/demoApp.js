@@ -76,6 +76,9 @@ export function createDemoApp() {
     next();
   });
   app.get('/api/auth/config', (_req, res) => res.json({ mode: 'demo', demo: true, configured: false }));
+  app.get('/config.js', (_req, res) => res.type('text/javascript').send(
+    "globalThis.SMS_CONFIG={apiBase:'',supabaseUrl:'',formApiBase:'',embedBaseUrl:''};"
+  ));
   app.get('/api/tenants', (_req, res) => res.json({ demo: true, tenants, currentTenant: tenants[0] }));
   app.use('/api', (req, res) => {
     const tenant = tenants.find(t => t.id === (req.get('X-Tenant-ID') || tenants[0].id));
@@ -107,6 +110,13 @@ export function createDemoApp() {
     } else if (path === '/calls') result = { ...page(req, [], 'calls') };
     else if (path === '/enrollments') result = { ...page(req, [], 'enrollments') };
     else if (path.startsWith('/automation-intake/')) result = { rows: [], total: 0, page: 1, pageSize: 50, totalPages: 1 };
+    else if (path === '/web-forms') result = { canEdit: false, timeZone: 'America/Denver',
+      consentText: `I agree to receive SMS updates and follow-ups from ${tenant.name} at the number provided. Consent is optional. Message frequency varies. Message and data rates may apply. Reply STOP to opt out.`, forms: [
+      { preset: 'contacts', public_id: '00000000-0000-4000-8000-000000000001', title: 'Contact us', description: '', button_label: 'Send message', enabled: true, fields: [] },
+      { preset: 'quote_requests', public_id: '00000000-0000-4000-8000-000000000002', title: 'Request a quote', description: '', button_label: 'Request quote', enabled: true, fields: [] },
+      { preset: 'bookings', public_id: '00000000-0000-4000-8000-000000000003', title: 'Book an appointment', description: '', button_label: 'Book appointment', enabled: true, fields: [] },
+    ] };
+    else if (/^\/web-forms\/(contacts|quote_requests|bookings)\/submissions$/.test(path)) result = { rows: [], total: 0, page: 1, pageSize: 50, totalPages: 1 };
     else if (/^\/automations\/[^/]+$/.test(path)) {
       const category = categories.find(c => c.id === path.split('/')[2]);
       if (!category) return res.status(404).json({ demo: true, error: 'Sample group not found' });

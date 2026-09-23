@@ -2,7 +2,7 @@ import { PGlite } from '@electric-sql/pglite';
 import { readFile,readdir } from 'node:fs/promises';
 export async function testDatabase({beforeMigration}={}) {
  const db=new PGlite();
- await db.exec(`create role anon; create role authenticated;
+ await db.exec(`create role anon; create role authenticated; create role service_role;
  create schema auth; create function auth.jwt() returns jsonb language sql as $$ select coalesce(nullif(current_setting('request.jwt.claims',true),''),'{}')::jsonb $$;
  create schema pgmq; create table pgmq.test_messages(id bigint generated always as identity primary key,q text,message jsonb,vt timestamptz default now());
  create function pgmq.create(text) returns void language sql as $$ select $$;

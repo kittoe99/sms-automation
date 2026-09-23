@@ -17,6 +17,13 @@ const paths=[];
 function walk(dir){for(const d of fs.readdirSync(dir,{withFileTypes:true})){const p=dir+'/'+d.name;if(d.isDirectory())walk(p);else if(/\.(js|ts|json)$/.test(p))paths.push(p);}}
 walk('supabase/functions');
 for(const file of ['sms.js','ai.js','automation.js','provisioning.js','providerHttp.js'])paths.push('src/workers/'+file);
-paths.push('src/lib/automations/timeRules.js','src/lib/tenantContext.js','src/lib/dataMode.js');
+paths.push(
+  'src/lib/automations/timeRules.js',
+  'src/lib/automations/aiDraft.js',
+  'src/lib/automations/rulePresets.js',
+  'src/lib/websiteEnrich.js',
+  'src/lib/tenantContext.js',
+  'src/lib/dataMode.js',
+);
 fs.writeFileSync('data/edge-bundle.json',JSON.stringify(paths.map(name=>({name,content:fs.readFileSync(name,'utf8')}))));
 console.log('Prepared Vault configuration and function bundle.');
