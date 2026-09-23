@@ -1925,7 +1925,7 @@ async function renderAutomations() {
 
   const cadenceNote =
     category.kind === 'quote'
-      ? `Up to ${category.rule?.repeatCount || 6} sends: first after ${category.rule?.firstDelayCount || 1} ${category.rule?.firstDelayUnit || 'day'}(s), then ${cadenceDisplay(category.rule).toLowerCase()}. Each message is freshly drafted from the request and current conversation. Booking or opt-out stops the sequence.`
+      ? `Up to ${category.rule?.repeatCount || 6} sends: first due ${Number(category.rule?.firstDelayCount ?? 1) === 0 ? 'on submission' : `after ${category.rule?.firstDelayCount ?? 1} ${category.rule?.firstDelayUnit || 'day'}(s)`} within the send window, then ${cadenceDisplay(category.rule).toLowerCase()}. Each message is freshly drafted from the request and current conversation. Booking or opt-out stops the sequence.`
       : category.kind === 'reminder'
         ? `Up to ${category.rule?.repeatCount || 1} reminder send(s), first ${category.rule?.leadHours || 24} hours before the appointment${(category.rule?.repeatCount || 1) > 1 ? `, then ${cadenceDisplay(category.rule).toLowerCase()} while the appointment is upcoming` : ''}. Booking changes reschedule and cancellation stops the reminders.`
         : category.fixedType

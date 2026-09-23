@@ -29,7 +29,7 @@ test('groups contain only schedule fields and reject stored copy or step rules',
   }
 });
 
-test('quote follow-up has six sends on days 1, 3, 5, 7, 9, 11', () => {
+test('quote follow-up has six sends on days 0, 2, 4, 6, 8, 10', () => {
   const rule = normalizeCustomRule(AUTOMATION_RULE_PRESETS.find(p => p.id === 'quote-followup').rule);
   let date = new Date('2026-09-01T10:00:00Z');
   const days = [];
@@ -37,7 +37,7 @@ test('quote follow-up has six sends on days 1, 3, 5, 7, 9, 11', () => {
     date = computeCustomNextSendAt(rule, date, 'UTC', i);
     days.push(date.getUTCDate());
   }
-  assert.deepEqual(days, [2, 4, 6, 8, 10, 12]);
+  assert.deepEqual(days, [1, 3, 5, 7, 9, 11]);
 });
 
 test('monthly intervals clamp month ends and daily intervals respect DST', () => {

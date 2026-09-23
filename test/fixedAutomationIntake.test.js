@@ -3,6 +3,39 @@ import assert from 'node:assert/strict';
 import { testDatabase, call } from './helpers/database.js';
 import { createCrmHandler } from '../supabase/functions/crm-api/handler.js';
 
+test('Quote Request default becomes day zero without changing custom rules or enrolled due times', async () => {
+  let priorDue;
+  const db = await testDatabase({ beforeMigration: async (database, file) => {
+    if (file !== '20260923080000_quote_request_immediate.sql') return;
+    await database.exec("insert into sms_private.admins values('admin') on conflict do nothing");
+    await call(database, 'api_action', 'admin', null, 'create_business', { id: 'custom', name: 'Custom', timeZone: 'UTC' });
+    await call(database, 'api_action', 'admin', null, 'create_business', { id: 'default', name: 'Default', timeZone: 'UTC' });
+    await database.exec("update public.sms_automation_groups set rule=jsonb_set(rule,'{firstDelayCount}','5'::jsonb) where tenant_id='custom' and fixed_type='quote_requests'");
+    await call(database, 'api_action', 'admin', 'default', 'contact', { phone: '+13035550191', name: 'Test' });
+    await call(database, 'api_action', 'admin', 'default', 'consent', { phone: '+13035550191', consent: true, evidence: 'Test opt-in' });
+    const intake = await call(database, 'create_intake', 'admin', 'default', 'quote_requests', {
+      phone: '+13035550191', source: 'test', sourceRecordId: 'before-rule-change', details: {},
+    });
+    priorDue = (await database.query('select next_run_at from public.sms_automation_enrollments where id=$1', [intake.enrollment_id])).rows[0].next_run_at;
+  } });
+  try {
+    const groups = (await db.query("select tenant_id,rule from public.sms_automation_groups where fixed_type='quote_requests' and tenant_id in ('custom','default') order by tenant_id")).rows;
+    assert.deepEqual(groups.map(group => [group.tenant_id, group.rule.firstDelayCount]), [['custom', 5], ['default', 0]]);
+    const due = (await db.query("select next_run_at from public.sms_automation_enrollments where tenant_id='default'")).rows[0].next_run_at;
+    assert.equal(new Date(due).toISOString(), new Date(priorDue).toISOString());
+    await call(db, 'api_action', 'admin', null, 'create_business', { id: 'future', name: 'Future', timeZone: 'UTC' });
+    const future = (await db.query("select rule from public.sms_automation_groups where tenant_id='future' and fixed_type='quote_requests'")).rows[0].rule;
+    assert.equal(future.firstDelayCount, 0);
+    assert.equal(future.intervalCount, 2);
+    assert.equal(future.startHour, 9);
+    assert.equal(future.endHour, 19);
+    const businessHours = await db.query("select sms_private.automation_due('2026-09-01T16:00:00Z'::timestamptz,$1::jsonb,'America/Denver',true) as due", [JSON.stringify(future)]);
+    const afterHours = await db.query("select sms_private.automation_due('2026-09-01T03:00:00Z'::timestamptz,$1::jsonb,'America/Denver',true) as due", [JSON.stringify(future)]);
+    assert.equal(new Date(businessHours.rows[0].due).toISOString(), '2026-09-01T16:00:00.000Z');
+    assert.equal(new Date(afterHours.rows[0].due).toISOString(), '2026-09-01T15:00:00.000Z');
+  } finally { await db.close(); }
+});
+
 test('fixed intake tables enroll only eligible rows and progress through lifecycle types', async () => {
   const db = await testDatabase();
   try {

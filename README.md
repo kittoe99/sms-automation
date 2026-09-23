@@ -91,8 +91,8 @@ Four fixed intake tables start SMS automations at the database level:
 `sms_automation_contacts`, `sms_automation_quote_requests`,
 `sms_automation_bookings`, and `sms_automation_reviews`. Each business has one
 editable intent and schedule per type. New Contact and Reviews rules start at one
-send after one day; Quote Request starts at six sends on days 1, 3, 5, 7, 9,
-and 11; Bookings starts at one reminder 24 hours before a confirmed appointment.
+send after one day; Quote Request starts at six sends on days 0, 2, 4, 6, 8,
+and 10 within business hours; Bookings starts at one reminder 24 hours before a confirmed appointment.
 The send count is editable from 1 to 30. Every due job asks AI for a fresh draft
 using the exact source row and current conversation; reusable templates are not sent.
 
