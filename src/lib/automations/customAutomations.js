@@ -255,8 +255,8 @@ export async function listAutomationGroups() {
       intent: group.kind === 'quote' ? quotePreset.intent : group.kind === 'reminder' ?
         'Remind the customer of the confirmed appointment using its actual local date and time.' : null,
       rule: group.kind === 'quote' ? quotePreset.rule : group.kind === 'reminder' ? {
-        anchor: 'appointment', firstDelayCount: 0, firstDelayUnit: 'day', intervalCount: 1,
-        intervalUnit: 'day', repeatCount: 1, leadHours: 24, startHour: 0, endHour: 24,
+        anchor: 'appointment', firstDelayCount: 0, firstDelayUnit: 'day', intervalCount: 6,
+        intervalUnit: 'hour', repeatCount: 1, leadHours: 24, startHour: 0, endHour: 24,
       } : null,
     })),
     ...custom,

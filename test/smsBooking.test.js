@@ -4,7 +4,7 @@ import {testDatabase,call} from './helpers/database.js';
 
 const weekly=Object.fromEntries(Array.from({length:7},(_,i)=>[String(i),[{start:'00:00',end:'23:59'}]]));
 const settings={enabled:true,slotDurationMinutes:60,capacityPerSlot:1,minimumNoticeMinutes:0,maximumAdvanceDays:90,weeklyAvailability:weekly,dateExceptions:[],extraFields:[{key:'service_type',question:'What service do you need?',type:'single_select',required:true,options:['Repair','Install']}]};
-const reminderRule='{"anchor":"appointment","firstDelayCount":0,"firstDelayUnit":"day","intervalCount":1,"intervalUnit":"day","repeatCount":1,"leadHours":24,"startHour":0,"endHour":24}';
+const reminderRule='{"anchor":"appointment","firstDelayCount":0,"firstDelayUnit":"day","intervalCount":6,"intervalUnit":"hour","repeatCount":1,"leadHours":24,"startHour":0,"endHour":24}';
 const inboundRule='{"anchor":"enrollment","firstDelayCount":1,"firstDelayUnit":"day","intervalCount":1,"intervalUnit":"day","repeatCount":1,"leadHours":null,"startHour":0,"endHour":24}';
 
 test('booking configuration is versioned, validated, and tenant scoped',async()=>{

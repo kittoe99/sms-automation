@@ -66,6 +66,20 @@ test('calendar schedules preserve local time through DST and clamp month ends',(
  assert.equal(calendarDelay('2026-01-31T16:00:00Z',1,'month','America/Denver').toISOString(),'2026-02-28T16:00:00.000Z');
 });
 
+test('database reminder scheduling supports configurable sends before the appointment',async()=>{
+ const db=await testDatabase();try{
+  const rule={anchor:'appointment',firstDelayCount:0,firstDelayUnit:'day',intervalCount:6,
+   intervalUnit:'hour',repeatCount:3,leadHours:24,startHour:0,endHour:24};
+  await db.exec("insert into public.sms_businesses(tenant_id,name,time_zone) values('alpha','Alpha','UTC')");
+  await db.query("insert into public.sms_automation_groups(tenant_id,id,name,kind,rule) values('alpha','reminders','Reminders','reminder',$1::jsonb)",[JSON.stringify(rule)]);
+  const first=(await db.query("select sms_private.automation_due('2026-09-25T18:00:00Z'::timestamptz,$1::jsonb,'UTC',true) as due",[JSON.stringify(rule)])).rows[0].due;
+  const next=(await db.query("select sms_private.automation_due('2026-09-24T18:00:00Z'::timestamptz,$1::jsonb,'UTC',false) as due",[JSON.stringify(rule)])).rows[0].due;
+  assert.equal(new Date(first).toISOString(),'2026-09-24T18:00:00.000Z');
+  assert.equal(new Date(next).toISOString(),'2026-09-25T00:00:00.000Z');
+  await assert.rejects(()=>db.query("update public.sms_automation_groups set rule=$1::jsonb where tenant_id='alpha' and id='reminders'",[JSON.stringify({...rule,repeatCount:5})]),/Invalid automation schedule/);
+ }finally{await db.close();}
+});
+
 async function activeBusiness(db,t='alpha') {
  const accountSid=`AC${(t==='alpha'?'a':'b').repeat(32)}`;
  await call(db,'api_action','admin',null,'create_business',{id:t,name:t,timeZone:'UTC'});

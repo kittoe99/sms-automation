@@ -9,6 +9,7 @@ import { normalizeCustomRule, computeCustomNextSendAt, computeCustomFirstSendAt,
 import { runWithTenant } from '../src/lib/tenantContext.js';
 import { AUTOMATION_RULE_PRESETS } from '../src/lib/automations/rulePresets.js';
 import { groupRule } from '../supabase/functions/_shared/domain.js';
+import { automationDue, normalizeSchedule } from '../src/lib/automations/schedule.js';
 
 const schedule = { anchor: 'enrollment', firstDelayCount: 1, firstDelayUnit: 'day',
   intervalCount: 2, intervalUnit: 'day', repeatCount: 6, startHour: 0, endHour: 24 };
@@ -58,6 +59,21 @@ test('first delay and send count control a local drip without saved messages', (
   assert.equal(afterFirst.metadata.drip.stepIndex, 1);
   const afterSecond = advanceCustomDrip({ ...seeded, metadata: afterFirst.metadata }, group, new Date('2026-09-04T10:00:00Z'));
   assert.equal(afterSecond.completed, true);
+});
+
+test('appointment groups support one or several sends only before the appointment', () => {
+  const single = normalizeSchedule({ anchor: 'appointment', leadHours: 24, repeatCount: 1 }, { allowAppointment: true });
+  assert.equal(single.intervalUnit, 'hour');
+  const multiple = normalizeSchedule({ anchor: 'appointment', leadHours: 24,
+    intervalCount: 6, intervalUnit: 'hour', repeatCount: 3, startHour: 0, endHour: 24 }, { allowAppointment: true });
+  const appointment_at = '2026-09-25T18:00:00Z';
+  assert.equal(automationDue(multiple, { appointment_at, step_index: 0 }, 'UTC').toISOString(), '2026-09-24T18:00:00.000Z');
+  assert.equal(automationDue(multiple, { appointment_at, step_index: 1,
+    last_sent_at: '2026-09-24T18:00:00Z' }, 'UTC').toISOString(), '2026-09-25T00:00:00.000Z');
+  assert.throws(() => normalizeSchedule({ anchor: 'appointment', leadHours: 24,
+    intervalCount: 6, intervalUnit: 'hour', repeatCount: 5 }, { allowAppointment: true }), /fit before the appointment/);
+  assert.throws(() => normalizeSchedule({ anchor: 'appointment', leadHours: 24,
+    intervalCount: 1, intervalUnit: 'day', repeatCount: 2 }, { allowAppointment: true }), /hourly interval/);
 });
 
 test('file registry keeps one separate intent per tenant group', async () => {

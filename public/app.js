@@ -1540,8 +1540,8 @@ async function renderOverview() {
 }
 
 function automationBlankLabel(category) {
-  if (category.id === 'quote-requests') return 'Quote follow-up · 6 sends over 11 days';
-  if (category.id === 'appointment-reminders') return 'Appointment reminder · 24h before';
+  if (category.kind === 'quote') return `Quote follow-up · ${category.rule?.repeatCount || 6} sends`;
+  if (category.kind === 'reminder') return `Appointment reminder · ${category.rule?.repeatCount || 1} send(s), first ${category.rule?.leadHours || 24}h before`;
   if (category.custom && category.rule) {
     const sendCount = Math.max(0, Number(category.rule.repeatCount) || 0);
     const sendLabel = sendCount ? `${sendCount} send${sendCount === 1 ? '' : 's'}` : 'No messages';
@@ -1600,7 +1600,27 @@ function automationBuilderHtml(group = null) {
           <textarea id="automation-intent" maxlength="1600" rows="4" required placeholder="What should this automation help the customer accomplish?">${esc(intent)}</textarea>
           <small class="muted">This is guidance, not a saved SMS. Each send uses the latest conversation and approved business context.</small>
         </label>
-        ${rule.anchor === 'appointment' ? '<p class="muted field-wide">One reminder is scheduled 24 hours before the confirmed appointment. Booking changes reschedule it; cancellation stops it.</p>' : `<div class="custom-interval">
+        ${rule.anchor === 'appointment' ? `<label>
+          <span class="compose-label">First send before appointment (hours)</span>
+          <input id="automation-lead-hours" type="number" min="1" max="720" value="${esc(rule.leadHours ?? 24)}" required />
+        </label>
+        <div class="custom-interval">
+          <label>
+            <span class="compose-label">Then every</span>
+            <input id="automation-interval-count" type="number" min="1" max="365" value="${esc(rule.intervalCount ?? 6)}" required />
+          </label>
+          <label>
+            <span class="compose-label">Unit</span>
+            <select id="automation-interval-unit">
+              <option value="hour">hours</option>
+            </select>
+          </label>
+        </div>
+        <label>
+          <span class="compose-label">Maximum number of sends</span>
+          <input id="automation-repeat-count" type="number" min="1" max="30" value="${esc(rule.repeatCount)}" required />
+        </label>
+        <p class="muted field-wide">The lead time must fit every send at the chosen interval. Booking changes reschedule the reminder and cancellation stops it.</p>` : `<div class="custom-interval">
           <label>
             <span class="compose-label">First send after</span>
             <input id="automation-first-delay-count" type="number" min="0" max="365" value="${esc(rule.firstDelayCount ?? 1)}" required />
@@ -1608,7 +1628,7 @@ function automationBuilderHtml(group = null) {
           <label>
             <span class="compose-label">Unit</span>
             <select id="automation-first-delay-unit">
-              ${['day', 'week', 'month'].map((unit) => `<option value="${unit}" ${rule.firstDelayUnit === unit ? 'selected' : ''}>${unit}s</option>`).join('')}
+              ${['hour', 'day', 'week', 'month'].map((unit) => `<option value="${unit}" ${rule.firstDelayUnit === unit ? 'selected' : ''}>${unit}s</option>`).join('')}
             </select>
           </label>
         </div>
@@ -1620,7 +1640,7 @@ function automationBuilderHtml(group = null) {
           <label>
             <span class="compose-label">Unit</span>
             <select id="automation-interval-unit">
-              ${['day', 'week', 'month'].map((unit) => `<option value="${unit}" ${rule.intervalUnit === unit ? 'selected' : ''}>${unit}${unit === rule.intervalUnit && rule.intervalCount === 1 ? '' : 's'}</option>`).join('')}
+              ${['hour', 'day', 'week', 'month'].map((unit) => `<option value="${unit}" ${rule.intervalUnit === unit ? 'selected' : ''}>${unit}${unit === rule.intervalUnit && rule.intervalCount === 1 ? '' : 's'}</option>`).join('')}
             </select>
           </label>
         </div>
@@ -1718,7 +1738,13 @@ function bindAutomationBuilder(group = null) {
       description: form.querySelector('#automation-description').value.trim(),
       intent: form.querySelector('#automation-intent').value.trim(),
       activeAutomation: form.querySelector('#automation-active').checked,
-      rule: group?.rule?.anchor === 'appointment' ? group.rule : {
+      rule: group?.rule?.anchor === 'appointment' ? {
+        ...group.rule,
+        leadHours: Number(form.querySelector('#automation-lead-hours').value),
+        intervalCount: Number(form.querySelector('#automation-interval-count').value),
+        intervalUnit: form.querySelector('#automation-interval-unit').value,
+        repeatCount: Number(form.querySelector('#automation-repeat-count').value),
+      } : {
         anchor: 'enrollment',
         firstDelayCount: Number(form.querySelector('#automation-first-delay-count').value),
         firstDelayUnit: form.querySelector('#automation-first-delay-unit').value,
@@ -1966,10 +1992,10 @@ async function renderAutomations() {
   }
 
   const cadenceNote =
-    category.id === 'quote-requests'
-      ? 'Six sends on days 1, 3, 5, 7, 9, and 11. AI drafts each follow-up from the latest conversation and approved business context. Marketing sends stay between 9am and 7pm. A reply postpones the next touch for at least 24 hours; booking or opt-out stops the sequence.'
-      : category.id === 'appointment-reminders'
-        ? 'Drafts one contextual reminder ~24 hours before an upcoming appointment. New bookings enroll automatically, booking changes reschedule the reminder, and cancellations or expired appointments remove it without sending.'
+    category.kind === 'quote'
+      ? `Up to ${category.rule?.repeatCount || 6} sends: first after ${category.rule?.firstDelayCount || 1} ${category.rule?.firstDelayUnit || 'day'}(s), then ${cadenceDisplay(category.rule).toLowerCase()}. Each message is freshly drafted from the current conversation. Booking or opt-out stops the sequence.`
+      : category.kind === 'reminder'
+        ? `Up to ${category.rule?.repeatCount || 1} reminder send(s), first ${category.rule?.leadHours || 24} hours before the appointment${(category.rule?.repeatCount || 1) > 1 ? `, then ${cadenceDisplay(category.rule).toLowerCase()} while the appointment is upcoming` : ''}. Booking changes reschedule and cancellation stops the reminders.`
         : category.custom
           ? `First send after ${category.rule.firstDelayCount} ${category.rule.firstDelayUnit}(s), then ${cadenceDisplay(category.rule).toLowerCase()} for ${category.rule.repeatCount} total sends. Sending is limited to ${category.rule.startHour}:00–${category.rule.endHour}:00 in the business timezone.`
           : '';
@@ -2047,14 +2073,7 @@ async function renderAutomations() {
                 ? enrollments
                     .map((e) => {
                       const drip = e.metadata?.drip || null;
-                      const stepTotal =
-                        category.id === 'appointment-reminders'
-                          ? 1
-                          : category.id === 'quote-requests'
-                            ? 6
-                            : category.custom
-                              ? category.rule?.repeatCount || null
-                              : null;
+                      const stepTotal = category.rule?.repeatCount || null;
                       const dripLabel = drip
                         ? `${esc(drip.status || '—')}${
                             drip.stepIndex != null && stepTotal != null

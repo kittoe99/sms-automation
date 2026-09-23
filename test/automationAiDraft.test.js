@@ -1,6 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { buildAutomationDraftPrompt, draftAutomationMessage } from '../src/lib/automations/aiDraft.js';
+import { AUTOMATION_SYSTEM_PROMPT, buildAutomationDraftPrompt, draftAutomationMessage } from '../src/lib/automations/aiDraft.js';
 import { processAutomation } from '../src/workers/automation.js';
 
 const context = (kind = 'quote') => ({
@@ -34,12 +34,32 @@ test('quote messages are drafted from thread context with opt-out text', async (
   const draft = await draftAutomationMessage(context(), 'Ask about timing.', {
     apiKey: 'test',
     fetchImpl: async (_url, request) => {
-      assert.match(JSON.parse(request.body).input, /Afternoons work best/);
+      const body = JSON.parse(request.body);
+      assert.equal(body.instructions, AUTOMATION_SYSTEM_PROMPT);
+      assert.match(body.instructions, /single notification, an appointment reminder, or one message in a longer follow-up/);
+      assert.match(body.instructions, /The scheduling system—not you—decides when and how often to send/);
+      assert.match(body.input, /Afternoons work best/);
       return aiResponse('Hi Alex, Alpha Services here. Are afternoons still best for gutter cleaning?');
     },
   });
   assert.equal(draft.aiDrafted, true);
   assert.match(draft.body, /afternoons still best/i);
+  assert.match(draft.body, /Reply STOP to opt out\./);
+});
+
+test('one-time automation is framed as a single purposeful send, not a follow-up', async () => {
+  const single = context('custom');
+  single.group.rule = { repeatCount: 1 };
+  const draft = await draftAutomationMessage(single, 'Notify Alex that their quote is ready for review.', {
+    apiKey: 'test',
+    fetchImpl: async (_url, request) => {
+      const body = JSON.parse(request.body);
+      assert.match(body.input, /"sendNumber":1,"maxSends":1/);
+      assert.match(body.input, /quote is ready for review/);
+      assert.match(body.instructions, /A one-time message should deliver its purpose/);
+      return aiResponse('Alpha Services: your gutter cleaning quote is ready to review. Would you like us to send the details?');
+    },
+  });
   assert.match(draft.body, /Reply STOP to opt out\./);
 });
 

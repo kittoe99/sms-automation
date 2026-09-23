@@ -11,6 +11,9 @@ export function evaluateAutomation(context, now = new Date()) {
   }
   const scheduled = automationDue(rule, e, b.time_zone);
   if (!scheduled || Number.isNaN(scheduled.getTime())) throw new Error('Invalid automation schedule');
+  if (rule.anchor === 'appointment' && scheduled >= new Date(e.appointment_at)) {
+    return { action: 'complete', group_version: g.version };
+  }
   const due = new Date(Math.max(scheduled.getTime(), new Date(e.next_run_at || 0).getTime()));
   if (due > now) return { action: 'schedule', due: due.toISOString(), group_version: g.version };
   return {

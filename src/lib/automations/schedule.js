@@ -1,6 +1,6 @@
 import { constrainToSendWindow, getZonedParts, zonedDateTimeToUtc } from './timeRules.js';
 
-const units = new Set(['day', 'week', 'month']);
+const units = new Set(['hour', 'day', 'week', 'month']);
 
 function whole(value, fallback, min, max, label) {
   const n = value == null || value === '' ? fallback : Number(value);
@@ -15,20 +15,25 @@ export function normalizeSchedule(input = {}, { allowAppointment = false } = {})
   const anchor = input.anchor || 'enrollment';
   if (anchor !== 'enrollment' && !(allowAppointment && anchor === 'appointment')) throw new Error('Invalid schedule anchor');
   const firstDelayUnit = input.firstDelayUnit || 'day';
-  const intervalUnit = input.intervalUnit || 'day';
+  const intervalUnit = input.intervalUnit || (anchor === 'appointment' ? 'hour' : 'day');
   if (!units.has(firstDelayUnit) || !units.has(intervalUnit)) throw new Error('Invalid schedule unit');
   const startHour = whole(input.startHour, 9, 0, 23, 'send window');
   const endHour = whole(input.endHour, 19, 1, 24, 'send window');
   if (endHour <= startHour) throw new Error('Send window end must follow its start');
   const repeatCount = whole(input.repeatCount, 1, 1, 30, 'send count');
+  const intervalCount = whole(input.intervalCount, anchor === 'appointment' ? 6 : 1, 1, 365, 'repeat interval');
+  const leadHours = anchor === 'appointment' ? whole(input.leadHours, 24, 1, 720, 'appointment lead') : null;
+  if (anchor === 'appointment' && (intervalUnit !== 'hour' || (repeatCount - 1) * intervalCount >= leadHours)) {
+    throw new Error('Appointment sends must use an hourly interval and fit before the appointment');
+  }
   return {
     anchor,
     firstDelayCount: whole(input.firstDelayCount, 1, 0, 365, 'first delay'),
     firstDelayUnit,
-    intervalCount: whole(input.intervalCount, 1, 1, 365, 'repeat interval'),
+    intervalCount,
     intervalUnit,
-    repeatCount: anchor === 'appointment' ? 1 : repeatCount,
-    leadHours: anchor === 'appointment' ? whole(input.leadHours, 24, 1, 720, 'appointment lead') : null,
+    repeatCount,
+    leadHours,
     startHour,
     endHour,
   };
@@ -37,6 +42,7 @@ export function normalizeSchedule(input = {}, { allowAppointment = false } = {})
 export function calendarDelay(value, count, unit, timeZone) {
   const p = getZonedParts(value, timeZone);
   if (!p || !Number.isInteger(count) || count < 0 || !units.has(unit)) throw new Error('Invalid schedule');
+  if (unit === 'hour') return new Date(new Date(value).getTime() + count * 3600000);
   const date = new Date(Date.UTC(p.year, p.month - 1, p.day));
   if (unit === 'month') {
     date.setUTCDate(1);
@@ -50,7 +56,14 @@ export function calendarDelay(value, count, unit, timeZone) {
 export function automationDue(rule, enrollment, timeZone) {
   if (rule.anchor === 'appointment') {
     if (!enrollment.appointment_at) return null;
-    return new Date(new Date(enrollment.appointment_at).getTime() - rule.leadHours * 3600000);
+    if (enrollment.step_index === 0) {
+      return new Date(new Date(enrollment.appointment_at).getTime() - rule.leadHours * 3600000);
+    }
+    if (!enrollment.last_sent_at) return null;
+    return constrainToSendWindow(
+      calendarDelay(enrollment.last_sent_at, rule.intervalCount, rule.intervalUnit, timeZone),
+      { timeZone, startHour: rule.startHour, endHour: rule.endHour }
+    );
   }
   const first = enrollment.step_index === 0;
   const from = first ? enrollment.created_at : enrollment.last_sent_at;
