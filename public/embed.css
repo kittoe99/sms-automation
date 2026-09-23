@@ -1,0 +1,22 @@
+:root { font-family: Inter, Manrope, Arial, sans-serif; color: #20312a; background: #fff; }
+* { box-sizing: border-box; }
+body { margin: 0; }
+.form-shell { width: 100%; max-width: 720px; margin: 0 auto; padding: 24px; }
+.form-shell h1 { margin: 0 0 8px; font-size: 26px; line-height: 1.2; }
+.form-shell p { margin: 0 0 20px; color: #596b63; line-height: 1.5; }
+.web-form { display: grid; gap: 16px; }
+.web-form label { display: grid; gap: 7px; font-size: 14px; font-weight: 650; }
+.web-form input:not([type="checkbox"]), .web-form select, .web-form textarea {
+  width: 100%; padding: 11px 12px; border: 1px solid #cad8d0; border-radius: 8px;
+  background: #fff; color: #20312a; font: inherit;
+}
+.web-form textarea { min-height: 110px; resize: vertical; }
+.web-form :is(input,select,textarea):focus-visible, .web-form button:focus-visible { outline: 3px solid #9bd9bf; outline-offset: 2px; }
+.web-form .checkbox-field { display: flex; align-items: start; gap: 10px; font-weight: 500; line-height: 1.5; }
+.checkbox-field input { margin: 3px 0 0; width: 18px; height: 18px; flex: none; accent-color: #087f5b; }
+.form-note { color: #596b63; font-size: 13px; }
+.form-error { color: #b32637; min-height: 20px; margin: 0; }
+.web-form button { min-height: 44px; border: 0; border-radius: 8px; background: #087f5b; color: white; font: inherit; font-weight: 700; cursor: pointer; }
+.web-form button:disabled { opacity: .65; cursor: wait; }
+.form-honeypot { position: absolute; left: -9999px; width: 1px; height: 1px; overflow: hidden; }
+.form-success { padding: 24px; border: 1px solid #bce3d0; border-radius: 10px; background: #f3fbf6; }

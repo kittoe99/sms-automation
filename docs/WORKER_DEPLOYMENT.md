@@ -41,6 +41,29 @@ Approved CRM administrator: `kofikittoe35@gmail.com`, Clerk subject `user_3Il5aq
 
 Build the static frontend with `CRM_API_BASE`, `SUPABASE_URL` and the public `SUPABASE_PUBLISHABLE_KEY`, using `npm run build:frontend`. The API base is `https://wxamwhfmelxqahkdtcci.supabase.co/functions/v1/crm-api`. `render.yaml` contains only the optional static site. The local legacy Express server is a disconnected preview and refuses production startup.
 
+## Web Forms deployment
+
+Apply `20260923060000_web_form_submissions.sql` followed by
+`20260923070000_web_form_builder.sql`. The latter seeds all existing businesses;
+new businesses receive the three presets automatically. After migration, run
+`node scripts/bootstrap-web-form-role.js` with `MIGRATION_DATABASE_URL` set. It
+creates a dedicated login that inherits only the `sms_form_public` RPC grants and
+writes its URL to ignored `data/web-form-credentials.env`. Run
+`node scripts/prepare-edge-secrets.js` to include `WEB_FORM_DATABASE_URL` and a
+random `WEB_FORM_IP_HASH_KEY` in `data/edge-secrets.env`; import the updated file
+into Supabase Edge Function Secrets. Deploy the `web-form` function with JWT
+verification disabled, since the public endpoint uses its scoped database role.
+The `crm-api` function must also be redeployed for the authenticated builder
+routes. Do not put the scoped URL or hash key into the frontend configuration.
+
+Set `PUBLIC_FORM_BASE_URL` during the static build to the public HTTPS origin
+serving `embed.html` and `embed-resize.js`. Render sets this value in
+`render.yaml`. Form Builder copies an iframe snippet that can be pasted into any
+test website. The public Edge endpoint uses wildcard CORS; `CRM_ALLOWED_ORIGINS`
+still applies to the dashboard API. The public function accepts at most 16 KiB
+of JSON, uses a honeypot, and atomically counts 10 attempts per 10-minute form/IP
+bucket and 100 per-hour form bucket. A daily job removes expired buckets.
+
 ## Rollout and controls
 
 1. Apply additive migrations in order; already-applied files are immutable. `db:assemble` now requires the filename of a new empty migration created by the Supabase CLI.

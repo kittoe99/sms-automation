@@ -1,4 +1,5 @@
 import { connectSupabaseLive } from './live.js';
+import { createFormBuilder } from './formBuilder.js';
 import {
   apiFetch,
   getAccessToken,
@@ -68,6 +69,8 @@ const el = {
   toolbarTenant: document.getElementById('toolbar-tenant'),
   tenantAvatar: document.getElementById('tenant-avatar'),
 };
+
+const formBuilder = createFormBuilder({ root: el.root, apiFetch, config: runtimeConfig });
 
 let drawerReturnFocus = null;
 
@@ -1095,6 +1098,7 @@ const titles = {
   knowledge: ['AI knowledge', 'Approve evidence, review leads, and resolve human handoffs.'],
   bookings: ['Bookings', 'Confirmed appointments created securely for this business.'],
   'booking-setup': ['Booking setup', 'Availability and questions collected before an SMS booking.'],
+  'web-forms': ['Form Builder', 'Design Contact, Quote Request, and Booking forms for your websites.'],
 };
 
 function knowledgePanelMarkup(data) {
@@ -1290,7 +1294,7 @@ function initNavFind() {
 
 async function load() {
   document.getElementById('crm-app').dataset.view = state.view;
-  el.search.closest('.search-wrap').hidden = ['overview', 'call', 'deliverability', 'business-setup', 'business-context', 'booking-setup', 'knowledge'].includes(state.view);
+  el.search.closest('.search-wrap').hidden = ['overview', 'call', 'deliverability', 'business-setup', 'business-context', 'booking-setup', 'knowledge', 'web-forms'].includes(state.view);
   el.status.hidden = !['messages', 'deliverability'].includes(state.view) && !(state.view === 'automations' && state.categoryId);
   if (state.view === 'business-setup') el.pager.hidden = true;
   try {
@@ -1317,6 +1321,12 @@ async function load() {
     else if (state.view === 'business-setup') await renderBusinessSetup();
     else if (state.view === 'business-context') await renderBusinessContext();
     else if (state.view === 'booking-setup') await renderBookingSetup();
+    else if (state.view === 'web-forms') {
+      setTitle(...titles['web-forms']);
+      el.pager.hidden = true;
+      el.kpi.innerHTML = '';
+      await formBuilder.render();
+    }
     else if (state.view === 'bookings') await renderBookings();
     else if (state.view === 'knowledge') await renderKnowledge();
     else await renderMessages();
@@ -1925,7 +1935,7 @@ async function renderAutomations() {
 
   const cadenceNote =
     category.kind === 'quote'
-      ? `Up to ${category.rule?.repeatCount || 6} sends: first due ${Number(category.rule?.firstDelayCount ?? 1) === 0 ? 'on submission' : `after ${category.rule?.firstDelayCount ?? 1} ${category.rule?.firstDelayUnit || 'day'}(s)`} within the send window, then ${cadenceDisplay(category.rule).toLowerCase()}. Each message is freshly drafted from the request and current conversation. Booking or opt-out stops the sequence.`
+      ? `Up to ${category.rule?.repeatCount || 6} sends: ${category.rule?.firstDelayCount === 0 ? 'first due on submission within the send window' : `first after ${category.rule?.firstDelayCount ?? 1} ${category.rule?.firstDelayUnit || 'day'}(s)`}, then ${cadenceDisplay(category.rule).toLowerCase()}. Each message is freshly drafted from the request and current conversation. Booking or opt-out stops the sequence.`
       : category.kind === 'reminder'
         ? `Up to ${category.rule?.repeatCount || 1} reminder send(s), first ${category.rule?.leadHours || 24} hours before the appointment${(category.rule?.repeatCount || 1) > 1 ? `, then ${cadenceDisplay(category.rule).toLowerCase()} while the appointment is upcoming` : ''}. Booking changes reschedule and cancellation stops the reminders.`
         : category.fixedType

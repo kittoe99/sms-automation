@@ -9,6 +9,8 @@ services:
         value: https://wxamwhfmelxqahkdtcci.supabase.co/functions/v1/crm-api
       - key: SUPABASE_URL
         value: https://wxamwhfmelxqahkdtcci.supabase.co
+      - key: PUBLIC_FORM_BASE_URL
+        value: https://wpacquisition-crm.onrender.com
       - key: SUPABASE_PUBLISHABLE_KEY
         sync: false
     routes:

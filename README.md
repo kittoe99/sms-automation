@@ -91,8 +91,9 @@ Four fixed intake tables start SMS automations at the database level:
 `sms_automation_contacts`, `sms_automation_quote_requests`,
 `sms_automation_bookings`, and `sms_automation_reviews`. Each business has one
 editable intent and schedule per type. New Contact and Reviews rules start at one
-send after one day; Quote Request starts at six sends on days 0, 2, 4, 6, 8,
-and 10 within business hours; Bookings starts at one reminder 24 hours before a confirmed appointment.
+send after one day; Quote Request starts on submission within the business send
+window, then follows up every two days for six total sends (days 0, 2, 4, 6,
+8, and 10); Bookings starts at one reminder 24 hours before a confirmed appointment.
 The send count is editable from 1 to 30. Every due job asks AI for a fresh draft
 using the exact source row and current conversation; reusable templates are not sent.
 
@@ -112,6 +113,45 @@ cancellations stop them. Newer rows replace active sequences of the same type.
 Quote Requests stop Contact nurture, confirmed Bookings stop Contact and Quote
 follow-ups, and Reviews stop obsolete booking reminders. Existing inbound AI
 settings and previously sent messages are unchanged.
+
+### Web Forms submission storage
+
+Website Contact, Quote Request, and Booking submissions are stored in
+`sms_web_form_contact_submissions`, `sms_web_form_quote_request_submissions`, and
+`sms_web_form_booking_submissions`. Each row has a business `tenant_id`, a UUID,
+required `name`, E.164 `phone`, and `email`, plus object-valued `details` for
+website-specific answers. Booking rows also require an exact `appointment_at`
+timestamp. The database assigns `automation_group_id` and
+`automation_intake_id`; callers must not choose an automation group.
+
+Trusted database inserts create a matching automation intake row in the same
+transaction. Contact and Quote Request rows require `sms_opt_in=true` and
+nonblank `consent_evidence` to start SMS automation; a prior opt-out still
+prevents sending. Booking rows enter the confirmed booking reminder flow on
+submission. Changes to `details` on a saved Web Forms row do not restart an
+automation; the intake row keeps the original submitted answers. Business
+memberships control read access.
+
+### Form Builder and website embeds
+
+**Form Builder** in the dashboard has one Contact, Quote Request, and Booking form
+per business. Admins can edit the title, description, button, enabled state, and
+up to 20 ordered custom fields. Name, Phone, Email, optional SMS consent, and the
+Booking appointment time are fixed. Each form has a stable public ID and iframe
+snippet. Saving changes the live form without replacing existing snippets.
+Disabling a form stops its public configuration and submissions.
+
+Custom answers are saved in `details`. Each submission saves the form version and
+field-label snapshot so historical answers stay readable after edits. The public
+Edge endpoint validates the preset and answers, converts Booking times in the
+business time zone, stores consent evidence, and lets the database trigger choose
+the existing automation group. Unchecked Contact and Quote Request forms save
+without SMS enrollment; Booking forms submit as confirmed.
+
+During testing, the public `web-form` Edge endpoint accepts requests from all URL
+origins. The dashboard retains its framing and origin restrictions; only
+`/embed.html` permits framing. The iframe snippet includes automatic resizing and
+a fixed-height fallback. See [deployment setup](docs/WORKER_DEPLOYMENT.md#web-forms-deployment).
 
 ## Server-to-server send (quotes)
 

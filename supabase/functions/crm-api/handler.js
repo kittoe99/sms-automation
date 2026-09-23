@@ -36,6 +36,10 @@ export function createCrmHandler(db,verify=authenticate) {
    }
    if(!tenant) return json({error:'Select a business'},400,headers);
    if(method==='GET') {
+    if(path==='/web-forms') return json(await db.call('list_web_forms',user,tenant),200,headers);
+    const webFormSubmissions=path.match(/^\/web-forms\/(contacts|quote_requests|bookings)\/submissions$/);
+    if(webFormSubmissions) return json(await db.call('list_web_form_submissions',user,tenant,
+      webFormSubmissions[1],Number(params.page||1),Number(params.pageSize||50)),200,headers);
     if(path==='/overview'||path==='/deliverability') {
      const data=await read('overview');const sent=Object.entries(data.counts).filter(([s])=>s!=='received').reduce((n,[,v])=>n+Number(v),0);
      return json({...data,deliveryRate:sent?Math.round(100*(data.counts.delivered||0)/sent):null},200,headers);
@@ -79,6 +83,9 @@ export function createCrmHandler(db,verify=authenticate) {
     }
    } else {
     const p=await readJson(request);
+    const webFormSave=path.match(/^\/web-forms\/(contacts|quote_requests|bookings)$/);
+    if(webFormSave){if(method!=='PUT')return json({error:'PUT required'},405,headers);
+      return json({form:await db.call('save_web_form',user,tenant,webFormSave[1],p)},200,headers);}
     if(path==='/twilio/registration-session'||path==='/twilio/number-search') {
      const upstream=await fetch(`${env('SUPABASE_URL')}/functions/v1/compliance-session`,{method:'POST',headers:{Authorization:request.headers.get('Authorization')||'','X-Tenant-ID':tenant,'Content-Type':'application/json','Origin':request.headers.get('Origin')||''},body:JSON.stringify(path.endsWith('number-search')?{...p,action:'search_numbers'}:p)});
      return json(await upstream.json().catch(()=>({error:'Registration session failed'})),upstream.status,headers);

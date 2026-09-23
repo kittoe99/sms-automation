@@ -13,6 +13,10 @@ major_version = 17
 verify_jwt = false
 import_map = "./functions/import_map.json"
 
+[functions.web-form]
+verify_jwt = false
+import_map = "./functions/import_map.json"
+
 [functions.twilio-webhook]
 verify_jwt = false
 import_map = "./functions/import_map.json"

@@ -4534,3 +4534,30 @@ body { background: #f7f7f5; }
   .automation-health > summary { padding: 14px; }
   .automation-health .worker-status-content { padding: 0 14px 14px 33px; }
 }
+.web-builder-tabs { display: flex; gap: 8px; flex-wrap: wrap; margin-bottom: 16px; }
+.web-builder-layout { display: grid; grid-template-columns: minmax(0, 1.4fr) minmax(280px, 1fr); gap: 16px; align-items: start; }
+.web-builder-body { padding: 18px; display: grid; gap: 14px; }
+.web-builder-body > label, .web-builder-field-grid > label { display: grid; gap: 6px; font-weight: 650; }
+.web-builder-body input:not([type="checkbox"]), .web-builder-body select, .web-builder-body textarea,
+.web-builder-field-grid input:not([type="checkbox"]), .web-builder-field-grid select, .web-builder-field-grid textarea {
+  width: 100%; padding: 10px; border: 1px solid var(--border, #d7e1dc); border-radius: 6px; background: #fff; color: #20312a; font: inherit;
+}
+.web-builder-body h3 { margin: 10px 0 0; }
+.web-builder-body p { margin: 0; }
+.web-builder-body .checkbox-field, .web-builder-field-grid .checkbox-field { display: flex; align-items: center; gap: 8px; }
+.web-builder-field { padding: 14px 0; border-top: 1px solid var(--border, #d7e1dc); }
+.web-builder-field-head { display: flex; justify-content: space-between; align-items: center; gap: 8px; margin-bottom: 10px; }
+.web-builder-field-head > div { display: flex; gap: 5px; }
+.web-builder-field-grid { display: grid; grid-template-columns: minmax(0, 1fr) minmax(130px, .5fr); gap: 12px; }
+.web-builder-options { grid-column: 1 / -1; }
+.web-builder-actions { display: flex; gap: 12px; align-items: center; justify-content: flex-end; }
+#web-save-status { color: #276949; }
+.web-builder-preview { padding: 18px; display: grid; gap: 12px; }
+.web-builder-preview h3 { margin: 0; }
+.web-builder-preview p { margin: 0; color: #596b63; }
+.web-builder-preview label { display: grid; gap: 5px; font-size: 13px; }
+.web-builder-preview input:not([type="checkbox"]), .web-builder-preview textarea { width: 100%; padding: 9px; border: 1px solid #d7e1dc; border-radius: 5px; }
+.web-builder-embed { margin-top: 16px; }
+.web-builder-pagination { display: flex; gap: 12px; align-items: center; justify-content: flex-end; }
+@media (max-width: 900px) { .web-builder-layout { grid-template-columns: 1fr; } }
+@media (max-width: 560px) { .web-builder-field-grid { grid-template-columns: 1fr; } .web-builder-field-head { align-items: start; flex-direction: column; } }

@@ -3,8 +3,11 @@ import crypto from 'node:crypto';
 import dotenv from 'dotenv';
 const local=dotenv.parse(fs.readFileSync('.env'));
 const scoped=dotenv.parse(fs.readFileSync('data/worker-credentials.env'));
+const webFormScoped=fs.existsSync('data/web-form-credentials.env')
+  ? dotenv.parse(fs.readFileSync('data/web-form-credentials.env')) : {};
 const prior=fs.existsSync('data/edge-secrets.env')?dotenv.parse(fs.readFileSync('data/edge-secrets.env')):{};
-const result={...prior,...scoped};
+const result={...prior,...scoped,...webFormScoped};
+result.WEB_FORM_IP_HASH_KEY ||= crypto.randomBytes(32).toString('hex');
 for(const name of [
   'SMS_WORKER_SECRET',
   'AUTOMATION_WORKER_SECRET',
