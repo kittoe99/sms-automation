@@ -1,8 +1,9 @@
 import {json,readJson,cors,failure,authenticate,env} from '../_shared/http.js';
 import {phone,groupRule,localDateTime,business,message,contact,thread,group} from '../_shared/domain.js';
 import {enrichBusinessFromWebsite} from '../../../src/lib/websiteEnrich.js';
-import {AUTOMATION_RULE_PRESETS,CADENCE_PRESETS} from '../../../src/lib/automations/rulePresets.js';
+import {CADENCE_PRESETS} from '../../../src/lib/automations/rulePresets.js';
 const KNOWLEDGE_MIME=new Set(['application/pdf','application/vnd.openxmlformats-officedocument.wordprocessingml.document','text/plain','text/markdown']);
+const INTAKE_TYPES=new Set(['contacts','quote_requests','bookings','reviews']);
 async function signedKnowledgeUpload(tenant,input,fetchImpl=fetch) {
  const size=Number(input.size),contentType=String(input.contentType||'').toLowerCase();
  if(!Number.isFinite(size)||size<1||size>10*1024*1024) throw Object.assign(new Error('Knowledge files must be 10 MB or smaller'),{status:400});
@@ -47,14 +48,16 @@ export function createCrmHandler(db,verify=authenticate) {
     if(path==='/twilio/readiness') return json(await db.call('activation_readiness',user,tenant),200,headers);
     if(path==='/booking-settings') return json(await db.call('booking_settings',user,tenant),200,headers);
     if(path==='/bookings') return json(await db.call('list_bookings',user,tenant,params),200,headers);
+    const intakeList=path.match(/^\/automation-intake\/([^/]+)$/);
+    if(intakeList){const type=decodeURIComponent(intakeList[1]);if(!INTAKE_TYPES.has(type))return json({error:'Unknown SMS automation type'},404,headers);return json(await db.call('list_intake',user,tenant,type,Number(params.page||1),Number(params.pageSize||50)),200,headers);}
     const bookingDetail=path.match(/^\/bookings\/([^/]+)$/);if(bookingDetail)return json({booking:await db.call('booking_detail',user,tenant,decodeURIComponent(bookingDetail[1]))},200,headers);
     if(path==='/categories'||path==='/automation-groups') {
      const [data,ai]=await Promise.all([read('groups',{pageSize:250}),read('ai_settings',{pageSize:250})]);
-     const groups=data.rows.map(g=>{const setting=ai.rows.find(a=>a.group_id===g.id);return {...group(g),ai:setting?{...setting,defaultForInbound:Boolean(setting.default_for_inbound)}:{enabled:false,instructions:'',defaultForInbound:false}}});return json({categories:groups,groups,cadences:Object.entries(CADENCE_PRESETS).map(([id,value])=>({id,...value})),rulePresets:AUTOMATION_RULE_PRESETS},200,headers);
+     const groups=data.rows.filter(g=>INTAKE_TYPES.has(g.fixed_type)).map(g=>{const setting=ai.rows.find(a=>a.group_id===g.id);return {...group(g),fixedType:g.fixed_type,ai:setting?{...setting,defaultForInbound:Boolean(setting.default_for_inbound)}:{enabled:false,instructions:'',defaultForInbound:false}}});return json({categories:groups,groups,cadences:Object.entries(CADENCE_PRESETS).map(([id,value])=>({id,...value})),rulePresets:[]},200,headers);
     }
     if(path.startsWith('/automations/')) {
      const id=decodeURIComponent(path.split('/')[2]);const data=await read('groups',{id});
-     return json({sequence:data.rows[0]?group(data.rows[0]):null},200,headers);
+     return json({sequence:INTAKE_TYPES.has(data.rows[0]?.fixed_type)?group(data.rows[0]):null},200,headers);
     }
     if(path==='/messages') {const data=await read('messages',params);return json({...data,messages:data.rows.map(message),summary:await read('overview')},200,headers);}
     if(path==='/enrollments') {
@@ -88,12 +91,16 @@ export function createCrmHandler(db,verify=authenticate) {
      return json(await write('send',{phone:ph,body:String(p.body||'').trim(),purpose:send?'transactional':'marketing',category_id:p.categoryId||null,idempotencyKey:key}),202,headers);
     }
     if(path==='/contacts') return json({contact:contact(await write('contact',{...p,phone:phone(p.phone)}))},201,headers);
+    const intakeCreate=path.match(/^\/automation-intake\/([^/]+)$/);
+    if(intakeCreate){const type=decodeURIComponent(intakeCreate[1]);if(!INTAKE_TYPES.has(type))return json({error:'Unknown SMS automation type'},404,headers);if(method!=='POST')return json({error:'POST required'},405,headers);if(type==='bookings'&&p.appointmentAt){const businesses=await read('businesses'),tz=businesses.rows.find(b=>b.tenant_id===tenant)?.time_zone;p.appointmentAt=localDateTime(p.appointmentAt,tz).toISOString();}const record=await db.call('create_intake',user,tenant,type,{...p,sourceRecordId:p.sourceRecordId||request.headers.get('Idempotency-Key')||undefined});return json({record},201,headers);}
+    const intakeBookingUpdate=path.match(/^\/automation-intake\/bookings\/([^/]+)$/);
+    if(intakeBookingUpdate){if(method!=='PATCH')return json({error:'PATCH required'},405,headers);if(p.appointmentAt){const businesses=await read('businesses'),tz=businesses.rows.find(b=>b.tenant_id===tenant)?.time_zone;p.appointmentAt=localDateTime(p.appointmentAt,tz).toISOString();}return json({record:await db.call('update_intake_booking',user,tenant,decodeURIComponent(intakeBookingUpdate[1]),p)},200,headers);}
     const consent=path.match(/^\/contacts\/([^/]+)\/(opt-in|opt-out)$/);
     if(consent) return json(await write('consent',{phone:phone(decodeURIComponent(consent[1])),consent:consent[2]==='opt-in',evidence:p.evidence || (consent[2]==='opt-out'?'Admin suppression':null)}),200,headers);
-    if(path==='/directory/enroll'||path==='/directory/unenroll') {
+    if(path==='/directory/enroll') return json({error:'Add a row to the matching SMS automation intake type instead'},405,headers);
+    if(path==='/directory/unenroll') {
      p.phone=phone(p.phone);
-     if(p.appointmentDate) {const businesses=await read('businesses');const tz=businesses.rows.find(b=>b.tenant_id===tenant)?.time_zone;p.appointment_at=localDateTime(`${p.appointmentDate}T${/^\d\d:\d\d$/.test(p.preferredTime)?p.preferredTime:'09:00'}`,tz).toISOString();}
-     return json(await write(path.endsWith('/unenroll')?'unenroll':'enroll',p),200,headers);
+     return json(await write('unenroll',p),200,headers);
     }
     const ai=path.match(/^\/conversations\/([^/]+)\/(read|ai\/pause|ai\/resume)$/);
     if(ai) return json(await write(ai[2].split('/').at(-1),{phone:phone(decodeURIComponent(ai[1]))}),200,headers);
@@ -101,11 +108,14 @@ export function createCrmHandler(db,verify=authenticate) {
     if(groups) {
      const id=decodeURIComponent(groups[1] || p.id || crypto.randomUUID());
      if(groups[2]) return json(await db.call('configure_ai_grounded',user,tenant,id,p),200,headers);
-     if(method==='DELETE') return json(await write('delete_group',{id}),200,headers);
+     if(method!=='PUT'||!groups[1]) return json({error:'Only the four fixed SMS automation rules can be edited'},405,headers);
+     const existing=(await read('groups',{id})).rows[0];
+     if(!existing||!INTAKE_TYPES.has(existing.fixed_type))return json({error:'Fixed SMS automation rule not found'},404,headers);
      if(['template','steps','deliveryMode','aiDraft'].some(key=>key in p)) return json({error:'Saved automation messages are not supported'},400,headers);
+     if(!p.rule||typeof p.rule!=='object'||Array.isArray(p.rule)||p.rule.anchor!==(existing.fixed_type==='bookings'?'appointment':'enrollment')) return json({error:'Schedule anchor does not match the SMS automation type'},400,headers);
      const businesses=await read('businesses'),tz=businesses.rows.find(b=>b.tenant_id===tenant)?.time_zone;
      let rule;try{rule=groupRule(p.rule,tz);}catch(error){error.status=400;throw error;}
-     return json({group:group(await write('group',{...p,id,rule,active:p.activeAutomation!==false}))},200,headers);
+     return json({group:group(await write('group',{...p,id,name:existing.name,description:existing.description,rule,active:p.activeAutomation!==false}))},200,headers);
     }
     const groundedAi=path.match(/^\/automation-groups\/([^/]+)\/grounded-ai$/);if(groundedAi)return json(await db.call('configure_grounded_ai',user,tenant,decodeURIComponent(groundedAi[1]),p),200,headers);
     const redraft=path.match(/^\/automation-jobs\/([^/]+)\/redraft$/);if(redraft) return json(await write('retry_job',{id:redraft[1]}),202,headers);

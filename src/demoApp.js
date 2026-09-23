@@ -1,16 +1,20 @@
 // Deliberately standalone: never import live auth, database, Twilio, or AI modules.
 import express from 'express';
 import { fileURLToPath } from 'node:url';
-import { AUTOMATION_RULE_PRESETS, CADENCE_PRESETS } from './lib/automations/rulePresets.js';
+import { CADENCE_PRESETS } from './lib/automations/rulePresets.js';
 
 const tenants = [
   { id: 'demo-opek', name: 'Opek — Demo', shortName: 'Opek Demo' },
   { id: 'demo-acme', name: 'Acme Services — Demo', shortName: 'Acme Demo' },
 ];
+const demoRule = (count, interval = 1) => ({ anchor: 'enrollment', firstDelayCount: 1,
+  firstDelayUnit: 'day', intervalCount: interval, intervalUnit: 'day', repeatCount: count,
+  startHour: 9, endHour: 19 });
 const categories = [
-  { id: 'appointment-reminders', name: 'Appointment Reminders', description: 'Sample appointment reminders', activeAutomation: true },
-  { id: 'quote-requests', name: 'Quote Requests', description: 'Sample quote follow-ups', activeAutomation: true },
-  { id: 'followup-automations', name: 'Follow-up Automations', description: 'Sample follow-up workspace', activeAutomation: false },
+  { id: 'sms-contact', name: 'Contact', fixedType: 'contacts', kind: 'contact', rule: demoRule(1), intent: 'Help with the inquiry.', description: 'New SMS leads', activeAutomation: true },
+  { id: 'quote-requests', name: 'Quote Request', fixedType: 'quote_requests', kind: 'quote', rule: demoRule(6, 2), intent: 'Help with the quote request.', description: 'Quote inquiries', activeAutomation: true },
+  { id: 'appointment-reminders', name: 'Bookings', fixedType: 'bookings', kind: 'reminder', rule: { anchor: 'appointment', firstDelayCount: 0, firstDelayUnit: 'day', intervalCount: 6, intervalUnit: 'hour', repeatCount: 1, leadHours: 24, startHour: 0, endHour: 24 }, intent: 'Remind about the appointment.', description: 'Confirmed bookings', activeAutomation: true },
+  { id: 'sms-review', name: 'Reviews', fixedType: 'reviews', kind: 'review', rule: demoRule(1), intent: 'Invite feedback.', description: 'Completed services', activeAutomation: true },
 ];
 const demoError = { demo: true, error: 'Read-only demo: SMS, calls, account provisioning, and changes are disabled.' };
 
@@ -80,7 +84,7 @@ export function createDemoApp() {
     const stats = summary(messages, contacts);
     let result;
     const path = req.path;
-    if (path === '/categories') result = { categories, cadences: Object.entries(CADENCE_PRESETS).map(([id, value]) => ({ id, ...value })), rulePresets: AUTOMATION_RULE_PRESETS };
+    if (path === '/categories') result = { categories, cadences: Object.entries(CADENCE_PRESETS).map(([id, value]) => ({ id, ...value })), rulePresets: [] };
     else if (path === '/overview' || path === '/deliverability') result = { ...stats,
       byCategory: categories.map(c => ({ id: c.id, ...summary(messages.filter(m => m.categoryId === c.id), contacts) })) };
     else if (path === '/messages') {
@@ -102,11 +106,12 @@ export function createDemoApp() {
         conversation: { ...contact, messages: messages.filter(m => m.contactPhone === phone) } };
     } else if (path === '/calls') result = { ...page(req, [], 'calls') };
     else if (path === '/enrollments') result = { ...page(req, [], 'enrollments') };
+    else if (path.startsWith('/automation-intake/')) result = { rows: [], total: 0, page: 1, pageSize: 50, totalPages: 1 };
     else if (/^\/automations\/[^/]+$/.test(path)) {
       const category = categories.find(c => c.id === path.split('/')[2]);
       if (!category) return res.status(404).json({ demo: true, error: 'Sample group not found' });
       result = { group: category, sequence: { name: category.name, description: category.description,
-        steps: [{ id: 'sample-reminder', label: 'Sample reminder', template: 'Hi {{name}}, this is a sample reminder. No message will be sent.' }] } };
+        steps: [{ id: 'sample-reminder', label: 'Sample reminder', intent: 'Remind the customer of their upcoming appointment using confirmed details.' }] } };
     } else if (path === '/ai/outbound-call') result = { configured: false, from: '+12025550199', presets: [] };
     else return res.status(403).json(demoError);
     res.json({ ...result, demo: true });

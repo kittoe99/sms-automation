@@ -1540,9 +1540,9 @@ async function renderOverview() {
 }
 
 function automationBlankLabel(category) {
-  if (category.kind === 'quote') return `Quote follow-up · ${category.rule?.repeatCount || 6} sends`;
+  if (category.kind === 'quote') return `Quote Request · ${category.rule?.repeatCount || 6} sends`;
   if (category.kind === 'reminder') return `Appointment reminder · ${category.rule?.repeatCount || 1} send(s), first ${category.rule?.leadHours || 24}h before`;
-  if (category.custom && category.rule) {
+  if (category.fixedType && category.rule) {
     const sendCount = Math.max(0, Number(category.rule.repeatCount) || 0);
     const sendLabel = sendCount ? `${sendCount} send${sendCount === 1 ? '' : 's'}` : 'No messages';
     return `${cadenceDisplay(category.rule)} · ${sendLabel}${category.activeAutomation ? '' : ' · inactive'}`;
@@ -1554,46 +1554,22 @@ function cadenceDisplay(rule) {
   return `Every ${rule?.intervalCount || 1} ${rule?.intervalUnit || 'day'}${Number(rule?.intervalCount || 1) === 1 ? '' : 's'}`;
 }
 
-function automationBuilderHtml(group = null) {
-  const initialPreset = group
-    ? null
-    : state.rulePresets.find((preset) => preset.id === state.automationPresetId) || state.rulePresets[0] || null;
-  const rule = group?.rule || initialPreset?.rule || {
-    anchor: 'enrollment',
-    firstDelayCount: 1,
-    firstDelayUnit: 'day',
-    intervalCount: 1,
-    intervalUnit: 'day',
-    repeatCount: 3,
-    startHour: 9,
-    endHour: 19,
-  };
-  const intent = group?.intent || initialPreset?.intent || '';
+function automationBuilderHtml(group) {
+  const rule = group.rule;
+  const intent = group.intent || '';
   return `
     <form class="automation-builder card" id="automation-builder">
       <div class="card-head">
         <div>
-          <span class="eyebrow">Ready-made automation rules</span>
-          <h2>${group ? 'Edit automation' : 'Create automation'}</h2>
+          <span class="eyebrow">SMS automation rule</span>
+          <h2>Edit ${esc(group.name)}</h2>
         </div>
         <button type="button" class="btn ghost" id="cancel-automation-builder">Cancel</button>
       </div>
       <div class="automation-form-grid">
-        ${group?.system ? '' : `<label class="field-wide">
-          <span class="compose-label">Start with an automation</span>
-          <select id="automation-preset">
-            <option value="">${group ? 'Keep the current rule' : 'Start from scratch'}</option>
-            ${state.rulePresets.map((preset) => `<option value="${esc(preset.id)}" ${!group && preset.id === initialPreset?.id ? 'selected' : ''}>${esc(preset.label)} — ${esc(preset.description)}</option>`).join('')}
-          </select>
-          <small class="muted" id="automation-preset-description">${esc(initialPreset?.description || 'Choose a starting schedule, then adjust the timing and purpose.')}</small>
-        </label>`}
         <label class="field-wide">
           <span class="compose-label">Automation name</span>
-          <input id="automation-name" maxlength="100" required value="${esc(group?.name || initialPreset?.defaultName || '')}" placeholder="Post-job follow-up" />
-        </label>
-        <label class="field-wide">
-          <span class="compose-label">Description</span>
-          <input id="automation-description" maxlength="300" value="${esc(group?.description || initialPreset?.description || '')}" placeholder="What this automation is for" />
+          <input id="automation-name" maxlength="100" readonly value="${esc(group.name)}" />
         </label>
         <label class="field-wide">
           <span class="compose-label">Purpose for each fresh AI draft</span>
@@ -1666,7 +1642,7 @@ function automationBuilderHtml(group = null) {
       </div>
       <div class="automation-builder-actions">
         <span class="login-error" id="automation-builder-error"></span>
-        <button type="submit" class="btn" id="save-automation-group">${group ? 'Save changes' : 'Create automation'}</button>
+        <button type="submit" class="btn" id="save-automation-group">Save changes</button>
       </div>
     </form>`;
 }
@@ -1705,23 +1681,6 @@ function hourOptions(selected, start, end) {
 function bindAutomationBuilder(group = null) {
   const form = el.root.querySelector('#automation-builder');
   if (!form) return;
-  const presetSelect = form.querySelector('#automation-preset');
-  presetSelect?.addEventListener('change', () => {
-    const preset = state.rulePresets.find((item) => item.id === presetSelect.value);
-    if (!preset) return;
-    const rule = preset.rule;
-    form.querySelector('#automation-name').value = preset.defaultName || preset.label;
-    form.querySelector('#automation-description').value = preset.description || '';
-    form.querySelector('#automation-preset-description').textContent = preset.description || '';
-    form.querySelector('#automation-intent').value = preset.intent || '';
-    form.querySelector('#automation-first-delay-count').value = String(rule.firstDelayCount);
-    form.querySelector('#automation-first-delay-unit').value = rule.firstDelayUnit;
-    form.querySelector('#automation-interval-count').value = String(rule.intervalCount);
-    form.querySelector('#automation-interval-unit').value = rule.intervalUnit;
-    form.querySelector('#automation-repeat-count').value = String(rule.repeatCount);
-    form.querySelector('#automation-start-hour').value = String(rule.startHour);
-    form.querySelector('#automation-end-hour').value = String(rule.endHour);
-  });
   form.querySelector('#cancel-automation-builder')?.addEventListener('click', () => {
     state.automationBuilderOpen = false;
     state.automationPresetId = null;
@@ -1734,8 +1693,6 @@ function bindAutomationBuilder(group = null) {
     button.disabled = true;
     error.textContent = '';
     const payload = {
-      name: form.querySelector('#automation-name').value.trim(),
-      description: form.querySelector('#automation-description').value.trim(),
       intent: form.querySelector('#automation-intent').value.trim(),
       activeAutomation: form.querySelector('#automation-active').checked,
       rule: group?.rule?.anchor === 'appointment' ? {
@@ -1756,10 +1713,9 @@ function bindAutomationBuilder(group = null) {
       },
     };
     try {
-      const response = await apiFetch(
-        group ? `/api/automation-groups/${encodeURIComponent(group.id)}` : '/api/automation-groups',
-        { method: group ? 'PUT' : 'POST', body: JSON.stringify(payload) }
-      );
+      const response = await apiFetch(`/api/automation-groups/${encodeURIComponent(group.id)}`, {
+        method: 'PUT', body: JSON.stringify(payload),
+      });
       const json = await response.json();
       if (!response.ok) throw new Error(json.detail || json.error || 'Could not save automation');
       state.categories = [];
@@ -1886,29 +1842,9 @@ async function renderAutomations() {
       <div class="card">
         <div class="card-head">
           <div>
-            <h2>Automation groups</h2>
-            <span class="muted">System sequences and ${fmt(state.rulePresets.length)} ready-made rule variations</span>
+            <h2>SMS automation types</h2>
+            <span class="muted">Each type has one purpose and schedule. Adding a record to its SMS table starts the automation when eligible.</span>
           </div>
-          <button type="button" class="btn" id="new-automation-group">Create automation</button>
-        </div>
-        ${state.automationBuilderOpen ? automationBuilderHtml() : ''}
-        <div class="card-head" style="border-top:1px solid var(--border)">
-          <div>
-            <h2>Ready-made automations</h2>
-            <span class="muted">Choose a schedule and edit its single purpose.</span>
-          </div>
-        </div>
-        <div class="category-grid automation-template-grid">
-          ${state.rulePresets.map((preset) => `
-            <button type="button" class="category-tile as-button" data-create-automation-preset="${esc(preset.id)}">
-              <h3>${esc(preset.label)}</h3>
-              <p>${esc(preset.description)}</p>
-              <p class="muted">${fmt(preset.rule?.repeatCount || 0)} sends · drafted at send time</p>
-              <div class="blank">Use this automation</div>
-            </button>`).join('')}
-        </div>
-        <div class="card-head" style="border-top:1px solid var(--border)">
-          <h2>Your automation groups</h2>
         </div>
         <div class="category-grid">
           ${state.categories
@@ -1936,20 +1872,6 @@ async function renderAutomations() {
         openAutomationGroup(btn.getAttribute('data-open-automation'))
       );
     });
-    el.root.querySelector('#new-automation-group')?.addEventListener('click', () => {
-      state.automationPresetId = null;
-      state.automationBuilderOpen = true;
-      renderAutomations();
-    });
-    el.root.querySelectorAll('[data-create-automation-preset]').forEach((button) => {
-      button.addEventListener('click', () => {
-        state.automationPresetId = button.getAttribute('data-create-automation-preset');
-        state.automationBuilderOpen = true;
-        renderAutomations();
-        el.root.querySelector('#automation-builder')?.scrollIntoView({ behavior: 'smooth', block: 'start' });
-      });
-    });
-    bindAutomationBuilder();
     return;
   }
 
@@ -1975,6 +1897,16 @@ async function renderAutomations() {
 
   let enrollments = [];
   let sequence = null;
+  let intakeRecords = [];
+  const intakeType = category.fixedType;
+  if (intakeType) {
+    try {
+      const intake = await apiFetch(`/api/automation-intake/${encodeURIComponent(intakeType)}?pageSize=100`).then((r) => r.json());
+      intakeRecords = intake.rows || [];
+    } catch {
+      intakeRecords = [];
+    }
+  }
   try {
     const enr = await apiFetch(
       `/api/enrollments?category=${encodeURIComponent(category.id)}&pageSize=100`
@@ -1993,19 +1925,37 @@ async function renderAutomations() {
 
   const cadenceNote =
     category.kind === 'quote'
-      ? `Up to ${category.rule?.repeatCount || 6} sends: first after ${category.rule?.firstDelayCount || 1} ${category.rule?.firstDelayUnit || 'day'}(s), then ${cadenceDisplay(category.rule).toLowerCase()}. Each message is freshly drafted from the current conversation. Booking or opt-out stops the sequence.`
+      ? `Up to ${category.rule?.repeatCount || 6} sends: first after ${category.rule?.firstDelayCount || 1} ${category.rule?.firstDelayUnit || 'day'}(s), then ${cadenceDisplay(category.rule).toLowerCase()}. Each message is freshly drafted from the request and current conversation. Booking or opt-out stops the sequence.`
       : category.kind === 'reminder'
         ? `Up to ${category.rule?.repeatCount || 1} reminder send(s), first ${category.rule?.leadHours || 24} hours before the appointment${(category.rule?.repeatCount || 1) > 1 ? `, then ${cadenceDisplay(category.rule).toLowerCase()} while the appointment is upcoming` : ''}. Booking changes reschedule and cancellation stops the reminders.`
-        : category.custom
+        : category.fixedType
           ? `First send after ${category.rule.firstDelayCount} ${category.rule.firstDelayUnit}(s), then ${cadenceDisplay(category.rule).toLowerCase()} for ${category.rule.repeatCount} total sends. Sending is limited to ${category.rule.startHour}:00–${category.rule.endHour}:00 in the business timezone.`
           : '';
 
   const triggerNote =
-    category.kind === 'quote' || category.id === 'quote-requests'
-      ? 'Quote created — the contact is enrolled automatically. Each send is freshly drafted from the purpose and latest conversation.'
-      : category.kind === 'reminder' || category.id === 'appointment-reminders'
-        ? 'Booking created or updated — the reminder is scheduled automatically and drafted from the current booking and conversation.'
-        : 'Contact enrolled manually or through an integration.';
+    category.fixedType === 'quote_requests'
+      ? 'A new SMS Quote Request row starts the sequence. AI will not claim an estimate exists unless the record or conversation confirms one.'
+      : category.fixedType === 'bookings'
+        ? 'A confirmed SMS Bookings row schedules reminders. Changes reschedule and cancellation stops them.'
+        : `A new SMS ${category.fixedType === 'reviews' ? 'Reviews' : 'Contact'} row starts the sequence when the contact is eligible.`;
+
+  const intakeHtml = intakeType ? `
+    <div class="card" style="margin-bottom:12px">
+      <div class="card-head"><div><h2>${esc(category.name)} records</h2><span class="muted">Source table: sms_automation_${esc(intakeType)} · ${fmt(intakeRecords.length)} recent records</span></div></div>
+      <form id="automation-intake-form" class="automation-builder" style="padding:16px">
+        <div class="automation-form-grid">
+          <label><span class="compose-label">Name</span><input id="intake-name" maxlength="200" placeholder="Customer name" /></label>
+          <label><span class="compose-label">Phone</span><input id="intake-phone" type="tel" placeholder="+13035550123" /></label>
+          ${intakeType === 'bookings' ? `<label><span class="compose-label">Booking status</span><select id="intake-status"><option value="requested">Requested</option><option value="confirmed">Confirmed</option><option value="cancelled">Cancelled</option></select></label><label><span class="compose-label">Appointment in business timezone</span><input id="intake-appointment" type="datetime-local" /></label>` : ''}
+          <label class="field-wide"><span class="compose-label">Other context (JSON)</span><textarea id="intake-details" rows="4" placeholder='{"service":"moving","notes":"Customer requested a quote"}'>{}</textarea></label>
+        </div>
+        <p class="muted">Name and phone are standalone fields. Other details stay together as JSON. Marketing SMS requires recorded consent; ineligible records are saved with a skip reason.</p>
+        <div class="automation-builder-actions"><span class="login-error" id="intake-error"></span><button type="submit" class="btn" id="intake-submit">Add ${esc(category.name)} record</button><button type="button" class="btn ghost" id="intake-reset" hidden>Cancel edit</button></div>
+      </form>
+      <div class="table-scroll" style="max-height:320px"><table class="data"><thead><tr><th>Name</th><th>Phone</th><th>State</th><th>Added</th><th></th></tr></thead><tbody>
+        ${intakeRecords.length ? intakeRecords.map((record) => `<tr><td>${esc(record.name || '—')}</td><td>${esc(record.phone || '—')}</td><td>${esc(record.enrollment_status || record.intake_state || '—')}${record.skip_reason ? ` · ${esc(record.skip_reason)}` : ''}</td><td>${esc(fmtTime(record.created_at))}</td><td>${intakeType === 'bookings' ? `<button type="button" class="btn ghost" data-edit-intake="${esc(record.id)}">Edit</button>` : ''}</td></tr>`).join('') : '<tr><td colspan="5"><div class="empty">No records yet.</div></td></tr>'}
+      </tbody></table></div>
+    </div>` : '';
 
   const sequenceHtml = sequence
     ? `
@@ -2031,7 +1981,6 @@ async function renderAutomations() {
         <div class="automation-head-actions">
           <button type="button" class="btn ghost" id="edit-group-ai">Inbound AI settings</button>
           ${category.rule ? '<button type="button" class="btn ghost" id="edit-automation-group">Edit automation</button>' : ''}
-          ${category.custom ? '<button type="button" class="btn danger" id="delete-automation-group">Delete</button>' : ''}
           <button type="button" class="btn ghost" id="back-automations">All groups</button>
         </div>
       </div>
@@ -2103,13 +2052,14 @@ async function renderAutomations() {
                 : `<tr><td colspan="7"><div class="empty">${
                     category.id === 'appointment-reminders'
                       ? 'No enrollments yet. New bookings with a valid future date auto-enroll.'
-                      : 'No enrollments yet. Enroll consented contacts from Contacts.'
+                      : 'No enrollments yet. Add an eligible record in the SMS intake form below.'
                   }</div></td></tr>`
             }
           </tbody>
         </table>
       </div>
     </div>
+    ${intakeHtml}
     ${messagesTable(data.messages || [])}
   `;
 
@@ -2124,26 +2074,61 @@ async function renderAutomations() {
     state.aiBuilderOpen = true;
     renderAutomations();
   });
-  el.root.querySelector('#delete-automation-group')?.addEventListener('click', async () => {
-    if (!confirm(`Delete “${category.name}”? Existing enrollments will be removed.`)) return;
-    const response = await apiFetch(`/api/automation-groups/${encodeURIComponent(category.id)}`, {
-      method: 'DELETE',
-    });
-    const json = await response.json();
-    if (!response.ok) {
-      alert(json.detail || json.error || 'Could not delete group');
-      return;
-    }
-    state.categories = [];
-    state.categoryId = null;
-    state.automationBuilderOpen = false;
-    await load();
-  });
   el.root.querySelectorAll('[data-open-automation]').forEach((btn) => {
     btn.addEventListener('click', () => openAutomationGroup(btn.getAttribute('data-open-automation')));
   });
   bindUnenrollButtons();
-  bindAutomationBuilder(category.custom ? category : null);
+  bindAutomationBuilder(category);
+  const intakeForm = el.root.querySelector('#automation-intake-form');
+  const clearIntakeEdit = () => {
+    intakeForm?.reset();
+    if (intakeForm) intakeForm.dataset.editId = '';
+    const button = intakeForm?.querySelector('#intake-submit');
+    if (button) button.textContent = `Add ${category.name} record`;
+    const reset = intakeForm?.querySelector('#intake-reset');
+    if (reset) reset.hidden = true;
+  };
+  intakeForm?.querySelector('#intake-reset')?.addEventListener('click', clearIntakeEdit);
+  el.root.querySelectorAll('[data-edit-intake]').forEach((button) => button.addEventListener('click', () => {
+    const record = intakeRecords.find((row) => row.id === button.dataset.editIntake);
+    if (!record || !intakeForm) return;
+    intakeForm.dataset.editId = record.id;
+    intakeForm.querySelector('#intake-name').value = record.name || '';
+    intakeForm.querySelector('#intake-phone').value = record.phone || '';
+    intakeForm.querySelector('#intake-details').value = JSON.stringify(record.details || {}, null, 2);
+    intakeForm.querySelector('#intake-status').value = record.status;
+    intakeForm.querySelector('#intake-appointment').value = toDateTimeLocal(record.appointment_at);
+    intakeForm.querySelector('#intake-submit').textContent = 'Save booking changes';
+    intakeForm.querySelector('#intake-reset').hidden = false;
+    intakeForm.scrollIntoView({ behavior: 'smooth', block: 'start' });
+  }));
+  intakeForm?.addEventListener('submit', async (event) => {
+    event.preventDefault();
+    const error = intakeForm.querySelector('#intake-error');
+    const submit = intakeForm.querySelector('#intake-submit');
+    error.textContent = '';
+    try {
+      const details = JSON.parse(intakeForm.querySelector('#intake-details').value || '{}');
+      if (!details || Array.isArray(details) || typeof details !== 'object') throw new Error('Other context must be a JSON object');
+      const payload = { name: intakeForm.querySelector('#intake-name').value.trim(), phone: intakeForm.querySelector('#intake-phone').value.trim(), details };
+      if (intakeType === 'bookings') {
+        payload.status = intakeForm.querySelector('#intake-status').value;
+        payload.appointmentAt = intakeForm.querySelector('#intake-appointment').value || null;
+      }
+      const editId = intakeForm.dataset.editId;
+      const path = editId ? `/api/automation-intake/bookings/${encodeURIComponent(editId)}` : `/api/automation-intake/${encodeURIComponent(intakeType)}`;
+      submit.disabled = true;
+      const response = await apiFetch(path, { method: editId ? 'PATCH' : 'POST', headers: editId ? {} : { 'Idempotency-Key': intakeForm.dataset.sourceRecordId ||= crypto.randomUUID() }, body: JSON.stringify(payload) });
+      const result = await response.json();
+      if (!response.ok) throw new Error(result.detail || result.error || 'Could not save record');
+      clearIntakeEdit();
+      intakeForm.dataset.sourceRecordId = '';
+      await renderAutomations();
+    } catch (reason) {
+      error.textContent = reason.message || 'Could not save record';
+      submit.disabled = false;
+    }
+  });
   bindGroupAiBuilder(category);
   bindMessageRows(data.messages || []);
 }
@@ -2474,7 +2459,7 @@ async function renderContacts() {
         </div>
       </div>
       <p class="muted directory-note">
-        Choose an automation group to enroll a contact. Sending SMS requires consent.
+        To start an automation, add a record under its type in Automations. Sending marketing SMS requires recorded consent.
       </p>
       ${
         data.configured === false
@@ -2491,7 +2476,6 @@ async function renderContacts() {
               <th>Contact type</th>
               <th>Consent</th>
               <th>Enrolled</th>
-              <th>Automation group</th>
               <th>Message</th>
             </tr>
           </thead>
@@ -2533,33 +2517,6 @@ async function renderContacts() {
                   }
                 </td>
                 <td>
-                  <div class="enroll-row">
-                    <select class="enroll-select" data-phone="${esc(c.phone)}" data-name="${esc(
-                      c.name || ''
-                    )}" data-source="${esc(c.primarySource || '')}" data-email="${esc(
-                      c.email || ''
-                    )}">
-                      <option value="">Choose group…</option>
-                      ${state.categories
-                        .filter(
-                          (cat) =>
-                            cat.activeAutomation !== false &&
-                            (canEnroll || cat.id === 'appointment-reminders')
-                        )
-                        .map(
-                          (cat) =>
-                            `<option value="${esc(cat.id)}" ${
-                              (c.enrollments || []).includes(cat.id) ? 'disabled' : ''
-                            }>${esc(cat.name)}${
-                              (c.enrollments || []).includes(cat.id) ? ' (enrolled)' : ''
-                            }</option>`
-                        )
-                        .join('')}
-                    </select>
-                    <button type="button" class="btn ghost enroll-btn">Enroll</button>
-                  </div>
-                </td>
-                <td>
                   ${
                     canEnroll
                       ? `<button type="button" class="btn ghost message-btn"
@@ -2571,7 +2528,7 @@ async function renderContacts() {
               </tr>`;
                     })
                     .join('')
-                : `<tr><td colspan="7"><div class="empty">No contacts found.</div></td></tr>`
+                : `<tr><td colspan="6"><div class="empty">No contacts found.</div></td></tr>`
             }
           </tbody>
         </table>
@@ -2596,46 +2553,6 @@ async function renderContacts() {
     state.consentedOnly = e.target.checked;
     state.page = 1;
     load();
-  });
-  el.root.querySelectorAll('.enroll-btn').forEach((btn) => {
-    btn.addEventListener('click', async () => {
-      const row = btn.closest('tr');
-      const select = row?.querySelector('.enroll-select');
-      const phone = select?.getAttribute('data-phone');
-      const categoryId = select?.value;
-      if (!phone || !categoryId) return;
-      let appointmentDate = null;
-      let preferredTime = null;
-      if (categoryId === 'appointment-reminders') {
-        appointmentDate = window.prompt('Appointment date (YYYY-MM-DD)');
-        if (!appointmentDate) return;
-        preferredTime = window.prompt(
-          'Preferred time or window (optional, for example "morning 8-12")'
-        );
-      }
-      btn.disabled = true;
-      try {
-        const res = await apiFetch('/api/directory/enroll', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({
-            phone,
-            categoryId,
-            name: select.getAttribute('data-name') || null,
-            email: select.getAttribute('data-email') || null,
-            source: select.getAttribute('data-source') || null,
-            appointmentDate,
-            preferredTime: preferredTime || null,
-          }),
-        });
-        const json = await res.json();
-        if (!res.ok) throw new Error(json.detail || json.error || 'Enroll failed');
-        await load();
-      } catch (err) {
-        alert(err.message || 'Failed to enroll');
-        btn.disabled = false;
-      }
-    });
   });
   bindUnenrollButtons();
   el.root.querySelectorAll('.message-btn').forEach((btn) => {

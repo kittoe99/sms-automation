@@ -223,7 +223,7 @@ test('migration removes reusable copy and pauses unreviewed custom groups',async
   assert.equal(intents,0);
   const enrollment=(await db.query("select status,pause_reason from public.sms_automation_enrollments where category_id='custom-old'")).rows[0];
   assert.equal(enrollment.status,'paused');
-  assert.equal(enrollment.pause_reason,'INTENT_REVIEW_REQUIRED');
+  assert.equal(enrollment.pause_reason,'LEGACY_GROUP_RETIRED');
   await assert.rejects(()=>call(db,'api_action','admin','alpha','group',{id:'bad',name:'Bad',intent:'Ask a question.',
     rule:{steps:[{template:'Hello',delayCount:1,delayUnit:'day'}]}}),/intent|schedule/i);
  }finally{await db.close();}

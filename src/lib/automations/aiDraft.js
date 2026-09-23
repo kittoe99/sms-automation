@@ -37,7 +37,8 @@ export function buildAutomationDraftPrompt(context, intent) {
     body: String(body || ''),
     created_at: created_at || null,
   }));
-  const appointmentAt = context.booking?.appointment_at || enrollment.appointment_at;
+  const source = context.source || null;
+  const appointmentAt = source?.appointment_at || (!source && context.booking?.appointment_at) || enrollment.appointment_at;
   const appointmentLocal = appointmentAt && business.time_zone
     ? new Intl.DateTimeFormat('en-US', { timeZone: business.time_zone, dateStyle: 'full', timeStyle: 'short' })
       .format(new Date(appointmentAt))
@@ -51,10 +52,12 @@ Contact: ${JSON.stringify({ name: contact.name || null })}
 Automation: ${JSON.stringify({ id: context.group?.id, name: context.group?.name, kind: context.group?.kind, purpose: context.group?.kind === 'reminder' ? 'transactional' : 'marketing', sendNumber: enrollment.step_index + 1, maxSends: context.group?.rule?.repeatCount })}
 Automation intent: ${JSON.stringify(String(intent || '').slice(0, 1600))}
 Enrollment context: ${JSON.stringify(metadata).slice(0, 5000)}
+Exact SMS intake record: ${JSON.stringify(source ? { type: enrollment.source_type, name: source.name, phone: source.phone,
+  details: source.details, status: source.status, appointmentAt: source.appointment_at, createdAt: source.created_at } : null).slice(0, 7000)}
 Appointment time: ${JSON.stringify(enrollment.appointment_at || null)}
 Appointment in business local time: ${JSON.stringify(appointmentLocal)}
-Latest quote context: ${JSON.stringify(context.quote?.details || null).slice(0, 5000)}
-Confirmed booking context: ${JSON.stringify(context.booking ? { appointmentAt: context.booking.appointment_at, status: context.booking.status, details: context.booking.metadata } : null).slice(0, 5000)}
+Latest quote context: ${JSON.stringify(source ? (enrollment.source_type === 'quote_requests' ? source.details : null) : context.quote?.details || null).slice(0, 5000)}
+Confirmed booking context: ${JSON.stringify(source ? (enrollment.source_type === 'bookings' && source.status === 'confirmed' ? { appointmentAt: source.appointment_at, status: source.status, details: source.details } : null) : context.booking ? { appointmentAt: context.booking.appointment_at, status: context.booking.status, details: context.booking.metadata } : null).slice(0, 5000)}
 Conversation (oldest to newest): ${JSON.stringify(history)}`;
 }
 

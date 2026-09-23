@@ -31,6 +31,13 @@ export async function processAutomation(job, db, options = {}) {
   }
   const result = evaluateAutomation(context);
   if (result.action === 'send') {
+    if (context.enrollment.source_id) {
+      context.source = await db.call('intake_context', job.id, job.lease_token);
+      if (!context.source) throw Object.assign(new Error('Automation source record is missing'), { code: 'SOURCE_MISSING', permanent: true });
+      if (context.enrollment.source_type === 'bookings' && context.source.status !== 'confirmed') {
+        return db.call('finish', job.id, job.lease_token, 'cancelled', 'BOOKING_NOT_CONFIRMED', 0);
+      }
+    }
     const intent = String(context.intent || '').trim();
     if (!intent) throw Object.assign(new Error('Automation intent is missing'), { code: 'MISSING_AUTOMATION_INTENT', permanent: true });
     const draft = await draftAutomationMessage(context, intent, options);

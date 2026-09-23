@@ -2,12 +2,19 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import { createCrmHandler } from '../supabase/functions/crm-api/handler.js';
 
-test('production categories API exposes schedule-only presets with separate intents', async () => {
+test('production categories API exposes only the four fixed SMS automation types', async () => {
   process.env.CRM_ALLOWED_ORIGINS = 'https://crm.example.com';
   const db = {
     call: async (name, _user, _tenant, resource) => {
       assert.equal(name, 'api_read');
-      if (resource === 'groups' || resource === 'ai_settings') return { rows: [] };
+      if (resource === 'groups') return { rows: [
+        { id: 'sms-contact', fixed_type: 'contacts', kind: 'contact', rule: { repeatCount: 1 }, intent: 'Help with the inquiry.' },
+        { id: 'quote-requests', fixed_type: 'quote_requests', kind: 'quote', rule: { repeatCount: 6 }, intent: 'Help with a quote request.' },
+        { id: 'appointment-reminders', fixed_type: 'bookings', kind: 'reminder', rule: { repeatCount: 1 }, intent: 'Remind about the booking.' },
+        { id: 'sms-review', fixed_type: 'reviews', kind: 'review', rule: { repeatCount: 1 }, intent: 'Invite feedback.' },
+        { id: 'legacy-custom', fixed_type: null, kind: 'custom', rule: {}, intent: null },
+      ] };
+      if (resource === 'ai_settings') return { rows: [] };
       throw new Error(`Unexpected resource: ${resource}`);
     },
   };
@@ -17,15 +24,7 @@ test('production categories API exposes schedule-only presets with separate inte
   }));
   assert.equal(response.status, 200);
   const body = await response.json();
-  assert.ok(body.rulePresets.length >= 7);
-  for (const preset of body.rulePresets) {
-    assert.ok(preset.intent);
-    assert.equal(preset.rule.intent, undefined);
-    assert.equal(preset.rule.steps, undefined);
-  }
-  const quote = body.rulePresets.find(item => item.id === 'quote-followup');
-  assert.equal(quote.rule.repeatCount, 6);
-  assert.equal(quote.rule.firstDelayCount, 1);
-  assert.equal(quote.rule.intervalCount, 2);
+  assert.deepEqual(body.categories.map(item => item.fixedType), ['contacts', 'quote_requests', 'bookings', 'reviews']);
+  assert.deepEqual(body.rulePresets, []);
   delete process.env.CRM_ALLOWED_ORIGINS;
 });

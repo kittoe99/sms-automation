@@ -87,43 +87,31 @@ and then update the remaining capability flags in
 
 ## Automation lifecycle
 
-- Quote follow-ups run over six steps, only between 9am and 7pm in `BUSINESS_TIME_ZONE`.
-- A normal customer reply postpones the next quote follow-up for at least 24 hours.
-- STOP removes all active automation enrollments; opting back in does not silently restart them.
-- Creating a booking ends quote follow-ups and enrolls a dated appointment reminder.
-- Updating a booking reschedules its reminder; cancelling it removes the reminder.
-- Expired appointments are removed without sending a stale reminder.
-- The scheduled runner executes every 15 minutes and scans beyond its processing batch so future-dated rows do not hide due work.
+Four fixed intake tables start SMS automations at the database level:
+`sms_automation_contacts`, `sms_automation_quote_requests`,
+`sms_automation_bookings`, and `sms_automation_reviews`. Each business has one
+editable intent and schedule per type. New Contact and Reviews rules start at one
+send after one day; Quote Request starts at six sends on days 1, 3, 5, 7, 9,
+and 11; Bookings starts at one reminder 24 hours before a confirmed appointment.
+The send count is editable from 1 to 30. Every due job asks AI for a fresh draft
+using the exact source row and current conversation; reusable templates are not sent.
 
-External quote and booking systems can publish lifecycle events through
-`POST /api/internal/automation-event` using `X-API-Key`. Supported types are
-`quote.created`, `booking.created`, `booking.updated`, `booking.confirmed`, and
-`booking.cancelled`.
+Staff can add and inspect rows under **Automations**, or trusted integrations can
+insert them through `POST /api/automation-intake/{contacts|quote_requests|bookings|reviews}`.
+`GET` on the same path lists recent rows. `PATCH /api/automation-intake/bookings/{id}`
+changes a booking's status or appointment. Name and phone are standalone; extra
+context is a JSON object in `details`. Supply a stable `Idempotency-Key` or
+`sourceRecordId` on retries. Trusted direct database inserts run the same trigger.
+The operational `sms_quotes` and `sms_bookings` tables mirror new records into
+their intake tables; old records are not backfilled.
 
-### Custom automation groups
-
-CRM users can create custom automation groups from **Automations → Create group**.
-Rules support daily, every other day, every 3 days, weekly, monthly, and custom
-day/week/month intervals, with 1–30 sends and an account-local send window. A specific
-first-send date/time can be scheduled for one-time or multi-step campaigns. Every step
-can have a different delay and message. Templates support `{{first_name}}`, `{{name}}`,
-and `{{phone}}`. Custom groups use the same contact consent, STOP suppression,
-claim/retry, delivery tracking, and automatic completion logic as the built-in quote
-sequence.
-
-Every system or custom group also has optional administrator-authored AI instructions.
-When enabled, instructions for all active groups in which a replying contact is enrolled
-are added to the AI request as trusted system context. They supplement rather than
-replace platform safety, consent, privacy, and tool constraints. Delayed AI jobs restore
-the inbound message's tenant context before resolving those instructions.
-
-Local development defaults to `data/automation-groups.json` (override with
-`AUTOMATION_RULES_FILE`). App Platform uses the shared `sms_automation_groups` Supabase
-table so web and scheduled-runner instances see the same definitions. Apply
-`supabase/migrations/20260910_sms_automation_groups.sql` followed by
-`supabase/migrations/20260910_sms_security_hardening.sql` before deploying and set
-`AUTOMATION_RULES_STORE=supabase`. Existing message and enrollment records continue to
-use their current Supabase tables.
+Records without a valid phone or required marketing consent, or whose contact
+has opted out, remain in the intake table with a skip reason and do not send.
+Requested bookings wait for confirmation; changes reschedule reminders and
+cancellations stop them. Newer rows replace active sequences of the same type.
+Quote Requests stop Contact nurture, confirmed Bookings stop Contact and Quote
+follow-ups, and Reviews stop obsolete booking reminders. Existing inbound AI
+settings and previously sent messages are unchanged.
 
 ## Server-to-server send (quotes)
 

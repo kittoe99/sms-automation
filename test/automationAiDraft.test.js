@@ -30,6 +30,17 @@ test('the AI prompt includes the current conversation and one automation intent'
   assert.doesNotMatch(prompt, /Approved fallback message/);
 });
 
+test('a table-triggered send uses its exact intake row, not another request from the contact', () => {
+  const current = context('quote');
+  current.enrollment.source_type = 'quote_requests';
+  current.source = { name: 'Alex', phone: '+13035550123', details: { service: 'painting' }, created_at: '2026-09-22T10:00:00Z' };
+  current.quote = { details: { service: 'stale roofing quote' } };
+  const prompt = buildAutomationDraftPrompt(current, 'Help with the quote request.');
+  assert.match(prompt, /painting/);
+  assert.doesNotMatch(prompt, /stale roofing quote/);
+  assert.match(prompt, /Exact SMS intake record/);
+});
+
 test('quote messages are drafted from thread context with opt-out text', async () => {
   const draft = await draftAutomationMessage(context(), 'Ask about timing.', {
     apiKey: 'test',
