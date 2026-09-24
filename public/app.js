@@ -1477,7 +1477,8 @@ async function renderOverview() {
         ${state.categories
           .map((c) => {
             const s = data.byCategory?.find((x) => x.id === c.id);
-            const active = c.activeAutomation !== false;
+            const configured = c.automationAiConfigured === true;
+            const active = configured && c.activeAutomation !== false;
             const total = totalsAvailable ? fmt(s?.total ?? 0) : '—';
             const delivery = s?.deliveryRate == null ? '—' : `${s.deliveryRate}%`;
             return `
@@ -1485,7 +1486,7 @@ async function renderOverview() {
                 c.id
               )}" aria-label="Open ${esc(c.name)} automation">
                 <span class="followup-card-top">
-                  <span class="followup-state ${active ? 'is-active' : 'is-paused'}"><i aria-hidden="true"></i>${active ? 'Active' : 'Inactive'}</span>
+                  <span class="followup-state ${active ? 'is-active' : 'is-paused'}"><i aria-hidden="true"></i>${configured ? (active ? 'Active' : 'Inactive') : 'Setup required'}</span>
                   <span class="followup-arrow" aria-hidden="true">→</span>
                 </span>
                 <strong class="followup-name">${esc(c.name)}</strong>
@@ -1550,6 +1551,7 @@ async function renderOverview() {
 }
 
 function automationBlankLabel(category) {
+  if (category.automationAiConfigured !== true) return 'Setup required · Add AI instructions and business details';
   if (category.kind === 'quote') return `Quote Request · ${category.rule?.repeatCount || 6} sends`;
   if (category.kind === 'reminder') return `Appointment reminder · ${category.rule?.repeatCount || 1} send(s), first ${category.rule?.leadHours || 24}h before`;
   if (category.fixedType && category.rule) {
@@ -1567,6 +1569,8 @@ function cadenceDisplay(rule) {
 function automationBuilderHtml(group) {
   const rule = group.rule;
   const intent = group.intent || '';
+  const systemPrompt = group.systemPrompt || '';
+  const businessContext = group.businessContext || '';
   return `
     <form class="automation-builder card" id="automation-builder">
       <div class="card-head">
@@ -1584,7 +1588,17 @@ function automationBuilderHtml(group) {
         <label class="field-wide">
           <span class="compose-label">Purpose for each fresh AI draft</span>
           <textarea id="automation-intent" maxlength="1600" rows="4" required placeholder="What should this automation help the customer accomplish?">${esc(intent)}</textarea>
-          <small class="muted">This is guidance, not a saved SMS. Each send uses the latest conversation and approved business context.</small>
+          <small class="muted">The outcome this automation should work toward. Each send also uses the latest customer record and conversation.</small>
+        </label>
+        <label class="field-wide">
+          <span class="compose-label">AI instructions for outgoing texts</span>
+          <textarea id="automation-system-prompt" maxlength="6000" rows="8" placeholder="Describe the voice, goal, questions to ask, and when to stop or hand off.">${esc(systemPrompt)}</textarea>
+          <small class="muted">Write instructions for this automation group. Application safety and send rules still apply.</small>
+        </label>
+        <label class="field-wide">
+          <span class="compose-label">Business details for this automation</span>
+          <textarea id="automation-business-context" maxlength="10000" rows="8" placeholder="Describe the services, service area, hours, policies, links, and facts this automation may use.">${esc(businessContext)}</textarea>
+          <small class="muted">This is the only general business context used for outgoing texts in this group. Current intake records and conversations are added at send time.</small>
         </label>
         ${rule.anchor === 'appointment' ? `<label>
           <span class="compose-label">First send before appointment (hours)</span>
@@ -1691,6 +1705,14 @@ function hourOptions(selected, start, end) {
 function bindAutomationBuilder(group = null) {
   const form = el.root.querySelector('#automation-builder');
   if (!form) return;
+  const activeInput = form.querySelector('#automation-active');
+  const updateRequired = () => {
+    for (const id of ['#automation-system-prompt', '#automation-business-context']) {
+      form.querySelector(id).required = activeInput.checked;
+    }
+  };
+  activeInput.addEventListener('change', updateRequired);
+  updateRequired();
   form.querySelector('#cancel-automation-builder')?.addEventListener('click', () => {
     state.automationBuilderOpen = false;
     state.automationPresetId = null;
@@ -1704,6 +1726,8 @@ function bindAutomationBuilder(group = null) {
     error.textContent = '';
     const payload = {
       intent: form.querySelector('#automation-intent').value.trim(),
+      systemPrompt: form.querySelector('#automation-system-prompt').value.trim(),
+      businessContext: form.querySelector('#automation-business-context').value.trim(),
       activeAutomation: form.querySelector('#automation-active').checked,
       rule: group?.rule?.anchor === 'appointment' ? {
         ...group.rule,
@@ -1976,6 +2000,7 @@ async function renderAutomations() {
           <strong>Trigger</strong><br><span class="muted">${esc(triggerNote)}</span>
         </div>
         <p><strong>Purpose:</strong> ${esc(sequence.intent || 'Administrator review required')}</p>
+        <p class="muted">Outgoing AI: ${category.automationAiConfigured ? 'Configured' : 'Setup required before sending'}</p>
         ${cadenceNote ? `<p class="muted" style="margin:12px 0 0">${esc(cadenceNote)}</p>` : ''}
         <p class="muted" style="margin:8px 0 0">Inbound AI: ${category.ai?.enabled ? 'enabled' : 'disabled'}</p>
       </div>`
@@ -3482,3 +3507,4 @@ function connectLive() {
     }
   }, 25000);
 }
+
