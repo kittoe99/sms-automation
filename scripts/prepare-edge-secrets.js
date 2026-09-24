@@ -19,8 +19,6 @@ for(const name of [
   'COMPLIANCE_WORKER_SECRET',
 ]) result[name] ||= crypto.randomBytes(32).toString('hex');
 for(const name of [
-  'CLERK_ISSUER',
-  'CLERK_PUBLISHABLE_KEY',
   'CRM_ALLOWED_ORIGINS',
   'OPENAI_API_KEY',
   'SUPABASE_SERVICE_ROLE_KEY',
@@ -28,7 +26,11 @@ for(const name of [
   'AI_OUTPUT_USD_PER_MILLION',
   'EMBEDDING_USD_PER_MILLION',
 ]) if(local[name]) result[name]=local[name];
+for(const name of ['CLERK_ISSUER','CLERK_PUBLISHABLE_KEY']) {
+  result[name] ||= local[name];
+}
 result.CRM_ALLOWED_ORIGINS=[
+  'https://crm.e2local.com',
   'https://wpacquisition-crm.onrender.com',
   ...(result.CRM_ALLOWED_ORIGINS || '').split(','),
 ].map(value=>value.trim()).filter((value,index,values)=>value && values.indexOf(value)===index).join(',');

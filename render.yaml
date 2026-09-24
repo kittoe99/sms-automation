@@ -10,7 +10,7 @@ services:
       - key: SUPABASE_URL
         value: https://wxamwhfmelxqahkdtcci.supabase.co
       - key: PUBLIC_FORM_BASE_URL
-        value: https://wpacquisition-crm.onrender.com
+        value: https://crm.e2local.com
       - key: SUPABASE_PUBLISHABLE_KEY
         sync: false
     routes:
