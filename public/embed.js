@@ -11,7 +11,7 @@ new ResizeObserver(announceHeight).observe(document.documentElement);
 
 function field(label, type, name, required = false) {
   const wrapper = document.createElement('label');
-  wrapper.textContent = label;
+  wrapper.textContent = required ? `${label} *` : label;
   const input = document.createElement(type === 'textarea' ? 'textarea' : 'input');
   if (type !== 'textarea') input.type = type;
   input.name = name;
@@ -31,6 +31,20 @@ function normalizePhone(value) {
   return raw;
 }
 
+function brandElement(businessName) {
+  const brand = document.createElement('div'); brand.className = 'form-brand';
+  const icon = document.createElement('img'); icon.src = '/e2-icon.svg'; icon.alt = '';
+  const name = document.createElement('span'); name.textContent = businessName;
+  brand.append(icon, name);
+  return brand;
+}
+
+function footerElement() {
+  const footer = document.createElement('small'); footer.className = 'form-footer';
+  footer.textContent = 'Powered by E2.Local';
+  return footer;
+}
+
 async function start() {
   if (!/^[0-9a-f-]{36}$/i.test(formId)) throw new Error('Form not found');
   const response = await fetch(`${apiBase}/${encodeURIComponent(formId)}`);
@@ -41,7 +55,7 @@ async function start() {
   root.replaceChildren();
   const title = document.createElement('h1'); title.textContent = definition.title;
   const description = document.createElement('p'); description.textContent = definition.description;
-  root.append(title, description);
+  root.append(brandElement(definition.businessName), title, description);
   const form = document.createElement('form'); form.className = 'web-form';
   const name = field('Name', 'text', 'name', true);
   const phone = field('Phone', 'tel', 'phone', true);
@@ -85,14 +99,15 @@ async function start() {
   const consentText = document.createElement('span'); consentText.textContent = definition.consentText;
   consent.append(consentInput, consentText); form.append(consent);
   const honeypot = field('Website', 'text', 'website'); honeypot.wrapper.className = 'form-honeypot';
-  honeypot.input.tabIndex = -1; honeypot.input.autocomplete = 'off'; form.append(honeypot.wrapper);
+  honeypot.input.tabIndex = -1; honeypot.input.autocomplete = 'off'; honeypot.wrapper.setAttribute('aria-hidden', 'true'); form.append(honeypot.wrapper);
   const note = document.createElement('span'); note.className = 'form-note';
   note.textContent = 'SMS consent is optional. Contact and quote follow-ups are sent only when you opt in.';
   form.append(note);
-  const error = document.createElement('p'); error.className = 'form-error'; error.setAttribute('role', 'alert');
+  const error = document.createElement('p'); error.className = 'form-error'; error.setAttribute('role', 'alert'); error.tabIndex = -1;
   const button = document.createElement('button'); button.type = 'submit'; button.textContent = definition.buttonLabel;
-  form.append(error, button); root.append(form);
+  form.append(error, button); root.append(form, footerElement());
   let submissionId = crypto.randomUUID(); let previousPayload = '';
+  form.addEventListener('invalid', () => form.classList.add('was-validated'), true);
   form.addEventListener('submit', async event => {
     event.preventDefault();
     error.textContent = '';
@@ -110,6 +125,7 @@ async function start() {
     const nextPayload = JSON.stringify(payload);
     if (nextPayload !== previousPayload) { submissionId = crypto.randomUUID(); previousPayload = nextPayload; }
     button.disabled = true;
+    button.textContent = 'Sending…';
     try {
       const sent = await fetch(`${apiBase}/${encodeURIComponent(formId)}`, {
         method: 'POST', headers: { 'Content-Type': 'application/json' },
@@ -119,18 +135,33 @@ async function start() {
       if (!sent.ok) throw new Error(result.error || 'Could not submit the form');
       root.replaceChildren();
       const success = document.createElement('div'); success.className = 'form-success'; success.setAttribute('role', 'status');
-      success.textContent = definition.preset === 'bookings'
-        ? 'Your appointment is confirmed. Thank you!'
-        : 'Thanks! Your form has been submitted.';
-      root.append(success);
+      const successTitle = document.createElement('h2'); successTitle.textContent = 'Thank you';
+      const successCopy = document.createElement('p');
+      successCopy.textContent = definition.preset === 'bookings'
+        ? 'Your appointment is confirmed.'
+        : 'Your form has been submitted.';
+      success.append(successTitle, successCopy);
+      root.append(brandElement(definition.businessName), success, footerElement());
       announceHeight();
     } catch (reason) {
       error.textContent = reason.message || 'Could not submit the form';
       button.disabled = false;
+      button.textContent = definition.buttonLabel;
+      error.focus();
       announceHeight();
     }
   });
   announceHeight();
 }
 
-start().catch(error => { root.textContent = error.message || 'Form is unavailable'; announceHeight(); });
+start().catch(error => {
+  root.replaceChildren();
+  const panel = document.createElement('div'); panel.className = 'form-error-state';
+  const title = document.createElement('h1'); title.textContent = 'Form unavailable';
+  const message = document.createElement('p'); message.textContent = error.message || 'Please try again.';
+  const retry = document.createElement('button'); retry.type = 'button'; retry.textContent = 'Try again';
+  retry.addEventListener('click', () => { root.textContent = 'Loading form…'; start().catch(reason => { message.textContent = reason.message || 'Please try again.'; root.replaceChildren(panel); announceHeight(); }); });
+  panel.append(title, message, retry);
+  root.append(panel);
+  announceHeight();
+});

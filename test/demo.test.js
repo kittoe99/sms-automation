@@ -22,12 +22,24 @@ test('standalone demo is unauthenticated, synthetic, tenant-scoped, and read-onl
     const directory = await fetch(`${base}/api/directory`, { headers }).then(r => r.json());
     assert.ok(directory.contacts.every(c => c.email.endsWith('@example.com')));
     data.push(directory.contacts);
-    const phone = directory.contacts[0].phone;
+    const inbox = await fetch(`${base}/api/conversations`, { headers }).then(r => r.json());
+    assert.ok(inbox.conversations.every(c => c.id && c.phone));
+    const phone = inbox.conversations[0].id;
     const thread = await fetch(`${base}/api/conversations/${encodeURIComponent(phone)}`, { headers }).then(r => r.json());
     assert.equal(thread.conversation.messages.length, 2);
-    for (const path of ['/categories', '/messages', '/conversations', '/contacts', '/opt-outs', '/deliverability', '/automations/quote-requests', '/enrollments', '/ai/outbound-call']) {
+    const bookings = await fetch(`${base}/api/bookings`, { headers }).then(r => r.json());
+    assert.equal(bookings.bookings.length, 1);
+    assert.equal((await fetch(`${base}/api/bookings/${bookings.bookings[0].id}`, { headers })).status, 200);
+    const bookingSettings = await fetch(`${base}/api/booking-settings`, { headers }).then(r => r.json());
+    assert.equal(bookingSettings.enabled, true);
+    for (const path of ['/categories', '/messages', '/conversations', '/contacts', '/opt-outs', '/deliverability', '/automations/quote-requests', '/enrollments', '/ai/outbound-call', '/web-forms']) {
       assert.equal((await fetch(`${base}/api${path}`, { headers })).status, 200, path);
     }
+  }
+  for (const id of ['00000000-0000-4000-8000-000000000001', '00000000-0000-4000-8000-000000000002', '00000000-0000-4000-8000-000000000003']) {
+    const form = await fetch(`${base}/functions/v1/web-form/${id}`).then(r => r.json());
+    assert.match(form.form.consentText, /Opek — Demo/);
+    assert.equal((await fetch(`${base}/functions/v1/web-form/${id}`, { method: 'POST' })).status, 403);
   }
   assert.equal(data[0].some(a => data[1].some(b => a.phone === b.phone)), false);
   assert.equal((await fetch(`${base}/api/conversations/${encodeURIComponent(data[0][0].phone)}`, {

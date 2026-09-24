@@ -128,9 +128,10 @@ export function createFormBuilder({ root, apiFetch, config }) {
     if (!form) throw new Error('This business has no Web Forms definition');
     draft = structuredClone(form);
     const snippet = embedSnippet(form, config);
-    root.innerHTML = `<div class="web-builder-tabs">${PRESETS.map(([type, label]) => `<button type="button" class="btn ${type === preset ? '' : 'ghost'}" data-web-preset="${type}">${label}</button>`).join('')}</div>
+    root.innerHTML = `<div class="web-builder-tabs" role="tablist" aria-label="Form type">${PRESETS.map(([type, label]) => `<button type="button" role="tab" aria-selected="${type === preset}" aria-controls="web-builder-panel" tabindex="${type === preset ? '0' : '-1'}" class="btn ${type === preset ? '' : 'ghost'}" data-web-preset="${type}">${label}</button>`).join('')}</div>
+      <div id="web-builder-panel" role="tabpanel" aria-label="${escapeHtml(PRESETS.find(([type]) => type === preset)?.[1])} form settings">
       <div class="web-builder-layout"><section class="card"><div class="card-head"><div><h2>${escapeHtml(PRESETS.find(([type]) => type === preset)?.[1])} form</h2>
-      <span class="muted">The preset controls the database table and SMS automation group.</span></div></div>
+      <span class="muted">Edit the form your customers will see.</span></div></div>
       <div class="web-builder-body"><label>Form title<input id="web-form-title" maxlength="120" value="${escapeHtml(form.title)}" ${canEdit ? '' : 'disabled'} /></label>
       <label>Description<textarea id="web-form-description" maxlength="500" rows="2" ${canEdit ? '' : 'disabled'}>${escapeHtml(form.description)}</textarea></label>
       <label>Button label<input id="web-form-button" maxlength="80" value="${escapeHtml(form.button_label)}" ${canEdit ? '' : 'disabled'} /></label>
@@ -138,13 +139,26 @@ export function createFormBuilder({ root, apiFetch, config }) {
       <h3>Fixed fields</h3><p class="muted">Name, Phone, Email${preset === 'bookings' ? ', Appointment date and time' : ''}, and optional SMS consent stay on this form.</p>
       <h3>Custom fields</h3><div id="web-builder-fields"></div>
       ${canEdit ? '<button type="button" class="btn ghost" id="web-add-field">Add custom field</button><div class="web-builder-actions"><span id="web-save-status" role="status"></span><button type="button" class="btn" id="web-save-form">Save form</button></div>' : '<p class="muted">An administrator can edit this form.</p>'}
-      </div></section><aside class="card"><div class="card-head"><h2>Preview</h2></div><div id="web-builder-preview" class="web-builder-preview"></div></aside></div>
+      </div></section><aside class="card"><div class="card-head"><div><h2>Preview</h2><span class="muted">Customer view · fields are disabled here</span></div></div><div id="web-builder-preview" class="web-builder-preview"></div></aside></div>
       ${canEdit ? `<section class="card web-builder-embed"><div class="card-head"><div><h2>Embed code</h2><span class="muted">Paste this snippet into any website. No URL allowlist is used during testing.</span></div></div>
       <div class="web-builder-body"><textarea id="web-embed-code" rows="4" readonly>${escapeHtml(snippet)}</textarea><button type="button" class="btn ghost" id="web-copy-embed">Copy code</button></div></section>` : ''}
-      <section class="card web-builder-embed"><div class="card-head"><h2>Submissions</h2></div><div id="web-form-submissions" class="web-builder-body">Loading…</div></section>`;
-    root.querySelectorAll('[data-web-preset]').forEach(button => button.addEventListener('click', async () => {
-      preset = button.dataset.webPreset; page = 1; await render();
-    }));
+      <section class="card web-builder-embed"><div class="card-head"><h2>Submissions</h2></div><div id="web-form-submissions" class="web-builder-body" role="status">Loading submissions…</div></section></div>`;
+    const selectPreset = async type => {
+      preset = type; page = 1; await render();
+      root.querySelector(`[data-web-preset="${type}"]`)?.focus();
+    };
+    root.querySelectorAll('[data-web-preset]').forEach(button => {
+      button.addEventListener('click', () => selectPreset(button.dataset.webPreset));
+      button.addEventListener('keydown', event => {
+        const index = PRESETS.findIndex(([type]) => type === button.dataset.webPreset);
+        const next = event.key === 'ArrowRight' ? (index + 1) % PRESETS.length
+          : event.key === 'ArrowLeft' ? (index + PRESETS.length - 1) % PRESETS.length
+          : event.key === 'Home' ? 0 : event.key === 'End' ? PRESETS.length - 1 : -1;
+        if (next < 0) return;
+        event.preventDefault();
+        selectPreset(PRESETS[next][0]);
+      });
+    });
     if (canEdit) {
       root.querySelector('#web-add-field').addEventListener('click', () => {
         readFields();

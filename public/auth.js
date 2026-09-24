@@ -22,36 +22,36 @@ const clerkAppearance = {
   theme: 'simple',
   captcha: { theme: 'light' },
   variables: {
-    colorPrimary: '#087f5b',
+    colorPrimary: '#087aa5',
     colorBackground: '#ffffff',
-    colorForeground: '#182a23',
+    colorForeground: '#172f36',
     colorInputBackground: '#ffffff',
-    colorInputText: '#182a23',
-    colorText: '#182a23',
-    colorTextSecondary: '#596b63',
-    colorDanger: '#bd3445',
-    borderRadius: '0px',
-    fontFamily: 'Manrope, Arial, sans-serif',
+    colorInputText: '#172f36',
+    colorText: '#172f36',
+    colorTextSecondary: '#536d76',
+    colorDanger: '#b32637',
+    borderRadius: '8px',
+    fontFamily: '"Plus Jakarta Sans", Arial, sans-serif',
   },
   elements: {
-    cardBox: { width: 'min(100%, 430px)' },
+    cardBox: { width: '100%', maxWidth: '440px', margin: '0 auto' },
     card: {
-      border: '1px solid #d7e1dc',
+      border: '1px solid #dbe6e8',
       background: '#ffffff',
-      boxShadow: '0 20px 60px rgba(24, 42, 35, 0.1)',
+      boxShadow: '0 20px 60px rgba(23, 47, 54, 0.1)',
     },
     formButtonPrimary: {
-      background: '#087f5b',
+      background: '#087aa5',
       color: '#ffffff',
-      boxShadow: '0 8px 20px rgba(8, 127, 91, 0.15)',
-      fontWeight: '800',
+      boxShadow: 'none',
+      fontWeight: '700',
     },
     formFieldInput: {
-      border: '1px solid #d7e1dc',
+      border: '1px solid #cbdde2',
       background: '#ffffff',
       boxShadow: 'none',
     },
-    footerActionLink: { color: '#087f5b', fontWeight: '800' },
+    footerActionLink: { color: '#066383', fontWeight: '700' },
   },
 };
 
@@ -187,8 +187,8 @@ export function renderLoginScreen({ onSuccess, errorMessage = '' } = {}) {
     <div class="login-shell">
       <div class="clerk-login-wrap">
         <div class="login-brand">
-          <span class="logo">Opek</span>
-          <span class="logo-sub">SMS CRM</span>
+          <img class="e2-logo" src="/e2-logo.svg" alt="E2.Local" width="165" height="41" />
+          <span class="product-label">CRM</span>
         </div>
         <p class="login-error">${escapeHtml(errorMessage)}</p>
         <div id="clerk-sign-in"></div>

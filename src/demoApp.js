@@ -23,7 +23,8 @@ function fixtures(tenant) {
   const names = acme ? ['Taylor Sample', 'Morgan Sample'] : ['Alex Example', 'Jamie Example', 'Sam Example'];
   const base = acme ? 110 : 100;
   const contacts = names.map((name, i) => ({
-    phone: `+12025550${base + i}`, name, email: `${name.split(' ')[0].toLowerCase()}@example.com`,
+    id: `+12025550${base + i}`, phone: `+12025550${base + i}`, name,
+    email: `${name.split(' ')[0].toLowerCase()}@example.com`,
     sources: [i === 0 ? 'booking' : 'prebooking'], primarySource: i === 0 ? 'booking' : 'prebooking',
     smsMarketingConsent: i !== 2, canEnroll: i !== 2, enrollments: i === 0 ? ['appointment-reminders'] : [],
     optedOut: i === 2, optOutKeyword: i === 2 ? 'STOP' : null, optOutSource: 'demo',
@@ -77,8 +78,22 @@ export function createDemoApp() {
   });
   app.get('/api/auth/config', (_req, res) => res.json({ mode: 'demo', demo: true, configured: false }));
   app.get('/config.js', (_req, res) => res.type('text/javascript').send(
-    "globalThis.SMS_CONFIG={apiBase:'',supabaseUrl:'',formApiBase:'',embedBaseUrl:''};"
+    "globalThis.SMS_CONFIG={apiBase:'',supabaseUrl:'',formApiBase:'/functions/v1/web-form',embedBaseUrl:''};"
   ));
+  app.get('/functions/v1/web-form/:id', (req, res) => {
+    const presets = {
+      '00000000-0000-4000-8000-000000000001': ['contacts', 'Contact us', 'Send message'],
+      '00000000-0000-4000-8000-000000000002': ['quote_requests', 'Request a quote', 'Request quote'],
+      '00000000-0000-4000-8000-000000000003': ['bookings', 'Book an appointment', 'Book appointment'],
+    };
+    const preset = presets[req.params.id];
+    if (!preset) return res.status(404).json({ demo: true, error: 'Sample form not found' });
+    return res.json({ demo: true, form: {
+      preset: preset[0], title: preset[1], buttonLabel: preset[2], description: 'Tell us how we can help.',
+      businessName: 'Opek — Demo', timeZone: 'America/Denver', fields: [],
+      consentText: 'I agree to receive SMS updates and follow-ups from Opek — Demo at the number provided. Consent is optional. Message frequency varies. Message and data rates may apply. Reply STOP to opt out.',
+    } });
+  });
   app.get('/api/tenants', (_req, res) => res.json({ demo: true, tenants, currentTenant: tenants[0] }));
   app.use('/api', (req, res) => {
     const tenant = tenants.find(t => t.id === (req.get('X-Tenant-ID') || tenants[0].id));
@@ -108,6 +123,24 @@ export function createDemoApp() {
       result = path.endsWith('/calls') ? { calls: [] } : {
         conversation: { ...contact, messages: messages.filter(m => m.contactPhone === phone) } };
     } else if (path === '/calls') result = { ...page(req, [], 'calls') };
+    else if (path === '/bookings') result = { ...page(req, [{
+      id: `${tenant.id}-booking-1`, customer_name: contacts[0].name,
+      customer_phone: contacts[0].phone, appointment_at: '2026-10-01T16:00:00Z',
+      service_address: '123 Sample Street', status: 'confirmed', source: 'sms',
+    }], 'bookings') };
+    else if (path === `/bookings/${tenant.id}-booking-1`) result = { booking: {
+      id: `${tenant.id}-booking-1`, customer_name: contacts[0].name,
+      customer_phone: contacts[0].phone, appointment_at: '2026-10-01T16:00:00Z',
+      service_address: '123 Sample Street', status: 'confirmed', source: 'sms',
+      time_zone: 'America/Denver', extra_answers: {},
+    } };
+    else if (path === '/booking-settings') result = {
+      enabled: true, version: 1, slotDurationMinutes: 60, capacityPerSlot: 1,
+      minimumNoticeMinutes: 120, maximumAdvanceDays: 90,
+      weeklyAvailability: { 1: [{ start: '09:00', end: '17:00' }], 2: [{ start: '09:00', end: '17:00' }],
+        3: [{ start: '09:00', end: '17:00' }], 4: [{ start: '09:00', end: '17:00' }],
+        5: [{ start: '09:00', end: '17:00' }] }, dateExceptions: [], extraFields: [],
+    };
     else if (path === '/enrollments') result = { ...page(req, [], 'enrollments') };
     else if (path.startsWith('/automation-intake/')) result = { rows: [], total: 0, page: 1, pageSize: 50, totalPages: 1 };
     else if (path === '/web-forms') result = { canEdit: false, timeZone: 'America/Denver',

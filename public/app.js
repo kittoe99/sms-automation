@@ -74,6 +74,27 @@ const el = {
 const formBuilder = createFormBuilder({ root: el.root, apiFetch, config: runtimeConfig });
 
 let drawerReturnFocus = null;
+let lastRenderedView = null;
+
+function visibleFocusTargets(container) {
+  return [...container.querySelectorAll('a[href], button:not([disabled]), input:not([disabled]), select:not([disabled]), textarea:not([disabled]), [tabindex]:not([tabindex="-1"])')]
+    .filter((node) => !node.hidden && node.getClientRects().length);
+}
+
+function trapOverlayFocus(event, container) {
+  if (event.key !== 'Tab') return;
+  const targets = visibleFocusTargets(container);
+  if (!targets.length) return;
+  const first = targets[0];
+  const last = targets.at(-1);
+  if (event.shiftKey && (document.activeElement === first || !container.contains(document.activeElement))) {
+    event.preventDefault();
+    last.focus();
+  } else if (!event.shiftKey && (document.activeElement === last || !container.contains(document.activeElement))) {
+    event.preventDefault();
+    first.focus();
+  }
+}
 
 function syncOverlayLock() {
   const crm = document.querySelector('.crm');
@@ -1118,7 +1139,7 @@ async function renderBusinessContext() {
 
 const titles = {
   overview: ['Dashboard', 'Your messages, contacts, and follow-ups in one place.'],
-  messaging: ['Messaging', 'Inbox of customer responses and conversations'],
+  messaging: ['Inbox', 'Read and reply to customer conversations.'],
   call: ['Calls', 'Track inbound calls from your customers.'],
   messages: ['Messages', 'Searchable CRM log for every SMS'],
   contacts: ['Contacts', 'Find customers and manage your contacts.'],
@@ -1130,7 +1151,7 @@ const titles = {
   knowledge: ['AI knowledge', 'Approve evidence, review leads, and resolve human handoffs.'],
   bookings: ['Bookings', 'Confirmed appointments created securely for this business.'],
   'booking-setup': ['Booking setup', 'Availability and questions collected before an SMS booking.'],
-  'web-forms': ['Form Builder', 'Design Contact, Quote Request, and Booking forms for your websites.'],
+  'web-forms': ['Forms', 'Create and manage forms for your websites.'],
 };
 
 function knowledgePanelMarkup(data) {
@@ -1190,7 +1211,12 @@ document.getElementById('nav').addEventListener('click', (e) => {
   }
   setActiveNav();
   closeSidebar();
-  load();
+  load().then(() => {
+    if (matchMedia('(max-width: 900px)').matches) {
+      el.title.setAttribute('tabindex', '-1');
+      el.title.focus({ preventScroll: true });
+    }
+  });
 });
 
 function setSidebarOpen(open) {
@@ -1200,6 +1226,15 @@ function setSidebarOpen(open) {
   el.sidebarTrigger?.setAttribute('aria-expanded', String(isOpen));
   el.sidebarTrigger?.setAttribute('aria-label', isOpen ? 'Close navigation' : 'Open navigation');
   if (el.sidebarBackdrop) el.sidebarBackdrop.tabIndex = isOpen ? 0 : -1;
+  if (el.sidebar) {
+    if (isOpen && matchMedia('(max-width: 900px)').matches) {
+      el.sidebar.setAttribute('role', 'dialog');
+      el.sidebar.setAttribute('aria-modal', 'true');
+    } else {
+      el.sidebar.removeAttribute('role');
+      el.sidebar.removeAttribute('aria-modal');
+    }
+  }
   syncOverlayLock();
   if (isOpen) requestAnimationFrame(() => el.sidebarClose?.focus());
 }
@@ -1216,6 +1251,11 @@ el.sidebarTrigger?.addEventListener('click', () => {
 el.sidebarClose?.addEventListener('click', () => closeSidebar({ restoreFocus: true }));
 el.sidebarBackdrop?.addEventListener('click', () => closeSidebar({ restoreFocus: true }));
 document.addEventListener('keydown', (event) => {
+  if (event.key === 'Tab') {
+    if (!el.drawer?.hidden) trapOverlayFocus(event, el.drawer);
+    else if (document.querySelector('.crm')?.classList.contains('sidebar-open')) trapOverlayFocus(event, el.sidebar);
+    return;
+  }
   if (event.key !== 'Escape') return;
   if (!el.drawer?.hidden) {
     closeDrawer();
@@ -1284,14 +1324,8 @@ function setActiveNav() {
 }
 
 function syncSidebarBrand() {
-  const name = state.tenant?.shortName || state.tenant?.name || 'Opek';
-  const brandName = document.getElementById('sidebar-brand-name');
-  if (brandName) brandName.textContent = name;
-  const dot = document.getElementById('tenant-dot');
-  if (dot) {
-    const initials = String(name).trim().slice(0, 1).toUpperCase() || 'O';
-    dot.textContent = initials;
-  }
+  const name = state.tenant?.name || 'Business workspace';
+  if (el.tenantSelect) el.tenantSelect.title = name;
 }
 
 function initNavFind() {
@@ -1325,6 +1359,13 @@ function initNavFind() {
 }
 
 async function load() {
+  if (state.view !== 'messaging') document.querySelector('.crm')?.classList.remove('thread-open');
+  if (lastRenderedView !== state.view) {
+    el.root.innerHTML = '<div class="card ui-loading" role="status">Loading workspace…</div>';
+    el.kpi.innerHTML = '';
+    el.pager.hidden = true;
+  }
+  el.root.setAttribute('aria-busy', 'true');
   document.getElementById('crm-app').dataset.view = state.view;
   el.search.closest('.search-wrap').hidden = ['overview', 'call', 'deliverability', 'business-setup', 'business-context', 'booking-setup', 'knowledge', 'web-forms'].includes(state.view);
   el.status.hidden = !['messages', 'deliverability'].includes(state.view) && !(state.view === 'automations' && state.categoryId);
@@ -1362,9 +1403,13 @@ async function load() {
     else if (state.view === 'bookings') await renderBookings();
     else if (state.view === 'knowledge') await renderKnowledge();
     else await renderMessages();
+    lastRenderedView = state.view;
   } catch (err) {
     console.error(err);
-    el.root.innerHTML = `<div class="card"><div class="empty">Failed to load CRM data.</div></div>`;
+    el.root.innerHTML = `<div class="card"><div class="empty" role="alert"><strong>Could not load this page.</strong><p>${esc(err.message || 'Please try again.')}</p><button type="button" class="btn ghost" data-retry-load>Try again</button></div></div>`;
+    el.root.querySelector('[data-retry-load]')?.addEventListener('click', () => load());
+  } finally {
+    el.root.setAttribute('aria-busy', 'false');
   }
 }
 
@@ -2220,7 +2265,9 @@ async function renderMessaging() {
   if (!state.conversationId && state.conversationPhone) {
     state.conversationId = conversations.find((c) => c.phone === state.conversationPhone && !c.groupId)?.id || null;
   }
-  if (!state.conversationId && conversations[0]) state.conversationId = conversations[0].id;
+  if (!state.conversationId && conversations[0] && !matchMedia('(max-width: 720px)').matches) {
+    state.conversationId = conversations[0].id;
+  }
 
   let thread = null;
   let voiceCalls = [];
@@ -2245,9 +2292,11 @@ async function renderMessaging() {
       if (match) match.unreadCount = 0;
     }
   }
+  document.querySelector('.crm')?.classList.toggle('thread-open', Boolean(thread));
+  if (thread && matchMedia('(max-width: 720px)').matches) el.pager.hidden = true;
 
   el.root.innerHTML = `
-    <div class="messaging">
+    <div class="messaging ${thread ? 'has-thread' : ''}">
       <div class="inbox card">
         <div class="card-head">
           <h2>Inbox</h2>
@@ -2294,6 +2343,7 @@ async function renderMessaging() {
             ? `
           <div class="card-head thread-head">
             <div>
+              <button type="button" class="btn ghost thread-back" id="thread-back" aria-label="Back to inbox">← Inbox</button>
               <h2>${esc(thread.name || thread.phone)}</h2>
               <p class="muted">${esc(thread.phone)} · ${esc(thread.groupName || 'General')} · ${fmt(thread.messageCount)} messages${
                 thread.aiPausedAt ? ' · AI paused' : ''
@@ -2318,7 +2368,7 @@ async function renderMessaging() {
                       ? 'Customer'
                       : m.meta?.role === 'assistant'
                         ? 'AI'
-                        : 'Opek'
+                        : esc(state.tenant?.shortName || state.tenant?.name || 'Business')
                   }</span>
                   ${
                     m.meta?.role === 'assistant'
@@ -2368,11 +2418,19 @@ async function renderMessaging() {
     load();
   });
 
+  el.root.querySelector('#thread-back')?.addEventListener('click', () => {
+    state.conversationId = null;
+    state.conversationPhone = null;
+    load().then(() => el.root.querySelector('.inbox-item')?.focus({ preventScroll: true }));
+  });
+
   el.root.querySelectorAll('[data-conversation-id]').forEach((btn) => {
     btn.addEventListener('click', () => {
       state.conversationId = btn.getAttribute('data-conversation-id');
       state.conversationPhone = btn.getAttribute('data-phone');
-      load();
+      load().then(() => {
+        if (matchMedia('(max-width: 720px)').matches) el.root.querySelector('#thread-back')?.focus({ preventScroll: true });
+      });
     });
   });
 
@@ -2555,7 +2613,7 @@ async function renderContacts() {
                     .map((c) => {
                       const canEnroll = c.canEnroll || c.smsMarketingConsent === true;
                       return `
-              <tr class="contact-row" data-name="${esc(
+              <tr class="contact-row" tabindex="0" data-contact="${esc(c.phone || '')}" data-name="${esc(
                         c.name || ''
                       )}">
                 <td>${esc(c.name || '—')}</td>
@@ -2633,6 +2691,7 @@ async function renderContacts() {
       });
     });
   });
+  bindContactRows(rows);
 }
 
 function openMessageComposer({ phone, name }) {
@@ -2910,10 +2969,18 @@ async function renderOptOuts() {
 
 function bindContactRows(rows) {
   el.root.querySelectorAll('[data-contact]').forEach((row) => {
-    row.addEventListener('click', (e) => {
-      if (e.target.closest('button, select, a, input')) return;
+    const showDetails = () => {
       const contact = rows.find(c => c.phone === row.getAttribute('data-contact'));
       if (contact) openDrawer(contact.name || contact.phone, contactDetail(contact));
+    };
+    row.addEventListener('click', (e) => {
+      if (e.target.closest('button, select, a, input')) return;
+      showDetails();
+    });
+    row.addEventListener('keydown', event => {
+      if (event.target !== row || !['Enter', ' '].includes(event.key)) return;
+      event.preventDefault();
+      showDetails();
     });
   });
 }
@@ -3158,6 +3225,7 @@ function setTitle(title, sub) {
   el.title.textContent = title;
   el.sub.textContent = sub;
   if (el.toolbarSection) el.toolbarSection.textContent = title;
+  document.title = `${title} · ${state.tenant?.shortName || state.tenant?.name || 'Workspace'} · E2.Local CRM`;
 }
 
 function openDrawer(title, html) {
@@ -3349,7 +3417,7 @@ function updateAuthChrome() {
       .slice(0, 2)
       .toUpperCase();
   }
-  if (tenant) document.title = `${tenant.shortName || tenant.name} · SMS CRM`;
+  if (tenant) document.title = `${tenant.shortName || tenant.name} · E2.Local CRM`;
   syncSidebarBrand();
   initNavFind();
 }
@@ -3543,4 +3611,3 @@ function connectLive() {
     }
   }, 25000);
 }
-

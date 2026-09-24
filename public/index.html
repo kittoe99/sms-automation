@@ -3,15 +3,18 @@
   <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <meta name="theme-color" content="#10231d" />
+    <meta name="theme-color" content="#fbfdfd" />
     <meta
       name="description"
-      content="Opek customer communications, bookings, and automation workspace."
+      content="E2.Local CRM for customer conversations, bookings, and follow-ups."
     />
-    <title>Opek Workspace</title>
-    <link rel="stylesheet" href="/styles.css?v=20260923-web-forms" />
+    <title>E2.Local CRM</title>
+    <link rel="icon" href="/e2-icon.svg" type="image/svg+xml" />
+    <link rel="stylesheet" href="/styles.css?v=20260924-e2-crm" />
+    <link rel="stylesheet" href="/e2-theme.css?v=20260924-e2-crm" />
   </head>
   <body>
+    <a class="skip-link" href="#view-root">Skip to main content</a>
     <div id="auth-root" hidden></div>
     <div class="crm" id="crm-app" hidden>
       <button
@@ -24,12 +27,8 @@
 
       <aside class="sidebar" id="sidebar" aria-label="CRM navigation">
         <div class="sidebar-brand">
-          <span class="workspace-dot" id="tenant-dot" aria-hidden="true"></span>
-          <div class="sidebar-brand-copy">
-            <span class="logo" id="sidebar-brand-name">Opek</span>
-            <span class="logo-sub">SMS CRM</span>
-          </div>
-          <span class="platform-badge" id="sidebar-plan-badge">SMS</span>
+          <img class="e2-logo" src="/e2-logo.svg" alt="E2.Local" width="152" height="38" />
+          <span class="product-label">CRM</span>
           <button type="button" class="sidebar-collapse" id="sidebar-close" aria-label="Close navigation" title="Close navigation">
             <svg viewBox="0 0 16 16" aria-hidden="true"><path d="M4 3.5 8.5 8 4 12.5M9.5 3.5 14 8l-4.5 4.5" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"/></svg>
           </button>
@@ -38,7 +37,7 @@
         <div class="clerk-org-switcher" id="clerk-organization-switcher"></div>
 
         <label class="workspace-switcher" for="tenant-select">
-          <span>Business account</span>
+          <span>Workspace</span>
           <select id="tenant-select" aria-label="Business account">
             <option value="opek">Opek Junk Removal</option>
           </select>
@@ -54,8 +53,8 @@
         </div>
 
         <nav class="nav" id="nav" aria-label="CRM sections">
-          <section data-nav-section="workspace">
-            <p class="nav-label">Workspace</p>
+          <section data-nav-section="work">
+            <p class="nav-label">Work</p>
             <button type="button" class="nav-item active" data-view="overview" data-find="dashboard overview home">
               <svg viewBox="0 0 24 24" aria-hidden="true"><rect x="3" y="3" width="7" height="7" rx="1.5"/><rect x="14" y="3" width="7" height="7" rx="1.5"/><rect x="3" y="14" width="7" height="7" rx="1.5"/><rect x="14" y="14" width="7" height="7" rx="1.5"/></svg>
               <span>Dashboard</span>
@@ -64,15 +63,26 @@
               <svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="9" cy="8" r="3"/><path d="M3.5 20c.6-4 2.5-6 5.5-6s4.9 2 5.5 6"/><path d="M17 8h4M19 6v4"/></svg>
               <span>Contacts</span>
             </button>
-          </section>
-
-          <section data-nav-section="conversations">
-            <p class="nav-label">Conversations</p>
             <button type="button" class="nav-item" data-view="messaging" data-find="messaging inbox conversations sms replies">
               <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 5h16v11H9l-5 4V5Z"/><path d="M8 10h8M8 13h5"/></svg>
-              <span>Messaging</span>
+              <span>Inbox</span>
               <i class="nav-tag">Live</i>
             </button>
+            <button type="button" class="nav-item" data-view="bookings" data-find="bookings appointments schedule calendar">
+              <svg viewBox="0 0 24 24" aria-hidden="true"><rect x="4" y="5" width="16" height="15" rx="2"/><path d="M8 3v4M16 3v4M4 10h16"/></svg>
+              <span>Bookings</span>
+            </button>
+            <button type="button" class="nav-item nav-parent" data-view="automations" id="nav-automations-root" data-find="automations follow ups sequences drip campaigns">
+              <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 3v4M12 17v4M3 12h4M17 12h4"/><circle cx="12" cy="12" r="4"/><path d="m5.6 5.6 2.8 2.8M15.6 15.6l2.8 2.8M18.4 5.6l-2.8 2.8M8.4 15.6l-2.8 2.8"/></svg>
+              <span>Automations</span>
+              <em class="nav-count" id="nav-automations-count" hidden></em>
+              <i class="nav-chevron" aria-hidden="true">›</i>
+            </button>
+            <div class="nav-sub" id="nav-automations" hidden></div>
+          </section>
+
+          <section data-nav-section="reports">
+            <p class="nav-label">Reports</p>
             <button type="button" class="nav-item" data-view="call" data-find="calls inbound voice phone">
               <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M7.2 3.8 10 8.5 7.8 11c1.2 2.5 2.9 4.2 5.4 5.4l2.5-2.2 4.5 2.8c.4.2.5.7.3 1.1-.8 1.7-2.4 2.9-4.3 2.8C9.5 20.5 3.5 14.5 3 7.8c-.1-1.9 1.1-3.5 2.8-4.3.5-.2 1 0 1.4.3Z"/></svg>
               <span>Inbound calls</span>
@@ -80,14 +90,6 @@
             <button type="button" class="nav-item" data-view="messages" data-find="message history log all sms">
               <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M6 4h12v16H6z"/><path d="M9 8h6M9 12h6M9 16h4"/></svg>
               <span>Message history</span>
-            </button>
-          </section>
-
-          <section data-nav-section="operations">
-            <p class="nav-label">Operations</p>
-            <button type="button" class="nav-item" data-view="bookings" data-find="bookings appointments schedule calendar">
-              <svg viewBox="0 0 24 24" aria-hidden="true"><rect x="4" y="5" width="16" height="15" rx="2"/><path d="M8 3v4M16 3v4M4 10h16"/></svg>
-              <span>Bookings</span>
             </button>
             <button type="button" class="nav-item" data-view="deliverability" data-find="delivery report analytics deliverability sent delivered">
               <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 19V9M10 19V5M16 19v-7M22 19V3"/></svg>
@@ -97,13 +99,6 @@
               <svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="9"/><path d="m8.5 8.5 7 7"/></svg>
               <span>Opt-Outs</span>
             </button>
-            <button type="button" class="nav-item nav-parent" data-view="automations" id="nav-automations-root" data-find="automations follow ups sequences drip campaigns">
-              <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 3v4M12 17v4M3 12h4M17 12h4"/><circle cx="12" cy="12" r="4"/><path d="m5.6 5.6 2.8 2.8M15.6 15.6l2.8 2.8M18.4 5.6l-2.8 2.8M8.4 15.6l-2.8 2.8"/></svg>
-              <span>Automations</span>
-              <em class="nav-count" id="nav-automations-count" hidden></em>
-              <i class="nav-chevron" aria-hidden="true">›</i>
-            </button>
-            <div class="nav-sub" id="nav-automations" hidden></div>
           </section>
 
           <section class="nav-settings" data-nav-section="settings">
@@ -122,7 +117,7 @@
             </button>
             <button type="button" class="nav-item" data-view="web-forms" data-find="form builder web forms contact quote request booking embed">
               <svg viewBox="0 0 24 24" aria-hidden="true"><rect x="4" y="3" width="16" height="18" rx="2"/><path d="M8 8h8M8 12h8M8 16h5"/></svg>
-              <span>Form Builder</span>
+              <span>Forms</span>
             </button>
           </section>
         </nav>
@@ -131,7 +126,7 @@
           <div class="auth-foot">
             <span class="user-avatar" id="tenant-avatar" aria-hidden="true">OP</span>
             <div>
-              <strong id="auth-email">Opek account</strong>
+              <strong id="auth-email">Account</strong>
               <span id="store-meta">Tracking outbound SMS</span>
             </div>
             <button type="button" class="sign-out" id="sign-out-btn" title="Sign out" aria-label="Sign out">↗</button>
@@ -147,7 +142,7 @@
             <span class="sidebar-trigger-label">Menu</span>
           </button>
           <div class="toolbar-crumb">
-            <span id="toolbar-tenant">Opek</span>
+            <span id="toolbar-tenant">Workspace</span>
             <strong id="toolbar-section">Overview</strong>
           </div>
           <div class="toolbar-live">
@@ -183,14 +178,14 @@
               <option value="cancelled">Cancelled</option>
               <option value="submission_unknown">Needs review</option>
             </select>
-            <button type="button" id="refresh" class="btn">Refresh</button>
+            <button type="button" id="refresh" class="btn ghost">Refresh</button>
           </div>
         </section>
 
         <section id="kpi" class="kpi-row" aria-live="polite"></section>
 
-        <section class="main-panel">
-          <div id="view-root"></div>
+        <main class="main-panel" id="main-content">
+          <div id="view-root" tabindex="-1"></div>
           <div class="pager" id="pager" hidden>
             <button type="button" id="prev-page" class="btn ghost">Previous</button>
             <span id="page-info" class="muted"></span>
@@ -201,7 +196,7 @@
               <option value="250">250 / page</option>
             </select>
           </div>
-        </section>
+        </main>
       </div>
 
       <button
@@ -222,6 +217,6 @@
     </div>
 
     <script src="/config.js"></script>
-    <script src="/app.js?v=20260923-web-forms" type="module"></script>
+    <script src="/app.js?v=20260924-e2-crm" type="module"></script>
   </body>
 </html>
