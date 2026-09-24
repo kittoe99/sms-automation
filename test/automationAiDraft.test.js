@@ -5,7 +5,11 @@ import { processAutomation } from '../src/workers/automation.js';
 
 const context = (kind = 'quote') => ({
   business: { name: 'Alpha Services', time_zone: 'America/Denver' },
-  profile: { facts: { services: ['gutter cleaning'] } },
+  profile: { facts: { forbiddenLegacyFact: 'Do not use this account-wide fact.' } },
+  automationAi: {
+    systemPrompt: 'Use a warm and direct tone. Ask one useful question.',
+    businessContext: 'Alpha Services provides gutter cleaning in Denver.',
+  },
   contact: { name: 'Alex', phone: '+13035550123' },
   enrollment: { metadata: { service: 'gutter cleaning' }, appointment_at: null, step_index: 0 },
   group: { id: 'followup', name: 'Follow-up', kind, rule: {} },
@@ -21,11 +25,12 @@ const aiResponse = (message) => Response.json({
   output: [{ type: 'message', content: [{ type: 'output_text', text: JSON.stringify({ message }) }] }],
 });
 
-test('the AI prompt includes the current conversation and one automation intent', () => {
+test('the AI prompt includes the group context, current conversation, and purpose', () => {
   const prompt = buildAutomationDraftPrompt(context(), 'Ask about timing.');
-  assert.match(prompt, /Automation intent: "Ask about timing\."/);
+  assert.match(prompt, /Automation purpose: "Ask about timing\."/);
   assert.match(prompt, /Alpha Services/);
   assert.match(prompt, /gutter cleaning/);
+  assert.doesNotMatch(prompt, /forbiddenLegacyFact|account-wide fact/);
   assert.ok(prompt.indexOf('Would Tuesday work?') < prompt.indexOf('Afternoons work best.'));
   assert.doesNotMatch(prompt, /Approved fallback message/);
 });
@@ -41,15 +46,44 @@ test('a table-triggered send uses its exact intake row, not another request from
   assert.match(prompt, /Exact SMS intake record/);
 });
 
+test('conflicting quote and booking produce a neutral short clarification',async()=>{
+ const current=context('quote');
+ current.enrollment.source_type='quote_requests';
+ current.source={name:'New customer',created_at:'2026-09-23T10:00:00Z',details:{service_address:'New street',property_access:'Stairs'}};
+ current.booking={customer_name:'Old customer',service_address:'Old street'};
+ const prompt=buildAutomationDraftPrompt(current,'Help with the quote request.');
+ assert.match(prompt,/Request conflict: true/);
+ assert.doesNotMatch(prompt,/New street|Old street|Old customer|New customer/);
+ const draft=await draftAutomationMessage(current,'Help with the quote request.',{
+  apiKey:'test',fetchImpl:async()=>aiResponse('Alpha Services received a new quote request from this number. Would you like to continue it?'),
+ });
+ assert.ok(draft.body.length<=300);
+ assert.match(draft.body,/Reply STOP to opt out/);
+ await assert.rejects(draftAutomationMessage(current,'Help with the quote request.',{
+  apiKey:'test',fetchImpl:async()=>aiResponse('Hi New customer, what is the access at New street?'),
+ }),/CONTEXT_CONFLICT/);
+});
+
+test('a quote draft cannot ask whether access is stairs or elevator when intake answered stairs',async()=>{
+ const current=context('quote');
+ current.enrollment.source_type='quote_requests';
+ current.source={name:'Alex',created_at:'2026-09-23T10:00:00Z',details:{property_access:'Stairs'}};
+ await assert.rejects(draftAutomationMessage(current,'Help with the quote request.',{
+  apiKey:'test',fetchImpl:async()=>aiResponse('Alpha Services here. Is there an elevator or just stairs?'),
+ }),/REDUNDANT_QUESTION/);
+});
+
 test('quote messages are drafted from thread context with opt-out text', async () => {
   const draft = await draftAutomationMessage(context(), 'Ask about timing.', {
     apiKey: 'test',
     fetchImpl: async (_url, request) => {
       const body = JSON.parse(request.body);
-      assert.equal(body.instructions, AUTOMATION_SYSTEM_PROMPT);
-      assert.match(body.instructions, /single notification, an appointment reminder, or one message in a longer follow-up/);
+      assert.ok(body.instructions.startsWith(AUTOMATION_SYSTEM_PROMPT));
+      assert.match(body.instructions, /Use a warm and direct tone/);
       assert.match(body.instructions, /The scheduling system—not you—decides when and how often to send/);
       assert.match(body.input, /Afternoons work best/);
+      assert.match(body.input, /Alpha Services provides gutter cleaning in Denver/);
+      assert.doesNotMatch(body.instructions + body.input, /forbiddenLegacyFact|account-wide fact/);
       return aiResponse('Hi Alex, Alpha Services here. Are afternoons still best for gutter cleaning?');
     },
   });
@@ -87,6 +121,11 @@ test('appointment reminders also require a fresh AI draft', async () => {
 
 test('missing AI configuration and invalid output never fall back to a stored message', async () => {
   await assert.rejects(draftAutomationMessage(context(), 'Ask about timing.', { apiKey: null }), /AI_NOT_CONFIGURED/);
+  const missing = context();
+  missing.automationAi.businessContext = '';
+  await assert.rejects(draftAutomationMessage(missing, 'Ask about timing.', {
+    apiKey: 'test', fetchImpl: async () => { throw new Error('API must not be called'); },
+  }), /AI_CONFIG_REQUIRED/);
   await assert.rejects(draftAutomationMessage(context(), 'Ask about timing.', {
     apiKey: 'test', fetchImpl: async () => aiResponse(''),
   }), /INVALID_DRAFT/);
@@ -151,3 +190,24 @@ test('the worker leaves the job unsent when AI drafting fails', async () => {
   await assert.rejects(processAutomation({ id: 'job-1', lease_token: 'lease-1' }, db, { apiKey: null }), /AI_NOT_CONFIGURED/);
   assert.deepEqual(calls, ['job_context']);
 });
+
+test('the worker cancels an old due job when its group context is incomplete', async () => {
+  const workerContext = {
+    ...context(),
+    automationAi: { systemPrompt: '', businessContext: '' },
+    enrollment: { status: 'active', step_index: 0, created_at: '2026-09-19T10:00:00Z', next_run_at: '2026-09-19T10:00:00Z', metadata: {} },
+    group: { id: 'followup', kind: 'custom', version: 1,
+      rule: { anchor: 'enrollment', firstDelayCount: 0, firstDelayUnit: 'day', intervalCount: 1,
+        intervalUnit: 'day', repeatCount: 1, startHour: 0, endHour: 24 } },
+  };
+  const calls = [];
+  await processAutomation({ id: 'job-1', lease_token: 'lease-1' }, { call: async (name, ...args) => {
+    calls.push([name, ...args]);
+    if (name === 'job_context') return workerContext;
+    if (name === 'finish') return null;
+    throw new Error(`Unexpected call: ${name}`);
+  } }, { apiKey: 'test', fetchImpl: async () => { throw new Error('API must not be called'); } });
+  assert.deepEqual(calls.map(([name]) => name), ['job_context', 'finish']);
+  assert.equal(calls[1][4], 'AI_CONFIG_REQUIRED');
+});
+

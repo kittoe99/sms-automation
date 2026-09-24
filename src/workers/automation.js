@@ -31,6 +31,10 @@ export async function processAutomation(job, db, options = {}) {
   }
   const result = evaluateAutomation(context);
   if (result.action === 'send') {
+    if (!String(context.automationAi?.systemPrompt || '').trim()
+      || !String(context.automationAi?.businessContext || '').trim()) {
+      return db.call('finish', job.id, job.lease_token, 'cancelled', 'AI_CONFIG_REQUIRED', 0);
+    }
     if (context.enrollment.source_id) {
       context.source = await db.call('intake_context', job.id, job.lease_token);
       if (!context.source) throw Object.assign(new Error('Automation source record is missing'), { code: 'SOURCE_MISSING', permanent: true });
@@ -47,3 +51,4 @@ export async function processAutomation(job, db, options = {}) {
   }
   return db.call('complete_automation', job.id, job.lease_token, result);
 }
+

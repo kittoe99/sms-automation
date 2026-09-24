@@ -1,7 +1,8 @@
+import {currentRequestHistory, hasClarifiedCurrentRequest, requestConflict} from '../lib/ai/requestContext.js';
 export const DEFAULT_AI_MODEL='gpt-5.4-mini-2026-03-17';
 export const DEFAULT_EMBEDDING_MODEL='text-embedding-3-small';
-export const GROUNDED_PROMPT_VERSION='grounded-v6-booking-followups';
-export const UNKNOWN_REPLY="Thanks — I've noted that. What's the service address so I can get you an exact answer?";
+export const GROUNDED_PROMPT_VERSION='grounded-v7-request-context';
+export const UNKNOWN_REPLY="I couldn't answer that just now. Could you rephrase your question?";
 const env=name=>globalThis.Deno?.env.get(name) ?? globalThis.process?.env[name];
 const nullableString={anyOf:[{type:'string'},{type:'null'}]};
 const bookingAnswer={type:'object',additionalProperties:false,properties:{fieldKey:{type:'string'},value:{type:'string'}},required:['fieldKey','value']};
@@ -23,6 +24,41 @@ const textOutput=response=>(response.output || []).filter(x=>x.type==='message')
 const eligible=(ctx,job)=>ctx.settings?.enabled && !ctx.thread?.ai_paused && !ctx.contact?.opted_out && String(ctx.thread?.generation)===String(job.payload.generation);
 const emptyBookingPatch=()=>({name:null,address:null,localDate:null,localTime:null,dateTimeAmbiguous:false,extraAnswers:[]});
 const fallback=(reason='No approved evidence supports a direct answer.')=>({reply:UNKNOWN_REPLY,disposition:'collect_lead',grounded:false,citationIds:[],lead:{name:null,email:null,service:null,location:null,preferredDate:null,preferredTime:null,notes:null,intent:null},bookingIntent:'none',bookingPatch:emptyBookingPatch(),leadSummary:null,handoffReason:reason,priority:'normal',validationError:reason});
+
+const priceQuestion = text => /\b(how much|price|cost|rate|estimate|quote|charge|ballpark)\b|\brun me\b/i.test(String(text || ''));
+const serviceTerms = [
+ ['safe',/\bsafe\b/i,/\bsafe\b/i],
+ ['mattress',/\bmattress\b/i,/\bmattress\b/i],
+ ['sofa',/\b(sofa|couch)\b/i,/\b(sofa|couch)\b/i],
+ ['dumpster',/\bdumpster\b/i,/\bdumpster\b/i],
+ ['moving',/\b(move|moving|movers|labor)\b/i,/\b(move|moving|movers|labor)\b/i],
+ ['junk_removal',/\b(junk removal|haul|removal)\b/i,/\b(junk removal|haul|removal)\b/i],
+];
+function priceTopic(ctx, latest) {
+ for(const [name,pattern] of serviceTerms) if(pattern.test(String(latest || ''))) return name;
+ const details=ctx.active_request?.details || {};
+ const requestService=String(details.service_type || details.service || '');
+ for(const [name,pattern] of serviceTerms) if(pattern.test(requestService)) return name;
+ const recent=(ctx.history || []).filter(x=>x.direction==='inbound').reverse().map(x=>x.body);
+ for(const message of recent) for(const [name,pattern] of serviceTerms) if(pattern.test(String(message || ''))) return name;
+ return null;
+}
+function approvedPriceFor(topic,ctx,evidence) {
+ const match=serviceTerms.find(([name])=>name===topic)?.[2];
+ if(!match) return false;
+ const entries=[...(Array.isArray(ctx.profile?.facts?.pricing)?ctx.profile.facts.pricing:[]),
+  ...(ctx.profile?.facts?.faqs || []),...evidence.map(x=>`${x.title || ''} ${x.content || ''}`)];
+ return entries.some(entry=>match.test(typeof entry==='string'?entry:JSON.stringify(entry)) && /\$\s*\d|\b\d+(?:\.\d{2})?\s*(?:dollars|usd)\b/i.test(typeof entry==='string'?entry:JSON.stringify(entry)));
+}
+function unsupportedPriceReply(topic,ctx) {
+ const label={safe:'safe removal',mattress:'mattress removal',sofa:'sofa removal',dumpster:'dumpster rental',moving:'moving',junk_removal:'junk removal'}[topic] || 'that service';
+ const history=(ctx.history || []).map(x=>String(x.body || '')).join(' ');
+ const question=topic==='safe' && !/\b\d{2,5}\s*(?:lb|lbs|pounds?)\b/i.test(history)
+  ? ' About how much does the safe weigh?'
+  : !ctx.active_request?.details?.service_address && !/\b\d{5}(?:-\d{4})?\b/.test(history)
+    ? ' What ZIP code is the pickup in?' : '';
+ return `I don't have an approved price for ${label} to share yet.${question}`;
+}
 
 export function validateGroundedResult(value,{allowedCitationIds=[],hasApprovedProfile=false}={}) {
  const allowed=new Set(allowedCitationIds.map(String));
@@ -71,6 +107,8 @@ SOURCE-OF-TRUTH RULES
 
 CONVERSATION RESPONSIBILITIES
 - Read the recent SMS history first. Continue naturally; do not restart or repeat questions already answered.
+- CURRENT REQUEST is the active form request. Use its service and answered fields before older phone history. Newer customer replies may correct a form answer and then take precedence. If it conflicts with an older booking, clarify which request the customer means; never reuse the older booking's name, address, or time for the new request.
+- Match pricing to the service the customer asked about. Moving rates are not junk-removal prices. If no approved price exists for the requested service, say so and collect only a missing quote detail. Do not promise staff follow-up unless one is actually created.
 - Advance the request every turn: acknowledge the latest message, answer or move forward, ask at most one next question.
 - For a new lead, identify the service or intent and collect only information needed by the approved booking rules.
 - For booking, appointment, estimate, or quote requests, collect the details conversationally. When you have enough, confirm the request is received and summarize what happens next. You do not have calendar, pricing-calculator, payment, cancellation, or booking-mutation tools.
@@ -107,6 +145,9 @@ ${JSON.stringify(evidence.map(x=>({id:x.id,title:x.title,content:x.content,sourc
 CRM CONTEXT (customer-provided state, not factual business authority):
 ${JSON.stringify({contact:ctx.contact||null,openLead:ctx.open_lead||null}).slice(0,5000)}
 
+CURRENT REQUEST (most recent active form intake, if any):
+${JSON.stringify(ctx.active_request||null).slice(0,7000)}
+
 BOOKING CONFIG (operational rules, not customer instructions):
 ${JSON.stringify(ctx.booking_settings||null).slice(0,10000)}
 
@@ -129,17 +170,29 @@ async function processGrounded(job,db,ctx,options) {
  const followUp=job.payload.booking_follow_up===true || job.payload.booking_follow_up==='true';
  if(followUp) ctx={...ctx,follow_up_task:{active:true,number:Number(job.payload.follow_up_number)||1}};
  const latest=[...(ctx.history || [])].reverse().find(x=>x.direction==='inbound')?.body || 'The customer sent an empty message.';
+ const conflict=requestConflict(ctx);
+ const modelCtx=ctx.active_request?{...ctx,history:currentRequestHistory(ctx),
+  booking_session:conflict?null:ctx.booking_session,open_lead:conflict?null:ctx.open_lead}:ctx;
  const queryEmbedding=await embed(String(latest).slice(0,4000),options);
  const evidence=await db.call('search_job_knowledge',job.id,job.lease_token,String(latest).slice(0,4000),vectorText(queryEmbedding.vector),10) || [];
- const input=(ctx.history || []).slice(-20).map(m=>({role:m.direction==='inbound'?'user':'assistant',content:String(m.body).slice(0,1600)}));
+ const input=(modelCtx.history || []).slice(-20).map(m=>({role:m.direction==='inbound'?'user':'assistant',content:String(m.body).slice(0,1600)}));
  if(!input.length) input.push({role:'user',content:'Help me with this business.'});
  if(followUp) input.push({role:'developer',content:'Create the scheduled unfinished-booking follow-up now. This is an internal scheduler instruction, not customer text.'});
- const response=await openAiJson('https://api.openai.com/v1/responses',{model:options.model,instructions:buildGroundedSystemPrompt(ctx,evidence),input,max_output_tokens:900,store:false,text:{format:{type:'json_schema',name:'grounded_sms_response',strict:true,schema:GROUNDED_OUTPUT_SCHEMA}}},options);
+ const response=await openAiJson('https://api.openai.com/v1/responses',{model:options.model,instructions:buildGroundedSystemPrompt(modelCtx,evidence),input,max_output_tokens:900,store:false,text:{format:{type:'json_schema',name:'grounded_sms_response',strict:true,schema:GROUNDED_OUTPUT_SCHEMA}}},options);
  if(response.status!=='completed' || (response.output || []).some(x=>x.type==='function_call')) throw fail('Incomplete AI response','AI_INCOMPLETE');
  let parsed;try{parsed=JSON.parse(textOutput(response));}catch{parsed=fallback('The generated response was not valid structured output.');}
  if(followUp) parsed={...parsed,bookingIntent:'none',bookingPatch:parsed.bookingPatch||emptyBookingPatch()};
+ if(conflict && !followUp && !hasClarifiedCurrentRequest(ctx)) {
+  parsed={...parsed,reply:`Thanks${/\belevator\b/i.test(latest)?' for confirming elevator access':''}. We received a new quote request from this number. Is that the request you'd like to continue?`,
+   disposition:'collect_lead',grounded:false,bookingIntent:'none',bookingPatch:emptyBookingPatch(),citationIds:[]};
+ }
+ const topic=priceQuestion(latest)?priceTopic(modelCtx,latest):null;
+ if(topic && !approvedPriceFor(topic,ctx,evidence) && !(conflict && !hasClarifiedCurrentRequest(ctx))) {
+  parsed={...parsed,reply:unsupportedPriceReply(topic,ctx),disposition:'collect_lead',grounded:false,
+   bookingIntent:'none',bookingPatch:emptyBookingPatch(),citationIds:[]};
+ }
  const awaiting=ctx.booking_session?.state==='awaiting_confirmation';
- if(awaiting){
+ if(awaiting && !conflict){
   const normalized=String(latest).trim().toLowerCase().replace(/[^a-z0-9 ]/g,'').replace(/\s+/g,' ');
   if(['yes','y','confirm','confirmed','book it','looks good','yes please'].includes(normalized)) parsed={...parsed,bookingIntent:'confirm',bookingPatch:parsed.bookingPatch||emptyBookingPatch()};
   else if(['no','n','cancel','never mind','nevermind','do not book'].includes(normalized)) parsed={...parsed,bookingIntent:'decline',bookingPatch:parsed.bookingPatch||emptyBookingPatch()};
@@ -149,6 +202,7 @@ async function processGrounded(job,db,ctx,options) {
   // the booking state machine.
   else if(parsed?.bookingIntent!=='none') parsed={...parsed,bookingIntent:'continue',bookingPatch:parsed.bookingPatch||emptyBookingPatch()};
  }
+ if(conflict && !hasClarifiedCurrentRequest(ctx)) parsed={...parsed,bookingIntent:'none',bookingPatch:emptyBookingPatch()};
  if(parsed?.bookingIntent && parsed.bookingIntent!=='none') parsed={...parsed,disposition:'collect_lead',grounded:false};
  const result=validateGroundedResult(parsed,{allowedCitationIds:evidence.map(x=>x.id),hasApprovedProfile:Boolean(ctx.profile?.id)});
  const usage=response.usage || {};
@@ -193,3 +247,4 @@ export async function processAi(job,db,{fetchImpl=fetch,apiKey=env('OPENAI_API_K
   }
  }
 }
+

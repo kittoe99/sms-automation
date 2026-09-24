@@ -119,6 +119,13 @@ export function createCrmHandler(db,verify=authenticate) {
      const existing=(await read('groups',{id})).rows[0];
      if(!existing||!INTAKE_TYPES.has(existing.fixed_type))return json({error:'Fixed SMS automation rule not found'},404,headers);
      if(['template','steps','deliveryMode','aiDraft'].some(key=>key in p)) return json({error:'Saved automation messages are not supported'},400,headers);
+     const systemPrompt=p.systemPrompt===undefined?existing.system_prompt:p.systemPrompt;
+     const businessContext=p.businessContext===undefined?existing.business_context:p.businessContext;
+     if((systemPrompt!=null&&typeof systemPrompt!=='string')||(businessContext!=null&&typeof businessContext!=='string')
+       ||String(systemPrompt||'').trim().length>6000||String(businessContext||'').trim().length>10000)
+       return json({error:'AI instructions or business details are invalid or too long'},400,headers);
+     if(p.activeAutomation!==false&&(!String(systemPrompt||'').trim()||!String(businessContext||'').trim()))
+       return json({error:'Add AI instructions and business details before activating this automation'},400,headers);
      if(!p.rule||typeof p.rule!=='object'||Array.isArray(p.rule)||p.rule.anchor!==(existing.fixed_type==='bookings'?'appointment':'enrollment')) return json({error:'Schedule anchor does not match the SMS automation type'},400,headers);
      const businesses=await read('businesses'),tz=businesses.rows.find(b=>b.tenant_id===tenant)?.time_zone;
      let rule;try{rule=groupRule(p.rule,tz);}catch(error){error.status=400;throw error;}
@@ -158,3 +165,4 @@ export function createCrmHandler(db,verify=authenticate) {
   } catch(error) {return failure(error,headers);}
  };
 }
+

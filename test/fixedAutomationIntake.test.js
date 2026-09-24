@@ -3,6 +3,23 @@ import assert from 'node:assert/strict';
 import { testDatabase, call } from './helpers/database.js';
 import { createCrmHandler } from '../supabase/functions/crm-api/handler.js';
 
+test('a new conflicting quote clears an unfinished booking draft but keeps consent',async()=>{
+ const db=await testDatabase();
+ try {
+  await call(db,'api_action','admin',null,'create_business',{id:'alpha',name:'Alpha',timeZone:'UTC'});
+  const phone='+13035550188';
+  await call(db,'api_action','admin','alpha','contact',{phone,name:'Old customer'});
+  await call(db,'api_action','admin','alpha','consent',{phone,consent:true,evidence:'Test opt-in'});
+  await db.query(`insert into public.sms_booking_sessions
+    (tenant_id,contact_id,customer_phone,settings_version,conversation_generation,customer_name,service_address)
+    select 'alpha',id,phone,1,1,'Old customer','Old street' from public.sms_contacts where phone=$1`,[phone]);
+  await db.query(`insert into public.sms_automation_quote_requests(tenant_id,name,phone,details)
+    values('alpha','New customer',$1,$2::jsonb)`,[phone,JSON.stringify({service_address:'New street'})]);
+  assert.equal((await db.query("select count(*) from public.sms_booking_sessions where tenant_id='alpha'")).rows[0].count,0);
+  assert.equal((await db.query('select marketing_consent from public.sms_contacts where phone=$1',[phone])).rows[0].marketing_consent,true);
+ } finally {await db.close();}
+});
+
 test('Quote Request default becomes day zero without changing custom rules or enrolled due times', async () => {
   let priorDue;
   const db = await testDatabase({ beforeMigration: async (database, file) => {
@@ -118,6 +135,7 @@ test('tenant-scoped intake functions preserve idempotency and exact source conte
     assert.equal(first.id, duplicate.id);
     assert.equal((await call(db, 'list_intake', 'admin', 'alpha', 'quote_requests', 1, 50)).total, 1);
     assert.equal((await db.query('select count(*) from public.sms_automation_enrollments where source_id=$1', [first.id])).rows[0].count, 1);
+    await db.exec("update public.sms_automation_intents set system_prompt='Ask a useful question',business_context='Alpha provides painting' where tenant_id='alpha' and group_id='quote-requests'");
     await db.exec("update public.sms_businesses set status='active',sending_enabled=true where tenant_id='alpha'; update sms_private.runtime set scheduler_enabled=true");
     await db.query("update public.sms_automation_enrollments set created_at=now()-interval '2 days',next_run_at=now()-interval '1 minute' where source_id=$1", [first.id]);
     await call(db, 'tick');
@@ -188,3 +206,4 @@ test('signed business events mirror quote and booking records into intake exactl
     assert.equal((await db.query("select count(*) from public.sms_automation_enrollments where tenant_id='alpha' and status='active'")).rows[0].count, 0);
   } finally { await db.close(); }
 });
+

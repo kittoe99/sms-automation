@@ -9,7 +9,10 @@ import {readFile,readdir} from 'node:fs/promises';
 
 const simpleRule={anchor:'enrollment',firstDelayCount:0,firstDelayUnit:'day',intervalCount:1,
  intervalUnit:'day',repeatCount:1,leadHours:null,startHour:0,endHour:24};
-const groupInput=(id,intent,overrides={})=>({id,name:id,intent,rule:{...simpleRule,...overrides}});
+const groupInput=(id,intent,overrides={})=>({id,name:id,intent,
+ systemPrompt:'Write one clear, relevant SMS that advances this group purpose.',
+ businessContext:'Alpha provides customer services and answers questions by text.',
+ rule:{...simpleRule,...overrides}});
 
 test('migration preserves website data and isolates queue submissions',async()=>{
  const db=await testDatabase();
@@ -225,6 +228,7 @@ test('migration removes reusable copy and pauses unreviewed custom groups',async
   assert.equal(enrollment.status,'paused');
   assert.equal(enrollment.pause_reason,'LEGACY_GROUP_RETIRED');
   await assert.rejects(()=>call(db,'api_action','admin','alpha','group',{id:'bad',name:'Bad',intent:'Ask a question.',
+    systemPrompt:'Ask one relevant question.',businessContext:'Alpha provides customer services.',
     rule:{steps:[{template:'Hello',delayCount:1,delayUnit:'day'}]}}),/intent|schedule/i);
  }finally{await db.close();}
 });
@@ -313,3 +317,4 @@ test('only the SMS worker contains Twilio message submission code',async()=>{
  for(const path of paths.filter(p=>/\.[jt]s$/.test(p))) if(/\.messages\.create\(/.test(await readFile(path,'utf8'))) senders.push(path.replace(root,''));
  assert.deepEqual(senders,['src/workers/sms.js']);
 });
+

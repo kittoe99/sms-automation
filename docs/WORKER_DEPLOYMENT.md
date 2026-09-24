@@ -29,6 +29,8 @@ AI additionally requires `OPENAI_API_KEY`; its configured generation model is `g
 
 The OpenAI key is configured in WPacquisition and the AI queue is enabled. Individual business AI settings remain opt-in.
 
+Outgoing automation drafts require an administrator to save a purpose, AI instructions, and business details for each group in the CRM dashboard. Existing groups have no automatically copied business context: due enrollments remain eligible, but the scheduler and final SMS submission hold them until both group fields are saved. The automation worker receives only the group's manual business details plus current intake and conversation data; account-wide business profile facts remain available to the separate inbound AI path.
+
 Supabase project secrets are shared across functions in the same project. Separate database roles restrict normal code paths; they do not provide a hard security boundary against a compromised sibling function reading another role's environment variable. Stronger runtime isolation requires separate projects or external compute.
 
 Worker bearer secrets must match the Vault secrets referenced by `sms_private.edge_config.secret_id`. Rotation must update both locations. Do not output their values in logs.
@@ -87,3 +89,4 @@ Live cutover verified 2026-09-18 UTC. One AI job produced an SMS outbox record; 
 Twilio's Messaging Service now routes inbound and status webhooks to WPacquisition Edge Functions. A bad signature returned 403; a signed inbound event persisted; replaying the same SID remained idempotent; and signed STOP suppressed the contact, recorded consent evidence, and left no pending work. The obsolete DigitalOcean hostname no longer resolves. Opek is active with sending and Supabase scheduling enabled; Bello Moving remains pending and disabled. The test recipient remains opted out after the STOP verification, the deployment-canary AI setting remains disabled, and there are no active enrollments, failed jobs, or uncertain submissions at cutover.
 
 Default inbound AI was enabled for Opek on 2026-09-18 UTC using the Quote follow-up instructions as its business fallback. The test recipient's thread was unpaused, but its STOP suppression remains intact; it must send START before a later inbound message can receive an AI response.
+
