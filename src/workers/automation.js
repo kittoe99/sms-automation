@@ -48,6 +48,8 @@ export async function processAutomation(job, db, options = {}) {
     result.body = draft.body;
     result.ai_drafted = draft.aiDrafted;
     result.thread_generation = context.thread?.generation ?? 0;
+    result.conversation_id = context.conversation?.id;
+    result.scope_generation = context.conversation?.generation;
   }
   return db.call('complete_automation', job.id, job.lease_token, result);
 }

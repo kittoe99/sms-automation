@@ -22,9 +22,9 @@ export function localDateTime(value,timeZone) {
  return new Date(candidate);
 }
 export const business=b=>({id:b.tenant_id,name:b.name,shortName:b.name,timeZone:b.time_zone,status:b.status,sendingEnabled:b.sending_enabled});
-export const message=m=>({...m,categoryId:m.category_id,contactPhone:m.contact_phone,to:m.direction==='outbound'?m.contact_phone:null,from:m.direction==='inbound'?m.contact_phone:null,deliverability:m.status==='submission_unknown'?'needs-review':m.status,createdAt:m.created_at,updatedAt:m.updated_at,errorCode:m.error_code,statusHistory:m.status_history || []});
+export const message=m=>({...m,categoryId:m.category_id,conversationId:m.conversation_id,contactPhone:m.contact_phone,to:m.direction==='outbound'?m.contact_phone:null,from:m.direction==='inbound'?m.contact_phone:null,deliverability:m.status==='submission_unknown'?'needs-review':m.status,createdAt:m.created_at,updatedAt:m.updated_at,errorCode:m.error_code,statusHistory:m.status_history || []});
 export const contact=c=>({...c,smsMarketingConsent:c.marketing_consent,canEnroll:c.marketing_consent&&!c.opted_out,optedOut:c.opted_out,primarySource:c.source,sources:[c.source]});
-export const thread=c=>({...c,unreadCount:c.unread_count,lastBody:c.last_body,lastDirection:c.last_direction,lastMessageAt:c.last_message_at,aiPausedAt:c.ai_paused?'paused':null});
+export const thread=c=>({...c,groupId:c.group_id,groupName:c.group_name||null,conversationType:c.group_id?'automation':'general',unreadCount:c.unread_count,lastBody:c.last_body,lastDirection:c.last_direction,lastMessageAt:c.last_message_at,aiPausedAt:c.ai_paused?'paused':null});
 export const group=g=>({...g,custom:g.kind==='custom',system:g.kind!=='custom',activeAutomation:g.active,rule:g.rule,
   systemPrompt:g.system_prompt||'',businessContext:g.business_context||'',automationAiConfigured:Boolean(g.ai_configured)});
 

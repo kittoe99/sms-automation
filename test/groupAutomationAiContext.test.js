@@ -98,6 +98,7 @@ test('known inbound replies use the enrolled group context; business prompt stay
     await call(db, 'create_intake', 'admin', 'alpha', 'quote_requests', {
       name:'Alex', phone, details:{service:'painting'}, sourceRecordId:'inbound-group-1',
     });
+    await db.query("insert into public.sms_messages(tenant_id,contact_phone,direction,body,category_id,status,provider_accepted_at) values('alpha',$1,'outbound','Alpha here about your painting request.','quote-requests','accepted',now())",[phone]);
     await call(db, 'record_webhook', 'alpha', 'inbound', {From:phone, MessageSid:'SM_scoped_group', Body:'How long does it take?'});
     const job = await call(db, 'claim', 'ai_reply_jobs', 'ai');
     assert.equal(job.payload.group_id, 'quote-requests');

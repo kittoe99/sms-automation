@@ -131,6 +131,7 @@ test('automation, AI replies and enrollment cancellation share fenced outbox beh
   assert.equal((await db.query('select status from sms_private.jobs where id=$1',[sms.id])).rows[0].status,'cancelled');
   await call(db,'api_action','admin','alpha','enroll',{phone:'+13035551234',categoryId:'followup'});
   await call(db,'api_action','admin','alpha','ai_settings',{id:'followup',enabled:true,instructions:'Be helpful'});
+  await db.exec("insert into public.sms_messages(tenant_id,contact_phone,direction,body,category_id,status,provider_accepted_at) values('alpha','+13035551234','outbound','Alpha here about your request.','followup','accepted',now())");
   await call(db,'record_webhook','alpha','inbound',{From:'+13035551234',MessageSid:'SM_in1',Body:'Question'});
   const ai=await call(db,'claim','ai_reply_jobs','ai');assert.ok(ai);
   await call(db,'record_webhook','alpha','inbound',{From:'+13035551234',MessageSid:'SM_in2',Body:'Updated question'});
@@ -156,7 +157,7 @@ test('a new thread message during drafting prevents the scheduled SMS from being
   const context=await call(db,'job_context',job.id,job.lease_token);
   const {evaluateAutomation}=await import('../src/workers/automation.js');
   await db.exec("insert into public.sms_thread_contacts(tenant_id,phone,generation) values('alpha','+13035551234',1) on conflict(tenant_id,phone) do update set generation=sms_thread_contacts.generation+1");
-  const draft={...evaluateAutomation(context),body:'Alpha checking in about your quote. Reply STOP to opt out.',ai_drafted:true,thread_generation:context.thread?.generation??0};
+  const draft={...evaluateAutomation(context),body:'Alpha checking in about your quote. Reply STOP to opt out.',ai_drafted:true,thread_generation:context.thread?.generation??0,conversation_id:context.conversation.id,scope_generation:context.conversation.generation};
   delete draft.step_intent;
   await assert.rejects(()=>call(db,'complete_automation',job.id,job.lease_token,draft),/Conversation changed during AI draft/);
   assert.equal((await db.query("select count(*) from public.sms_messages where tenant_id='alpha' and direction='outbound'")).rows[0].count,0);

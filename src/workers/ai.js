@@ -21,7 +21,10 @@ export const GROUNDED_OUTPUT_SCHEMA={
 
 const fail=(message,code,permanent=false)=>Object.assign(new Error(message),{code,permanent});
 const textOutput=response=>(response.output || []).filter(x=>x.type==='message').flatMap(x=>x.content || []).filter(x=>x.type==='output_text').map(x=>x.text).join('').trim();
-const eligible=(ctx,job)=>ctx.settings?.enabled && !ctx.thread?.ai_paused && !ctx.contact?.opted_out && String(ctx.thread?.generation)===String(job.payload.generation);
+const eligible=(ctx,job)=>ctx.settings?.enabled && !ctx.thread?.ai_paused && !ctx.conversation?.ai_paused
+ && !ctx.contact?.opted_out && String(ctx.thread?.generation)===String(job.payload.generation)
+ && String(ctx.conversation?.id)===String(job.payload.conversation_id)
+ && String(ctx.conversation?.generation)===String(job.payload.conversation_generation);
 const emptyBookingPatch=()=>({name:null,address:null,localDate:null,localTime:null,dateTimeAmbiguous:false,extraAnswers:[]});
 const fallback=(reason='No approved evidence supports a direct answer.')=>({reply:UNKNOWN_REPLY,disposition:'collect_lead',grounded:false,citationIds:[],lead:{name:null,email:null,service:null,location:null,preferredDate:null,preferredTime:null,notes:null,intent:null},bookingIntent:'none',bookingPatch:emptyBookingPatch(),leadSummary:null,handoffReason:reason,priority:'normal',validationError:reason});
 

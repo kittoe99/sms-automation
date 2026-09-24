@@ -27,6 +27,7 @@ const state = {
   rulePresets: [],
   selected: null,
   conversationPhone: null,
+  conversationId: null,
   unreadOnly: false,
   contactStatus: '',
   contactTab: 'directory',
@@ -210,7 +211,7 @@ async function renderBookings(){
  const rows=(data.bookings||[]).map(b=>`<tr data-booking-id="${esc(b.id)}"><td><strong>${esc(b.customer_name||'—')}</strong><br><span class="muted">${esc(b.customer_phone||b.contact_phone||'')}</span></td><td>${esc(fmtTime(b.appointment_at))}</td><td>${esc(b.service_address||'—')}</td><td><span class="status ${esc(b.status)}">${esc(b.status)}</span></td><td>${esc(b.source||'—')}</td></tr>`).join('');
  el.root.innerHTML=`<section class="card"><div class="card-head"><div><h2>Appointments</h2><span class="muted">${fmt(data.total)} booking${Number(data.total)===1?'':'s'}</span></div><select id="booking-status-filter"><option value="">All statuses</option><option value="confirmed">Confirmed</option><option value="cancelled">Cancelled</option><option value="requested">Requested</option></select></div><div class="table-scroll"><table class="data"><thead><tr><th>Customer</th><th>Date and time</th><th>Address</th><th>Status</th><th>Source</th></tr></thead><tbody>${rows||'<tr><td colspan="5" class="empty">No bookings yet.</td></tr>'}</tbody></table></div></section>`;
  const filter=el.root.querySelector('#booking-status-filter');filter.value=state.bookingStatus;filter.addEventListener('change',()=>{state.bookingStatus=filter.value;state.page=1;renderBookings();});
- el.root.querySelectorAll('[data-booking-id]').forEach(row=>row.addEventListener('click',async()=>{const id=row.dataset.bookingId,res=await apiFetch(`/api/bookings/${encodeURIComponent(id)}`),body=await res.json();if(!res.ok)throw new Error(body.error||'Could not load booking');const b=body.booking,answers=Object.entries(b.extra_answers||{}).map(([key,value])=>`<div class="row"><div class="k">${esc(key.replaceAll('_',' '))}</div><div class="v">${esc(value)}</div></div>`).join('');openDrawer(`Booking ${id}`,`<div class="kv"><div class="row"><div class="k">Customer</div><div class="v">${esc(b.customer_name||'—')}</div></div><div class="row"><div class="k">Phone</div><div class="v">${esc(b.customer_phone||b.contact_phone||'—')}</div></div><div class="row"><div class="k">Appointment</div><div class="v">${esc(fmtTime(b.appointment_at))} · ${esc(b.time_zone||'')}</div></div><div class="row"><div class="k">Address</div><div class="v">${esc(b.service_address||'—')}</div></div><div class="row"><div class="k">Status</div><div class="v">${esc(b.status)}</div></div>${answers}</div><div class="compose-actions"><span id="booking-action-error" class="login-error"></span><button class="btn ghost" id="booking-open-thread">Open conversation</button>${b.status==='confirmed'?'<button class="btn danger" id="booking-cancel">Cancel booking</button>':''}</div>`);el.drawerBody.querySelector('#booking-open-thread')?.addEventListener('click',()=>{state.view='messaging';state.conversationPhone=b.customer_phone||b.contact_phone;closeDrawer();setActiveNav();load();});el.drawerBody.querySelector('#booking-cancel')?.addEventListener('click',async event=>{if(!confirm('Cancel this booking and its pending reminders?'))return;event.currentTarget.disabled=true;const cancel=await apiFetch(`/api/bookings/${encodeURIComponent(id)}/cancel`,{method:'POST',headers:{'Idempotency-Key':crypto.randomUUID()},body:'{}'}),result=await cancel.json();if(!cancel.ok){el.drawerBody.querySelector('#booking-action-error').textContent=result.error||'Cancellation failed';event.currentTarget.disabled=false;return;}closeDrawer();await renderBookings();});}));
+ el.root.querySelectorAll('[data-booking-id]').forEach(row=>row.addEventListener('click',async()=>{const id=row.dataset.bookingId,res=await apiFetch(`/api/bookings/${encodeURIComponent(id)}`),body=await res.json();if(!res.ok)throw new Error(body.error||'Could not load booking');const b=body.booking,answers=Object.entries(b.extra_answers||{}).map(([key,value])=>`<div class="row"><div class="k">${esc(key.replaceAll('_',' '))}</div><div class="v">${esc(value)}</div></div>`).join('');openDrawer(`Booking ${id}`,`<div class="kv"><div class="row"><div class="k">Customer</div><div class="v">${esc(b.customer_name||'—')}</div></div><div class="row"><div class="k">Phone</div><div class="v">${esc(b.customer_phone||b.contact_phone||'—')}</div></div><div class="row"><div class="k">Appointment</div><div class="v">${esc(fmtTime(b.appointment_at))} · ${esc(b.time_zone||'')}</div></div><div class="row"><div class="k">Address</div><div class="v">${esc(b.service_address||'—')}</div></div><div class="row"><div class="k">Status</div><div class="v">${esc(b.status)}</div></div>${answers}</div><div class="compose-actions"><span id="booking-action-error" class="login-error"></span><button class="btn ghost" id="booking-open-thread">Open conversation</button>${b.status==='confirmed'?'<button class="btn danger" id="booking-cancel">Cancel booking</button>':''}</div>`);el.drawerBody.querySelector('#booking-open-thread')?.addEventListener('click',()=>{state.view='messaging';state.conversationId=null;state.conversationPhone=b.customer_phone||b.contact_phone;closeDrawer();setActiveNav();load();});el.drawerBody.querySelector('#booking-cancel')?.addEventListener('click',async event=>{if(!confirm('Cancel this booking and its pending reminders?'))return;event.currentTarget.disabled=true;const cancel=await apiFetch(`/api/bookings/${encodeURIComponent(id)}/cancel`,{method:'POST',headers:{'Idempotency-Key':crypto.randomUUID()},body:'{}'}),result=await cancel.json();if(!cancel.ok){el.drawerBody.querySelector('#booking-action-error').textContent=result.error||'Cancellation failed';event.currentTarget.disabled=false;return;}closeDrawer();await renderBookings();});}));
 }
 
 async function fetchOnboarding() {
@@ -1183,7 +1184,7 @@ document.getElementById('nav').addEventListener('click', (e) => {
   state.view = btn.dataset.view;
   state.categoryId = btn.dataset.category || null;
   state.page = 1;
-  if (state.view !== 'messaging') state.conversationPhone = null;
+  if (state.view !== 'messaging') { state.conversationPhone = null; state.conversationId = null; }
   if (state.view === 'automations' && !btn.dataset.category) {
     state.categoryId = null;
   }
@@ -2216,35 +2217,31 @@ async function renderMessaging() {
   el.storeMeta.textContent = `${fmt(list.total)} conversations · ${fmt(list.unreadTotal || 0)} unread`;
 
   const conversations = list.conversations || [];
-  if (
-    state.conversationPhone &&
-    !conversations.some((c) => c.phone === state.conversationPhone) &&
-    !state.q
-  ) {
-    // keep selection even if not on this page
-  } else if (!state.conversationPhone && conversations[0]) {
-    state.conversationPhone = conversations[0].phone;
+  if (!state.conversationId && state.conversationPhone) {
+    state.conversationId = conversations.find((c) => c.phone === state.conversationPhone && !c.groupId)?.id || null;
   }
+  if (!state.conversationId && conversations[0]) state.conversationId = conversations[0].id;
 
   let thread = null;
   let voiceCalls = [];
-  if (state.conversationPhone) {
+  if (state.conversationId) {
     const [detail, callsRes] = await Promise.all([
-      apiFetch(`/api/conversations/${encodeURIComponent(state.conversationPhone)}`).then((r) =>
+      apiFetch(`/api/conversations/${encodeURIComponent(state.conversationId)}`).then((r) =>
         r.json()
       ),
-      apiFetch(`/api/conversations/${encodeURIComponent(state.conversationPhone)}/calls`).then((r) =>
+      apiFetch(`/api/conversations/${encodeURIComponent(state.conversationId)}/calls`).then((r) =>
         r.json()
       ),
     ]);
     thread = detail.conversation || null;
+    if(thread)state.conversationPhone=thread.phone;
     voiceCalls = Array.isArray(callsRes?.calls) ? callsRes.calls : [];
     if (thread?.unreadCount) {
-      await apiFetch(`/api/conversations/${encodeURIComponent(state.conversationPhone)}/read`, {
+      await apiFetch(`/api/conversations/${encodeURIComponent(state.conversationId)}/read`, {
         method: 'POST',
       });
       thread.unreadCount = 0;
-      const match = conversations.find((c) => c.phone === state.conversationPhone);
+      const match = conversations.find((c) => c.id === state.conversationId);
       if (match) match.unreadCount = 0;
     }
   }
@@ -2264,20 +2261,19 @@ async function renderMessaging() {
             conversations.length
               ? conversations
                   .map((c) => {
-                    const active = c.phone === state.conversationPhone ? 'active' : '';
+                    const active = c.id === state.conversationId ? 'active' : '';
                     const unread = c.unreadCount > 0 ? 'unread' : '';
                     const preview =
                       c.lastDirection === 'inbound'
                         ? c.lastBody || '(empty)'
                         : `You: ${c.lastBody || '(empty)'}`;
                     return `
-              <button type="button" class="inbox-item ${active} ${unread}" data-phone="${esc(
-                      c.phone
-                    )}">
+              <button type="button" class="inbox-item ${active} ${unread}" data-conversation-id="${esc(c.id)}" data-phone="${esc(c.phone)}">
                 <div class="inbox-top">
                   <strong>${esc(c.name || c.phone)}</strong>
                   <span class="muted">${esc(fmtTimeShort(c.lastMessageAt))}</span>
                 </div>
+                <div class="muted inbox-phone">${esc(c.groupName || 'General')}</div>
                 ${c.name ? `<div class="muted inbox-phone">${esc(c.phone)}</div>` : ''}
                 <div class="inbox-preview">${esc(preview)}</div>
                 ${
@@ -2299,7 +2295,7 @@ async function renderMessaging() {
           <div class="card-head thread-head">
             <div>
               <h2>${esc(thread.name || thread.phone)}</h2>
-              <p class="muted">${esc(thread.phone)} · ${fmt(thread.messageCount)} messages${
+              <p class="muted">${esc(thread.phone)} · ${esc(thread.groupName || 'General')} · ${fmt(thread.messageCount)} messages${
                 thread.aiPausedAt ? ' · AI paused' : ''
               }</p>
             </div>
@@ -2330,6 +2326,10 @@ async function renderMessaging() {
                       : ''
                   }
                   <span>${esc(fmtTime(m.createdAt))}</span>
+                  ${m.direction === 'inbound' ? `<select class="message-route" data-reassign-message="${esc(m.id)}" aria-label="Move message to conversation">
+                    <option value="" ${!thread.groupId ? 'selected' : ''}>General</option>
+                    ${state.categories.map(g => `<option value="${esc(g.id)}" ${thread.groupId === g.id ? 'selected' : ''}>${esc(g.name)}</option>`).join('')}
+                  </select>` : ''}
                   ${
                     m.direction === 'outbound'
                       ? `<span class="status ${esc(m.deliverability)}">${esc(
@@ -2368,23 +2368,34 @@ async function renderMessaging() {
     load();
   });
 
-  el.root.querySelectorAll('[data-phone]').forEach((btn) => {
+  el.root.querySelectorAll('[data-conversation-id]').forEach((btn) => {
     btn.addEventListener('click', () => {
+      state.conversationId = btn.getAttribute('data-conversation-id');
       state.conversationPhone = btn.getAttribute('data-phone');
       load();
     });
   });
 
+  el.root.querySelectorAll('[data-reassign-message]').forEach(select => select.addEventListener('change',async()=>{
+    const response=await apiFetch(`/api/conversation-messages/${encodeURIComponent(select.dataset.reassignMessage)}/reassign`,{
+      method:'POST',body:JSON.stringify({groupId:select.value||null})
+    });
+    const result=await response.json();
+    if(!response.ok){alert(result.detail||result.error||'Could not move message');await load();return;}
+    state.conversationId=result.conversationId;
+    await load();
+  }));
+
   const scroll = el.root.querySelector('#thread-scroll');
   if (scroll) scroll.scrollTop = scroll.scrollHeight;
 
   el.root.querySelector('#ai-pause-btn')?.addEventListener('click', async () => {
-    if (!state.conversationPhone) return;
+    if (!state.conversationId) return;
     const paused = Boolean(thread?.aiPausedAt);
     const path = paused ? 'resume' : 'pause';
     try {
       const res = await apiFetch(
-        `/api/conversations/${encodeURIComponent(state.conversationPhone)}/ai/${path}`,
+        `/api/conversations/${encodeURIComponent(state.conversationId)}/ai/${path}`,
         {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
@@ -2406,11 +2417,11 @@ async function renderMessaging() {
     const textarea = el.root.querySelector('#reply-body');
     const hint = el.root.querySelector('#reply-hint');
     const body = textarea?.value.trim() || '';
-    if (!body || !state.conversationPhone) return;
+    if (!body || !state.conversationId) return;
     hint.textContent = 'Sending…';
     try {
       const res = await apiFetch(
-        `/api/conversations/${encodeURIComponent(state.conversationPhone)}/reply`,
+        `/api/conversations/${encodeURIComponent(state.conversationId)}/reply`,
         {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
@@ -2685,6 +2696,7 @@ function openMessageComposer({ phone, name }) {
       setTimeout(() => {
         closeDrawer();
         state.view = 'messaging';
+        state.conversationId = null;
         state.conversationPhone = json.to || phone;
         setActiveNav();
         load();
@@ -3182,6 +3194,7 @@ function openDrawer(title, html) {
     const phone = el.drawerBody.querySelector('.kv .v')?.textContent;
     if (!phone) return;
     state.view = 'messaging';
+    state.conversationId = null;
     state.conversationPhone = phone;
     state.page = 1;
     closeDrawer();

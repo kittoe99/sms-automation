@@ -25,6 +25,8 @@ export function createCrmHandler(db,verify=authenticate) {
    const user=await verify(request),tenant=request.headers.get('X-Tenant-ID');
    const read=(resource,p={})=>db.call('api_read',user,tenant,resource,p);
    const write=(action,p)=>db.call('api_action',user,tenant,action,p);
+   const conversationId=async value=>/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(value)
+     ? value:db.call('general_conversation',user,tenant,phone(value));
    const params=Object.fromEntries(url.searchParams); const method=request.method;
    if(path==='/auth/me'||path==='/tenants'||(path==='/businesses'&&method==='GET')) {
     const data=await read('businesses');const tenants=data.rows.map(business);
@@ -73,14 +75,15 @@ export function createCrmHandler(db,verify=authenticate) {
      const data=await read('contacts',{...params,...(path==='/opt-outs'?{opted_out:'1'}:{})});
      return json({...data,contacts:data.rows.map(contact)},200,headers);
     }
-    if(path==='/conversations') {const data=await read('threads',params);return json({...data,conversations:data.rows.map(thread),unreadTotal:data.rows.reduce((n,c)=>n+c.unread_count,0)},200,headers);}
+    if(path==='/conversations') {const data=await db.call('list_conversation_threads',user,tenant,params);return json({...data,conversations:data.rows.map(thread)},200,headers);}
     if(path==='/calls') {const data=await read('calls',params);return json({...data,calls:data.rows},200,headers);}
     const conversation=path.match(/^\/conversations\/([^/]+)(\/calls)?$/);
     if(conversation) {
-     const ph=phone(decodeURIComponent(conversation[1]));
-     if(conversation[2]) {const data=await read('calls',{...params,phone:ph});return json({...data,calls:data.rows},200,headers);}
-     const [data,messages,contacts]=await Promise.all([read('threads',{phone:ph}),read('messages',{phone:ph,pageSize:250}),read('contacts',{phone:ph})]);
-     return json({conversation:data.rows[0]?{...thread(data.rows[0]),...contact(contacts.rows[0]),messages:messages.rows.map(message).reverse(),messageCount:messages.total}:null},200,headers);
+     const cid=await conversationId(decodeURIComponent(conversation[1]));
+     if(!cid)return json({conversation:null},200,headers);
+     const detail=await db.call('conversation_detail',user,tenant,cid);
+     if(conversation[2]) {const data=detail?await read('calls',{...params,phone:detail.phone}):{rows:[]};return json({...data,calls:data.rows},200,headers);}
+     return json({conversation:detail?{...thread(detail),...contact(detail),messages:(detail.messages||[]).map(message),messageCount:detail.message_count}:null},200,headers);
     }
    } else {
     const p=await readJson(request);
@@ -93,11 +96,18 @@ export function createCrmHandler(db,verify=authenticate) {
      return json(await upstream.json().catch(()=>({error:'Registration session failed'})),upstream.status,headers);
     }
     const send=path.match(/^\/conversations\/([^/]+)\/reply$/);
-    if(path==='/send'||path==='/directory/message'||send) {
-     const ph=phone(send?decodeURIComponent(send[1]):p.phone || p.to);
+    if(send) {
+     const key=request.headers.get('Idempotency-Key') || p.idempotencyKey;
+     if(!key)return json({error:'Idempotency-Key required'},400,headers);
+     const cid=await conversationId(decodeURIComponent(send[1]));
+     if(!cid)return json({error:'Conversation not found'},404,headers);
+     return json(await db.call('conversation_action',user,tenant,cid,'reply',{body:String(p.body||'').trim(),idempotencyKey:key}),202,headers);
+    }
+    if(path==='/send'||path==='/directory/message') {
+     const ph=phone(p.phone || p.to);
      const key=request.headers.get('Idempotency-Key') || p.idempotencyKey;
      if(!key) return json({error:'Idempotency-Key required'},400,headers);
-     return json(await write('send',{phone:ph,body:String(p.body||'').trim(),purpose:send?'transactional':'marketing',category_id:p.categoryId||null,idempotencyKey:key}),202,headers);
+     return json(await write('send',{phone:ph,body:String(p.body||'').trim(),purpose:'marketing',category_id:p.categoryId||null,idempotencyKey:key}),202,headers);
     }
     if(path==='/contacts') return json({contact:contact(await write('contact',{...p,phone:phone(p.phone)}))},201,headers);
     const intakeCreate=path.match(/^\/automation-intake\/([^/]+)$/);
@@ -112,7 +122,9 @@ export function createCrmHandler(db,verify=authenticate) {
      return json(await write('unenroll',p),200,headers);
     }
     const ai=path.match(/^\/conversations\/([^/]+)\/(read|ai\/pause|ai\/resume)$/);
-    if(ai) return json(await write(ai[2].split('/').at(-1),{phone:phone(decodeURIComponent(ai[1]))}),200,headers);
+    if(ai) {const cid=await conversationId(decodeURIComponent(ai[1]));if(!cid)return json({error:'Conversation not found'},404,headers);return json(await db.call('conversation_action',user,tenant,cid,ai[2].split('/').at(-1),p),200,headers);}
+    const reassign=path.match(/^\/conversation-messages\/([^/]+)\/reassign$/);
+    if(reassign&&method==='POST') return json(await db.call('reassign_inbound_message',user,tenant,reassign[1],p.groupId||null),200,headers);
     const groups=path.match(/^\/automation-groups(?:\/([^/]+))?(\/ai-instructions)?$/);
     if(groups) {
      const id=decodeURIComponent(groups[1] || p.id || crypto.randomUUID());
