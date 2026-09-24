@@ -163,16 +163,28 @@ test('a new thread message during drafting prevents the scheduled SMS from being
  }finally{await db.close();}
 });
 
-test('default inbound AI replies do not require an automation enrollment',async()=>{
+test('unmatched inbound AI uses the business prompt without borrowing a group',async()=>{
  const db=await testDatabase();try {
   await activeBusiness(db);
   await call(db,'api_action','admin','alpha','group',groupInput('inbound','Follow up if enrolled.',{firstDelayCount:1}));
   const setting=await call(db,'configure_ai','admin','alpha','inbound',true,'Reply briefly',true);
   assert.equal(setting.default_for_inbound,true);
+  await call(db,'record_webhook','alpha','inbound',{From:'+13035551234',MessageSid:'SM_before_business_ai',Body:'Hello'});
+  assert.equal(await call(db,'claim','ai_reply_jobs','ai'),null);
+  await call(db,'save_business_ai_settings','admin','alpha',{enabled:true,systemPrompt:'Ask what the texter needs before suggesting a service.'});
   await call(db,'record_webhook','alpha','inbound',{From:'+13035551234',MessageSid:'SM_default_ai',Body:'Can you help?'});
   const ai=await call(db,'claim','ai_reply_jobs','ai');
-  assert.equal(ai.payload.group_id,'inbound');
-  await call(db,'finish',ai.id,ai.lease_token,'completed',null,0);
+  assert.equal(ai.payload.group_id,'');
+  const context=await call(db,'job_context',ai.id,ai.lease_token);
+  assert.equal(context.inboundAi.scope,'business');
+  assert.match(context.inboundAi.systemPrompt,/what the texter needs/);
+  assert.equal(context.active_request,undefined);
+  const reply=await call(db,'complete_grounded_ai',ai.id,ai.lease_token,{
+    reply:'Hi! What can we help you with?',disposition:'collect_lead',grounded:false,
+    citationIds:[],lead:{},bookingIntent:'none',leadSummary:'New inbound text',mode:'live',model:'test'
+  });
+  assert.ok(reply.messageId);
+  assert.equal((await db.query('select category_id from public.sms_messages where id=$1',[reply.messageId])).rows[0].category_id,null);
   await call(db,'api_action','admin','alpha','pause',{phone:'+13035551234'});
   await call(db,'record_webhook','alpha','inbound',{From:'+13035551234',MessageSid:'SM_paused_ai',Body:'Anyone there?'});
   assert.equal(await call(db,'claim','ai_reply_jobs','ai'),null);

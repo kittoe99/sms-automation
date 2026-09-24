@@ -47,6 +47,7 @@ export function createCrmHandler(db,verify=authenticate) {
    if(path==='/operations') {const [base,grounded]=await Promise.all([read('operations'),db.call('grounded_operations',user,tenant)]);return json({...base,grounded},200,headers);}
     if(path==='/provisioning') return json(await db.call('provider_setup',user,tenant),200,headers);
     if(path==='/onboarding') return json(await db.call('business_profile',user,tenant),200,headers);
+    if(path==='/business-ai') return json(await db.call('business_ai_settings',user,tenant),200,headers);
     if(path==='/knowledge'||path==='/crm') return json(await db.call('knowledge_overview',user,tenant),200,headers);
     if(path==='/twilio/registration') return json(await db.call('twilio_registration',user,tenant),200,headers);
     if(path==='/twilio/readiness') return json(await db.call('activation_readiness',user,tenant),200,headers);
@@ -83,6 +84,7 @@ export function createCrmHandler(db,verify=authenticate) {
     }
    } else {
     const p=await readJson(request);
+    if(path==='/business-ai'&&method==='PUT') return json(await db.call('save_business_ai_settings',user,tenant,p),200,headers);
     const webFormSave=path.match(/^\/web-forms\/(contacts|quote_requests|bookings)$/);
     if(webFormSave){if(method!=='PUT')return json({error:'PUT required'},405,headers);
       return json({form:await db.call('save_web_form',user,tenant,webFormSave[1],p)},200,headers);}

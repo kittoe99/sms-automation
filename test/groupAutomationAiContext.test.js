@@ -24,6 +24,18 @@ test('dashboard API stores manually authored outgoing AI fields per business and
       await call(db, 'api_action', 'admin', null, 'create_business', { id: tenant, name: tenant, timeZone: 'UTC' });
     }
     const handler = createCrmHandler({ call: (name, ...args) => call(db, name, ...args) }, async () => 'admin');
+    const businessAiUrl = 'https://example.com/functions/v1/crm-api/business-ai';
+    const businessSave = await handler(new Request(businessAiUrl, {
+      method:'PUT', headers:{'X-Tenant-ID':'alpha','Content-Type':'application/json'},
+      body:JSON.stringify({enabled:true,systemPrompt:'Ask unfamiliar texters what they need.'}),
+    }));
+    assert.equal(businessSave.status,200);
+    const readBusinessAi = async tenant => (await handler(new Request(businessAiUrl,{
+      headers:{'X-Tenant-ID':tenant},
+    }))).json();
+    assert.equal((await readBusinessAi('alpha')).enabled,true);
+    assert.match((await readBusinessAi('alpha')).systemPrompt,/unfamiliar texters/);
+    assert.equal((await readBusinessAi('beta')).enabled,false);
     const list = async (tenant) => {
       const response = await handler(new Request('https://example.com/functions/v1/crm-api/automation-groups', {
         headers: { 'X-Tenant-ID': tenant },
@@ -64,6 +76,38 @@ test('dashboard API stores manually authored outgoing AI fields per business and
     assert.equal(beta.automationAiConfigured, false);
     assert.equal(beta.systemPrompt, '');
     assert.equal(beta.businessContext, '');
+  } finally { await db.close(); }
+});
+
+test('known inbound replies use the enrolled group context; business prompt stays separate', async () => {
+  const db = await testDatabase();
+  try {
+    await call(db, 'api_action', 'admin', null, 'create_business', { id:'alpha', name:'Alpha', timeZone:'UTC' });
+    const group = (await call(db, 'api_read', 'admin', 'alpha', 'groups', { id:'quote-requests' })).rows[0];
+    await call(db, 'api_action', 'admin', 'alpha', 'group', {
+      id:group.id, name:group.name, description:group.description, rule:group.rule,
+      intent:group.intent, active:true, ...aiConfig,
+    });
+    await call(db, 'configure_ai', 'admin', 'alpha', 'quote-requests', true, 'Legacy instruction', true);
+    await call(db, 'save_business_ai_settings', 'admin', 'alpha', {
+      enabled:true, systemPrompt:'Ask unfamiliar texters what they need.',
+    });
+    const phone = '+13035550199';
+    await call(db, 'api_action', 'admin', 'alpha', 'contact', {phone, name:'Alex'});
+    await call(db, 'api_action', 'admin', 'alpha', 'consent', {phone, consent:true, evidence:'Test opt-in'});
+    await call(db, 'create_intake', 'admin', 'alpha', 'quote_requests', {
+      name:'Alex', phone, details:{service:'painting'}, sourceRecordId:'inbound-group-1',
+    });
+    await call(db, 'record_webhook', 'alpha', 'inbound', {From:phone, MessageSid:'SM_scoped_group', Body:'How long does it take?'});
+    const job = await call(db, 'claim', 'ai_reply_jobs', 'ai');
+    assert.equal(job.payload.group_id, 'quote-requests');
+    const context = await call(db, 'job_context', job.id, job.lease_token);
+    assert.equal(context.inboundAi.scope, 'group');
+    assert.equal(context.inboundAi.systemPrompt, aiConfig.systemPrompt);
+    assert.equal(context.inboundAi.businessContext, aiConfig.businessContext);
+    assert.equal(context.profile, undefined);
+    assert.equal(context.active_request?.phone, phone);
+    await call(db, 'finish', job.id, job.lease_token, 'completed', null, 0);
   } finally { await db.close(); }
 });
 

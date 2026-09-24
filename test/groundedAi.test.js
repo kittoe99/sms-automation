@@ -9,7 +9,7 @@ const base={reply:'We are open Monday through Friday.',disposition:'answered',gr
 
 test('system prompt covers inbound support, follow-ups, and safe booking intake',()=>{
  const prompt=buildGroundedSystemPrompt({business:{name:'Acme'},profile:{facts:{bookingRules:'Collect service, address, and preferred date.'}},contact:{name:'Alex'},open_lead:{fields:{service:'Repair'}},settings:{instructions:'Friendly and brief.'}},[]);
- assert.equal(GROUNDED_PROMPT_VERSION,'grounded-v6-booking-followups');
+ assert.equal(GROUNDED_PROMPT_VERSION,'grounded-v8-scoped-context');
  assert.match(prompt,/inbound and follow-up SMS assistant/i);
  assert.match(prompt,/booking, appointment, estimate, or quote requests/i);
   assert.match(prompt,/collect_lead/);
@@ -17,7 +17,90 @@ test('system prompt covers inbound support, follow-ups, and safe booking intake'
   assert.match(prompt,/ask at most one next question/i);
  assert.match(prompt,/Collect service, address, and preferred date/);
  assert.match(prompt,/Supabase—not you—asks missing questions/i);
+ assert.match(prompt,/CURRENT REQUEST/);
  assert.match(prompt,/"service":"Repair"/);
+});
+
+test('group inbound prompt uses only group facts and skips account-wide retrieval',async()=>{
+ const calls=[];let request;
+ const db={call:async(name,...args)=>{
+  calls.push(name);
+  if(name==='job_context')return {settings:{enabled:true,grounded_enabled:true},thread:{generation:1},
+   business:{name:'Acme'},profile:null,inboundAi:{scope:'group',systemPrompt:'Ask about paint color.',businessContext:'Painting in Denver; hours 9 to 5.'},
+   history:[{direction:'inbound',body:'What hours are you open?'}]};
+  if(name==='complete_grounded_ai')return args[2];
+ }};
+ const result=await processAi({id:'job',lease_token:'lease',payload:{generation:1}},db,{apiKey:'test',fetchImpl:async(_url,options)=>{
+  request=JSON.parse(options.body);
+  return output({...base,citationIds:[],reply:'We are open 9 to 5.'});
+ }});
+ assert.deepEqual(calls,['job_context','complete_grounded_ai']);
+ assert.match(request.instructions,/Ask about paint color/);
+ assert.match(request.instructions,/Painting in Denver/);
+ assert.equal(result.reply,'We are open 9 to 5.');
+});
+
+test('business-wide prompt does not assume an unknown texter wants a quote',()=>{
+ const prompt=buildGroundedSystemPrompt({business:{name:'Acme'},inboundAi:{scope:'business',systemPrompt:'Ask what they need.'},profile:{facts:{services:['Painting']}}},[]);
+ assert.match(prompt,/Do not assume why they texted/);
+ assert.match(prompt,/Ask what they need/);
+ assert.doesNotMatch(prompt,/GROUP BUSINESS CONTEXT \(administrator-authored facts for this group\):\nPainting/);
+});
+
+test('new quote context prevents an older booking from replacing the reply',async()=>{
+ let request;
+ const db={call:async(name,...args)=>{
+  if(name==='job_context')return {settings:{enabled:true,grounded_enabled:true},thread:{generation:8},
+   business:{name:'Acme',time_zone:'UTC'},profile:{id:'profile-1',facts:{}},contact:{name:'New customer'},
+   booking_session:{state:'collecting',customer_name:'Old customer',service_address:'Old address'},
+   recent_booking:{customer_name:'Old customer',service_address:'Old address'},
+   active_request:{name:'New customer',created_at:'2026-09-23T10:00:00Z',details:{service_address:'New address',property_access:'Stairs'}},
+   history:[{direction:'inbound',body:'Please book my old job',created_at:'2026-09-20T10:00:00Z'},
+    {direction:'outbound',body:'Opek here about your new quote',created_at:'2026-09-23T10:01:00Z'},
+    {direction:'inbound',body:'Elevator',created_at:'2026-09-23T10:02:00Z'}]};
+  if(name==='search_job_knowledge')return [];
+  if(name==='complete_grounded_ai')return args[2];
+ }};
+ const result=await processAi({id:'job',lease_token:'lease',payload:{generation:8}},db,{apiKey:'test',fetchImpl:async(url,options)=>{
+  if(url.endsWith('/embeddings'))return Response.json({data:[{embedding:vector}]});
+  request=JSON.parse(options.body);
+  return output({...base,reply:'The old appointment is ready.',bookingIntent:'continue',bookingPatch:{name:null,address:null,localDate:null,localTime:null,dateTimeAmbiguous:false,extraAnswers:[]}});
+ }});
+ assert.match(result.reply,/new quote request from this number/i);
+ assert.match(result.reply,/elevator/i);
+ assert.equal(result.bookingIntent,'none');
+ assert.doesNotMatch(JSON.stringify(request.input),/old job/i);
+ assert.doesNotMatch(request.instructions,/Old address/);
+});
+
+test('a safe price question never uses approved moving rates',async()=>{
+ const db={call:async(name,...args)=>{
+  if(name==='job_context')return {settings:{enabled:true,grounded_enabled:true},thread:{generation:2},business:{name:'Acme'},
+   profile:{id:'profile-1',facts:{pricing:['$99/hour for 2 movers']}},contact:{},
+   history:[{direction:'inbound',body:'How much to remove a 500 pound safe?',created_at:'2026-09-23T10:00:00Z'}]};
+  if(name==='search_job_knowledge')return [];
+  if(name==='complete_grounded_ai')return args[2];
+ }};
+ const result=await processAi({id:'job',lease_token:'lease',payload:{generation:2}},db,{apiKey:'test',fetchImpl:async url=>
+  url.endsWith('/embeddings')?Response.json({data:[{embedding:vector}]}):output({...base,reply:'Two movers cost $99/hour.',citationIds:[]})});
+ assert.match(result.reply,/safe removal/i);
+ assert.doesNotMatch(result.reply,/\$99|staff/i);
+ assert.equal(result.bookingIntent,'none');
+});
+
+test('a new junk quote price question cannot borrow moving rates',async()=>{
+ const db={call:async(name,...args)=>{
+  if(name==='job_context')return {settings:{enabled:true,grounded_enabled:true},thread:{generation:3},business:{name:'Acme'},
+   profile:{id:'profile-1',facts:{pricing:['$99/hour for 2 movers']}},contact:{},
+   active_request:{name:'Alex',created_at:'2026-09-23T10:00:00Z',details:{service_type:'Junk removal',service_address:'Some street'}},
+   history:[{direction:'inbound',body:'How much?',created_at:'2026-09-23T10:01:00Z'}]};
+  if(name==='search_job_knowledge')return [];
+  if(name==='complete_grounded_ai')return args[2];
+ }};
+ const result=await processAi({id:'job',lease_token:'lease',payload:{generation:3}},db,{apiKey:'test',fetchImpl:async url=>
+  url.endsWith('/embeddings')?Response.json({data:[{embedding:vector}]}):output({...base,reply:'Two movers cost $99/hour.',citationIds:[]})});
+ assert.match(result.reply,/junk removal/i);
+ assert.doesNotMatch(result.reply,/\$99/);
 });
 
 test('booking extraction remains structured and clear confirmation is classified deterministically',async()=>{
@@ -120,3 +203,4 @@ test('prompt injection remains untrusted content and cannot enable tools',async(
  const result=await processAi({id:'job',lease_token:'lease',payload:{generation:1}},db,{apiKey:'test',fetchImpl:async(url,options)=>{if(url.endsWith('/embeddings'))return Response.json({data:[{embedding:vector}]});responseRequest=JSON.parse(options.body);return output({...base,grounded:false,citationIds:[]});}});
  assert.equal(responseRequest.tools,undefined);assert.match(responseRequest.instructions,/Never use outside knowledge/);assert.equal(result.disposition,'collect_lead');
 });
+

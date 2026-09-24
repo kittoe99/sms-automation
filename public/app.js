@@ -719,15 +719,17 @@ async function renderBusinessContext() {
 
   const cachedOnboarding = state.setupOnboarding || null;
   let provisioning = state.setupProvisioning || null;
+  let businessAi = { enabled: false, systemPrompt: '' };
   // Always refetch server truth when opening this view: a cached copy from an
   // earlier save (or another device) must never masquerade as what is stored.
   if (!cachedOnboarding || !provisioning) {
     el.root.innerHTML = '<div class="card"><div class="empty">Loading business context…</div></div>';
   }
   try {
-    const [onb, provRes] = await Promise.all([
+    const [onb, provRes, aiRes] = await Promise.all([
       fetchOnboarding(),
       provisioning ? null : apiFetch('/api/provisioning'),
+      apiFetch('/api/business-ai'),
     ]);
     // Never let an empty/failed response or a device-only fallback clobber a
     // known-good server copy. An api result is trusted when it carries data;
@@ -736,6 +738,7 @@ async function renderBusinessContext() {
       (onb.onboardingComplete || Object.keys(onb.onboarding || {}).length > 0);
     if (onb && (apiHasData || (!cachedOnboarding && onb.source !== 'api'))) state.setupOnboarding = onb;
     if (provRes && provRes.ok) provisioning = await provRes.json();
+    if (aiRes?.ok) businessAi = await aiRes.json();
   } catch (error) {
     console.error(error);
   }
@@ -879,12 +882,40 @@ async function renderBusinessContext() {
           </div>
         </aside>
       </form>
+      <form id="business-ai-form" class="card setup-card" style="margin-top:16px">
+        <div class="card-head"><div><span class="eyebrow">Unmatched inbound texts</span><h2>Business-wide AI instructions</h2></div></div>
+        <div class="setup-body">
+          <p class="muted">Used when someone texts this business without an active automation group. The AI starts from their message and does not assume what they want. Business facts above and approved knowledge support factual answers.</p>
+          <label class="field-wide"><span class="compose-label">Custom prompt / instructions</span>
+            <textarea id="business-ai-prompt" maxlength="6000" rows="8" placeholder="Describe how to greet an unfamiliar texter, clarify their need, answer questions, and handle a handoff.">${esc(businessAi.systemPrompt || '')}</textarea>
+          </label>
+          <label class="check"><input id="business-ai-enabled" type="checkbox" ${businessAi.enabled ? 'checked' : ''} />Reply to unmatched inbound texts</label>
+          <div class="automation-builder-actions"><span class="login-error" id="business-ai-error" role="alert"></span><button type="submit" class="btn" id="business-ai-save">Save business-wide AI</button></div>
+        </div>
+      </form>
       <section id="business-knowledge" class="business-knowledge" aria-label="AI knowledge">
         <div class="card"><div class="empty">Loading AI knowledge…</div></div>
       </section>
     </div>`;
 
   const form = el.root.querySelector('#business-context-form');
+  const businessAiForm = el.root.querySelector('#business-ai-form');
+  businessAiForm?.addEventListener('submit', async event => {
+    event.preventDefault();
+    const button = businessAiForm.querySelector('#business-ai-save');
+    const error = businessAiForm.querySelector('#business-ai-error');
+    button.disabled = true; error.textContent = '';
+    try {
+      const response = await apiFetch('/api/business-ai', {method:'PUT',body:JSON.stringify({
+        enabled:businessAiForm.querySelector('#business-ai-enabled').checked,
+        systemPrompt:businessAiForm.querySelector('#business-ai-prompt').value.trim()
+      })});
+      const result = await response.json();
+      if(!response.ok) throw new Error(result.detail || result.error || 'Could not save business-wide AI');
+      businessAiForm.querySelector('#business-ai-enabled').checked = Boolean(result.enabled);
+    } catch (err) { error.textContent = err.message || 'Could not save business-wide AI'; }
+    button.disabled = false;
+  });
   const error = form.querySelector('#ctx-error');
   const saveButton = form.querySelector('#ctx-save');
   const nameInput = form.querySelector('#ctx-name');
@@ -1591,14 +1622,14 @@ function automationBuilderHtml(group) {
           <small class="muted">The outcome this automation should work toward. Each send also uses the latest customer record and conversation.</small>
         </label>
         <label class="field-wide">
-          <span class="compose-label">AI instructions for outgoing texts</span>
+          <span class="compose-label">AI instructions for this automation group</span>
           <textarea id="automation-system-prompt" maxlength="6000" rows="8" placeholder="Describe the voice, goal, questions to ask, and when to stop or hand off.">${esc(systemPrompt)}</textarea>
-          <small class="muted">Write instructions for this automation group. Application safety and send rules still apply.</small>
+          <small class="muted">Used for scheduled texts and replies from contacts enrolled in this group. Application safety and send rules still apply.</small>
         </label>
         <label class="field-wide">
           <span class="compose-label">Business details for this automation</span>
           <textarea id="automation-business-context" maxlength="10000" rows="8" placeholder="Describe the services, service area, hours, policies, links, and facts this automation may use.">${esc(businessContext)}</textarea>
-          <small class="muted">This is the only general business context used for outgoing texts in this group. Current intake records and conversations are added at send time.</small>
+          <small class="muted">The only general business context for this group's texts and replies. Current intake records and conversations are added at send time.</small>
         </label>
         ${rule.anchor === 'appointment' ? `<label>
           <span class="compose-label">First send before appointment (hours)</span>
@@ -1769,19 +1800,15 @@ function groupAiBuilderHtml(group) {
     <form class="automation-builder card" id="group-ai-builder">
       <div class="card-head">
         <div>
-          <span class="eyebrow">Group AI behavior</span>
-          <h2>${esc(group.name)} instructions</h2>
+          <span class="eyebrow">Inbound reply controls</span>
+          <h2>${esc(group.name)} replies</h2>
         </div>
         <button type="button" class="btn ghost" id="cancel-group-ai">Cancel</button>
       </div>
       <div class="automation-form-grid">
         <label class="check field-wide">
           <input id="group-ai-enabled" type="checkbox" ${group.ai?.enabled ? 'checked' : ''} />
-          Enable these AI instructions
-        </label>
-        <label class="check field-wide">
-          <input id="group-ai-default-inbound" type="checkbox" ${group.ai?.defaultForInbound ? 'checked' : ''} />
-          Respond to eligible inbound texts even when the customer is not enrolled in this group
+          Reply to texts from contacts enrolled in this group
         </label>
         <label class="check field-wide">
           <input id="group-ai-grounded" type="checkbox" ${group.ai?.grounded_enabled||group.ai?.groundedEnabled ? 'checked' : ''} />
@@ -1796,15 +1823,11 @@ function groupAiBuilderHtml(group) {
           <input id="group-ai-alert-phone" type="tel" placeholder="+15551234567" value="${esc(group.ai?.alert_phone||group.ai?.alertPhone||'')}" />
           <small class="muted">One deduplicated alert is queued for an unsupported conversation. Use E.164.</small>
         </label>
-        <label class="field-wide">
-          <span class="compose-label">AI instructions</span>
-          <textarea id="group-ai-instructions" maxlength="6000" rows="8" placeholder="Describe the goal, questions to ask, tone, escalation conditions, and facts the AI may use.">${esc(group.ai?.instructions || '')}</textarea>
-          <small class="muted">Style and workflow guidance only. Approved structured facts and sources remain authoritative.</small>
-        </label>
+        <p class="muted field-wide">Replies use the AI instructions and business details in Edit automation.</p>
       </div>
       <div class="automation-builder-actions">
         <span class="login-error" id="group-ai-error"></span>
-        <button type="submit" class="btn" id="save-group-ai">Save AI instructions</button>
+        <button type="submit" class="btn" id="save-group-ai">Save reply controls</button>
       </div>
     </form>`;
 }
@@ -1829,8 +1852,8 @@ function bindGroupAiBuilder(group) {
           method: 'PUT',
           body: JSON.stringify({
             enabled: form.querySelector('#group-ai-enabled').checked,
-            defaultForInbound: form.querySelector('#group-ai-default-inbound').checked,
-            instructions: form.querySelector('#group-ai-instructions').value.trim(),
+            defaultForInbound: false,
+            instructions: '',
             groundedEnabled: form.querySelector('#group-ai-grounded').checked,
             shadowMode: form.querySelector('#group-ai-shadow').checked,
             alertPhone: form.querySelector('#group-ai-alert-phone').value.trim()||null,
