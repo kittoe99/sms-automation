@@ -69,6 +69,17 @@ test('dashboard API stores manually authored outgoing AI fields per business and
     assert.equal(alpha.systemPrompt, aiConfig.systemPrompt);
     assert.equal(alpha.businessContext, aiConfig.businessContext);
     assert.equal(alpha.automationAiConfigured, true);
+    const contextSave = await handler(new Request('https://example.com/functions/v1/crm-api/automation-groups/quote-requests/prompt-context', {
+      method:'PUT',headers:{'X-Tenant-ID':'alpha','Content-Type':'application/json'},
+      body:JSON.stringify({systemPrompt:'Use the current quote request only.',
+        businessContext:'Alpha Painting covers Denver and Aurora.'}),
+    }));
+    assert.equal(contextSave.status,200);
+    assert.equal((await contextSave.json()).aiConfigured,true);
+    const updated = await list('alpha');
+    assert.equal(updated.systemPrompt,'Use the current quote request only.');
+    assert.equal(updated.businessContext,'Alpha Painting covers Denver and Aurora.');
+    assert.deepEqual(updated.rule,alpha.rule);
     const otherAlphaGroup = (await call(db, 'api_read', 'admin', 'alpha', 'groups', { id: 'sms-contact' })).rows[0];
     assert.equal(otherAlphaGroup.ai_configured, false);
     assert.equal(otherAlphaGroup.system_prompt, null);

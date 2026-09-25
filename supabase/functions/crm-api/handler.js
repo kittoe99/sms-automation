@@ -125,6 +125,8 @@ export function createCrmHandler(db,verify=authenticate) {
     if(ai) {const cid=await conversationId(decodeURIComponent(ai[1]));if(!cid)return json({error:'Conversation not found'},404,headers);return json(await db.call('conversation_action',user,tenant,cid,ai[2].split('/').at(-1),p),200,headers);}
     const reassign=path.match(/^\/conversation-messages\/([^/]+)\/reassign$/);
     if(reassign&&method==='POST') return json(await db.call('reassign_inbound_message',user,tenant,reassign[1],p.groupId||null),200,headers);
+    const groupAiContext=path.match(/^\/automation-groups\/([^/]+)\/prompt-context$/);
+    if(groupAiContext&&method==='PUT') return json(await db.call('save_group_ai_context',user,tenant,decodeURIComponent(groupAiContext[1]),p),200,headers);
     const groups=path.match(/^\/automation-groups(?:\/([^/]+))?(\/ai-instructions)?$/);
     if(groups) {
      const id=decodeURIComponent(groups[1] || p.id || crypto.randomUUID());

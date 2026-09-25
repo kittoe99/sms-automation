@@ -742,17 +742,15 @@ async function renderBusinessContext() {
 
   const cachedOnboarding = state.setupOnboarding || null;
   let provisioning = state.setupProvisioning || null;
-  let businessAi = { enabled: false, systemPrompt: '' };
   // Always refetch server truth when opening this view: a cached copy from an
   // earlier save (or another device) must never masquerade as what is stored.
   if (!cachedOnboarding || !provisioning) {
     el.root.innerHTML = '<div class="card"><div class="empty">Loading business context…</div></div>';
   }
   try {
-    const [onb, provRes, aiRes] = await Promise.all([
+    const [onb, provRes] = await Promise.all([
       fetchOnboarding(),
       provisioning ? null : apiFetch('/api/provisioning'),
-      apiFetch('/api/business-ai'),
     ]);
     // Never let an empty/failed response or a device-only fallback clobber a
     // known-good server copy. An api result is trusted when it carries data;
@@ -761,7 +759,6 @@ async function renderBusinessContext() {
       (onb.onboardingComplete || Object.keys(onb.onboarding || {}).length > 0);
     if (onb && (apiHasData || (!cachedOnboarding && onb.source !== 'api'))) state.setupOnboarding = onb;
     if (provRes && provRes.ok) provisioning = await provRes.json();
-    if (aiRes?.ok) businessAi = await aiRes.json();
   } catch (error) {
     console.error(error);
   }
@@ -780,7 +777,7 @@ async function renderBusinessContext() {
         <div>
           <span class="eyebrow">Business context · ${esc(state.tenant?.name || 'Business account')}</span>
           <h2>Help SMS and AI sound like you.</h2>
-          <p class="muted">Separate from the Twilio registration — nothing here is sent to Twilio. This context powers smarter follow-ups and AI replies: what you sell, where, when you're open, and how you want to sound.</p>
+          <p class="muted">Keep your business profile and approved knowledge here. Automation texts use each group's own AI instructions and business details, which you can edit under AI instructions.</p>
         </div>
         <dl class="setup-facts">
           <div><dt>Business context</dt><dd>${state.setupOnboarding.onboardingComplete ? 'saved' : 'required'}</dd></div>
@@ -905,39 +902,18 @@ async function renderBusinessContext() {
           </div>
         </aside>
       </form>
-      <form id="business-ai-form" class="card setup-card" style="margin-top:16px">
-        <div class="card-head"><div><span class="eyebrow">Unmatched inbound texts</span><h2>Business-wide AI instructions</h2></div></div>
-        <div class="setup-body">
-          <p class="muted">Used when someone texts this business without an active automation group. The AI starts from their message and does not assume what they want. Business facts above and approved knowledge support factual answers.</p>
-          <label class="field-wide"><span class="compose-label">Custom prompt / instructions</span>
-            <textarea id="business-ai-prompt" maxlength="6000" rows="8" placeholder="Describe how to greet an unfamiliar texter, clarify their need, answer questions, and handle a handoff.">${esc(businessAi.systemPrompt || '')}</textarea>
-          </label>
-          <label class="check"><input id="business-ai-enabled" type="checkbox" ${businessAi.enabled ? 'checked' : ''} />Reply to unmatched inbound texts</label>
-          <div class="automation-builder-actions"><span class="login-error" id="business-ai-error" role="alert"></span><button type="submit" class="btn" id="business-ai-save">Save business-wide AI</button></div>
-        </div>
-      </form>
+      <section class="card setup-card" style="margin-top:16px">
+        <div class="card-head"><div><span class="eyebrow">AI setup</span><h2>Prompts and automation context</h2></div></div>
+        <div class="setup-body"><p class="muted">Set the business-wide prompt for new texters and the instructions and facts for each automation group on the AI instructions page.</p><button type="button" class="btn" id="open-ai-instructions">Open AI instructions</button></div>
+      </section>
       <section id="business-knowledge" class="business-knowledge" aria-label="AI knowledge">
         <div class="card"><div class="empty">Loading AI knowledge…</div></div>
       </section>
     </div>`;
 
   const form = el.root.querySelector('#business-context-form');
-  const businessAiForm = el.root.querySelector('#business-ai-form');
-  businessAiForm?.addEventListener('submit', async event => {
-    event.preventDefault();
-    const button = businessAiForm.querySelector('#business-ai-save');
-    const error = businessAiForm.querySelector('#business-ai-error');
-    button.disabled = true; error.textContent = '';
-    try {
-      const response = await apiFetch('/api/business-ai', {method:'PUT',body:JSON.stringify({
-        enabled:businessAiForm.querySelector('#business-ai-enabled').checked,
-        systemPrompt:businessAiForm.querySelector('#business-ai-prompt').value.trim()
-      })});
-      const result = await response.json();
-      if(!response.ok) throw new Error(result.detail || result.error || 'Could not save business-wide AI');
-      businessAiForm.querySelector('#business-ai-enabled').checked = Boolean(result.enabled);
-    } catch (err) { error.textContent = err.message || 'Could not save business-wide AI'; }
-    button.disabled = false;
+  el.root.querySelector('#open-ai-instructions')?.addEventListener('click', () => {
+    state.view = 'ai-instructions'; setActiveNav(); load();
   });
   const error = form.querySelector('#ctx-error');
   const saveButton = form.querySelector('#ctx-save');
@@ -1138,6 +1114,110 @@ async function renderBusinessContext() {
   nameInput.focus();
 }
 
+async function renderAiInstructions() {
+  setTitle(...titles['ai-instructions']);
+  el.kpi.innerHTML = '';
+  el.pager.hidden = true;
+  el.storeMeta.textContent = state.tenant?.name || 'Your workspace';
+  const [businessResponse, groupsResponse] = await Promise.all([
+    apiFetch('/api/business-ai'), apiFetch('/api/categories'),
+  ]);
+  if (!businessResponse.ok || !groupsResponse.ok) throw new Error('Could not load AI instructions');
+  const businessAi = await businessResponse.json();
+  const groupsData = await groupsResponse.json();
+  const groups = groupsData.categories || [];
+  state.categories = groups;
+  renderNavAutomations();
+  el.root.innerHTML = `
+    <div class="setup-page">
+      <div class="card setup-hero">
+        <div>
+          <span class="eyebrow">${esc(state.tenant?.name || 'Business account')} · AI setup</span>
+          <h2>Give each conversation the right instructions.</h2>
+          <p class="muted">General texts use the business-wide prompt below. Each automation group uses only its own instructions, business details, intake record, and conversation history. Save each group separately.</p>
+        </div>
+      </div>
+      <form id="business-ai-form" class="card setup-card">
+        <div class="card-head"><div><span class="eyebrow">General conversations</span><h2>Business-wide prompt</h2></div><span class="status ${businessAi.enabled ? 'delivered' : 'queued'}">${businessAi.enabled ? 'Replies on' : 'Replies off'}</span></div>
+        <div class="setup-body">
+          <p class="muted">For a new or unmatched texter whose intent is unknown. Tell the AI how to greet them, clarify their need, answer supported questions, and hand off. No automation group context is used.</p>
+          <label class="field-wide"><span class="compose-label">Custom prompt / instructions</span>
+            <textarea id="business-ai-prompt" maxlength="6000" rows="7" placeholder="Describe how to greet an unfamiliar texter and find out what they need.">${esc(businessAi.systemPrompt || '')}</textarea>
+          </label>
+          <label class="check"><input id="business-ai-enabled" type="checkbox" ${businessAi.enabled ? 'checked' : ''} />AI may reply in General conversations</label>
+          <div class="automation-builder-actions"><span class="muted" id="business-ai-result" role="status"></span><button type="submit" class="btn" id="business-ai-save">Save business-wide prompt</button></div>
+        </div>
+      </form>
+      <div class="card setup-card">
+        <div class="card-head"><div><span class="eyebrow">Automation conversations</span><h2>Group prompts and business details</h2></div></div>
+        <div class="setup-body"><p class="muted">Write the facts and instructions each group needs for scheduled messages and replies. These fields are specific to this business and are separate from the business-wide prompt.</p></div>
+      </div>
+      ${groups.map(group => `
+        <form class="card setup-card" data-group-ai-form="${esc(group.id)}" id="ai-group-${esc(group.id)}">
+          <div class="card-head"><div><span class="eyebrow">${esc(group.fixedType || 'Automation group')}</span><h2>${esc(group.name)}</h2></div><span class="status ${group.automationAiConfigured ? 'delivered' : 'queued'}" data-group-ai-status>${group.automationAiConfigured ? 'Configured' : 'Setup required'}</span></div>
+          <div class="setup-body">
+            <p class="muted">${esc(group.description || '')} ${group.ai?.enabled ? 'Inbound AI replies are on.' : 'Inbound AI replies are off; scheduled messages still use this setup.'}</p>
+            <label class="field-wide"><span class="compose-label">Custom prompt / AI instructions</span>
+              <textarea data-group-prompt maxlength="6000" rows="7" ${group.activeAutomation ? 'required' : ''} placeholder="How should this group speak, what should it accomplish, and when should it hand off?">${esc(group.systemPrompt || '')}</textarea>
+            </label>
+            <label class="field-wide"><span class="compose-label">Business details and everything this AI needs to know</span>
+              <textarea data-group-context maxlength="10000" rows="7" ${group.activeAutomation ? 'required' : ''} placeholder="Services, service area, hours, policies, relevant links, and facts for this group.">${esc(group.businessContext || '')}</textarea>
+            </label>
+            <div class="automation-builder-actions"><span class="muted" data-group-ai-result role="status"></span><button type="submit" class="btn">Save ${esc(group.name)} AI setup</button></div>
+          </div>
+        </form>`).join('')}
+    </div>`;
+  const businessForm = el.root.querySelector('#business-ai-form');
+  businessForm.addEventListener('submit', async event => {
+    event.preventDefault();
+    const button = businessForm.querySelector('#business-ai-save');
+    const result = businessForm.querySelector('#business-ai-result');
+    button.disabled = true; result.className = 'muted'; result.textContent = '';
+    try {
+      const response = await apiFetch('/api/business-ai', { method:'PUT', body:JSON.stringify({
+        enabled:businessForm.querySelector('#business-ai-enabled').checked,
+        systemPrompt:businessForm.querySelector('#business-ai-prompt').value.trim(),
+      }) });
+      const saved = await response.json();
+      if (!response.ok) throw new Error(saved.detail || saved.error || 'Could not save business-wide prompt');
+      result.textContent = 'Saved business-wide prompt.';
+      const status = businessForm.querySelector('.status');
+      status.textContent = saved.enabled ? 'Replies on' : 'Replies off';
+      status.classList.toggle('delivered',Boolean(saved.enabled));
+      status.classList.toggle('queued',!saved.enabled);
+    } catch (error) { result.className = 'login-error'; result.textContent = error.message || 'Could not save business-wide prompt'; }
+    button.disabled = false;
+  });
+  el.root.querySelectorAll('[data-group-ai-form]').forEach(form => form.addEventListener('submit', async event => {
+    event.preventDefault();
+    const button = form.querySelector('button[type="submit"]');
+    const result = form.querySelector('[data-group-ai-result]');
+    button.disabled = true; result.className = 'muted'; result.textContent = '';
+    try {
+      const response = await apiFetch(`/api/automation-groups/${encodeURIComponent(form.dataset.groupAiForm)}/prompt-context`, {
+        method:'PUT',body:JSON.stringify({
+          systemPrompt:form.querySelector('[data-group-prompt]').value.trim(),
+          businessContext:form.querySelector('[data-group-context]').value.trim(),
+        }),
+      });
+      const saved = await response.json();
+      if (!response.ok) throw new Error(saved.detail || saved.error || 'Could not save group AI setup');
+      const group = state.categories.find(item => item.id === form.dataset.groupAiForm);
+      if (group) {
+        group.systemPrompt = saved.systemPrompt;
+        group.businessContext = saved.businessContext;
+        group.automationAiConfigured = saved.aiConfigured;
+      }
+      const status = form.querySelector('[data-group-ai-status]');
+      status.textContent = saved.aiConfigured ? 'Configured' : 'Setup required';
+      status.classList.toggle('delivered',Boolean(saved.aiConfigured));
+      status.classList.toggle('queued',!saved.aiConfigured);
+      result.textContent = `Saved ${group?.name || 'group'} AI setup.`;
+    } catch (error) { result.className = 'login-error'; result.textContent = error.message || 'Could not save group AI setup'; }
+    button.disabled = false;
+  }));
+}
+
 const titles = {
   overview: ['Dashboard', 'Your messages, contacts, and follow-ups in one place.'],
   messaging: ['Inbox', 'Read and reply to customer conversations.'],
@@ -1147,8 +1227,9 @@ const titles = {
   optouts: ['Opt-Outs', 'Numbers that asked to stop receiving SMS'],
   deliverability: ['Deliverability', 'Delivery outcomes across the message store'],
   automations: ['Automations', 'Lifecycle-driven SMS sequences and enrollment rules'],
+  'ai-instructions': ['AI instructions', 'Set a separate prompt and context for each automation group, plus a business-wide prompt for general texts.'],
   'business-setup': ['Business setup', 'Phone number and Twilio registration for this business.'],
-  'business-context': ['Business context', 'Business details, AI guidance, and approved knowledge in one place.'],
+  'business-context': ['Business context', 'Business profile and approved knowledge for this business.'],
   knowledge: ['AI knowledge', 'Approve evidence, review leads, and resolve human handoffs.'],
   bookings: ['Bookings', 'Confirmed appointments created securely for this business.'],
   'booking-setup': ['Booking setup', 'Availability and questions collected before an SMS booking.'],
@@ -1368,7 +1449,7 @@ async function load() {
   }
   el.root.setAttribute('aria-busy', 'true');
   document.getElementById('crm-app').dataset.view = state.view;
-  el.search.closest('.search-wrap').hidden = ['overview', 'call', 'deliverability', 'business-setup', 'business-context', 'booking-setup', 'knowledge', 'web-forms'].includes(state.view);
+  el.search.closest('.search-wrap').hidden = ['overview', 'call', 'deliverability', 'ai-instructions', 'business-setup', 'business-context', 'booking-setup', 'knowledge', 'web-forms'].includes(state.view);
   el.status.hidden = !['messages', 'deliverability'].includes(state.view) && !(state.view === 'automations' && state.categoryId);
   if (state.view === 'business-setup') el.pager.hidden = true;
   try {
@@ -1392,6 +1473,7 @@ async function load() {
     else if (state.view === 'optouts') await renderOptOuts();
     else if (state.view === 'deliverability') await renderDeliverability();
     else if (state.view === 'automations') await renderAutomations();
+    else if (state.view === 'ai-instructions') await renderAiInstructions();
     else if (state.view === 'business-setup') await renderBusinessSetup();
     else if (state.view === 'business-context') await renderBusinessContext();
     else if (state.view === 'booking-setup') await renderBookingSetup();
@@ -1949,6 +2031,7 @@ async function renderAutomations() {
             <h2>SMS automation types</h2>
             <span class="muted">Each type has one purpose and schedule. Adding a record to its SMS table starts the automation when eligible.</span>
           </div>
+          <button type="button" class="btn" data-open-ai-instructions>Edit AI instructions</button>
         </div>
         <div class="category-grid">
           ${state.categories
@@ -1975,6 +2058,9 @@ async function renderAutomations() {
       btn.addEventListener('click', () =>
         openAutomationGroup(btn.getAttribute('data-open-automation'))
       );
+    });
+    el.root.querySelector('[data-open-ai-instructions]')?.addEventListener('click', () => {
+      state.view = 'ai-instructions'; setActiveNav(); load();
     });
     return;
   }
@@ -2084,11 +2170,13 @@ async function renderAutomations() {
           <p class="muted" style="margin:4px 0 0">${esc(category.description || '')}</p>
         </div>
         <div class="automation-head-actions">
+          <button type="button" class="btn" id="edit-group-prompt">AI prompt &amp; context</button>
           <button type="button" class="btn ghost" id="edit-group-ai">Inbound AI settings</button>
           ${category.rule ? '<button type="button" class="btn ghost" id="edit-automation-group">Edit automation</button>' : ''}
           <button type="button" class="btn ghost" id="back-automations">All groups</button>
         </div>
       </div>
+      <div class="setup-body"><p class="muted">${category.automationAiConfigured ? 'This group has its own saved AI prompt and business details.' : 'Add this group’s AI prompt and business details before it can draft SMS.'} These settings are separate from the business-wide prompt for General conversations.</p></div>
       ${state.aiBuilderOpen ? groupAiBuilderHtml(category) : ''}
       ${state.automationBuilderOpen && category.rule ? automationBuilderHtml(category) : ''}
       <div class="subcat-chips">
@@ -2178,6 +2266,10 @@ async function renderAutomations() {
     state.automationBuilderOpen = false;
     state.aiBuilderOpen = true;
     renderAutomations();
+  });
+  el.root.querySelector('#edit-group-prompt')?.addEventListener('click', async () => {
+    state.view = 'ai-instructions'; setActiveNav(); await load();
+    document.getElementById(`ai-group-${category.id}`)?.scrollIntoView({ behavior:'smooth', block:'start' });
   });
   el.root.querySelectorAll('[data-open-automation]').forEach((btn) => {
     btn.addEventListener('click', () => openAutomationGroup(btn.getAttribute('data-open-automation')));
@@ -3618,3 +3710,4 @@ function connectLive() {
     }
   }, 25000);
 }
+
