@@ -40,6 +40,7 @@ const state = {
   automationBuilderOpen: false,
   automationPresetId: null,
   aiBuilderOpen: false,
+  emailGroupId: null,
   businessContextDraft: null,
   bookingSettingsDraft: null,
   bookingStatus: '',
@@ -1244,6 +1245,7 @@ const titles = {
   optouts: ['Opt-Outs', 'Numbers that asked to stop receiving SMS'],
   deliverability: ['Deliverability', 'Delivery outcomes across the message store'],
   automations: ['Automations', 'Lifecycle-driven SMS sequences and enrollment rules'],
+  email: ['Email', 'Manage opted-in email follow-ups through Resend.'],
   'ai-instructions': ['AI instructions', 'Set a separate prompt and context for each automation group, plus a business-wide prompt for general texts.'],
   'business-setup': ['Business setup', 'Phone number and Twilio registration for this business.'],
   'business-context': ['Business context', 'Business profile and approved knowledge for this business.'],
@@ -1457,6 +1459,86 @@ function initNavFind() {
   });
 }
 
+async function renderEmailGroups() {
+  setTitle('Email', 'Manage opted-in follow-ups for each automation group.');
+  el.kpi.innerHTML = '';
+  el.pager.hidden = true;
+  const response = await apiFetch('/api/email');
+  const data = await response.json();
+  if (!response.ok) throw new Error(data.error || 'Could not load email');
+  if (!data.configured) {
+    el.root.innerHTML = '<section class="card"><div class="setup-body"><h2>Email is available for E2 Local</h2></div></section>';
+    return;
+  }
+  const unitOptions = (selected) => ['hour','day','week','month'].map(value =>
+    `<option value="${value}" ${selected === value ? 'selected' : ''}>${value}(s)</option>`).join('');
+  const groupCards = (data.groups || []).map(s => {
+    const r = s.rule || {};
+    return `<section class="card" data-email-card="${esc(s.group_id)}"><div class="card-head"><div><h2>${esc(s.name)}</h2><span class="muted">${esc(s.fixedType)}</span></div><span class="status ${s.enabled ? 'active' : 'paused'}">${s.enabled ? 'Enabled' : 'Paused'}</span></div>
+      <div class="setup-body"><form class="compose" data-email-group="${esc(s.group_id)}">
+        <label class="checkbox-field"><input type="checkbox" name="enabled" ${s.enabled ? 'checked' : ''} /> Activate email for this group</label>
+        <p class="muted">Email follows a separate schedule. New consented records enroll only while this group is active. SMS settings are independent.</p>
+        <label>Purpose<input name="intent" maxlength="1600" value="${esc(s.intent)}" placeholder="What should this email help the customer do?" /></label>
+        <label>System prompt<textarea name="systemPrompt" maxlength="6000" rows="4" placeholder="Instructions for this group's email drafts">${esc(s.system_prompt)}</textarea></label>
+        <label>Business context<textarea name="businessContext" maxlength="10000" rows="4" placeholder="Verified service details, policies, and useful context">${esc(s.business_context)}</textarea></label>
+        <label>Business mailing address<input name="mailingAddress" maxlength="300" value="${esc(s.mailing_address)}" placeholder="Required before activation; shown in every email" /></label>
+        <div class="automation-form-grid">
+          ${s.fixedType === 'bookings' ? `<label>Hours before appointment<input name="leadHours" type="number" min="1" max="720" value="${esc(r.leadHours || 24)}" /></label>` : `<label>First email after<input name="firstDelayCount" type="number" min="0" max="365" value="${esc(r.firstDelayCount ?? 0)}" /></label><label>First delay unit<select name="firstDelayUnit">${unitOptions(r.firstDelayUnit)}</select></label>`}
+          <label>Maximum emails<input name="repeatCount" type="number" min="1" max="30" value="${esc(r.repeatCount || 1)}" /></label>
+          <label>Time between emails<input name="intervalCount" type="number" min="1" max="365" value="${esc(r.intervalCount || 1)}" /></label>
+          <label>Interval unit<select name="intervalUnit">${unitOptions(r.intervalUnit)}</select></label>
+          <label>Start hour (0–23)<input name="startHour" type="number" min="0" max="23" value="${esc(r.startHour ?? 9)}" /></label>
+          <label>End hour (1–24)<input name="endHour" type="number" min="1" max="24" value="${esc(r.endHour ?? 18)}" /></label>
+        </div><div class="compose-actions"><span class="login-error" role="alert"></span><button type="submit" class="btn">Save email settings</button></div>
+      </form></div></section>`;
+  }).join('');
+  const enrollments = (data.enrollments || []).map(e => `<tr><td>${esc(e.name || e.email)}<br><span class="muted">${esc(e.email)}</span></td><td>${esc(e.source_type)}</td><td>${esc(e.status)}</td><td>${e.next_run_at ? esc(fmtTime(e.next_run_at)) : '—'}</td><td>${e.status === 'active' ? `<button type="button" class="btn ghost" data-email-resolve="${esc(e.id)}">Mark resolved</button>` : '—'}</td></tr>`).join('');
+  const jobs = (data.jobs || []).map(j => `<tr><td>${esc(j.email)}</td><td>${esc(j.subject || 'Draft pending')}</td><td>${esc(j.provider_status || j.status)}</td><td>${esc(j.error_code || '—')}</td><td>${j.status === 'failed' ? `<button type="button" class="btn ghost" data-email-retry="${esc(j.id)}">Retry</button>` : '—'}</td></tr>`).join('');
+  el.root.innerHTML = `<section class="card"><div class="setup-body"><h2>Email marketing</h2><p class="muted">Sender: hello@e2local.com. Replies go to that mailbox. Customers opt in separately on enabled forms or staff record consent evidence. Unsubscribe applies to all E2 Local marketing email. Existing records are not backfilled.</p>
+    ${!data.workerReady || !data.providerReady ? '<p class="login-error">Activation requires the email worker, Resend, and OpenAI configuration.</p>' : ''}<p id="email-action-error" class="login-error" role="alert"></p></div></section>
+    ${groupCards}<section class="card"><div class="card-head"><h2>Recent email enrollments</h2></div><div class="table-scroll"><table class="data"><thead><tr><th>Contact</th><th>Group</th><th>Status</th><th>Next email</th><th></th></tr></thead><tbody>${enrollments || '<tr><td colspan="5">No email enrollments yet.</td></tr>'}</tbody></table></div></section>
+    <section class="card"><div class="card-head"><h2>Email jobs</h2></div><div class="table-scroll"><table class="data"><thead><tr><th>Email</th><th>Subject</th><th>Status</th><th>Issue</th><th></th></tr></thead><tbody>${jobs || '<tr><td colspan="5">No email jobs yet.</td></tr>'}</tbody></table></div></section>`;
+  if (state.emailGroupId) {
+    el.root.querySelector(`[data-email-card="${state.emailGroupId}"]`)?.scrollIntoView({ behavior: 'smooth', block: 'start' });
+    state.emailGroupId = null;
+  }
+  el.root.querySelectorAll('[data-email-group]').forEach(form => form.addEventListener('submit', async event => {
+    event.preventDefault();
+    const button = form.querySelector('button[type="submit"]'), error = form.querySelector('[role="alert"]');
+    const current = data.groups.find(group => group.group_id === form.dataset.emailGroup);
+    const field = name => form.elements.namedItem(name);
+    const rule = { ...current.rule, anchor: current.fixedType === 'bookings' ? 'appointment' : 'enrollment',
+      repeatCount: Number(field('repeatCount').value), intervalCount: Number(field('intervalCount').value),
+      intervalUnit: field('intervalUnit').value, startHour: Number(field('startHour').value), endHour: Number(field('endHour').value) };
+    if (current.fixedType === 'bookings') rule.leadHours = Number(field('leadHours').value);
+    else { rule.firstDelayCount = Number(field('firstDelayCount').value); rule.firstDelayUnit = field('firstDelayUnit').value; }
+    button.disabled = true; error.textContent = '';
+    try {
+      const saved = await apiFetch(`/api/email/groups/${encodeURIComponent(current.group_id)}`, { method: 'PUT', body: JSON.stringify({
+        enabled: field('enabled').checked, rule, intent: field('intent').value.trim(),
+        systemPrompt: field('systemPrompt').value.trim(), businessContext: field('businessContext').value.trim(),
+        mailingAddress: field('mailingAddress').value.trim(),
+      }) });
+      const result = await saved.json();
+      if (!saved.ok) throw new Error(result.error || 'Could not save email settings');
+      await renderEmailGroups();
+    } catch (cause) { error.textContent = cause.message; button.disabled = false; }
+  }));
+  for (const [selector, endpoint, method] of [['[data-email-resolve]','enrollments','PATCH'],['[data-email-retry]','jobs','POST']]) {
+    el.root.querySelectorAll(selector).forEach(button => button.addEventListener('click', async () => {
+      button.disabled = true;
+      const id = button.dataset.emailResolve || button.dataset.emailRetry;
+      const suffix = endpoint === 'jobs' ? 'retry' : 'resolve';
+      try {
+        const response = await apiFetch(`/api/email/${endpoint}/${encodeURIComponent(id)}/${suffix}`, { method, body: '{}' });
+        const result = await response.json();
+        if (!response.ok) throw new Error(result.error || 'Email action failed');
+        await renderEmailGroups();
+      } catch (cause) { el.root.querySelector('#email-action-error').textContent = cause.message; button.disabled = false; }
+    }));
+  }
+}
+
 async function load() {
   if (state.view !== 'messaging') document.querySelector('.crm')?.classList.remove('thread-open');
   if (lastRenderedView !== state.view) {
@@ -1466,7 +1548,7 @@ async function load() {
   }
   el.root.setAttribute('aria-busy', 'true');
   document.getElementById('crm-app').dataset.view = state.view;
-  el.search.closest('.search-wrap').hidden = ['overview', 'call', 'deliverability', 'ai-instructions', 'business-setup', 'business-context', 'booking-setup', 'knowledge', 'web-forms'].includes(state.view);
+  el.search.closest('.search-wrap').hidden = ['overview', 'call', 'deliverability', 'ai-instructions', 'business-setup', 'business-context', 'booking-setup', 'knowledge', 'web-forms', 'email'].includes(state.view);
   el.status.hidden = !['messages', 'deliverability'].includes(state.view) && !(state.view === 'automations' && state.categoryId);
   if (state.view === 'business-setup') el.pager.hidden = true;
   try {
@@ -1490,6 +1572,7 @@ async function load() {
     else if (state.view === 'optouts') await renderOptOuts();
     else if (state.view === 'deliverability') await renderDeliverability();
     else if (state.view === 'automations') await renderAutomations();
+    else if (state.view === 'email') await renderEmailGroups();
     else if (state.view === 'ai-instructions') await renderAiInstructions();
     else if (state.view === 'business-setup') await renderBusinessSetup();
     else if (state.view === 'business-context') await renderBusinessContext();
@@ -2153,6 +2236,9 @@ async function renderAutomations() {
         <div class="automation-form-grid">
           <label><span class="compose-label">Name</span><input id="intake-name" maxlength="200" placeholder="Customer name" /></label>
           <label><span class="compose-label">Phone</span><input id="intake-phone" type="tel" placeholder="+13035550123" /></label>
+          <label><span class="compose-label">Email</span><input id="intake-email" type="email" maxlength="320" placeholder="customer@example.com" /></label>
+          <label class="checkbox-field"><input id="intake-email-opt-in" type="checkbox" ${state.tenant?.id === 'e2-local' ? '' : 'disabled'} /> Customer consented to marketing email</label>
+          <label class="field-wide"><span class="compose-label">Email consent evidence</span><textarea id="intake-email-evidence" rows="2" maxlength="1500" placeholder="Where and when the customer agreed to marketing email" ${state.tenant?.id === 'e2-local' ? '' : 'disabled'}></textarea></label>
           ${intakeType === 'bookings' ? `<label><span class="compose-label">Booking status</span><select id="intake-status"><option value="requested">Requested</option><option value="confirmed">Confirmed</option><option value="cancelled">Cancelled</option></select></label><label><span class="compose-label">Appointment in business timezone</span><input id="intake-appointment" type="datetime-local" /></label>` : ''}
           <label class="field-wide"><span class="compose-label">Other context (JSON)</span><textarea id="intake-details" rows="4" placeholder='{"service":"moving","notes":"Customer requested a quote"}'>{}</textarea></label>
         </div>
@@ -2189,6 +2275,7 @@ async function renderAutomations() {
         <div class="automation-head-actions">
           <button type="button" class="btn" id="edit-group-prompt">AI prompt &amp; context</button>
           <button type="button" class="btn ghost" id="edit-group-ai">Inbound AI settings</button>
+          ${state.tenant?.id === 'e2-local' ? '<button type="button" class="btn ghost" id="edit-group-email">Email settings</button>' : ''}
           ${category.rule ? '<button type="button" class="btn ghost" id="edit-automation-group">Edit automation</button>' : ''}
           <button type="button" class="btn ghost" id="back-automations">All groups</button>
         </div>
@@ -2288,6 +2375,10 @@ async function renderAutomations() {
     state.view = 'ai-instructions'; setActiveNav(); await load();
     document.getElementById(`ai-group-${category.id}`)?.scrollIntoView({ behavior:'smooth', block:'start' });
   });
+  el.root.querySelector('#edit-group-email')?.addEventListener('click', async () => {
+    state.emailGroupId = category.id;
+    state.view = 'email'; setActiveNav(); await load();
+  });
   el.root.querySelectorAll('[data-open-automation]').forEach((btn) => {
     btn.addEventListener('click', () => openAutomationGroup(btn.getAttribute('data-open-automation')));
   });
@@ -2297,6 +2388,9 @@ async function renderAutomations() {
   const clearIntakeEdit = () => {
     intakeForm?.reset();
     if (intakeForm) intakeForm.dataset.editId = '';
+    for (const id of ['#intake-email','#intake-email-opt-in','#intake-email-evidence']) {
+      if (intakeForm) intakeForm.querySelector(id).disabled = state.tenant?.id !== 'e2-local' && id !== '#intake-email';
+    }
     const button = intakeForm?.querySelector('#intake-submit');
     if (button) button.textContent = `Add ${category.name} record`;
     const reset = intakeForm?.querySelector('#intake-reset');
@@ -2309,6 +2403,10 @@ async function renderAutomations() {
     intakeForm.dataset.editId = record.id;
     intakeForm.querySelector('#intake-name').value = record.name || '';
     intakeForm.querySelector('#intake-phone').value = record.phone || '';
+    intakeForm.querySelector('#intake-email').value = record.email || '';
+    intakeForm.querySelector('#intake-email-opt-in').checked = Boolean(record.email_opt_in);
+    intakeForm.querySelector('#intake-email-evidence').value = record.email_consent_evidence || '';
+    for (const id of ['#intake-email','#intake-email-opt-in','#intake-email-evidence']) intakeForm.querySelector(id).disabled = true;
     intakeForm.querySelector('#intake-details').value = JSON.stringify(record.details || {}, null, 2);
     intakeForm.querySelector('#intake-status').value = record.status;
     intakeForm.querySelector('#intake-appointment').value = toDateTimeLocal(record.appointment_at);
@@ -2324,7 +2422,10 @@ async function renderAutomations() {
     try {
       const details = JSON.parse(intakeForm.querySelector('#intake-details').value || '{}');
       if (!details || Array.isArray(details) || typeof details !== 'object') throw new Error('Other context must be a JSON object');
-      const payload = { name: intakeForm.querySelector('#intake-name').value.trim(), phone: intakeForm.querySelector('#intake-phone').value.trim(), details };
+      const payload = { name: intakeForm.querySelector('#intake-name').value.trim(), phone: intakeForm.querySelector('#intake-phone').value.trim(), details,
+        email: intakeForm.querySelector('#intake-email').value.trim(),
+        emailOptIn: intakeForm.querySelector('#intake-email-opt-in').checked,
+        emailConsentEvidence: intakeForm.querySelector('#intake-email-evidence').value.trim() };
       if (intakeType === 'bookings') {
         payload.status = intakeForm.querySelector('#intake-status').value;
         payload.appointmentAt = intakeForm.querySelector('#intake-appointment').value || null;
@@ -3727,4 +3828,3 @@ function connectLive() {
     }
   }, 25000);
 }
-

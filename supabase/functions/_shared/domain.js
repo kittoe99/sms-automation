@@ -27,4 +27,3 @@ export const contact=c=>({...c,smsMarketingConsent:c.marketing_consent,canEnroll
 export const thread=c=>({...c,groupId:c.group_id,groupName:c.group_name||null,conversationType:c.group_id?'automation':'general',unreadCount:c.unread_count,lastBody:c.last_body,lastDirection:c.last_direction,lastMessageAt:c.last_message_at,aiPausedAt:c.ai_paused?'paused':null});
 export const group=g=>({...g,custom:g.kind==='custom',system:g.kind!=='custom',activeAutomation:g.active,rule:g.rule,
   systemPrompt:g.system_prompt||'',businessContext:g.business_context||'',automationAiConfigured:Boolean(g.ai_configured)});
-

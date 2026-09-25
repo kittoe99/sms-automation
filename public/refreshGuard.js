@@ -2,4 +2,3 @@ export function shouldRefreshFromBackground({view, automationBuilderOpen, aiBuil
   return view !== 'ai-instructions' && !automationBuilderOpen && !aiBuilderOpen
     && !focusedInForm && !hasDirtyForm;
 }
-

@@ -33,6 +33,14 @@ import_map = "./functions/import_map.json"
 verify_jwt = false
 import_map = "./functions/import_map.json"
 
+[functions.email-worker]
+verify_jwt = false
+import_map = "./functions/import_map.json"
+
+[functions.email-webhook]
+verify_jwt = false
+import_map = "./functions/import_map.json"
+
 [functions.ai-worker]
 verify_jwt = false
 import_map = "./functions/import_map.json"

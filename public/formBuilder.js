@@ -65,6 +65,7 @@ export function createFormBuilder({ root, apiFetch, config }) {
           ? `<select disabled><option>Choose an option</option>${field.options.map(option => `<option>${escapeHtml(option)}</option>`).join('')}</select>`
           : `<input type="${field.type === 'date' ? 'date' : 'text'}" disabled />`}</label>`).join('')}
       <label><input type="checkbox" disabled /> ${escapeHtml(consentText || 'SMS consent (optional)')}</label>
+      ${root.querySelector('#web-form-email-enabled')?.checked ? `<label><input type="checkbox" disabled /> ${escapeHtml(draft.emailConsentText || `I agree to receive marketing and follow-up emails from this business. I can unsubscribe at any time.`)}</label>` : ''}
       <button type="button" class="btn" disabled>${escapeHtml(root.querySelector('#web-form-button')?.value || 'Submit')}</button>`;
   }
 
@@ -136,7 +137,8 @@ export function createFormBuilder({ root, apiFetch, config }) {
       <label>Description<textarea id="web-form-description" maxlength="500" rows="2" ${canEdit ? '' : 'disabled'}>${escapeHtml(form.description)}</textarea></label>
       <label>Button label<input id="web-form-button" maxlength="80" value="${escapeHtml(form.button_label)}" ${canEdit ? '' : 'disabled'} /></label>
       <label class="checkbox-field"><input id="web-form-enabled" type="checkbox" ${form.enabled ? 'checked' : ''} ${canEdit ? '' : 'disabled'} /> Form enabled</label>
-      <h3>Fixed fields</h3><p class="muted">Name, Phone, Email${preset === 'bookings' ? ', Appointment date and time' : ''}, and optional SMS consent stay on this form.</p>
+      <label class="checkbox-field"><input id="web-form-email-enabled" type="checkbox" ${form.email_enabled ? 'checked' : ''} ${canEdit && form.tenant_id === 'e2-local' ? '' : 'disabled'} /> Offer separate email marketing consent on this form</label>
+      <h3>Fixed fields</h3><p class="muted">Name, Phone, Email${preset === 'bookings' ? ', Appointment date and time' : ''}, and optional SMS consent stay on this form. Email marketing has its own unchecked consent choice when enabled.</p>
       <h3>Custom fields</h3><div id="web-builder-fields"></div>
       ${canEdit ? '<button type="button" class="btn ghost" id="web-add-field">Add custom field</button><div class="web-builder-actions"><span id="web-save-status" role="status"></span><button type="button" class="btn" id="web-save-form">Save form</button></div>' : '<p class="muted">An administrator can edit this form.</p>'}
       </div></section><aside class="card"><div class="card-head"><div><h2>Preview</h2><span class="muted">Customer view · fields are disabled here</span></div></div><div id="web-builder-preview" class="web-builder-preview"></div></aside></div>
@@ -174,7 +176,8 @@ export function createFormBuilder({ root, apiFetch, config }) {
           const payload = { title: root.querySelector('#web-form-title').value.trim(),
             description: root.querySelector('#web-form-description').value.trim(),
             buttonLabel: root.querySelector('#web-form-button').value.trim(),
-            enabled: root.querySelector('#web-form-enabled').checked, fields: draft.fields };
+            enabled: root.querySelector('#web-form-enabled').checked,
+            emailEnabled: root.querySelector('#web-form-email-enabled').checked, fields: draft.fields };
           const saved = await apiFetch(`/api/web-forms/${preset}`, { method: 'PUT', body: JSON.stringify(payload) });
           const body = await saved.json();
           if (!saved.ok) throw new Error(body.error || 'Could not save form');
@@ -187,7 +190,7 @@ export function createFormBuilder({ root, apiFetch, config }) {
         event.currentTarget.textContent = 'Copied';
       });
     }
-    root.querySelectorAll('#web-form-title,#web-form-description,#web-form-button').forEach(input => input.addEventListener('input', preview));
+    root.querySelectorAll('#web-form-title,#web-form-description,#web-form-button,#web-form-email-enabled').forEach(input => input.addEventListener('input', preview));
     bindFields();
     if (!canEdit) root.querySelectorAll('#web-builder-fields input,#web-builder-fields select,#web-builder-fields textarea,#web-builder-fields button').forEach(input => input.disabled = true);
     await submissions();

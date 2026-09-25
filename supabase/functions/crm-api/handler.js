@@ -2,6 +2,7 @@ import {json,readJson,cors,failure,authenticate,env} from '../_shared/http.js';
 import {phone,groupRule,localDateTime,business,message,contact,thread,group} from '../_shared/domain.js';
 import {enrichBusinessFromWebsite} from '../../../src/lib/websiteEnrich.js';
 import {CADENCE_PRESETS} from '../../../src/lib/automations/rulePresets.js';
+import {emailOverview,saveEmailGroup} from './email.js';
 const KNOWLEDGE_MIME=new Set(['application/pdf','application/vnd.openxmlformats-officedocument.wordprocessingml.document','text/plain','text/markdown']);
 const INTAKE_TYPES=new Set(['contacts','quote_requests','bookings','reviews']);
 async function signedKnowledgeUpload(tenant,input,fetchImpl=fetch) {
@@ -38,6 +39,7 @@ export function createCrmHandler(db,verify=authenticate) {
    }
    if(!tenant) return json({error:'Select a business'},400,headers);
    if(method==='GET') {
+    if(path==='/email') return json(await emailOverview(db,user,tenant),200,headers);
     if(path==='/web-forms') return json(await db.call('list_web_forms',user,tenant),200,headers);
     const webFormSubmissions=path.match(/^\/web-forms\/(contacts|quote_requests|bookings)\/submissions$/);
     if(webFormSubmissions) return json(await db.call('list_web_form_submissions',user,tenant,
@@ -87,6 +89,12 @@ export function createCrmHandler(db,verify=authenticate) {
     }
    } else {
     const p=await readJson(request);
+    const emailGroup=path.match(/^\/email\/groups\/([a-z0-9_-]+)$/i);
+    if(emailGroup&&method==='PUT') return json({settings:await saveEmailGroup(db,user,tenant,emailGroup[1],p)},200,headers);
+    const emailEnrollment=path.match(/^\/email\/enrollments\/([0-9a-f-]{36})\/resolve$/i);
+    if(emailEnrollment&&method==='PATCH') return json(await db.call('email_resolve',user,tenant,emailEnrollment[1]),200,headers);
+    const emailJob=path.match(/^\/email\/jobs\/([0-9a-f-]{36})\/retry$/i);
+    if(emailJob&&method==='POST') return json(await db.call('email_retry',user,tenant,emailJob[1]),200,headers);
     if(path==='/business-ai'&&method==='PUT') return json(await db.call('save_business_ai_settings',user,tenant,p),200,headers);
     const webFormSave=path.match(/^\/web-forms\/(contacts|quote_requests|bookings)$/);
     if(webFormSave){if(method!=='PUT')return json({error:'PUT required'},405,headers);
@@ -181,4 +189,3 @@ export function createCrmHandler(db,verify=authenticate) {
   } catch(error) {return failure(error,headers);}
  };
 }
-

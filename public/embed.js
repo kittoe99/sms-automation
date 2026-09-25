@@ -98,6 +98,14 @@ async function start() {
   const consentInput = document.createElement('input'); consentInput.type = 'checkbox';
   const consentText = document.createElement('span'); consentText.textContent = definition.consentText;
   consent.append(consentInput, consentText); form.append(consent);
+  let emailConsentInput;
+  if (definition.emailEnabled) {
+    const emailConsent = document.createElement('label'); emailConsent.className = 'checkbox-field';
+    emailConsentInput = document.createElement('input'); emailConsentInput.type = 'checkbox';
+    const label = document.createElement('span');
+    label.textContent = definition.emailConsentText || `I agree to receive marketing emails from ${definition.businessName}. I can unsubscribe at any time.`;
+    emailConsent.append(emailConsentInput, label); form.append(emailConsent);
+  }
   const honeypot = field('Website', 'text', 'website'); honeypot.wrapper.className = 'form-honeypot';
   honeypot.input.tabIndex = -1; honeypot.input.autocomplete = 'off'; honeypot.wrapper.setAttribute('aria-hidden', 'true'); form.append(honeypot.wrapper);
   const note = document.createElement('span'); note.className = 'form-note';
@@ -119,6 +127,7 @@ async function start() {
     const payload = {
       name: name.input.value.trim(), phone: normalizePhone(phone.input.value),
       email: email.input.value.trim(), details, smsOptIn: consentInput.checked,
+      emailOptIn: Boolean(emailConsentInput?.checked),
       website: honeypot.input.value,
     };
     if (appointment) payload.appointmentAt = appointment.input.value;

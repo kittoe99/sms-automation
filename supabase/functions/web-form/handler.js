@@ -51,6 +51,16 @@ export function createWebFormHandler(db = database('WEB_FORM_DATABASE_URL'), opt
   return async request => {
     if (request.method === 'OPTIONS') return new Response(null, { status: 204, headers });
     const path = new URL(request.url).pathname;
+    if (path.endsWith('/web-form/email/unsubscribe')) {
+      if (request.method !== 'POST') return response({ error: 'POST required' }, 405);
+      const token = new URL(request.url).searchParams.get('token');
+      if (!/^[0-9a-f-]{36}$/i.test(token || '')) return response({ error: 'Invalid unsubscribe link' }, 400);
+      try { return response(await db.call('email_unsubscribe', token)); }
+      catch (error) {
+        console.error(JSON.stringify({ event: 'email_unsubscribe_failed', code: error.code || 'DB_ERROR' }));
+        return response({ error: 'Please try again' }, 503);
+      }
+    }
     const match = path.match(/\/web-form\/([0-9a-f-]{36})\/?$/i);
     if (!match) return response({ error: 'Form not found' }, 404);
     const formId = match[1];
