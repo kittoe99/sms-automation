@@ -39,7 +39,7 @@ Each business can designate one enabled AI setting as its default inbound profil
 
 ## Clerk and frontend
 
-Approved CRM administrator: `kofikittoe35@gmail.com`, Clerk subject `user_3Il5aqL9gpjc9z02DA6HoBWt2zL`. Existing Clerk application is WPS Canvas, development instance. Its native Supabase integration and WPacquisition third-party Clerk connection are enabled. Admin login and the local dashboard were verified, including the delivered canary and Live indicator. Production launch still requires a production Clerk instance and correct allowed frontend origins. Creating a CRM business requires no owner registration.
+Approved CRM administrator: `kofikittoe35@gmail.com`. The development Clerk subject is `user_3Il5aqL9gpjc9z02DA6HoBWt2zL`; the production Clerk subject is `user_3JkKryIIC3wMQ1SN7oYAh59hL6B`. The production account uses the same verified email, but Clerk assigns a different subject in each instance. Both subjects are explicitly present in `sms_private.admins`. The live CRM uses the production issuer `https://clerk.e2local.com`; keep its allowed frontend origins configured in the Edge Function. Creating a CRM business requires no owner registration.
 
 Build the static frontend with `CRM_API_BASE`, `SUPABASE_URL` and the public `SUPABASE_PUBLISHABLE_KEY`, using `npm run build:frontend`. The API base is `https://wxamwhfmelxqahkdtcci.supabase.co/functions/v1/crm-api`. `render.yaml` contains only the optional static site. The local legacy Express server is a disconnected preview and refuses production startup.
 
