@@ -1,5 +1,6 @@
 import { connectSupabaseLive } from './live.js';
 import { createFormBuilder } from './formBuilder.js';
+import { shouldRefreshFromBackground } from './refreshGuard.js';
 import {
   apiFetch,
   getAccessToken,
@@ -170,8 +171,22 @@ function openBusinessContext() {
 }
 
 function refreshFromBackground() {
-  if (el.root.querySelector('form[data-dirty="true"]')) return Promise.resolve(false);
+  const active = document.activeElement;
+  if (!shouldRefreshFromBackground({
+    view: state.view,
+    automationBuilderOpen: state.automationBuilderOpen,
+    aiBuilderOpen: state.aiBuilderOpen,
+    focusedInForm: active instanceof HTMLElement && el.root.contains(active) && Boolean(active.closest('form')),
+    hasDirtyForm: Boolean(el.root.querySelector('form[data-dirty="true"]')),
+  })) return Promise.resolve(false);
   return load();
+}
+
+for (const eventName of ['input', 'change']) {
+  el.root.addEventListener(eventName, event => {
+    const form = event.target instanceof Element ? event.target.closest('form') : null;
+    if (form && el.root.contains(form)) form.dataset.dirty = 'true';
+  });
 }
 
 function onboardingStorageKey() {
@@ -1181,6 +1196,7 @@ async function renderAiInstructions() {
       const saved = await response.json();
       if (!response.ok) throw new Error(saved.detail || saved.error || 'Could not save business-wide prompt');
       result.textContent = 'Saved business-wide prompt.';
+      businessForm.dataset.dirty = 'false';
       const status = businessForm.querySelector('.status');
       status.textContent = saved.enabled ? 'Replies on' : 'Replies off';
       status.classList.toggle('delivered',Boolean(saved.enabled));
@@ -1202,6 +1218,7 @@ async function renderAiInstructions() {
       });
       const saved = await response.json();
       if (!response.ok) throw new Error(saved.detail || saved.error || 'Could not save group AI setup');
+      form.dataset.dirty = 'false';
       const group = state.categories.find(item => item.id === form.dataset.groupAiForm);
       if (group) {
         group.systemPrompt = saved.systemPrompt;
