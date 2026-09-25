@@ -12,9 +12,17 @@ test('booking configuration is versioned, validated, and tenant scoped',async()=
   await db.exec("insert into public.sms_businesses(tenant_id,name,time_zone) values('alpha','Alpha','UTC'),('beta','Beta','UTC')");
   const saved=await call(db,'save_booking_settings','admin','alpha',settings);
   assert.equal(saved.enabled,true);assert.equal(saved.version,1);assert.equal(saved.extraFields[0].key,'service_type');
+  const lateSlot=(await db.query(`select sms_private.booking_slot_open(
+    'alpha', (now() at time zone 'UTC')::date+10, '23:30'::time,
+    s, 'UTC') as open from public.sms_booking_settings s where tenant_id='alpha'`)).rows[0];
+  assert.equal(lateSlot.open,false,'a slot must fit before the daily closing time');
   const beta=await call(db,'booking_settings','admin','beta');assert.equal(beta.enabled,false);assert.deepEqual(beta.extraFields,[]);
   const updated=await call(db,'save_booking_settings','admin','alpha',{...settings,capacityPerSlot:2});assert.equal(updated.version,2);assert.equal(updated.capacityPerSlot,2);
   await assert.rejects(call(db,'save_booking_settings','admin','alpha',{...settings,extraFields:[{key:'bad key',question:'Bad?',type:'short_text'}]}),/Invalid extra booking field/);
+  const lateOnly=Object.fromEntries(Array.from({length:7},(_,i)=>[String(i),[{start:'23:00',end:'23:59'}]]));
+  await call(db,'save_booking_settings','admin','alpha',{...settings,weeklyAvailability:lateOnly});
+  const alternatives=(await db.query("select sms_private.booking_alternatives('alpha',s,'UTC') as times from public.sms_booking_settings s where tenant_id='alpha'")).rows[0];
+  assert.equal(alternatives.times,'','a window shorter than a slot must yield no alternatives');
  }finally{await db.close();}
 });
 

@@ -133,7 +133,8 @@ test('unconfigured groups hold sends, then draft from group context and cancel s
     const group = (await call(db, 'api_read', 'admin', 'alpha', 'groups', { id: 'quote-requests' })).rows[0];
     await call(db, 'api_action', 'admin', 'alpha', 'group', {
       id: group.id, name: group.name, description: group.description,
-      rule: group.rule, intent: group.intent, active: true, ...aiConfig,
+      rule: { ...group.rule, startHour: 0, endHour: 24 },
+      intent: group.intent, active: true, ...aiConfig,
     });
     assert.equal(await call(db, 'tick'), 1);
     const job = await call(db, 'claim', 'automation_jobs', 'automation');
