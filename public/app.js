@@ -1467,7 +1467,7 @@ async function renderEmailGroups() {
   const data = await response.json();
   if (!response.ok) throw new Error(data.error || 'Could not load email');
   if (!data.configured) {
-    el.root.innerHTML = '<section class="card"><div class="setup-body"><h2>Email is available for E2 Local</h2></div></section>';
+    el.root.innerHTML = '<section class="card"><div class="setup-body"><h2>Email is not configured for this business</h2></div></section>';
     return;
   }
   const unitOptions = (selected) => ['hour','day','week','month'].map(value =>
@@ -1494,7 +1494,7 @@ async function renderEmailGroups() {
   }).join('');
   const enrollments = (data.enrollments || []).map(e => `<tr><td>${esc(e.name || e.email)}<br><span class="muted">${esc(e.email)}</span></td><td>${esc(e.source_type)}</td><td>${esc(e.status)}</td><td>${e.next_run_at ? esc(fmtTime(e.next_run_at)) : '—'}</td><td>${e.status === 'active' ? `<button type="button" class="btn ghost" data-email-resolve="${esc(e.id)}">Mark resolved</button>` : '—'}</td></tr>`).join('');
   const jobs = (data.jobs || []).map(j => `<tr><td>${esc(j.email)}</td><td>${esc(j.subject || 'Draft pending')}</td><td>${esc(j.provider_status || j.status)}</td><td>${esc(j.error_code || '—')}</td><td>${j.status === 'failed' ? `<button type="button" class="btn ghost" data-email-retry="${esc(j.id)}">Retry</button>` : '—'}</td></tr>`).join('');
-  el.root.innerHTML = `<section class="card"><div class="setup-body"><h2>Email marketing</h2><p class="muted">Sender: hello@e2local.com. Replies go to that mailbox. Customers opt in separately on enabled forms or staff record consent evidence. Unsubscribe applies to all E2 Local marketing email. Existing records are not backfilled.</p>
+  el.root.innerHTML = `<section class="card"><div class="setup-body"><h2>Email marketing</h2><p class="muted">Sender: hello@e2local.com. Replies go to that mailbox. Customers opt in separately on enabled forms or staff record consent evidence. Unsubscribe stops this business's marketing email. Existing records are not backfilled.</p>
     ${!data.workerReady || !data.providerReady ? '<p class="login-error">Activation requires the email worker, Resend, and OpenAI configuration.</p>' : ''}<p id="email-action-error" class="login-error" role="alert"></p></div></section>
     ${groupCards}<section class="card"><div class="card-head"><h2>Recent email enrollments</h2></div><div class="table-scroll"><table class="data"><thead><tr><th>Contact</th><th>Group</th><th>Status</th><th>Next email</th><th></th></tr></thead><tbody>${enrollments || '<tr><td colspan="5">No email enrollments yet.</td></tr>'}</tbody></table></div></section>
     <section class="card"><div class="card-head"><h2>Email jobs</h2></div><div class="table-scroll"><table class="data"><thead><tr><th>Email</th><th>Subject</th><th>Status</th><th>Issue</th><th></th></tr></thead><tbody>${jobs || '<tr><td colspan="5">No email jobs yet.</td></tr>'}</tbody></table></div></section>`;
@@ -2237,8 +2237,8 @@ async function renderAutomations() {
           <label><span class="compose-label">Name</span><input id="intake-name" maxlength="200" placeholder="Customer name" /></label>
           <label><span class="compose-label">Phone</span><input id="intake-phone" type="tel" placeholder="+13035550123" /></label>
           <label><span class="compose-label">Email</span><input id="intake-email" type="email" maxlength="320" placeholder="customer@example.com" /></label>
-          <label class="checkbox-field"><input id="intake-email-opt-in" type="checkbox" ${state.tenant?.id === 'e2-local' ? '' : 'disabled'} /> Customer consented to marketing email</label>
-          <label class="field-wide"><span class="compose-label">Email consent evidence</span><textarea id="intake-email-evidence" rows="2" maxlength="1500" placeholder="Where and when the customer agreed to marketing email" ${state.tenant?.id === 'e2-local' ? '' : 'disabled'}></textarea></label>
+          <label class="checkbox-field"><input id="intake-email-opt-in" type="checkbox" /> Customer consented to marketing email</label>
+          <label class="field-wide"><span class="compose-label">Email consent evidence</span><textarea id="intake-email-evidence" rows="2" maxlength="1500" placeholder="Where and when the customer agreed to marketing email"></textarea></label>
           ${intakeType === 'bookings' ? `<label><span class="compose-label">Booking status</span><select id="intake-status"><option value="requested">Requested</option><option value="confirmed">Confirmed</option><option value="cancelled">Cancelled</option></select></label><label><span class="compose-label">Appointment in business timezone</span><input id="intake-appointment" type="datetime-local" /></label>` : ''}
           <label class="field-wide"><span class="compose-label">Other context (JSON)</span><textarea id="intake-details" rows="4" placeholder='{"service":"moving","notes":"Customer requested a quote"}'>{}</textarea></label>
         </div>
@@ -2275,7 +2275,7 @@ async function renderAutomations() {
         <div class="automation-head-actions">
           <button type="button" class="btn" id="edit-group-prompt">AI prompt &amp; context</button>
           <button type="button" class="btn ghost" id="edit-group-ai">Inbound AI settings</button>
-          ${state.tenant?.id === 'e2-local' ? '<button type="button" class="btn ghost" id="edit-group-email">Email settings</button>' : ''}
+          <button type="button" class="btn ghost" id="edit-group-email">Email settings</button>
           ${category.rule ? '<button type="button" class="btn ghost" id="edit-automation-group">Edit automation</button>' : ''}
           <button type="button" class="btn ghost" id="back-automations">All groups</button>
         </div>
@@ -2389,7 +2389,7 @@ async function renderAutomations() {
     intakeForm?.reset();
     if (intakeForm) intakeForm.dataset.editId = '';
     for (const id of ['#intake-email','#intake-email-opt-in','#intake-email-evidence']) {
-      if (intakeForm) intakeForm.querySelector(id).disabled = state.tenant?.id !== 'e2-local' && id !== '#intake-email';
+      if (intakeForm) intakeForm.querySelector(id).disabled = false;
     }
     const button = intakeForm?.querySelector('#intake-submit');
     if (button) button.textContent = `Add ${category.name} record`;

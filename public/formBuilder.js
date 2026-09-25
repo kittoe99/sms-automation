@@ -137,7 +137,7 @@ export function createFormBuilder({ root, apiFetch, config }) {
       <label>Description<textarea id="web-form-description" maxlength="500" rows="2" ${canEdit ? '' : 'disabled'}>${escapeHtml(form.description)}</textarea></label>
       <label>Button label<input id="web-form-button" maxlength="80" value="${escapeHtml(form.button_label)}" ${canEdit ? '' : 'disabled'} /></label>
       <label class="checkbox-field"><input id="web-form-enabled" type="checkbox" ${form.enabled ? 'checked' : ''} ${canEdit ? '' : 'disabled'} /> Form enabled</label>
-      <label class="checkbox-field"><input id="web-form-email-enabled" type="checkbox" ${form.email_enabled ? 'checked' : ''} ${canEdit && form.tenant_id === 'e2-local' ? '' : 'disabled'} /> Offer separate email marketing consent on this form</label>
+      <label class="checkbox-field"><input id="web-form-email-enabled" type="checkbox" ${form.email_enabled ? 'checked' : ''} ${canEdit ? '' : 'disabled'} /> Offer separate email marketing consent on this form</label>
       <h3>Fixed fields</h3><p class="muted">Name, Phone, Email${preset === 'bookings' ? ', Appointment date and time' : ''}, and optional SMS consent stay on this form. Email marketing has its own unchecked consent choice when enabled.</p>
       <h3>Custom fields</h3><div id="web-builder-fields"></div>
       ${canEdit ? '<button type="button" class="btn ghost" id="web-add-field">Add custom field</button><div class="web-builder-actions"><span id="web-save-status" role="status"></span><button type="button" class="btn" id="web-save-form">Save form</button></div>' : '<p class="muted">An administrator can edit this form.</p>'}

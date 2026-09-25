@@ -2,6 +2,42 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import { testDatabase, call } from './helpers/database.js';
 
+test('existing businesses receive separate disabled email groups and shared provider bounces suppress both', async () => {
+  const db = await testDatabase();
+  try {
+    for (const [id, name] of [['opek', 'Opek'], ['bello-moving', 'Bello Moving']]) {
+      await call(db, 'api_action', 'admin', null, 'create_business',
+        { id, name, timeZone: 'America/Denver' });
+      const overview = await call(db, 'email_overview', 'admin', id);
+      assert.equal(overview.configured, true);
+      assert.equal(overview.groups.length, 4);
+      assert.equal(overview.groups.every(group => !group.enabled), true);
+    }
+    const secret = (await db.query("select vault.create_secret(repeat('a',32)) as id")).rows[0].id;
+    await db.query('insert into vault.secrets(id) values($1)', [secret]);
+    await db.query("update sms_private.edge_config set enabled=true,secret_id=$1 where queue='automation_jobs'", [secret]);
+    const group = (await call(db, 'email_overview', 'admin', 'opek')).groups.find(g => g.fixedType === 'contacts');
+    await call(db, 'email_save_group', 'admin', 'opek', group.group_id, {
+      enabled: true,
+      rule: { ...group.rule, anchor: 'enrollment', firstDelayCount: 0, firstDelayUnit: 'hour' },
+      intent: 'Follow up on service requests', systemPrompt: 'Write a short helpful email',
+      businessContext: 'Opek provides junk removal', mailingAddress: '123 Main St, Denver, CO 80201',
+    });
+    await call(db, 'create_intake', 'admin', 'opek', 'contacts', {
+      name: 'Alex', phone: '+13035550176', email: 'alex@example.com', emailOptIn: true,
+      emailConsentEvidence: 'Alex opted in on a signed intake card', details: {},
+    });
+    assert.equal((await call(db, 'email_overview', 'admin', 'opek')).enrollments.length, 1);
+    assert.equal((await call(db, 'email_overview', 'admin', 'bello-moving')).enrollments.length, 0);
+    await call(db, 'email_record_provider_event', 'bounce-1', 'provider-1', 'email.bounced', 'alex@example.com');
+    const suppressions = (await db.query(
+      "select tenant_id from sms_private.email_suppressions where email='alex@example.com' order by tenant_id",
+    )).rows.map(row => row.tenant_id);
+    assert.deepEqual(suppressions, ['bello-moving', 'opek']);
+    assert.equal((await call(db, 'email_overview', 'admin', 'opek')).enrollments[0].status, 'cancelled');
+  } finally { await db.close(); }
+});
+
 async function setup(db) {
   await call(db, 'api_action', 'admin', null, 'create_business',
     { id: 'e2-local', name: 'E2 Local', timeZone: 'America/Denver' });
