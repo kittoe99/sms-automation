@@ -7,12 +7,13 @@ import {
   getTenantId,
   initAuth,
   isDemoMode,
+  renderAccessScreen,
   renderLoginScreen,
   runtimeConfig,
   showCrmApp,
   signOut,
   setTenantId,
-} from './auth.js?v=20260916-manual-business1';
+} from './auth.js?v=20260924-auth-loop1';
 
 const state = {
   view: 'overview',
@@ -1374,7 +1375,7 @@ async function load() {
     if (!state.categories.length) {
       const catRes = await apiFetch('/api/categories');
       if (catRes.status === 401 || catRes.status === 403) {
-        await forceLogin('Session expired. Please sign in again.');
+        renderAccessScreen({ errorMessage: authFailureMessage(catRes), onRetry: openAuthenticatedWorkspace });
         return;
       }
       const catJson = await catRes.json();
@@ -1482,7 +1483,7 @@ async function renderOverview() {
   try {
     const res = await apiFetch('/api/overview');
     if (res.status === 401 || res.status === 403) {
-      await forceLogin('Session expired. Please sign in again.');
+      renderAccessScreen({ errorMessage: authFailureMessage(res), onRetry: openAuthenticatedWorkspace });
       return;
     }
     if (!res.ok) throw new Error('Could not load dashboard totals');
@@ -3394,13 +3395,25 @@ function esc(value) {
 async function forceLogin(message = '') {
   renderLoginScreen({
     errorMessage: message,
-    onSuccess: async () => {
-      await loadTenantContext();
-      updateAuthChrome();
-      await load();
-      connectLive();
-    },
+    onSuccess: openAuthenticatedWorkspace,
   });
+}
+
+function authFailureMessage(response) {
+  return response.status === 403
+    ? 'This account does not have access to the CRM. Ask a workspace administrator to check your access.'
+    : 'Your sign-in could not be verified. Try again or sign out and use another account.';
+}
+
+async function openAuthenticatedWorkspace() {
+  const me = await apiFetch('/api/auth/me', { tenant: false });
+  if (me.status === 401 || me.status === 403) throw new Error(authFailureMessage(me));
+  if (!me.ok) throw new Error('The CRM service is temporarily unavailable. Try again shortly.');
+  await loadTenantContext();
+  showCrmApp();
+  updateAuthChrome();
+  await load();
+  if (!document.getElementById('crm-app').hidden) connectLive();
 }
 
 function updateAuthChrome() {
@@ -3464,20 +3477,14 @@ async function boot() {
       await forceLogin('');
       return;
     }
-    const me = await apiFetch('/api/auth/me', { tenant: false });
-    if (!me.ok) {
-      await signOut();
-      await forceLogin('This account does not have access to this business workspace.');
-      return;
-    }
-    await loadTenantContext();
-    showCrmApp();
-    updateAuthChrome();
-    await load();
-    connectLive();
+    await openAuthenticatedWorkspace();
   } catch (err) {
     console.error(err);
-    await forceLogin(err.message || 'Auth failed to start');
+    if (getSession()) {
+      renderAccessScreen({ errorMessage: err.message || 'Could not open the CRM.', onRetry: openAuthenticatedWorkspace });
+    } else {
+      await forceLogin(err.message || 'Auth failed to start');
+    }
   }
 }
 
