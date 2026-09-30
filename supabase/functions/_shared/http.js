@@ -12,26 +12,36 @@ export function database(variable,{human=variable==='SMS_API_DATABASE_URL'}={}) 
   const query=`select sms_private.${name}(${args.map((_,i)=>'$'+(i+1)).join(',')}) as result`;
   // Human API calls carry the configured, JWT-verified issuer into the same
   // transaction as the RPC. Never leave request identity on a pooled session.
-  const r=human && env('CLERK_ISSUER') ? await sql.begin(async tx=>{
-    await tx`select set_config('platform.actor_issuer',${env('CLERK_ISSUER')},true)`;
+  if(human && !env('CRM_CLERK_ISSUER')) throw new Error('CRM Clerk issuer is required');
+  const r=human ? await sql.begin(async tx=>{
+    await tx`select set_config('platform.actor_issuer',${env('CRM_CLERK_ISSUER')},true)`;
     return tx.unsafe(query,args);
   }) : await sql.unsafe(query,args);
   return r[0]?.result;
  }};
 }
-let jwks;
-export async function authenticate(request) {
- const issuer=env('CLERK_ISSUER'); const origins=(env('CRM_ALLOWED_ORIGINS') || '').split(',').map(x=>x.trim()).filter(Boolean);
- if(!issuer || !origins.length) throw new Error('Clerk issuer and allowed origins are required');
- const authorization=request.headers.get('Authorization') || '';
- if(!authorization.startsWith('Bearer ')) throw Object.assign(new Error('Sign in required'),{status:401});
- jwks ??=createRemoteJWKSet(new URL('/.well-known/jwks.json',issuer));
- try {
-   const {payload}=await jwtVerify(authorization.slice(7),jwks,{issuer,algorithms:['RS256'],requiredClaims:['sub','exp','iat','azp']});
-   if(!origins.includes(payload.azp)) throw new Error('Untrusted authorized party');
-   return payload.sub;
- } catch {throw Object.assign(new Error('Invalid session'),{status:401});}
+export function crmLoginConfig() {
+ const issuer=env('CRM_CLERK_ISSUER'),customerIssuer=env('E2_CLERK_ISSUER');
+ const origins=(env('CRM_ALLOWED_ORIGINS') || '').split(',').map(x=>x.trim()).filter(Boolean);
+ return {issuer,customerIssuer,origins};
 }
+export function createCrmAuthenticator({config=crmLoginConfig,keyForIssuer=issuer=>createRemoteJWKSet(new URL('/.well-known/jwks.json',issuer))}={}) {
+ let cachedIssuer,key;
+ return async request=>{
+  const {issuer,customerIssuer,origins}=config();
+  if(!/^https:\/\/[^/]+$/.test(issuer||'') || !/^https:\/\/[^/]+$/.test(customerIssuer||'') || issuer===customerIssuer || !origins.length)
+    throw Object.assign(new Error('Separate CRM authentication is not configured'),{status:503});
+  const authorization=request.headers.get('Authorization') || '';
+  if(!authorization.startsWith('Bearer ')) throw Object.assign(new Error('Sign in required'),{status:401});
+  if(cachedIssuer!==issuer){key=keyForIssuer(issuer);cachedIssuer=issuer;}
+  try {
+    const {payload}=await jwtVerify(authorization.slice(7),key,{issuer,algorithms:['RS256'],requiredClaims:['sub','exp','iat','azp']});
+    if(typeof payload.sub!=='string' || !payload.sub || !origins.includes(payload.azp)) throw new Error('Untrusted session');
+    return payload.sub;
+  } catch {throw Object.assign(new Error('Invalid session'),{status:401});}
+ };
+}
+export const authenticate=createCrmAuthenticator();
 export function cors(request) {
  const origin=request.headers.get('Origin');
  if(origin && !(env('CRM_ALLOWED_ORIGINS') || '').split(',').map(s=>s.trim()).includes(origin)) throw Object.assign(new Error('Origin denied'),{status:403});

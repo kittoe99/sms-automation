@@ -21,7 +21,7 @@ test('global routes reject unauthenticated requests and unknown actions',async()
 
 test('forms-only operators receive an authorized selector without an SMS-read grant',async()=>{
  const db={call:async(name)=>name==='api_read'?{rows:[]}:{platformStaff:false,formWorkspaces:[{tenant_id:'alpha',name:'Alpha',time_zone:'America/Denver'}]}};
- const handler=createCrmHandler(db,async()=> 'verified-subject',{platform:true});
+ const handler=createCrmHandler(db,async()=> 'verified-subject',{platform:true,provision:async()=>{}});
  const response=await handler(new Request('https://api.example.test/crm-api/auth/me'));
  assert.equal(response.status,200);const data=await response.json();
  assert.equal(data.tenants.length,1);assert.equal(data.tenants[0].id,'alpha');

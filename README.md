@@ -204,8 +204,9 @@ npm run dev:legacy
 For isolated local webhook testing only, set `TWILIO_VALIDATE_SIGNATURE=false`.
 Production health checks return `503` until the required Twilio, Supabase, Clerk, and
 API-key configuration is present. Copy this app's publishable and secret keys from the
-Clerk Dashboard into `CLERK_PUBLISHABLE_KEY` and `CLERK_SECRET_KEY`; do not copy Antra's
-keys unless both products are intentionally meant to share users. Add the deployed URL
+Clerk Dashboard into dedicated `CRM_CLERK_PUBLISHABLE_KEY`, `CRM_CLERK_SECRET_KEY`
+and `CRM_CLERK_ISSUER`. Set `E2_CLERK_ISSUER` to the separate customer app issuer;
+do not share keys. Identical emails may have independent accounts in both apps. Add the deployed URL
 as an allowed Clerk origin/redirect. For a Clerk Organization-backed account, set
 `DEFAULT_TENANT_CLERK_ORGANIZATION_ID` (or the slug) so the active organization becomes
 the tenant membership boundary.
@@ -226,5 +227,9 @@ unchanged; switching sample businesses is only a preview, not production tenancy
 
 Users, Businesses, and Websites management uses the shared registry. See
 [staff CRM architecture and rollout](docs/STAFF_CRM.md). Registry/API migrations are
-live in compatibility mode; frontend release, production Clerk webhook configuration,
-website pairing and controlled published pilot remain pending.
+live in compatibility mode. The CRM static frontend is live on Render at b5d25c1;
+E2 hosting/API release, production Clerk webhook configuration, website pairing
+and the controlled published pilot remain unverified.
+
+Separate customer/staff Clerk applications, dedicated secrets and lifecycle webhooks are configured. The additive E2 login-realm migration is live as 20260930054730; CRM Edge version 35 and compliance-session version 10 are deployed. Frontend release verification is in progress. See the login-split instructions
+in [staff CRM documentation](docs/STAFF_CRM.md) before releasing these changes.

@@ -11,12 +11,12 @@ E2 Local is the customer dashboard. Both use the same Supabase records.
 | Staff protection migration | Live: local `20260930080000_platform_crm_hardening.sql` → live `20260930013528`. |
 | Form permission migration | Live: local `20260930090000_platform_form_permissions.sql` → live `20260930015523`. |
 | Identity directory migration | Live: local `20260930100000_platform_identity_directory.sql` → live `20260930020115`. |
-| CRM Edge API | Version 33 deployed, including global platform endpoints. |
-| Compliance/registration Edge API | Version 8 deployed with transaction-local identity context. |
+| CRM Edge API | Version 35 deployed with dedicated CRM issuer and first-login provisioning. |
+| Compliance/registration Edge API | compliance-session version 10 deployed with dedicated CRM issuer and transaction-local identity context. |
 | Identity backfill | Existing dashboard UUID retained; development accounts reconciled against Clerk. Previously audited production administrator mapped to the production issuer. No email matching. |
 | Registry cutover | OFF. All known legacy SMS subjects/grants are mapped; one previously owned website still lacks an explicit business pairing. |
 | R2 uploads | Existing CORS rules retained, `https://crm.e2local.com` added. Both CRM and E2 preflights returned 204. No website files changed. |
-| Frontends / account webhook | Implemented locally; not released/configured by this work. Production Clerk configuration and frontend deployment remain prerequisites. |
+| Frontends / account webhook | CRM static frontend is live on Render at b5d25c1; E2 frontend/hosting API and account webhook release/configuration remain unverified. |
 | Legacy cleanup | Prepared separately; NOT run. Requires verified release, controlled pilot and external backup. |
 | Pilot | Local SQL/HTTP/UI verification performed. A published website pilot is still pending. No customer messaging was activated. |
 
@@ -26,11 +26,20 @@ for retention and consolidation decisions. Do not blindly push either repository
 older migration history. Earlier E2 and SMS migrations have live timestamp aliases;
 compare live definitions and the migration mapping in `PROJECT_RECORD.md` first.
 
+## Separate-login production switch
+
+The shared production Clerk assumption is superseded by two independent Clerk
+applications. Identical emails are allowed with separate issuer/subject account
+UUIDs. New code requires dedicated CRM credentials, CRM-only staff/operator grants,
+customer-only owners/viewers, separate signed webhooks and issuer-bound legacy SMS/
+Realtime access. See [E2 separate login setup](../../E2local-main/docs/separate-logins.md) for environment variables, bootstrap and coordinated rollout.
+The additive E2 migration `20260930110000_separate_login_realms.sql` is live as `20260930054730`. The independent CRM issuer is `https://clerk.crm.e2local.com`; E2 retains `https://clerk.e2local.com`. DNS, certificates, mail, dedicated secrets, signed lifecycle subscriptions and CRM third-party database authentication are configured. CRM Edge version 35 and compliance-session version 10 are deployed; frontend release verification is in progress. Fresh CRM sign-in and explicit staff bootstrap remain required after the reset.
+
 ## Sources of truth
 
 | Record | Source |
 | --- | --- |
-| Authentication | Shared production Clerk instance, `https://clerk.e2local.com`. |
+| Authentication | Separate customer and CRM Clerk applications configured in production; same emails remain independent identities. Database/API switch is live; frontend release verification is in progress. |
 | Platform account | `dashboard_accounts.id`, with active/suspended/deleted status. |
 | Authentication binding | `platform_account_identities(issuer,subject)` → account UUID. Each account belongs to one issuer. |
 | Business / tenant | Existing `sms_businesses.tenant_id`; identifiers and operational history remain stable. |
@@ -131,7 +140,7 @@ and logs contain error codes rather than contact details.
 
 ## Configuration and rollout
 
-E2 needs matching **production** Clerk publishable/secret keys, `CLERK_ISSUER`,
+E2 needs its customer **production** Clerk publishable/secret keys, `CLERK_ISSUER`,
 `CLERK_INSTANCE_ID`, and `CLERK_WEBHOOK_SIGNING_SECRET`. Configure Clerk's
 user.created/user.updated/user.deleted events to the deployed E2 webhook endpoint.
 Keep the webhook outside authenticated page protection; signatures authorize it.
@@ -148,18 +157,17 @@ node --env-file=.env.local scripts/reconcile-platform-accounts.mjs
 node --env-file=.env.local scripts/reconcile-platform-accounts.mjs --apply --mapping=C:/private/reviewed-mappings.json
 ```
 
-Set the matching issuer and publishable key for that run. The default is read-only.
+Use --application=customer or --application=crm with that app’s matching issuer, publishable key and server secret for the run. The default is read-only.
 The mapping file contains reviewed `{issuer,subject,accountId}` entries for existing
 legacy rows; no email-based merges occur. It must stay outside committed files.
 Production-wide Clerk reconciliation remains pending matching production credentials.
 
 After deploying and verifying both frontends, inspect the service-only
-`platform_rollout_report(issuer)`. Resolve unmapped identities/grants and the owned
+`platform_rollout_report(crm_issuer)`. Resolve unmapped identities/grants and the owned
 website pairing; compare customer permission differences against audited staff
-changes. `activate_platform_registry(issuer)` enables both canonical paths together
+changes. `activate_platform_registry(crm_issuer)` enables both canonical paths together
 and refuses unresolved mappings. Legacy access tables then reject independent writes.
-Set `CRM_HOSTING_URL=https://crm.e2local.com/?view=platform-websites` only after
-verification to redirect the old E2 staff UI.
+The local `/web-hosting` route now redirects directly to the independently authenticated CRM; configure `CRM_HOSTING_URL` for its Websites entry point.
 
 Run a controlled published pilot with messaging disabled before testing intended
 automation separately. Observe submission/attribution errors and duplicate intake
@@ -207,4 +215,63 @@ Verified locally on September 29, 2026: desktop and 390px mobile layouts,
 website business-detail fields, dashboard metrics, active navigation and mobile
 drawer opening/closing with synthetic records. All 12 targeted theme, editor,
 platform API and form-builder tests passed; frontend build, JavaScript syntax,
-SVG XML and whitespace checks passed. Frontend deployment remains pending.
+SVG XML and whitespace checks passed. CRM static deployment is now verified; see the release entry below.
+
+## CRM frontend release — September 29, 2026
+
+Manually retriggered the static site `wpacquisition-crm` in the confirmed
+Micah's workspace. Render deployment `dep-dau7il9srm7s73b40mb0` built commit
+`b5d25c14862a20fc34009439260956d97b24802a` from `deploy-crm` and became live
+at 2026-09-30 02:52:17 UTC (September 29, America/Denver).
+The public `https://crm.e2local.com` HTML, app module, platform module, dashboard
+stylesheet and wordmark returned 200 and matched the deployed source after
+normalizing line endings. Authenticated staff/customer workflows and E2 hosting
+API/webhook release were not verified by this static deployment check.
+
+Auto-Deploy is enabled on the correct branch, but the preceding GitHub push had
+produced no deployment. Build logs warn that Render does not have access to the
+repository; a public clone still succeeded. Restore the Render GitHub app/repository
+credentials to address future automatic deployments. No permission expansion,
+account assignments, messaging activation or database changes were performed.
+
+## Account and business data reset — September 29, 2026
+
+The user reset Clerk and requested deletion of all database accounts and their
+records, explicitly including CRM businesses and operational data, while keeping
+website data. The reviewed live inventory contained 4 accounts and 2 businesses.
+The transaction was tested with ROLLBACK, then committed. No tables, functions,
+policies, indexes or migration history were dropped or changed.
+
+Post-commit reads verified zero account identities, accounts, onboarding profiles,
+canonical/legacy memberships, staff/admin grants, businesses, contacts, messages,
+bookings, form definitions/submissions, jobs and business-provider records.
+The reset cleared operational intake, consent, usage, audit, knowledge, webhook,
+voice and queue history as well as public contact/pricing requests. Business-linked
+Vault secrets were removed except secrets referenced by retained global configuration.
+
+One hosted website and one deployment remain. Their saved content, details, slug,
+source metadata, manifest and publication/preview references were compared inside
+the transaction and preserved. Owner/business links and the ownership cutoff were
+cleared. Required creator strings now use `account-reset:2026-09-29` rather than
+old Clerk subjects. R2 objects, external provider accounts/numbers and external
+archives were not deleted. An HTTP check of the hosted domain returned 403 from
+the current client, so external serving was not independently confirmed by this
+reset; no hosting or Worker changes were made.
+
+Pricing definitions, global worker/email configuration, runtime rows and queue
+structure remain. Canonical authorization switches remain OFF. Historical rollout
+counts in earlier entries describe the pre-reset data and must not be reused.
+New businesses will need fresh configuration and form connections.
+
+### Restore staff access to a fresh account
+
+After configuring the login split, create the new CRM Clerk account and visit
+the CRM to provision its verified account record. Customer E2 identities cannot
+receive staff grants. Check `platform_account_identities` for its exact production issuer,
+subject and account UUID and verify the account is active. Explicitly choose that
+new account as the administrator; do not infer authority from email or grant it to
+the first signup automatically. A staff/bootstrap SQL action must add its canonical
+`platform_staff_grants` record and, while compatibility authorization is OFF, its
+matching subject in `sms_private.admins`. No business membership or website
+ownership is granted automatically. Recreate the intended businesses and assign
+the retained website through the CRM after staff access is restored.

@@ -18,16 +18,16 @@ function localUser() {
 
 export function getClerkPublishableKey(env = process.env) {
   return String(
-    env.CLERK_PUBLISHABLE_KEY || env.NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY || ''
+    env.CRM_CLERK_PUBLISHABLE_KEY || ''
   ).trim();
 }
 
 export function getClerkSecretKey(env = process.env) {
-  return String(env.CLERK_SECRET_KEY || '').trim();
+  return String(env.CRM_CLERK_SECRET_KEY || '').trim();
 }
 
 export function getClerkFrontendApiUrl(env = process.env) {
-  const explicit = String(env.CLERK_FRONTEND_API_URL || '').trim();
+  const explicit = String(env.CRM_CLERK_ISSUER || '').trim();
   if (explicit) {
     try {
       const url = new URL(explicit);
@@ -51,7 +51,9 @@ export function isCrmAuthConfigured(env = process.env) {
   return Boolean(
     getClerkPublishableKey(env) &&
       getClerkSecretKey(env) &&
-      getClerkFrontendApiUrl(env) &&
+      getClerkFrontendApiUrl(env) === env.CRM_CLERK_ISSUER &&
+      /^https:\/\/[^/]+$/.test(env.E2_CLERK_ISSUER || '') &&
+      env.CRM_CLERK_ISSUER !== env.E2_CLERK_ISSUER &&
       (env.NODE_ENV !== 'production' || getClerkAuthorizedParties(env).length)
   );
 }
@@ -112,6 +114,7 @@ export async function verifyCrmAccessToken(accessToken, { tenant = null } = {}) 
       secretKey: getClerkSecretKey(),
       authorizedParties: getClerkAuthorizedParties(),
     });
+    if (claims.iss !== process.env.CRM_CLERK_ISSUER) return null;
     const auth = authFromVerifiedClaims(claims);
     if (!auth.userId || !auth.sessionId || (tenant && !tenantMatchesClerkAuth(tenant, auth))) {
       return null;
@@ -132,12 +135,12 @@ export function requireClerkSession(req, res, next) {
     if (!isCrmAuthConfigured()) {
       return res.status(503).json({
         error: 'CRM auth not configured',
-        detail: 'Set CLERK_PUBLISHABLE_KEY and CLERK_SECRET_KEY.',
+        detail: 'Set dedicated CRM_CLERK_PUBLISHABLE_KEY, CRM_CLERK_SECRET_KEY, CRM_CLERK_ISSUER and E2_CLERK_ISSUER.',
       });
     }
 
     const auth = getAuth(req, { acceptsToken: 'session_token' });
-    if (!auth?.isAuthenticated || !auth.userId) {
+    if (!auth?.isAuthenticated || !auth.userId || auth.sessionClaims?.iss !== process.env.CRM_CLERK_ISSUER) {
       return res.status(401).json({ error: 'Unauthorized', detail: 'Sign in required' });
     }
     req.crmUser = {

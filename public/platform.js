@@ -28,7 +28,7 @@ export function createPlatform({root,title,subtitle,pager,onNavigate}){
     ${view==='businesses'?button('Add business','data-create-business'):''}
     <div class="platform-grid">${result.rows.map(row=>`<article class="card"><h2>${esc(row.clerk_display_name||row.name||row.clerk_primary_email||row.id)}</h2>
      <p>${esc(row.clerk_primary_email||row.tenant_id||(row.slug?`${row.slug}.e2local.com`:''))}</p>
-     ${view==='accounts'?`<p>${esc(row.status)} · ${row.onboarding_completed_at?'Onboarding complete':'Onboarding pending'}${row.identityMapped?'':' · Identity mapping required'}</p><p>${esc(row.identity?.issuer)}</p>`:''}
+     ${view==='accounts'?`<p>${esc(row.status)} · ${row.onboarding_completed_at?'Onboarding complete':'Onboarding pending'}${row.identityMapped?'':' · Identity mapping required'}</p><p>${row.loginApplication==='crm'?'Admin CRM':row.loginApplication==='customer'?'E2 Local':'Mapping required'} · ${esc(row.identity?.issuer)}</p>`:''}
      ${view==='businesses'?`<p>${row.owner_account_id?'Owner assigned':'Owner not assigned'}</p>`:''}
      ${view==='websites'?`<p>${esc(row.business_name||'Business not assigned')} · ${row.owner_account_id?'Owner assigned':'Owner not assigned'}</p>`:''}
      ${button('View details',`data-open="${esc(row.id||row.tenant_id)}"`)}</article>`).join('')||'<p>No matching records.</p>'}</div>
@@ -42,13 +42,13 @@ export function createPlatform({root,title,subtitle,pager,onNavigate}){
  async function lookup(container,resource,label,initial){
   container.innerHTML=`<label>${esc(label)}<input data-lookup-q placeholder="Search by name or email"/></label>${button('Search','data-lookup-search')}<select data-lookup required aria-label="${esc(label)}"></select>`;
   const select=container.querySelector('select');
-  async function search(){const data=await read(resource,{q:container.querySelector('input').value,pageSize:100});select.innerHTML='<option value="">Choose…</option>'+data.rows.map(row=>`<option value="${esc(row.id||row.tenant_id)}">${esc(row.clerk_display_name||row.name||row.clerk_primary_email||row.id)}${row.clerk_primary_email?` (${esc(row.clerk_primary_email)})`:''}${resource==='accounts'&&row.identity?.issuer?` · ${esc(row.identity.issuer)}`:''}</option>`).join('');if(initial&&!select.querySelector(`option[value="${CSS.escape(initial)}"]`))select.insertAdjacentHTML('beforeend',`<option value="${esc(initial)}">${esc(initial)}</option>`);if(initial)select.value=initial;}
+  async function search(){const data=await read(resource,{q:container.querySelector('input').value,pageSize:100});select.innerHTML='<option value="">Choose…</option>'+data.rows.map(row=>`<option value="${esc(row.id||row.tenant_id)}">${esc(row.clerk_display_name||row.name||row.clerk_primary_email||row.id)}${row.clerk_primary_email?` (${esc(row.clerk_primary_email)})`:''}${resource==='accounts'&&row.identity?.issuer?` · ${esc(row.loginApplication||'unresolved')} · ${esc(row.identity.issuer)}`:''}</option>`).join('');if(initial&&!select.querySelector(`option[value="${CSS.escape(initial)}"]`))select.insertAdjacentHTML('beforeend',`<option value="${esc(initial)}">${esc(initial)}</option>`);if(initial)select.value=initial;}
   container.querySelector('button').addEventListener('click',()=>run(search));await search();return select;
  }
  async function detail(){
   onNavigate?.(`platform-${view}`);
   const result=await read(view,{id:selected});const row=result.rows[0];if(!row)throw new Error('Record no longer exists.');
-  title.textContent=row.clerk_display_name||row.name||row.clerk_primary_email||'Account';subtitle.textContent={accounts:'User account',businesses:'Business workspace',websites:'Hosted website'}[view];
+  title.textContent=row.clerk_display_name||row.name||row.clerk_primary_email||'Account';subtitle.textContent={accounts:row.loginApplication==='crm'?'CRM account':row.loginApplication==='customer'?'E2 Local account':'User account — mapping required',businesses:'Business workspace',websites:'Hosted website'}[view];
   root.innerHTML=`${button('Back to directory','data-back')}<section class="card">${error()}<div data-detail></div></section>`;
   bind('[data-back]','click',()=>{selected=null;run(directory);});
   const body=root.querySelector('[data-detail]');
@@ -85,11 +85,11 @@ export function createPlatform({root,title,subtitle,pager,onNavigate}){
  async function account(body,row){
   body.innerHTML=`<h2>${esc(row.clerk_display_name||'User')}</h2><p>${esc(row.clerk_primary_email)} · ${esc(row.status)} · ${row.onboarding_completed_at?'Onboarding complete':'Onboarding pending'}</p>
     <p>Account ID: <code>${esc(row.id)}</code></p><p>Created ${date(row.created_at)}</p>
-    <p>Clerk issuer: <code>${esc(row.identity?.issuer||'Mapping required')}</code><br/>Clerk subject: <code>${esc(row.identity?.subject||'Mapping required')}</code></p>
+    <p>Login application: <strong>${row.loginApplication==='crm'?'Admin CRM':row.loginApplication==='customer'?'E2 Local':'Mapping required'}</strong><br/>Clerk issuer: <code>${esc(row.identity?.issuer||'Mapping required')}</code><br/>Clerk subject: <code>${esc(row.identity?.subject||'Mapping required')}</code></p>
     ${row.status!=='deleted'?button(row.status==='active'?'Suspend access':'Restore access','data-status'):''}
     <details><summary>Saved onboarding</summary><pre>${esc(JSON.stringify({personal:row.personal_info,business:row.business_profile},null,2))}</pre></details>
     <h3>Websites</h3>${(row.websites||[]).map(s=>button(s.name,`data-user-site="${esc(s.id)}"`)).join('')||'<p>No websites associated.</p>'}<h3>Businesses and access</h3>${row.memberships.map(m=>`<div class="card"><strong>${esc(m.business_name)}</strong><p>${esc(m.role)} · ${m.enabled?'Enabled':'Disabled'}</p>${button('Open business',`data-business="${esc(m.tenant_id)}"`)} ${button('Edit access',`data-edit-membership="${esc(m.tenant_id)}"`)}</div>`).join('')||'<p>No business access assigned.</p>'}<div data-editor></div>`;
-  bind('[data-status]','click',()=>run(async()=>{if(row.status==='active'&&!confirm('Suspend this account’s access to both applications?'))return;await write('status',{accountId:row.id,revision:row.revision,status:row.status==='active'?'suspended':'active'});await detail();}));
+  bind('[data-status]','click',()=>run(async()=>{if(row.status==='active'&&!confirm('Suspend access for this account? Its separate account in the other application will keep its own access.'))return;await write('status',{accountId:row.id,revision:row.revision,status:row.status==='active'?'suspended':'active'});await detail();}));
   bind('[data-user-site]','click',event=>{view='websites';selected=event.currentTarget.dataset.userSite;tab='dashboard';run(detail);});
   bind('[data-business]','click',event=>{view='businesses';selected=event.currentTarget.dataset.business;run(detail);});
   bind('[data-edit-membership]','click',event=>run(async()=>{const id=event.currentTarget.dataset.editMembership;const b=(await read('businesses',{id})).rows[0];await membershipEditor(body.querySelector('[data-editor]'),{accountId:row.id,tenantId:id,membership:row.memberships.find(m=>m.tenant_id===id),previousOwnerId:b.owner_account_id});}));

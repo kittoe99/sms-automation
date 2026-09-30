@@ -3,6 +3,8 @@ import {phone,groupRule,localDateTime,business,message,contact,thread,group} fro
 import {enrichBusinessFromWebsite} from '../../../src/lib/websiteEnrich.js';
 import {CADENCE_PRESETS} from '../../../src/lib/automations/rulePresets.js';
 import {emailOverview,saveEmailGroup} from './email.js';
+import {syncCrmLogin} from '../_shared/crm-account.js';
+import {crmLoginConfig} from '../_shared/http.js';
 const KNOWLEDGE_MIME=new Set(['application/pdf','application/vnd.openxmlformats-officedocument.wordprocessingml.document','text/plain','text/markdown']);
 const INTAKE_TYPES=new Set(['contacts','quote_requests','bookings','reviews']);
 async function signedKnowledgeUpload(tenant,input,fetchImpl=fetch) {
@@ -16,13 +18,17 @@ async function signedKnowledgeUpload(tenant,input,fetchImpl=fetch) {
  const rawUrl=result.url || result.signedURL || result.signedUrl;
  return {path,token:result.token,signedUrl:/^https?:/i.test(rawUrl||'')?rawUrl:`${base}${rawUrl || ''}`,contentType,maxBytes:10*1024*1024};
 }
-export function createCrmHandler(db,verify=authenticate,{platform=false}={}) {
+export function createCrmHandler(db,verify=authenticate,{platform=false,provision=syncCrmLogin}={}) {
  return async request=>{
   let headers={};
   try {
    headers=cors(request); if(request.method==='OPTIONS') return new Response(null,{status:204,headers});
    const url=new URL(request.url),path=url.pathname.replace(/^.*\/crm-api/,'').replace(/^\/api/,'') || '/';
-   if(path==='/auth/config') return json({mode:'clerk',manualBusinesses:true,configured:Boolean(env('CLERK_PUBLISHABLE_KEY')&&env('CLERK_ISSUER')),publishableKey:env('CLERK_PUBLISHABLE_KEY'),frontendApiUrl:env('CLERK_ISSUER')},200,headers);
+   if(path==='/auth/config') {
+    const {issuer,customerIssuer}=crmLoginConfig();
+    const configured=Boolean(env('CRM_CLERK_PUBLISHABLE_KEY')&&issuer&&customerIssuer&&issuer!==customerIssuer);
+    return json({mode:'clerk',loginApplication:'crm',manualBusinesses:true,configured,publishableKey:configured?env('CRM_CLERK_PUBLISHABLE_KEY'):null,frontendApiUrl:configured?issuer:null},200,headers);
+   }
    const user=await verify(request),tenant=request.headers.get('X-Tenant-ID');
    const read=(resource,p={})=>db.call('api_read',user,tenant,resource,p);
    const write=(action,p)=>db.call('api_action',user,tenant,action,p);
@@ -38,6 +44,7 @@ export function createCrmHandler(db,verify=authenticate,{platform=false}={}) {
     return json({error:'Route not found'},404,headers);
    }
    if(path==='/auth/me'||path==='/tenants'||(path==='/businesses'&&method==='GET')) {
+    if(platform) await provision(db,user);
     const data=await read('businesses');const tenants=data.rows.map(row=>({...business(row),smsRead:true}));
     const session=platform?await db.call('platform_session',user):{platformStaff:false};
     for(const row of session.formWorkspaces||[])if(!tenants.some(t=>t.id===row.tenant_id))tenants.push({...business(row),smsRead:false,formsManage:true});

@@ -30,8 +30,8 @@ for(const name of [
   'AI_OUTPUT_USD_PER_MILLION',
   'EMBEDDING_USD_PER_MILLION',
 ]) if(local[name]) result[name]=local[name];
-for(const name of ['CLERK_ISSUER','CLERK_PUBLISHABLE_KEY']) {
-  result[name] ||= local[name];
+for(const name of ['CRM_CLERK_ISSUER','CRM_CLERK_PUBLISHABLE_KEY','CRM_CLERK_SECRET_KEY','E2_CLERK_ISSUER']) {
+  if(local[name]) result[name] = local[name];
 }
 result.CRM_ALLOWED_ORIGINS=[
   'https://crm.e2local.com',

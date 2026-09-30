@@ -102,8 +102,9 @@ test('Clerk configuration derives and restricts the tenant-specific origins', ()
   const env = {
     NODE_ENV: 'production',
     PUBLIC_BASE_URL: 'https://sms.example.com/path',
-    CLERK_PUBLISHABLE_KEY: `pk_test_${Buffer.from(`${clerkHost}$`).toString('base64url')}`,
-    CLERK_SECRET_KEY: 'sk_test_example',
+    CRM_CLERK_PUBLISHABLE_KEY: `pk_test_${Buffer.from(`${clerkHost}$`).toString('base64url')}`,
+    CRM_CLERK_SECRET_KEY: 'sk_test_example',
+    CRM_CLERK_ISSUER: `https://${clerkHost}`, E2_CLERK_ISSUER:'https://customer.example.test',
   };
   assert.equal(getClerkFrontendApiUrl(env), `https://${clerkHost}`);
   assert.deepEqual(getClerkAuthorizedParties(env), ['https://sms.example.com']);

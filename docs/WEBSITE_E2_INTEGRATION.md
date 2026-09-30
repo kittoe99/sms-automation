@@ -8,7 +8,8 @@ below remain the compatibility path until canonical cutover.
 
 September 29, 2026: the shared E2 migration `website_sms_enquiries` is live as
 `20260929221427`; `web-form` Edge version 7 includes connection support. SMS
-embed assets are changed locally and await frontend deployment.
+embed assets were released with CRM Render commit b5d25c1 on September 29.
+The E2 frontend/hosting API and controlled published pilot remain unverified.
 
 The canonical migration is in the E2 repository:
 `supabase/migrations/20260930050000_website_sms_enquiries.sql`. Do not copy or
@@ -78,3 +79,13 @@ E2 frontend remains local. All 74 E2 tests, targeted lint, TypeScript, and build
 passed. Rolled-back live checks verified permissions and status reads with
 temporary sending-disabled data. No real grants/bookings were changed. Manual
 setup and release status are in E2 `docs/bookings.md`.
+
+## Separate application logins (local preparation)
+
+E2 customer and CRM staff logins use different Clerk applications in the new
+local code. Same emails are allowed as independent issuer-qualified accounts.
+Shared businesses/forms/enquiries/bookings remain; customer owners/viewers and
+CRM staff/operators are separated by database issuer checks. Migration
+`20260930110000_separate_login_realms.sql` and authentication changes are not
+live. Configure dedicated CRM keys, issuer-bound Realtime and both webhooks
+before the coordinated release; no website files or automations changed.
