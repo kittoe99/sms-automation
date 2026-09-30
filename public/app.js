@@ -1,3 +1,4 @@
+import { createPlatform } from './platform.js';
 import { connectSupabaseLive } from './live.js';
 import { createFormBuilder } from './formBuilder.js';
 import { shouldRefreshFromBackground } from './refreshGuard.js';
@@ -17,7 +18,7 @@ import {
 } from './auth.js?v=20260924-auth-loop1';
 
 const state = {
-  view: 'overview',
+  view: ['platform-accounts','platform-businesses','platform-websites'].includes(new URLSearchParams(location.search).get('view')) ? new URLSearchParams(location.search).get('view') : 'overview',
   categoryId: null,
   q: '',
   status: '',
@@ -74,7 +75,9 @@ const el = {
   tenantAvatar: document.getElementById('tenant-avatar'),
 };
 
-const formBuilder = createFormBuilder({ root: el.root, apiFetch, config: runtimeConfig });
+const formBuilder = createFormBuilder({ root: el.root, apiFetch, config: runtimeConfig, canReadSubmissions:()=>state.tenant?.smsRead!==false });
+const platform = createPlatform({ root: el.root, title: el.title, subtitle: el.sub, pager: el.pager,
+  onNavigate:view=>{state.view=view;el.toolbarTenant.textContent='CRM';el.toolbarSection.textContent={ 'platform-accounts':'Users','platform-businesses':'Businesses','platform-websites':'Websites' }[view];setActiveNav();} });
 
 let drawerReturnFocus = null;
 let lastRenderedView = null;
@@ -218,9 +221,20 @@ const bookingDays=['Sunday','Monday','Tuesday','Wednesday','Thursday','Friday','
 const defaultBookingSettings=()=>({enabled:false,version:0,slotDurationMinutes:60,capacityPerSlot:1,minimumNoticeMinutes:120,maximumAdvanceDays:90,followUpEnabled:false,followUpDelayHours:24,followUpIntervalHours:48,followUpMaxAttempts:2,weeklyAvailability:{0:[],1:[],2:[],3:[],4:[],5:[],6:[]},dateExceptions:[],extraFields:[]});
 const bookingKey=value=>String(value||'').trim().toLowerCase().replace(/[^a-z0-9]+/g,'_').replace(/^_|_$/g,'').slice(0,40);
 
+function renderVoiceBookingRules(root,rules,onSaved){
+ const section=document.createElement('section');section.className='card';
+ section.innerHTML=`<div class="card-head"><div><h2>Soni service job booking</h2><span class="muted">Set real ZIP coverage and capacity before enabling a market. Shared resource pools count overlapping jobs across services.</span></div></div><div class="setup-body"><label>Rule<select id="voice-rule-select"><option value="">New market rule</option>${rules.map(r=>`<option value="${esc(r.id)}">${esc(r.service.replaceAll('_',' '))} · ${esc(r.market)}${r.enabled?' · enabled':''}</option>`).join('')}</select></label><form id="voice-rule-form"><div class="automation-form-grid"><label>Service<select name="service"><option value="local_moving">Local Moving</option><option value="junk_removal">Junk Removal</option><option value="property_cleanout">Property Cleanouts</option><option value="dumpster_rental">Dumpster Rental</option></select></label><label>Service variant / dumpster size<input name="variant" maxlength="80" placeholder="10 yard, 20 yard, etc."/><small class="muted">Required for dumpster rental. Leave blank for other services.</small></label><label>Market name<input name="market" required maxlength="100" placeholder="Denver metro"/></label><label>ZIP codes<input name="zipCodes" required placeholder="80231, 80247"/><small class="muted">Only listed ZIP codes can be booked live.</small></label><label>Local time zone<input name="timeZone" required placeholder="America/Denver"/></label><label>Resource pool<input name="resourcePool" required placeholder="Denver crew"/><small class="muted">Services sharing staff or equipment should share a pool.</small></label><label>Job duration (minutes)<input name="durationMinutes" type="number" min="15" max="43200" required/></label><label>Jobs at once in pool<input name="capacity" type="number" min="1" max="100" required/></label><label>Minimum notice (minutes)<input name="minimumNoticeMinutes" type="number" min="0" max="43200" required/></label><label>Maximum advance (days)<input name="maximumAdvanceDays" type="number" min="1" max="730" required/></label></div><h3>Local hours</h3><div id="voice-rule-hours">${bookingDays.map((day,i)=>`<div class="booking-window" data-voice-day="${i}"><label><input type="checkbox" data-voice-enabled="${i}"/> ${day}</label><input type="time" data-voice-start="${i}" value="09:00"/><span>to</span><input type="time" data-voice-end="${i}" value="17:00"/></div>`).join('')}</div><label>Date exceptions (JSON)<textarea name="dateExceptions" rows="2">[]</textarea><small class="muted">Optional. Example: [{"date":"2026-12-25","closed":true,"windows":[]}]</small></label><label class="setup-radio"><input name="enabled" type="checkbox"/><span><strong>Enable live job booking for this market</strong><small>Confirmed bookings reserve capacity immediately.</small></span></label><div class="compose-actions"><span id="voice-rule-error" class="login-error" role="alert"></span><span id="voice-rule-saved" class="muted"></span><button class="btn" type="submit">Save service rule</button></div></form></div>`;
+ root.append(section);
+ const selector=section.querySelector('#voice-rule-select'),form=section.querySelector('#voice-rule-form');
+ const show=()=>{const r=rules.find(x=>x.id===selector.value);form.reset();form.elements.service.value=r?.service||'local_moving';form.elements.variant.value=r?.variant||'';form.elements.market.value=r?.market||'';form.elements.zipCodes.value=(r?.zip_codes||[]).join(', ');form.elements.timeZone.value=r?.time_zone||'America/Denver';form.elements.resourcePool.value=r?.resource_pool||'';form.elements.durationMinutes.value=r?.duration_minutes||120;form.elements.capacity.value=r?.capacity||1;form.elements.minimumNoticeMinutes.value=r?.minimum_notice_minutes??120;form.elements.maximumAdvanceDays.value=r?.maximum_advance_days??90;form.elements.dateExceptions.value=JSON.stringify(r?.date_exceptions||[]);form.elements.enabled.checked=Boolean(r?.enabled);bookingDays.forEach((_,i)=>{const window=r?.weekly_availability?.[i]?.[0];section.querySelector(`[data-voice-enabled="${i}"]`).checked=Boolean(window);section.querySelector(`[data-voice-start="${i}"]`).value=window?.start||'09:00';section.querySelector(`[data-voice-end="${i}"]`).value=window?.end||'17:00';});};
+ selector.addEventListener('change',show);show();
+ form.addEventListener('submit',async event=>{event.preventDefault();const error=section.querySelector('#voice-rule-error'),saved=section.querySelector('#voice-rule-saved'),button=form.querySelector('[type="submit"]');error.textContent='';saved.textContent='';button.disabled=true;try{const weeklyAvailability={};bookingDays.forEach((_,i)=>{weeklyAvailability[i]=section.querySelector(`[data-voice-enabled="${i}"]`).checked?[{start:section.querySelector(`[data-voice-start="${i}"]`).value,end:section.querySelector(`[data-voice-end="${i}"]`).value}]:[];});const payload={id:selector.value||undefined,service:form.elements.service.value,variant:form.elements.variant.value.trim(),market:form.elements.market.value.trim(),zipCodes:form.elements.zipCodes.value.split(',').map(x=>x.trim()).filter(Boolean),timeZone:form.elements.timeZone.value.trim(),resourcePool:form.elements.resourcePool.value.trim(),durationMinutes:Number(form.elements.durationMinutes.value),capacity:Number(form.elements.capacity.value),minimumNoticeMinutes:Number(form.elements.minimumNoticeMinutes.value),maximumAdvanceDays:Number(form.elements.maximumAdvanceDays.value),weeklyAvailability,dateExceptions:JSON.parse(form.elements.dateExceptions.value||'[]'),enabled:form.elements.enabled.checked};const response=await apiFetch('/api/voice-booking-rules',{method:'PUT',body:JSON.stringify(payload)}),body=await response.json();if(!response.ok)throw new Error(body.error||'Could not save service rule');saved.textContent='Saved';await onSaved();}catch(failure){error.textContent=failure.message;button.disabled=false;}});
+}
+
 async function renderBookingSetup(){
  setTitle(...titles['booking-setup']);el.kpi.innerHTML='';el.pager.hidden=true;
  if(!state.bookingSettingsDraft){const response=await apiFetch('/api/booking-settings'),data=await response.json();if(!response.ok)throw new Error(data.error||'Could not load booking settings');state.bookingSettingsDraft={...defaultBookingSettings(),...data};}
+ let voiceRules=[];const voiceResponse=await apiFetch('/api/voice-booking-rules');if(voiceResponse.ok)voiceRules=(await voiceResponse.json()).rules||[];
  const draft=state.bookingSettingsDraft;
  const draw=()=>{
   const weekly=bookingDays.map((day,index)=>{const window=draft.weeklyAvailability?.[index]?.[0]||{};return `<div class="booking-window"><label><input type="checkbox" data-day-enabled="${index}" ${window.start?'checked':''}/> ${day}</label><input type="time" data-day-start="${index}" value="${esc(window.start||'09:00')}" ${window.start?'':'disabled'}/><span>to</span><input type="time" data-day-end="${index}" value="${esc(window.end||'17:00')}" ${window.start?'':'disabled'}/></div>`;}).join('');
@@ -238,6 +252,7 @@ async function renderBookingSetup(){
   el.root.querySelectorAll('[data-remove-exception]').forEach(button=>button.addEventListener('click',()=>{sync();draft.dateExceptions.splice(Number(button.dataset.removeException),1);mark();draw();}));
   el.root.querySelectorAll('[data-remove-field]').forEach(button=>button.addEventListener('click',()=>{sync();draft.extraFields.splice(Number(button.dataset.removeField),1);mark();draw();}));
   el.root.querySelector('#booking-settings-form')?.addEventListener('submit',async event=>{event.preventDefault();sync();const error=el.root.querySelector('#booking-settings-error'),saved=el.root.querySelector('#booking-settings-saved'),button=event.currentTarget.querySelector('[type="submit"]');error.textContent='';saved.textContent='';button.disabled=true;try{const payload={...draft};delete payload._dirty;delete payload.version;const response=await apiFetch('/api/booking-settings',{method:'PUT',body:JSON.stringify(payload)}),data=await response.json();if(!response.ok)throw new Error(data.error||'Could not save booking setup');state.bookingSettingsDraft={...defaultBookingSettings(),...data};saved.textContent='Saved';draw();}catch(failure){error.textContent=failure.message;button.disabled=false;mark();}});
+  renderVoiceBookingRules(el.root,voiceRules,async()=>{const response=await apiFetch('/api/voice-booking-rules');if(response.ok)voiceRules=(await response.json()).rules||[];draw();});
  };
  draw();
 }
@@ -1437,7 +1452,7 @@ function initNavFind() {
     const q = input.value.trim().toLowerCase();
     document.querySelectorAll('#nav .nav-item').forEach((item) => {
       const hay = `${item.textContent || ''} ${item.dataset.find || ''}`.toLowerCase();
-      item.hidden = Boolean(q) && !hay.includes(q);
+      item.hidden = (Boolean(q) && !hay.includes(q)) || (item.hasAttribute('data-platform-nav') && !state.platformStaff) || (state.tenant?.smsRead===false && item.dataset.view!=='web-forms' && !item.hasAttribute('data-platform-nav'));
     });
     document.querySelectorAll('#nav section').forEach((section) => {
       const visible = [...section.querySelectorAll('.nav-item')].some((n) => !n.hidden);
@@ -1552,7 +1567,17 @@ async function load() {
   el.status.hidden = !['messages', 'deliverability'].includes(state.view) && !(state.view === 'automations' && state.categoryId);
   if (state.view === 'business-setup') el.pager.hidden = true;
   try {
-    if (!state.categories.length) {
+    if (state.view.startsWith('platform-')) {
+      el.search.closest('.search-wrap').hidden = true; el.status.hidden = true; el.kpi.innerHTML = '';
+      el.toolbarTenant.textContent='CRM';
+      el.toolbarSection.textContent={ 'platform-accounts':'Users','platform-businesses':'Businesses','platform-websites':'Websites' }[state.view];
+      setActiveNav();
+      await platform.render(state.view); lastRenderedView = state.view; return;
+    }
+    el.root.classList.remove('platform-root');
+    if (!state.tenant) throw new Error('Choose or create a business workspace.');
+    if(state.tenant.smsRead===false){state.view='web-forms';setActiveNav();}
+    if (!state.categories.length && state.tenant.smsRead!==false) {
       const catRes = await apiFetch('/api/categories');
       if (catRes.status === 401 || catRes.status === 403) {
         renderAccessScreen({ errorMessage: authFailureMessage(catRes), onRetry: openAuthenticatedWorkspace });
@@ -3435,6 +3460,7 @@ function renderPager(data) {
 function setTitle(title, sub) {
   el.title.textContent = title;
   el.sub.textContent = sub;
+  if (el.toolbarTenant) el.toolbarTenant.textContent = state.tenant?.shortName || state.tenant?.name || 'Workspace';
   if (el.toolbarSection) el.toolbarSection.textContent = title;
   document.title = `${title} · ${state.tenant?.shortName || state.tenant?.name || 'Workspace'} · E2.Local CRM`;
 }
@@ -3619,11 +3645,15 @@ async function openAuthenticatedWorkspace() {
   const me = await apiFetch('/api/auth/me', { tenant: false });
   if (me.status === 401 || me.status === 403) throw new Error(authFailureMessage(me));
   if (!me.ok) throw new Error('The CRM service is temporarily unavailable. Try again shortly.');
+  const session = await me.json();
+  document.querySelectorAll('[data-platform-nav]').forEach(node => { node.hidden = !session.capabilities?.platformStaff; });
+  state.platformStaff = Boolean(session.capabilities?.platformStaff);
   await loadTenantContext();
+  if (!state.tenant && state.platformStaff) { state.view = 'platform-accounts'; setActiveNav(); }
   showCrmApp();
   updateAuthChrome();
   await load();
-  if (!document.getElementById('crm-app').hidden) connectLive();
+  if (!document.getElementById('crm-app').hidden && state.tenant && state.tenant.smsRead!==false) connectLive();
 }
 
 function updateAuthChrome() {
@@ -3652,7 +3682,12 @@ async function loadTenantContext() {
   state.tenants = Array.isArray(data.tenants) ? data.tenants : [];
   const stored = getTenantId();
   state.tenant = state.tenants.find((tenant) => tenant.id === stored) || data.currentTenant || state.tenants[0];
-  if (!state.tenant) throw new Error('No business account is configured');
+  if (!state.tenant) { if (state.platformStaff) return; throw new Error('No business account is configured'); }
+  if(state.tenant.smsRead===false){
+    state.view='web-forms';
+    document.querySelectorAll('#nav .nav-item').forEach(node=>{if(!node.hasAttribute('data-platform-nav')&&node.dataset.view!=='web-forms')node.hidden=true;});
+    setActiveNav();
+  }
   setTenantId(state.tenant.id);
   if (el.tenantSelect) {
     el.tenantSelect.innerHTML = state.tenants

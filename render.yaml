@@ -9,6 +9,8 @@ services:
         value: https://wxamwhfmelxqahkdtcci.supabase.co/functions/v1/crm-api
       - key: SUPABASE_URL
         value: https://wxamwhfmelxqahkdtcci.supabase.co
+      - key: HOSTING_API_BASE
+        value: https://www.e2local.com/api/web-hosting
       - key: PUBLIC_FORM_BASE_URL
         value: https://crm.e2local.com
       - key: SUPABASE_PUBLISHABLE_KEY

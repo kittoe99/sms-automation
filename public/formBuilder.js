@@ -12,7 +12,7 @@ export function embedSnippet(form, config = globalThis.SMS_CONFIG || {}) {
   return `<iframe data-sms-web-form title="${escapeHtml(form.title)}" src="${source}" style="width:100%;height:720px;border:0" loading="lazy"></iframe>\n<script async src="${base}/embed-resize.js"></script>`;
 }
 
-export function createFormBuilder({ root, apiFetch, config }) {
+export function createFormBuilder({ root, apiFetch, config, canReadSubmissions = () => true }) {
   let preset = 'contacts';
   let page = 1;
   let draft = null;
@@ -95,6 +95,7 @@ export function createFormBuilder({ root, apiFetch, config }) {
 
   async function submissions() {
     const host = root.querySelector('#web-form-submissions');
+    if(!canReadSubmissions()){host.textContent='Submission access requires SMS-read permission.';return;}
     const response = await apiFetch(`/api/web-forms/${preset}/submissions?page=${page}&pageSize=50`);
     const data = await response.json();
     if (!response.ok) throw new Error(data.error || 'Could not load form submissions');

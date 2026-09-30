@@ -134,6 +134,10 @@ memberships control read access.
 
 ### Form Builder and website embeds
 
+Website-specific E2 connections are documented in
+[Website/E2 integration](docs/WEBSITE_E2_INTEGRATION.md). They preserve the
+existing SMS submission flow while separating enquiries by intended website.
+
 **Form Builder** in the dashboard has one Contact, Quote Request, and Booking form
 per business. Admins can edit the title, description, button, enabled state, and
 up to 20 ordered custom fields. Name, Phone, Email, optional SMS consent, and the
@@ -171,6 +175,19 @@ Requires `OPEK_SMS_API_KEY` on the SMS server. Opt-outs still block sends; marke
 
 ## Local
 
+The current deployment is a static CRM frontend backed by WPacquisition Edge
+Functions. For a matching local preview, set `CRM_API_BASE`,
+`SUPABASE_URL`, `SUPABASE_PUBLISHABLE_KEY`, and `PUBLIC_FORM_BASE_URL` in
+an ignored `.env` file, then run `npm start`. The build rejects any Supabase
+URL other than WPacquisition and any key that is not publishable. This preview
+serves only on localhost and uses the live database through authenticated Edge
+APIs. It does not need Clerk, Twilio, or Supabase service-role secrets locally.
+
+The former Express API remains available with `npm run start:legacy` for
+isolated migration testing. Do not use the legacy server as the current CRM.
+
+### Legacy Express preview
+
 To prepare an empty CRM before connecting record storage, set `CRM_DATA_MODE=empty`
 and `AUTOMATION_RULES_STORE=file` in `.env`, then restart. Record tabs return empty
 lists, customer actions and webhooks wait for storage, and automation definitions
@@ -181,7 +198,7 @@ the automation store, and restart.
 ```bash
 cp .env.example .env
 npm install
-npm run dev
+npm run dev:legacy
 ```
 
 For isolated local webhook testing only, set `TWILIO_VALIDATE_SIGNATURE=false`.
@@ -204,3 +221,10 @@ businesses without loading Clerk, Supabase, Twilio, or AI clients. All writes,
 unknown APIs, webhooks, and WebSockets are blocked. Point a temporary device-testing
 tunnel at this port, not the live CRM on port 8080. Live CRM authentication is
 unchanged; switching sample businesses is only a preview, not production tenancy.
+
+## E2 platform staff CRM
+
+Users, Businesses, and Websites management uses the shared registry. See
+[staff CRM architecture and rollout](docs/STAFF_CRM.md). Registry/API migrations are
+live in compatibility mode; frontend release, production Clerk webhook configuration,
+website pairing and controlled published pilot remain pending.

@@ -16,7 +16,7 @@ async function signedKnowledgeUpload(tenant,input,fetchImpl=fetch) {
  const rawUrl=result.url || result.signedURL || result.signedUrl;
  return {path,token:result.token,signedUrl:/^https?:/i.test(rawUrl||'')?rawUrl:`${base}${rawUrl || ''}`,contentType,maxBytes:10*1024*1024};
 }
-export function createCrmHandler(db,verify=authenticate) {
+export function createCrmHandler(db,verify=authenticate,{platform=false}={}) {
  return async request=>{
   let headers={};
   try {
@@ -29,9 +29,19 @@ export function createCrmHandler(db,verify=authenticate) {
    const conversationId=async value=>/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(value)
      ? value:db.call('general_conversation',user,tenant,phone(value));
    const params=Object.fromEntries(url.searchParams); const method=request.method;
+   if(path.startsWith('/platform/')) {
+    const directory=path.match(/^\/platform\/(accounts|businesses|websites)(?:\/([^/]+))?$/);
+    if(method==='GET' && directory) return json(await db.call('platform_read',user,directory[1],{...params,...(directory[2]?{id:decodeURIComponent(directory[2])}:{})}),200,headers);
+    const actions={ '/platform/status':'status','/platform/memberships':'membership','/platform/ownership':'owner',
+      '/platform/website-business':'website_business','/platform/connections':'connection_create','/platform/connections/disable':'connection_disable' };
+    if(['POST','PATCH'].includes(method) && actions[path]) return json(await db.call('platform_action',user,actions[path],await readJson(request)),200,headers);
+    return json({error:'Route not found'},404,headers);
+   }
    if(path==='/auth/me'||path==='/tenants'||(path==='/businesses'&&method==='GET')) {
-    const data=await read('businesses');const tenants=data.rows.map(business);
-    return json({user:{id:user},tenants,businesses:tenants,currentTenant:tenants.find(x=>x.id===tenant)||tenants[0]||null,tenant:tenants[0]||null,capabilities:{databaseIsolation:true,providerCredentialsPerTenant:true,twilioCredentialsPerTenant:true}},200,headers);
+    const data=await read('businesses');const tenants=data.rows.map(row=>({...business(row),smsRead:true}));
+    const session=platform?await db.call('platform_session',user):{platformStaff:false};
+    for(const row of session.formWorkspaces||[])if(!tenants.some(t=>t.id===row.tenant_id))tenants.push({...business(row),smsRead:false,formsManage:true});
+    return json({user:{id:user},tenants,businesses:tenants,currentTenant:tenants.find(x=>x.id===tenant)||tenants[0]||null,tenant:tenants[0]||null,capabilities:{databaseIsolation:true,providerCredentialsPerTenant:true,twilioCredentialsPerTenant:true,...session}},200,headers);
    }
    if(path==='/businesses'&&method==='POST') {
     const p=await readJson(request);p.id ||= String(p.name||'').toLowerCase().replace(/[^a-z0-9]+/g,'-').replace(/^-|-$/g,'').slice(0,64);p.timeZone ||= 'America/Denver';
@@ -56,6 +66,7 @@ export function createCrmHandler(db,verify=authenticate) {
     if(path==='/twilio/registration') return json(await db.call('twilio_registration',user,tenant),200,headers);
     if(path==='/twilio/readiness') return json(await db.call('activation_readiness',user,tenant),200,headers);
     if(path==='/booking-settings') return json(await db.call('booking_settings',user,tenant),200,headers);
+    if(path==='/voice-booking-rules') return json({rules:await db.call('voice_rules',user,tenant)},200,headers);
     if(path==='/bookings') return json(await db.call('list_bookings',user,tenant,params),200,headers);
     const intakeList=path.match(/^\/automation-intake\/([^/]+)$/);
     if(intakeList){const type=decodeURIComponent(intakeList[1]);if(!INTAKE_TYPES.has(type))return json({error:'Unknown SMS automation type'},404,headers);return json(await db.call('list_intake',user,tenant,type,Number(params.page||1),Number(params.pageSize||50)),200,headers);}
@@ -161,10 +172,11 @@ export function createCrmHandler(db,verify=authenticate) {
     if(path==='/provisioning/details') return json(await db.call('save_provider_setup',user,tenant,p),200,headers);
     if(path==='/onboarding') return json(await db.call('save_business_profile',user,tenant,p),200,headers);
     if(path==='/booking-settings'&&method==='PUT') return json(await db.call('save_booking_settings',user,tenant,p),200,headers);
+    if(path==='/voice-booking-rules'&&method==='PUT') return json({rule:await db.call('voice_save_rule',user,tenant,p)},200,headers);
     const bookingCancel=path.match(/^\/bookings\/([^/]+)\/cancel$/);if(bookingCancel)return json({booking:await db.call('cancel_booking',user,tenant,decodeURIComponent(bookingCancel[1]),request.headers.get('Idempotency-Key')||p.idempotencyKey||'')},200,headers);
     if(path==='/profile-versions') return json(await db.call('save_profile_version',user,tenant,p,false),201,headers);
     const profileApproval=path.match(/^\/profile-versions\/([^/]+)\/approve$/);if(profileApproval)return json(await db.call('approve_profile_version',user,tenant,profileApproval[1]),200,headers);
-    if(path==='/knowledge/uploads/sign') return json(await signedKnowledgeUpload(tenant,p),201,headers);
+    if(path==='/knowledge/uploads/sign') {await db.call('require_admin',user);return json(await signedKnowledgeUpload(tenant,p),201,headers);}
     if(path==='/knowledge/sources') return json(await db.call('create_knowledge_source',user,tenant,p),202,headers);
     const sourceArchive=path.match(/^\/knowledge\/sources\/([^/]+)$/);if(sourceArchive&&method==='DELETE')return json(await db.call('archive_knowledge_source',user,tenant,sourceArchive[1]),200,headers);
     const sourceRefresh=path.match(/^\/knowledge\/sources\/([^/]+)\/refresh$/);if(sourceRefresh)return json(await db.call('queue_knowledge_refresh',user,tenant,sourceRefresh[1]),202,headers);

@@ -3,7 +3,7 @@
   <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <meta name="theme-color" content="#fbfdfd" />
+    <meta name="theme-color" content="#f5f9fb" />
     <meta
       name="description"
       content="E2.Local CRM for customer conversations, bookings, and follow-ups."
@@ -12,11 +12,28 @@
     <link rel="icon" href="/e2-icon.svg" type="image/svg+xml" />
     <link rel="stylesheet" href="/styles.css?v=20260924-e2-crm" />
     <link rel="stylesheet" href="/e2-theme.css?v=20260924-auth-loop1" />
+    <link rel="stylesheet" href="/dashboard-theme.css?v=20260930-dashboard" />
   </head>
   <body>
     <a class="skip-link" href="#view-root">Skip to main content</a>
     <div id="auth-root" hidden></div>
     <div class="crm" id="crm-app" hidden>
+      <header class="crm-topbar">
+        <a class="dashboard-brand" href="https://www.e2local.com/" aria-label="E2 Local home">
+          <img src="/e2-dashboard-logo.svg" alt="E2 Local" width="152" height="55" />
+        </a>
+        <div class="crm-topbar-actions">
+          <button type="button" class="sidebar-trigger" id="sidebar-trigger" aria-label="Open navigation" aria-controls="sidebar" aria-expanded="false">
+            <span class="sidebar-trigger-icon" aria-hidden="true"><b></b><b></b><b></b></span>
+            <span class="sidebar-trigger-label">Menu</span>
+          </button>
+          <a class="dashboard-site-link" href="https://www.e2local.com/">Back to site</a>
+          <div class="toolbar-live">
+            <span id="live-pill" class="live-pill offline" title="Realtime connection">Connecting…</span>
+          </div>
+        </div>
+      </header>
+
       <button
         type="button"
         class="sidebar-backdrop"
@@ -27,8 +44,7 @@
 
       <aside class="sidebar" id="sidebar" aria-label="CRM navigation">
         <div class="sidebar-brand">
-          <img class="e2-logo" src="/e2-logo.svg" alt="E2.Local" width="152" height="38" />
-          <span class="product-label">CRM</span>
+          <p class="sidebar-label">WORKSPACE</p>
           <button type="button" class="sidebar-collapse" id="sidebar-close" aria-label="Close navigation" title="Close navigation">
             <svg viewBox="0 0 16 16" aria-hidden="true"><path d="M4 3.5 8.5 8 4 12.5M9.5 3.5 14 8l-4.5 4.5" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"/></svg>
           </button>
@@ -53,9 +69,23 @@
         </div>
 
         <nav class="nav" id="nav" aria-label="CRM sections">
+          <section data-nav-section="platform" data-platform-nav hidden>
+            <p class="nav-label">Platform</p>
+            <button type="button" class="nav-item" data-view="platform-accounts" data-find="platform users accounts ownership">
+              <svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="9" cy="7" r="3"/><path d="M3 21v-3a6 6 0 0 1 12 0v3M17 4a3 3 0 0 1 0 6M17 14a5 5 0 0 1 4 5v2"/></svg><span>Users</span>
+            </button>
+            <button type="button" class="nav-item" data-view="platform-businesses" data-find="platform businesses tenants ownership">
+              <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 21V3h12v18M16 9h4v12M2 21h20M8 7h4M8 11h4M8 15h4M9 21v-3h2v3"/></svg><span>Businesses</span>
+            </button>
+            <button type="button" class="nav-item" data-view="platform-websites" data-find="platform websites hosting assets domain forms leads">
+              <svg viewBox="0 0 24 24" aria-hidden="true"><rect x="3" y="4" width="18" height="14" rx="2"/><path d="M3 8h18M8 22h8M12 18v4M9 11l-2 2 2 2M15 11l2 2-2 2"/></svg><span>Websites</span>
+            </button>
+          </section>
+
           <section data-nav-section="work">
             <p class="nav-label">Work</p>
-            <button type="button" class="nav-item active" data-view="overview" data-find="dashboard overview home">
+
+<button type="button" class="nav-item active" data-view="overview" data-find="dashboard overview home">
               <svg viewBox="0 0 24 24" aria-hidden="true"><rect x="3" y="3" width="7" height="7" rx="1.5"/><rect x="14" y="3" width="7" height="7" rx="1.5"/><rect x="3" y="14" width="7" height="7" rx="1.5"/><rect x="14" y="14" width="7" height="7" rx="1.5"/></svg>
               <span>Dashboard</span>
             </button>
@@ -130,6 +160,7 @@
           </section>
         </nav>
 
+        <a class="dashboard-support-link" href="https://www.e2local.com/contact">Help &amp; support</a>
         <div class="sidebar-foot">
           <div class="auth-foot">
             <span class="user-avatar" id="tenant-avatar" aria-hidden="true">OP</span>
@@ -144,22 +175,14 @@
 
       <div class="workspace">
         <aside id="demo-banner" class="demo-banner" role="status" hidden>Demo preview · Sample data only · Authentication on standby · SMS, calls, and changes disabled</aside>
-        <header class="toolbar">
-          <button type="button" class="sidebar-trigger" id="sidebar-trigger" aria-label="Open navigation" aria-controls="sidebar" aria-expanded="false">
-            <span class="sidebar-trigger-icon" aria-hidden="true"><b></b><b></b><b></b></span>
-            <span class="sidebar-trigger-label">Menu</span>
-          </button>
-          <div class="toolbar-crumb">
-            <span id="toolbar-tenant">Workspace</span>
-            <strong id="toolbar-section">Overview</strong>
-          </div>
-          <div class="toolbar-live">
-            <span id="live-pill" class="live-pill offline" title="Realtime connection">Connecting…</span>
-          </div>
-        </header>
+
 
         <section class="page-heading">
           <div class="page-heading-copy">
+            <div class="toolbar-crumb">
+            <span id="toolbar-tenant">Workspace</span>
+            <strong id="toolbar-section">Overview</strong>
+          </div>
             <h1 id="page-title">Dashboard</h1>
             <p id="page-sub" class="muted">Your messages, contacts, and follow-ups in one place.</p>
           </div>
@@ -224,7 +247,8 @@
       </aside>
     </div>
 
+    <script type="importmap">{"imports":{"fflate":"/vendor/fflate.js"}}</script>
     <script src="/config.js"></script>
-    <script src="/app.js?v=20260925-email" type="module"></script>
+    <script src="/app.js?v=20260930-dashboard" type="module"></script>
   </body>
 </html>

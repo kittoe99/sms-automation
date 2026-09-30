@@ -3366,3 +3366,7 @@ tr[data-booking-id] { cursor: pointer; }
 .web-builder-pagination { display: flex; gap: 12px; align-items: center; justify-content: flex-end; }
 @media (max-width: 900px) { .web-builder-layout { grid-template-columns: 1fr; } }
 @media (max-width: 560px) { .web-builder-field-grid { grid-template-columns: 1fr; } .web-builder-field-head { align-items: start; flex-direction: column; } }
+
+.platform-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(260px,1fr));gap:16px;margin:20px 0}.platform-permissions{display:grid;gap:10px}.platform-grid h2{font-size:18px}#view-root pre{white-space:pre-wrap;overflow-wrap:anywhere}#view-root [data-detail] .card{margin:12px 0}#view-root [data-detail] nav{flex-wrap:wrap;margin:16px 0}
+
+.platform-root .card{padding:20px}.platform-root .compose{max-width:760px}.platform-root label{display:grid;gap:8px}.platform-root .platform-permissions label{display:flex;align-items:center;gap:10px}.platform-root textarea{min-height:96px}.platform-root code{overflow-wrap:anywhere}.platform-root nav button{text-transform:capitalize}.platform-root .compose-actions{flex-wrap:wrap;gap:10px}

@@ -9,6 +9,9 @@ test('background updates leave automation and AI settings editors mounted', () =
   assert.equal(shouldRefreshFromBackground({...idle,automationBuilderOpen:true}),false);
   assert.equal(shouldRefreshFromBackground({...idle,aiBuilderOpen:true}),false);
   assert.equal(shouldRefreshFromBackground({...idle,view:'ai-instructions'}),false);
+  for (const view of ['platform-accounts','platform-businesses','platform-websites']) {
+    assert.equal(shouldRefreshFromBackground({...idle,view}),false);
+  }
   assert.equal(shouldRefreshFromBackground({...idle,focusedInForm:true}),false);
   assert.equal(shouldRefreshFromBackground({...idle,hasDirtyForm:true}),false);
 });

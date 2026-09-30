@@ -13,6 +13,14 @@ major_version = 17
 verify_jwt = false
 import_map = "./functions/import_map.json"
 
+[functions.voice-agent]
+verify_jwt = false
+import_map = "./functions/import_map.json"
+
+[functions.soni-voice-inbound]
+verify_jwt = false
+import_map = "./functions/import_map.json"
+
 [functions.web-form]
 verify_jwt = false
 import_map = "./functions/import_map.json"

@@ -1,11 +1,13 @@
 const root = document.getElementById('form-root');
 const formId = new URLSearchParams(location.search).get('form') || '';
+const connectionId = new URLSearchParams(location.search).get('connection');
 const config = globalThis.SMS_CONFIG || {};
 const apiBase = config.formApiBase || `${config.supabaseUrl || ''}/functions/v1/web-form`;
+const formUrl = `${apiBase}/${encodeURIComponent(formId)}${connectionId !== null ? `?connection=${encodeURIComponent(connectionId)}` : ''}`;
 
 function announceHeight() {
   if (window.parent === window) return;
-  window.parent.postMessage({ type: 'sms-web-form:resize', formId, height: Math.ceil(document.documentElement.scrollHeight + 8) }, '*');
+  window.parent.postMessage({ type: 'sms-web-form:resize', formId, connectionId, height: Math.ceil(document.documentElement.scrollHeight + 8) }, '*');
 }
 new ResizeObserver(announceHeight).observe(document.documentElement);
 
@@ -47,7 +49,8 @@ function footerElement() {
 
 async function start() {
   if (!/^[0-9a-f-]{36}$/i.test(formId)) throw new Error('Form not found');
-  const response = await fetch(`${apiBase}/${encodeURIComponent(formId)}`);
+  if (connectionId !== null && !/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(connectionId)) throw new Error('Invalid website connection');
+  const response = await fetch(formUrl);
   const data = await response.json();
   if (!response.ok || !data.form) throw new Error('Form is unavailable');
   const definition = data.form;
@@ -136,7 +139,7 @@ async function start() {
     button.disabled = true;
     button.textContent = 'Sending…';
     try {
-      const sent = await fetch(`${apiBase}/${encodeURIComponent(formId)}`, {
+      const sent = await fetch(formUrl, {
         method: 'POST', headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ ...payload, submissionId }),
       });

@@ -1,0 +1,29 @@
+import test from 'node:test';
+import assert from 'node:assert/strict';
+import {createCrmHandler} from '../supabase/functions/crm-api/handler.js';
+process.env.CRM_ALLOWED_ORIGINS='https://crm.example.test';
+function setup(){const calls=[];const handler=createCrmHandler({call:async(...args)=>{calls.push(args);return {rows:[],total:0};}},async()=> 'verified-subject');return {calls,handler};}
+test('global directories need no tenant and preserve the verified actor',async()=>{
+ const x=setup();for(const resource of ['accounts','businesses','websites']){
+  const result=await x.handler(new Request(`https://api.example.test/crm-api/platform/${resource}?page=2&pageSize=25&q=test`,{headers:{Origin:'https://crm.example.test'}}));
+  assert.equal(result.status,200);assert.deepEqual(x.calls.at(-1),['platform_read','verified-subject',resource,{page:'2',pageSize:'25',q:'test'}]);
+ }
+});
+test('staff mutations cannot override the authenticated actor with submitted identity',async()=>{
+ const x=setup();const result=await x.handler(new Request('https://api.example.test/crm-api/platform/ownership',{method:'POST',headers:{Origin:'https://crm.example.test','Content-Type':'application/json','X-Tenant-ID':'irrelevant'},body:JSON.stringify({user:'forged',tenantId:'alpha',accountId:'target',revision:-1,previousOwnerId:null})}));
+ assert.equal(result.status,200);assert.equal(x.calls[0][0],'platform_action');assert.equal(x.calls[0][1],'verified-subject');assert.equal(x.calls[0][2],'owner');
+});
+test('global routes reject unauthenticated requests and unknown actions',async()=>{
+ const x=setup();assert.equal((await x.handler(new Request('https://api.example.test/crm-api/platform/unknown'))).status,404);
+ const denied=createCrmHandler({call(){throw new Error('Database must not run');}},async()=>{throw Object.assign(new Error('Sign in'),{status:401});});
+ assert.equal((await denied(new Request('https://api.example.test/crm-api/platform/accounts'))).status,401);
+});
+
+test('forms-only operators receive an authorized selector without an SMS-read grant',async()=>{
+ const db={call:async(name)=>name==='api_read'?{rows:[]}:{platformStaff:false,formWorkspaces:[{tenant_id:'alpha',name:'Alpha',time_zone:'America/Denver'}]}};
+ const handler=createCrmHandler(db,async()=> 'verified-subject',{platform:true});
+ const response=await handler(new Request('https://api.example.test/crm-api/auth/me'));
+ assert.equal(response.status,200);const data=await response.json();
+ assert.equal(data.tenants.length,1);assert.equal(data.tenants[0].id,'alpha');
+ assert.equal(data.tenants[0].smsRead,false);assert.equal(data.tenants[0].formsManage,true);
+});

@@ -50,7 +50,8 @@ export function createWebFormHandler(db = database('WEB_FORM_DATABASE_URL'), opt
   const secret = options.ipHashKey ?? env('WEB_FORM_IP_HASH_KEY');
   return async request => {
     if (request.method === 'OPTIONS') return new Response(null, { status: 204, headers });
-    const path = new URL(request.url).pathname;
+    const url = new URL(request.url);
+    const path = url.pathname;
     if (path.endsWith('/web-form/email/unsubscribe')) {
       if (request.method !== 'POST') return response({ error: 'POST required' }, 405);
       const token = new URL(request.url).searchParams.get('token');
@@ -64,9 +65,17 @@ export function createWebFormHandler(db = database('WEB_FORM_DATABASE_URL'), opt
     const match = path.match(/\/web-form\/([0-9a-f-]{36})\/?$/i);
     if (!match) return response({ error: 'Form not found' }, 404);
     const formId = match[1];
+    const connected = url.searchParams.has('connection');
+    const connectionId = url.searchParams.get('connection');
+    if (connected && !/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(connectionId || '')) {
+      return response({ error: 'Invalid website connection' }, 400);
+    }
+    const readForm = () => connected
+      ? db.call('public_website_form', formId, connectionId)
+      : db.call('public_web_form', formId);
     try {
       if (request.method === 'GET') {
-        const form = await db.call('public_web_form', formId);
+        const form = await readForm();
         return form ? response({ form }) : response({ error: 'Form not found' }, 404);
       }
       if (request.method !== 'POST') return response({ error: 'Method not allowed' }, 405);
@@ -79,11 +88,14 @@ export function createWebFormHandler(db = database('WEB_FORM_DATABASE_URL'), opt
       if (!payload || typeof payload !== 'object' || Array.isArray(payload)) {
         return response({ error: 'Invalid form payload' }, 400);
       }
+      // Validate the connection before responding even to a honeypot payload.
+      let form = connected ? await readForm() : null;
+      if (connected && !form) return response({ error: 'Form not found' }, 404);
       if (payload.website) {
         return response({ ok: true, submissionId: payload.submissionId || null }, 201);
       }
       if (!secret || secret.length < 32) return response({ error: 'Form submission unavailable' }, 503);
-      const form = await db.call('public_web_form', formId);
+      form ??= await readForm();
       if (!form) return response({ error: 'Form not found' }, 404);
       const allowed = await db.call('claim_web_form_rate', formId, payload.submissionId || '', await hashIp(request, secret));
       if (!allowed) return new Response(JSON.stringify({ error: 'Too many submissions. Try again later.' }), {
@@ -93,7 +105,9 @@ export function createWebFormHandler(db = database('WEB_FORM_DATABASE_URL'), opt
         try { payload.appointmentAt = localDateTime(payload.appointmentAt, form.timeZone).toISOString(); }
         catch { return response({ error: 'Invalid appointment date or time' }, 400); }
       }
-      const result = await db.call('submit_web_form', formId, payload);
+      const result = connected
+        ? await db.call('submit_website_form', formId, connectionId, payload)
+        : await db.call('submit_web_form', formId, payload);
       return response(result, result.duplicate ? 200 : 201);
     } catch (error) {
       if (error.message === 'PAYLOAD_TOO_LARGE') return response({ error: 'Form payload too large' }, 413);

@@ -3,13 +3,19 @@ import postgres from 'postgres';
 const env = name => globalThis.Deno?.env.get(name) ?? globalThis.process?.env[name];
 export { env };
 export const json = (value,status=200,headers={}) => new Response(JSON.stringify(value),{status,headers:{'Content-Type':'application/json','Cache-Control':'no-store',...headers}});
-export function database(variable) {
+export function database(variable,{human=variable==='SMS_API_DATABASE_URL'}={}) {
  let sql;
  return { async call(name,...args) {
   if(!/^[a-z_]+$/.test(name)) throw new Error('Invalid operation');
   const url=env(variable); if(!url) throw new Error(`${variable} is not configured`);
   sql ??=postgres(url,{ssl:'require',prepare:false,max:2,connect_timeout:5,idle_timeout:10,connection:{statement_timeout:8000}});
-  const r=await sql.unsafe(`select sms_private.${name}(${args.map((_,i)=>'$'+(i+1)).join(',')}) as result`,args);
+  const query=`select sms_private.${name}(${args.map((_,i)=>'$'+(i+1)).join(',')}) as result`;
+  // Human API calls carry the configured, JWT-verified issuer into the same
+  // transaction as the RPC. Never leave request identity on a pooled session.
+  const r=human && env('CLERK_ISSUER') ? await sql.begin(async tx=>{
+    await tx`select set_config('platform.actor_issuer',${env('CLERK_ISSUER')},true)`;
+    return tx.unsafe(query,args);
+  }) : await sql.unsafe(query,args);
   return r[0]?.result;
  }};
 }
