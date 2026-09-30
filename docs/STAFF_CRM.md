@@ -5,6 +5,14 @@ E2 Local is the customer dashboard. Both use the same Supabase records.
 
 ## Release status
 
+September 30 administrator bootstrap is complete: the user explicitly approved
+the newly created CRM account. Its dedicated production Clerk identity was
+verified, and a transaction enabled canonical and compatibility staff access.
+Independent database checks confirmed one active CRM administrator, zero customer
+staff grants and one audit entry. Authorization cutover remains OFF. Reload the
+CRM to retrieve updated authorization; no application deployment is required.
+Business/website assignments and the authenticated workflow pilot remain separate.
+
 CRM login and account-access screens use the existing E2 dashboard logo asset.
 Clerk controls match E2 `app/auth-appearance.ts`: blue borders, rounded cards,
 48px inputs and gradient pill buttons. Separate sign-in and signup stay in the
@@ -46,8 +54,8 @@ Keep future CRM screens consistent with E2 Local and reuse its existing logos.
 | Login separation migration | Live: local `20260930110000_separate_login_realms.sql` → live `20260930054730`; issuers configured in the migration transaction. |
 | CRM Edge API | Version 35 deployed with dedicated CRM issuer and first-login provisioning. |
 | Compliance/registration Edge API | compliance-session version 10 deployed with dedicated CRM issuer and transaction-local identity context. |
-| Identity backfill | User-requested reset cleared the old mappings. Both production Clerk apps contain zero users; fresh provisioning and explicit staff bootstrap remain required. |
-| Registry cutover | OFF. Database contains zero accounts/staff and one unassigned website/deployment after the reset. |
+| Identity backfill | The reset cleared old mappings. Fresh customer and CRM identities are provisioned; the explicitly authorized CRM administrator is enabled and audited. |
+| Registry cutover | OFF. One verified active CRM administrator has canonical and compatibility grants; no customer has staff access. |
 | R2 uploads | Existing CORS rules retained, `https://crm.e2local.com` added. Both CRM and E2 preflights returned 204. No website files changed. |
 | Frontends / account webhook | E2 37c9a2d is Ready on Vercel; CRM a4b5247 is live on Render. Independent login pages, hosting redirect/auth gate and unsigned webhook denial verified. Signed lifecycle subscriptions/secrets configured; real signup pilot remains. |
 | Legacy cleanup | Prepared separately; NOT run. Requires verified release, controlled pilot and external backup. |
