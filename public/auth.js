@@ -9,6 +9,7 @@ let localMode = false;
 let bootstrapped = false;
 const requestKeys = new Map();
 let loginNode = null;
+let loginMode = 'sign-in';
 let loginUnsubscribe = null;
 let organizationSwitcherNode = null;
 let loginSession = null;
@@ -235,6 +236,7 @@ export function renderLoginScreen({ onSuccess, errorMessage = '' } = {}) {
 
   loginNode = root.querySelector('#clerk-sign-in');
   if (!clerk || !loginNode) return;
+  loginMode = new URLSearchParams(location.search).get('auth') === 'sign-up' ? 'sign-up' : 'sign-in';
 
   let completed = false;
   loginUnsubscribe = clerk.addListener(({ user, session }) => {
@@ -245,13 +247,17 @@ export function renderLoginScreen({ onSuccess, errorMessage = '' } = {}) {
       renderAccessScreen({ errorMessage: err?.message || 'Could not open the CRM.', onRetry: onSuccess });
     });
   });
-  clerk.mountSignIn(loginNode, {
+  const options = {
     appearance: clerkAppearance,
     routing: 'hash',
     forceRedirectUrl: '/',
     signUpForceRedirectUrl: '/',
-    withSignUp: true,
-  });
+  };
+  if (loginMode === 'sign-up') {
+    clerk.mountSignUp(loginNode, { ...options, signInUrl: '/' });
+  } else {
+    clerk.mountSignIn(loginNode, { ...options, signUpUrl: '/?auth=sign-up', withSignUp: false });
+  }
 }
 
 export function renderAccessScreen({ errorMessage = 'Could not open the CRM.', onRetry } = {}) {
@@ -307,7 +313,8 @@ function unmountLogin() {
   loginUnsubscribe = null;
   if (clerk && loginNode) {
     try {
-      clerk.unmountSignIn(loginNode);
+      if (loginMode === 'sign-up') clerk.unmountSignUp(loginNode);
+      else clerk.unmountSignIn(loginNode);
     } catch {
       // The host node may already have been removed during navigation.
     }

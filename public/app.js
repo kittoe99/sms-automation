@@ -15,7 +15,7 @@ import {
   showCrmApp,
   signOut,
   setTenantId,
-} from './auth.js?v=20260930-login-brand';
+} from './auth.js?v=20260930-login-options';
 
 const state = {
   view: ['platform-accounts','platform-businesses','platform-websites'].includes(new URLSearchParams(location.search).get('view')) ? new URLSearchParams(location.search).get('view') : 'overview',
