@@ -9,8 +9,14 @@ CRM login and account-access screens use the existing E2 dashboard logo asset.
 Clerk controls match E2 `app/auth-appearance.ts`: blue borders, rounded cards,
 48px inputs and gradient pill buttons. Sign-in-or-up stays in the branded CRM
 screen using the independent CRM Clerk application. Local syntax, three targeted
-authentication/theme tests and the production frontend build passed. This visual
-update is awaiting Render release verification.
+authentication/theme tests and the production frontend build passed. Branding
+release `b6eb5b1` is live on Render (`dep-dauhch17lnhs73bcoiqg`). Desktop and 390px
+browser checks verified the current logo, 24px card corners, 48px controls, pill
+buttons and no horizontal overflow; the browser reported no errors. Asset version
+references were refreshed so cached browsers load the new styling. Signup uses
+Clerk's sign-in-or-up flow; no account was created during visual verification.
+
+Keep future CRM screens consistent with E2 Local and reuse its existing logos.
 
 | Component | Actual status |
 | --- | --- |
