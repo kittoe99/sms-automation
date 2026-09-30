@@ -19,13 +19,21 @@ and Sign up links using mountSignIn/mountSignUp and the same appearance. Browser
 navigation between both screens was verified. Three targeted tests, syntax and
 frontend build passed; no account was created during visual verification.
 
-CRM Google login is disabled because its production Google client credentials
-are not configured. E2 customer Google login remains enabled. A separate CRM web
-client form is prepared in the existing Google Cloud project with origin
-`https://crm.e2local.com` and callback
-`https://clerk.crm.e2local.com/v1/oauth_callback`. Creating the client and saving
-its credentials to the CRM Clerk application awaits explicit browser access-change
-confirmation; no Google credentials or customer provider settings changed.
+CRM Google login is enabled in production after the user's explicit approval.
+A separate Google web client uses origin `https://crm.e2local.com` and callback
+`https://clerk.crm.e2local.com/v1/oauth_callback`; its credentials are stored in
+the CRM Clerk application, outside repository code. Customer Google configuration
+was compared before/after and is unchanged. Clerk's authenticated database role
+claim is retained. Sign-in and signup both display the white outlined Google
+button with the current E2 logo/design. Clicking it reached Google's account
+chooser using the dedicated client, correct callback and only openid/email/profile
+scopes, with no OAuth error. No account selection, signup or staff grant was made;
+the first completed Google login and staff bootstrap remain user pilot steps.
+The existing Google project's audience remains External/Testing. Basic identity
+scopes qualify for [Google's test-user exemption](https://support.google.com/cloud/answer/15549945?hl=en);
+the project was not republished and no additional Google API scopes were granted.
+This was a live provider configuration change; no application rebuild, schema or
+Edge deployment was required.
 
 Keep future CRM screens consistent with E2 Local and reuse its existing logos.
 
