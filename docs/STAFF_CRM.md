@@ -13,7 +13,10 @@ asset URLs. A regression test reproduced the original 401, then passed for all
 three directories, token refresh and sign-out after the correction. All 196 CRM tests, including eight targeted auth/platform checks, JavaScript
 syntax checks and frontend build passed. This is
 a frontend correction; administrator grants and API authorization are unchanged.
-Production rollout is pending.
+Correction **1de5387** is pushed and live on Render in deployment
+**dep-dauo39s1nsns73f1sh5g**. Production HTML references the refreshed entry;
+app/platform/live assets returned 200, matched source, and resolve the same auth
+module. The user’s signed-in phone session was not remotely inspected.
 
 September 30 administrator bootstrap is complete: the user explicitly approved
 the newly created CRM account. Its dedicated production Clerk identity was
