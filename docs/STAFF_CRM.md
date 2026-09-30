@@ -7,14 +7,25 @@ E2 Local is the customer dashboard. Both use the same Supabase records.
 
 CRM login and account-access screens use the existing E2 dashboard logo asset.
 Clerk controls match E2 `app/auth-appearance.ts`: blue borders, rounded cards,
-48px inputs and gradient pill buttons. Sign-in-or-up stays in the branded CRM
-screen using the independent CRM Clerk application. Local syntax, three targeted
+48px inputs and gradient pill buttons. Separate sign-in and signup stay in the
+branded CRM screen using the independent CRM Clerk application. Local syntax, three targeted
 authentication/theme tests and the production frontend build passed. Branding
 release `b6eb5b1` is live on Render (`dep-dauhch17lnhs73bcoiqg`). Desktop and 390px
 browser checks verified the current logo, 24px card corners, 48px controls, pill
 buttons and no horizontal overflow; the browser reported no errors. Asset version
-references were refreshed so cached browsers load the new styling. Signup uses
-Clerk's sign-in-or-up flow; no account was created during visual verification.
+references were refreshed so cached browsers load the new styling. Follow-up
+release `6637821` is live (`dep-dauhhbe0tbcc73ff81ig`), restoring explicit Sign in
+and Sign up links using mountSignIn/mountSignUp and the same appearance. Browser
+navigation between both screens was verified. Three targeted tests, syntax and
+frontend build passed; no account was created during visual verification.
+
+CRM Google login is disabled because its production Google client credentials
+are not configured. E2 customer Google login remains enabled. A separate CRM web
+client form is prepared in the existing Google Cloud project with origin
+`https://crm.e2local.com` and callback
+`https://clerk.crm.e2local.com/v1/oauth_callback`. Creating the client and saving
+its credentials to the CRM Clerk application awaits explicit browser access-change
+confirmation; no Google credentials or customer provider settings changed.
 
 Keep future CRM screens consistent with E2 Local and reuse its existing logos.
 
