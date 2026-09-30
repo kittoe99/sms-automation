@@ -5,6 +5,13 @@ E2 Local is the customer dashboard. Both use the same Supabase records.
 
 ## Release status
 
+CRM login and account-access screens use the existing E2 dashboard logo asset.
+Clerk controls match E2 `app/auth-appearance.ts`: blue borders, rounded cards,
+48px inputs and gradient pill buttons. Sign-in-or-up stays in the branded CRM
+screen using the independent CRM Clerk application. Local syntax, three targeted
+authentication/theme tests and the production frontend build passed. This visual
+update is awaiting Render release verification.
+
 | Component | Actual status |
 | --- | --- |
 | Registry migration | Live: local `20260930070000_platform_crm.sql` → live `20260930012338`. |

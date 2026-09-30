@@ -35,24 +35,37 @@ const clerkAppearance = {
     fontFamily: '"Plus Jakarta Sans", Arial, sans-serif',
   },
   elements: {
-    cardBox: { width: '100%', maxWidth: '440px', margin: '0 auto' },
+    rootBox: { width: '100%', maxWidth: '520px' },
+    cardBox: { width: '100%', maxWidth: '520px', margin: '0 auto', borderRadius: '24px', border: '2px solid #cbdfe8', boxShadow: '0 6px 0 #e4eef380, 0 20px 50px -30px #173e4c40' },
     card: {
-      border: '1px solid #dbe6e8',
+      width: '100%',
+      border: '0',
       background: '#ffffff',
-      boxShadow: '0 20px 60px rgba(23, 47, 54, 0.1)',
-    },
-    formButtonPrimary: {
-      background: '#087aa5',
-      color: '#ffffff',
       boxShadow: 'none',
-      fontWeight: '700',
+    },
+    headerTitle: { fontSize: '24px', fontWeight: 600, letterSpacing: '-.04em', color: '#172f36' },
+    headerSubtitle: { color: '#536d76', lineHeight: '1.6' },
+    socialButtonsBlockButton: { minHeight: '48px', fontSize: '14px', borderRadius: '999px', background: '#fff', color: '#172f36', border: '2px solid #cbdfe8', boxShadow: '0 1px 2px #173e4c0a' },
+    socialButtonsBlockButtonText: { fontSize: '14px', fontWeight: 600, color: '#172f36' },
+    formFieldLabel: { fontSize: '13px', fontWeight: 600, color: '#314952' },
+    formButtonPrimary: {
+      minHeight: '48px',
+      fontSize: '14px',
+      borderRadius: '999px',
+      background: 'linear-gradient(180deg,#0e8fb9,#087aa5)',
+      color: '#ffffff',
+      boxShadow: '0 8px 16px -10px #087aa580',
     },
     formFieldInput: {
-      border: '1px solid #cbdde2',
-      background: '#ffffff',
+      minHeight: '48px',
+      fontSize: '16px',
+      border: '2px solid #cbdfe8',
+      borderRadius: '10px',
+      background: '#fbfdfd',
       boxShadow: 'none',
     },
-    footerActionLink: { color: '#066383', fontWeight: '700' },
+    footer: { background: '#f0f7fa' },
+    footerActionLink: { color: '#087aa5', fontWeight: 600 },
   },
 };
 
@@ -211,7 +224,7 @@ export function renderLoginScreen({ onSuccess, errorMessage = '' } = {}) {
     <div class="login-shell">
       <div class="clerk-login-wrap">
         <div class="login-brand">
-          <img class="e2-logo" src="/e2-logo.svg" alt="E2.Local" width="165" height="41" />
+          <img class="e2-logo" src="/e2-dashboard-logo.svg" alt="E2 Local" width="165" height="60" />
           <span class="product-label">CRM</span>
         </div>
         <p class="login-error">${escapeHtml(errorMessage)}</p>
@@ -236,7 +249,8 @@ export function renderLoginScreen({ onSuccess, errorMessage = '' } = {}) {
     appearance: clerkAppearance,
     routing: 'hash',
     forceRedirectUrl: '/',
-    withSignUp: false,
+    signUpForceRedirectUrl: '/',
+    withSignUp: true,
   });
 }
 
@@ -251,7 +265,7 @@ export function renderAccessScreen({ errorMessage = 'Could not open the CRM.', o
     <div class="login-shell">
       <div class="clerk-login-wrap">
         <div class="login-brand">
-          <img class="e2-logo" src="/e2-logo.svg" alt="E2.Local" width="165" height="41" />
+          <img class="e2-logo" src="/e2-dashboard-logo.svg" alt="E2 Local" width="165" height="60" />
           <span class="product-label">CRM</span>
         </div>
         <h1>Workspace unavailable</h1>

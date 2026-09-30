@@ -302,7 +302,7 @@ table.data tbody tr:hover { background: #f5fafb; }
   justify-content: center; padding: 28px 16px; background: var(--bg);
 }
 .clerk-login-wrap {
-  display: flex; width: min(100%, 440px); max-width: none; flex-direction: column;
+  display: flex; width: min(100%, 520px); max-width: none; flex-direction: column;
   align-items: center; margin: auto;
 }
 .clerk-login-wrap .login-brand {
@@ -312,7 +312,7 @@ table.data tbody tr:hover { background: #f5fafb; }
 }
 .login-brand .e2-logo { width: 165px; }
 #clerk-sign-in { display: flex; width: 100%; justify-content: center; }
-#clerk-sign-in :is(.cl-rootBox, .cl-cardBox) { width: 100%; max-width: 440px; margin-inline: auto; }
+#clerk-sign-in :is(.cl-rootBox, .cl-cardBox) { width: 100%; max-width: 520px; min-width: 0; margin-inline: auto; }
 .login-error { color: var(--bad); }
 .clerk-login-wrap > h1 { margin: 12px 0; color: var(--text); font-size: 24px; text-align: center; }
 .clerk-login-wrap > .login-error { max-width: 36ch; line-height: 1.5; text-align: center; }
