@@ -1,5 +1,5 @@
-import { createPlatform } from './platform.js';
-import { connectSupabaseLive } from './live.js';
+import { createPlatform } from './platform.js?v=20260930-session-shared';
+import { connectSupabaseLive } from './live.js?v=20260930-session-shared';
 import { createFormBuilder } from './formBuilder.js';
 import { shouldRefreshFromBackground } from './refreshGuard.js';
 import {
@@ -15,7 +15,7 @@ import {
   showCrmApp,
   signOut,
   setTenantId,
-} from './auth.js?v=20260930-login-options';
+} from './auth.js?v=20260930-session-shared';
 
 const state = {
   view: ['platform-accounts','platform-businesses','platform-websites'].includes(new URLSearchParams(location.search).get('view')) ? new URLSearchParams(location.search).get('view') : 'overview',

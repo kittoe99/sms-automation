@@ -5,6 +5,16 @@ E2 Local is the customer dashboard. Both use the same Supabase records.
 
 ## Release status
 
+CRM session fix (September 30): Users/Businesses/Websites and Realtime now use
+the exact same versioned auth module as app initialization. Different query-string
+versions created independent module state and caused missing bearer tokens despite
+a successful login. The application entry and platform/live imports use refreshed
+asset URLs. A regression test reproduced the original 401, then passed for all
+three directories, token refresh and sign-out after the correction. All 196 CRM tests, including eight targeted auth/platform checks, JavaScript
+syntax checks and frontend build passed. This is
+a frontend correction; administrator grants and API authorization are unchanged.
+Production rollout is pending.
+
 September 30 administrator bootstrap is complete: the user explicitly approved
 the newly created CRM account. Its dedicated production Clerk identity was
 verified, and a transaction enabled canonical and compatibility staff access.

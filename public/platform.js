@@ -1,4 +1,4 @@
-import {apiFetch,getAccessToken,runtimeConfig} from './auth.js?v=20260924-auth-loop1';
+import {apiFetch,getAccessToken,runtimeConfig} from './auth.js?v=20260930-session-shared';
 const esc=value=>String(value??'').replaceAll('&','&amp;').replaceAll('<','&lt;').replaceAll('>','&gt;').replaceAll('"','&quot;').replaceAll("'",'&#39;');
 const date=value=>value?new Date(value).toLocaleString():'—';
 async function json(response){const data=await response.json();if(!response.ok)throw new Error(data.error||'Request failed. Please retry.');return data;}
