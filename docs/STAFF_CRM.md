@@ -252,6 +252,20 @@ SVG XML and whitespace checks passed. CRM static deployment is now verified; see
 
 ## CRM frontend release — September 29, 2026
 
+Latest release, September 30: `deploy-crm` source **99f8c9a** is live in
+Render deployment **dep-dauk8iflk1mc73d7co20**, rebuilt with cleared cache in
+confirmed Micah's workspace. HTML and app/auth/theme/logo assets returned 200
+and matched source. This includes the existing branded separate login screens
+and documented independent Google configuration. E2 source **95004c2** is Ready
+on Vercel (**dpl_3CbGR7vf6j7p9HG7f2tQn96dGPAd**) with dashboard caching and
+the simplified Refresh control. Public E2 pages returned 200; unsigned dashboard
+data requests redirected to sign-in. Both production builds succeeded.
+Render still reports a repository-access warning and one high dependency-audit
+finding; the build succeeded. No database/reset SQL, website publishing,
+account grants or messaging changes were executed. Fresh staff bootstrap and
+the authenticated pilot remain. Subsequent documentation commits record this
+release and do not change application assets.
+
 Manually retriggered the static site `wpacquisition-crm` in the confirmed
 Micah's workspace. Render deployment `dep-dau7il9srm7s73b40mb0` built commit
 `b5d25c14862a20fc34009439260956d97b24802a` from `deploy-crm` and became live
