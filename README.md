@@ -231,5 +231,5 @@ live in compatibility mode. The CRM static frontend is live on Render at b5d25c1
 E2 hosting/API release, production Clerk webhook configuration, website pairing
 and the controlled published pilot remain unverified.
 
-Separate customer/staff Clerk applications, dedicated secrets and lifecycle webhooks are configured. The additive E2 login-realm migration is live as 20260930054730; CRM Edge version 35 and compliance-session version 10 are deployed. Frontend release verification is in progress. See the login-split instructions
+Separate customer/staff Clerk applications, dedicated secrets and lifecycle webhooks are configured. The additive E2 login-realm migration is live as 20260930054730; CRM Edge version 35 and compliance-session version 10 are deployed. E2 37c9a2d is Ready on Vercel and CRM a4b5247 is live on Render; both independent login pages are verified. Fresh CRM signup and explicit staff bootstrap remain required. See the login-split instructions
 in [staff CRM documentation](docs/STAFF_CRM.md) before releasing these changes.

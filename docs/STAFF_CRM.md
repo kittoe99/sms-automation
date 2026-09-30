@@ -1,6 +1,6 @@
 # Shared staff CRM and customer dashboard
 
-Updated September 29, 2026 (America/Denver). `opek-sms` is the staff CRM;
+Updated September 30, 2026 (America/Denver). `opek-sms` is the staff CRM;
 E2 Local is the customer dashboard. Both use the same Supabase records.
 
 ## Release status
@@ -11,12 +11,13 @@ E2 Local is the customer dashboard. Both use the same Supabase records.
 | Staff protection migration | Live: local `20260930080000_platform_crm_hardening.sql` → live `20260930013528`. |
 | Form permission migration | Live: local `20260930090000_platform_form_permissions.sql` → live `20260930015523`. |
 | Identity directory migration | Live: local `20260930100000_platform_identity_directory.sql` → live `20260930020115`. |
+| Login separation migration | Live: local `20260930110000_separate_login_realms.sql` → live `20260930054730`; issuers configured in the migration transaction. |
 | CRM Edge API | Version 35 deployed with dedicated CRM issuer and first-login provisioning. |
 | Compliance/registration Edge API | compliance-session version 10 deployed with dedicated CRM issuer and transaction-local identity context. |
-| Identity backfill | Existing dashboard UUID retained; development accounts reconciled against Clerk. Previously audited production administrator mapped to the production issuer. No email matching. |
-| Registry cutover | OFF. All known legacy SMS subjects/grants are mapped; one previously owned website still lacks an explicit business pairing. |
+| Identity backfill | User-requested reset cleared the old mappings. Both production Clerk apps contain zero users; fresh provisioning and explicit staff bootstrap remain required. |
+| Registry cutover | OFF. Database contains zero accounts/staff and one unassigned website/deployment after the reset. |
 | R2 uploads | Existing CORS rules retained, `https://crm.e2local.com` added. Both CRM and E2 preflights returned 204. No website files changed. |
-| Frontends / account webhook | CRM static frontend is live on Render at b5d25c1; E2 frontend/hosting API and account webhook release/configuration remain unverified. |
+| Frontends / account webhook | E2 37c9a2d is Ready on Vercel; CRM a4b5247 is live on Render. Independent login pages, hosting redirect/auth gate and unsigned webhook denial verified. Signed lifecycle subscriptions/secrets configured; real signup pilot remains. |
 | Legacy cleanup | Prepared separately; NOT run. Requires verified release, controlled pilot and external backup. |
 | Pilot | Local SQL/HTTP/UI verification performed. A published website pilot is still pending. No customer messaging was activated. |
 
@@ -33,13 +34,13 @@ applications. Identical emails are allowed with separate issuer/subject account
 UUIDs. New code requires dedicated CRM credentials, CRM-only staff/operator grants,
 customer-only owners/viewers, separate signed webhooks and issuer-bound legacy SMS/
 Realtime access. See [E2 separate login setup](../../E2local-main/docs/separate-logins.md) for environment variables, bootstrap and coordinated rollout.
-The additive E2 migration `20260930110000_separate_login_realms.sql` is live as `20260930054730`. The independent CRM issuer is `https://clerk.crm.e2local.com`; E2 retains `https://clerk.e2local.com`. DNS, certificates, mail, dedicated secrets, signed lifecycle subscriptions and CRM third-party database authentication are configured. CRM Edge version 35 and compliance-session version 10 are deployed; frontend release verification is in progress. Fresh CRM sign-in and explicit staff bootstrap remain required after the reset.
+The additive E2 migration `20260930110000_separate_login_realms.sql` is live as `20260930054730`. The independent CRM issuer is `https://clerk.crm.e2local.com`; E2 retains `https://clerk.e2local.com`. DNS, certificates, mail, dedicated secrets, signed lifecycle subscriptions and CRM third-party database authentication are configured. CRM Edge version 35 and compliance-session version 10 are deployed; E2 implementation 37c9a2d is Ready on Vercel (dpl_FsFHP57as5bfuW7aefJXnnsf7285); CRM implementation a4b5247 is live on Render (dep-daua8ie0tbcc73ejk7eg). Both independent production login pages were verified. Hosting requires CRM bearer credentials, customer dashboard redirects to customer sign-in, and unsigned lifecycle requests return 400. Authenticated staff workflows and a same-email browser pilot await fresh accounts and explicit CRM staff bootstrap. Fresh CRM sign-in and explicit staff bootstrap remain required after the reset.
 
 ## Sources of truth
 
 | Record | Source |
 | --- | --- |
-| Authentication | Separate customer and CRM Clerk applications configured in production; same emails remain independent identities. Database/API switch is live; frontend release verification is in progress. |
+| Authentication | Separate customer and CRM Clerk applications configured in production; same emails remain independent identities. Database/API switch is live; frontend releases are verified. |
 | Platform account | `dashboard_accounts.id`, with active/suspended/deleted status. |
 | Authentication binding | `platform_account_identities(issuer,subject)` → account UUID. Each account belongs to one issuer. |
 | Business / tenant | Existing `sms_businesses.tenant_id`; identifiers and operational history remain stable. |
@@ -160,7 +161,7 @@ node --env-file=.env.local scripts/reconcile-platform-accounts.mjs --apply --map
 Use --application=customer or --application=crm with that app’s matching issuer, publishable key and server secret for the run. The default is read-only.
 The mapping file contains reviewed `{issuer,subject,accountId}` entries for existing
 legacy rows; no email-based merges occur. It must stay outside committed files.
-Production-wide Clerk reconciliation remains pending matching production credentials.
+Both production Clerk applications were inventoried with their matching production credentials and contain zero users. No production mappings/backfill were needed. Reconcile each realm independently as accounts are created.
 
 After deploying and verifying both frontends, inspect the service-only
 `platform_rollout_report(crm_issuer)`. Resolve unmapped identities/grants and the owned

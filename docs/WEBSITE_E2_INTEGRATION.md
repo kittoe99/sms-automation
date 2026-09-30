@@ -80,12 +80,9 @@ passed. Rolled-back live checks verified permissions and status reads with
 temporary sending-disabled data. No real grants/bookings were changed. Manual
 setup and release status are in E2 `docs/bookings.md`.
 
-## Separate application logins (local preparation)
+## Separate application logins (released)
 
-E2 customer and CRM staff logins use different Clerk applications in the new
-local code. Same emails are allowed as independent issuer-qualified accounts.
+E2 customer and CRM staff logins use different Clerk applications in production. Same emails are allowed as independent issuer-qualified accounts.
 Shared businesses/forms/enquiries/bookings remain; customer owners/viewers and
 CRM staff/operators are separated by database issuer checks. Migration
-`20260930110000_separate_login_realms.sql` and authentication changes are not
-live. Configure dedicated CRM keys, issuer-bound Realtime and both webhooks
-before the coordinated release; no website files or automations changed.
+`20260930110000_separate_login_realms.sql` is live as `20260930054730`. Dedicated CRM keys, issuer-bound database authentication and both lifecycle subscriptions are configured. CRM API version 35 and compliance-session version 10 are deployed; E2 37c9a2d and CRM a4b5247 frontend releases are verified. Fresh accounts/staff bootstrap and an authenticated pilot remain; no website files or automations changed.
