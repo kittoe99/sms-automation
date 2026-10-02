@@ -198,5 +198,5 @@ export function createPlatform({root,title,subtitle,pager,onNavigate,onWorkspace
   bind('[data-type]','change',event=>{enquiryType=event.currentTarget.value;enquiryPage=1;run(detail);});
   bind('[data-enquiry-page]','click',event=>{enquiryPage=Number(event.currentTarget.dataset.enquiryPage);run(detail);});
  }
- return {async openRegistration(){await run(registration);},async render(nextView){root.classList.add('platform-root');const resource=nextView.replace('platform-','');if(resource!==view){view=resource;selected=null;page=1;q='';}await (selected?detail():directory());}};
+ return {async openBusiness(id){root.classList.add('platform-root');view='businesses';selected=id;await run(detail);},async openRegistration(){await run(registration);},async render(nextView){root.classList.add('platform-root');const resource=nextView.replace('platform-','');if(resource!==view){view=resource;selected=null;page=1;q='';}await (selected?detail():directory());}};
 }

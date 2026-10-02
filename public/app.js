@@ -1,9 +1,11 @@
-import { createPlatform } from './platform.js?v=20261001-business-services';
+import {readBusinessProfile,writeBusinessProfile} from './profileClient.js?v=20261002-access';
+import {canOpenWorkspace,canWriteWorkspace,staffActionSelector} from './workspacePermissions.js?v=20261002-access';
+import { createPlatform } from './platform.js?v=20261002-access';
 import { connectSupabaseLive } from './live.js?v=20261001-business-services';
 import { createFormBuilder } from './formBuilder.js';
 import { shouldRefreshFromBackground } from './refreshGuard.js';
 import {
-  apiFetch,
+  apiFetch as authenticatedFetch,
   getAccessToken,
   getSession,
   getTenantId,
@@ -16,6 +18,13 @@ import {
   signOut,
   setTenantId,
 } from './auth.js?v=20261001-business-services';
+
+async function apiFetch(path, options = {}) {
+  if (!isDemoMode() && !canWriteWorkspace(path, options.method || 'GET', state.platformStaff, state.tenant)) {
+    return new Response(JSON.stringify({error:'This workspace is read-only for your account.'}), {status:403,headers:{'Content-Type':'application/json'}});
+  }
+  return authenticatedFetch(path, options);
+}
 
 const state = {
   view: ['platform-accounts','platform-businesses','platform-websites','business-setup','web-forms','bookings'].includes(new URLSearchParams(location.search).get('view')) ? new URLSearchParams(location.search).get('view') : 'overview',
@@ -161,30 +170,6 @@ for (const eventName of ['input', 'change']) {
   });
 }
 
-function onboardingStorageKey() {
-  return `opek_sms_onboarding_${getTenantId() || state.tenant?.id || 'default'}`;
-}
-
-function readLocalOnboarding() {
-  try {
-    const raw = localStorage.getItem(onboardingStorageKey());
-    if (!raw) return null;
-    const data = JSON.parse(raw);
-    if (!data || typeof data !== 'object') return null;
-    return data;
-  } catch {
-    return null;
-  }
-}
-
-function writeLocalOnboarding(data) {
-  try {
-    localStorage.setItem(onboardingStorageKey(), JSON.stringify({ ...data, localOnly: true }));
-  } catch {
-    // Private browsing etc. must not block onboarding.
-  }
-}
-
 const bookingDays=['Sunday','Monday','Tuesday','Wednesday','Thursday','Friday','Saturday'];
 const defaultBookingSettings=()=>({enabled:false,version:0,slotDurationMinutes:60,capacityPerSlot:1,minimumNoticeMinutes:120,maximumAdvanceDays:90,followUpEnabled:false,followUpDelayHours:24,followUpIntervalHours:48,followUpMaxAttempts:2,weeklyAvailability:{0:[],1:[],2:[],3:[],4:[],5:[],6:[]},dateExceptions:[],extraFields:[]});
 const bookingKey=value=>String(value||'').trim().toLowerCase().replace(/[^a-z0-9]+/g,'_').replace(/^_|_$/g,'').slice(0,40);
@@ -236,48 +221,11 @@ async function renderBookings(){
 }
 
 async function fetchOnboarding() {
-  const merged = { onboarding: {}, onboardingComplete: false, source: 'api' };
-  try {
-    const response = await apiFetch('/api/onboarding');
-    if (response.ok) {
-      const data = await response.json();
-      merged.onboarding = data.onboarding || {};
-      merged.onboardingComplete = Boolean(data.onboardingComplete);
-      if (merged.onboardingComplete) {
-        try { localStorage.removeItem(onboardingStorageKey()); } catch { /* noop */ }
-      }
-      return merged;
-    }
-    if (![404, 501, 502, 503].includes(response.status)) return merged;
-  } catch {
-    // Disconnected preview or undeployed route: fall through to the device copy.
-  }
-  const local = readLocalOnboarding();
-  if (local) {
-    merged.onboarding = local;
-    merged.onboardingComplete = Boolean(local.completedAt);
-    merged.source = 'local';
-  }
-  return merged;
+  return readBusinessProfile(apiFetch);
 }
 
-async function saveOnboarding(payload) {
-  try {
-    const response = await apiFetch('/api/onboarding', { method: 'POST', body: JSON.stringify(payload) });
-    if (response.ok) {
-      try { localStorage.removeItem(onboardingStorageKey()); } catch { /* noop */ }
-      return { data: await response.json(), source: 'api' };
-    }
-    const data = await response.json().catch(() => ({}));
-    if (![404, 501, 502, 503].includes(response.status)) {
-      throw new Error(data.error || data.detail || 'Could not save business context');
-    }
-  } catch (error) {
-    if (error?.message && !/fetch|network|failed/i.test(error.message)) throw error;
-  }
-  const local = { ...payload, completedAt: new Date().toISOString(), updatedAt: new Date().toISOString() };
-  writeLocalOnboarding(local);
-  return { data: { onboarding: local, onboardingComplete: true }, source: 'local' };
+async function saveOnboarding(payload, intent = 'review') {
+  return writeBusinessProfile(apiFetch, payload, state.setupOnboarding?.revision, intent);
 }
 
 function setupStepsHtml(current = 1) {
@@ -357,6 +305,10 @@ async function renderBusinessSetup() {
   state.setupProvisioning = provisioning;
   state.setupOnboarding = onboardingState || { onboarding: {}, onboardingComplete: false };
   state.setupRegistration = registration || { state: 'draft' };
+  if (provisioning?.serviceAdded === false) {
+    el.root.innerHTML='<section class="card"><h2>SMS has not been added</h2><p>Review the business profile and add SMS from Businesses.</p><button type="button" class="btn" data-open-registered-business>Open business setup</button></section>';
+    return;
+  }
   const details = provisioning?.details || {};
   const senderType = details.senderType || 'local_a2p';
   const brandType = details.brandType || 'standard';
@@ -739,38 +691,14 @@ async function renderBusinessContext() {
   el.pager.hidden = true;
   el.storeMeta.textContent = state.tenant?.name || 'Your workspace';
 
-  const cachedOnboarding = state.setupOnboarding || null;
-  let provisioning = state.setupProvisioning || null;
-  // Always refetch server truth when opening this view: a cached copy from an
-  // earlier save (or another device) must never masquerade as what is stored.
-  if (!cachedOnboarding || !provisioning) {
-    el.root.innerHTML = '<div class="card"><div class="empty">Loading business context…</div></div>';
-  }
-  try {
-    const [onb, provRes] = await Promise.all([
-      fetchOnboarding(),
-      provisioning ? null : apiFetch('/api/provisioning'),
-    ]);
-    // Never let an empty/failed response or a device-only fallback clobber a
-    // known-good server copy. An api result is trusted when it carries data;
-    // a device copy is used only when there is nothing cached yet.
-    const apiHasData = onb && onb.source === 'api' &&
-      (onb.onboardingComplete || Object.keys(onb.onboarding || {}).length > 0);
-    if (onb && (apiHasData || (!cachedOnboarding && onb.source !== 'api'))) state.setupOnboarding = onb;
-    if (provRes && provRes.ok) provisioning = await provRes.json();
-  } catch (error) {
-    console.error(error);
-  }
-  const onboardingState = state.setupOnboarding || { onboarding: {}, onboardingComplete: false };
+  const onboardingState = await fetchOnboarding();
   state.setupOnboarding = onboardingState;
-  state.setupProvisioning = provisioning;
-  const defaults = onboardingDefaults(provisioning);
-  const localNote = state.setupOnboarding.source === 'local';
+  const defaults = onboardingDefaults(state.setupProvisioning);
   el.root.innerHTML = `
     <div class="setup-page">
       <div class="setup-topbar">
         <button type="button" class="btn ghost" id="setup-back">← Back to dashboard</button>
-        <span class="setup-status ${state.setupOnboarding.onboardingComplete && !localNote ? 'ok' : ''}">${esc(localNote ? 'Saved on this device only — not synced' : state.setupOnboarding.onboardingComplete ? 'Context saved' : 'Context required for smarter SMS + AI')}</span>
+        <span class="setup-status ${state.setupOnboarding.onboardingComplete ? 'ok' : ''}">${esc(state.setupOnboarding.onboardingComplete ? 'Profile reviewed · draft edits need review' : 'Profile awaiting review')}</span>
       </div>
       <div class="card setup-hero">
         <div>
@@ -803,7 +731,7 @@ async function renderBusinessContext() {
             <div class="setup-body setup-grid-2">
               <label>
                 <span class="compose-label">Your business name *</span>
-                <input id="ctx-name" maxlength="120" required value="${esc(defaults.businessName)}" placeholder="Business name" autocomplete="organization" />
+                <input id="ctx-name" maxlength="160" required value="${esc(defaults.businessName)}" placeholder="Business name" autocomplete="organization" />
               </label>
               <label>
                 <span class="compose-label">Website <span class="muted">Optional</span></span>
@@ -895,8 +823,8 @@ async function renderBusinessContext() {
           </div>
           <div class="card setup-card setup-actions">
             <span id="ctx-error" class="login-error" role="alert"></span>
-            ${localNote ? '<p class="login-error" style="margin:0">Not synced — the server could not be reached, so this is stored only in this browser. Other devices and the live AI will NOT see it. Reconnect and save again to sync.</p>' : ''}
-            <button type="submit" class="btn" id="ctx-save">Save business context</button>
+            <button type="submit" class="btn ghost" name="intent" value="draft" formnovalidate>Save draft</button>
+            <button type="submit" class="btn" id="ctx-save" name="intent" value="review">Save reviewed profile</button>
             <button type="button" class="btn ghost" id="ctx-cancel">Cancel</button>
           </div>
         </aside>
@@ -917,6 +845,8 @@ async function renderBusinessContext() {
   const error = form.querySelector('#ctx-error');
   const saveButton = form.querySelector('#ctx-save');
   const nameInput = form.querySelector('#ctx-name');
+  nameInput.closest('label').insertAdjacentHTML('afterend', `<label><span class="compose-label">Business time zone</span><input id="ctx-time-zone" value="${esc(state.businessContextDraft?.timeZone || onboardingState.onboarding.timeZone || state.tenant.timeZone)}" required /></label>`);
+  const timeZoneInput = form.querySelector('#ctx-time-zone');
   const websiteInput = form.querySelector('#ctx-website');
   const summaryInput = form.querySelector('#ctx-summary');
   const servicesInput = form.querySelector('#ctx-services');
@@ -933,6 +863,7 @@ async function renderBusinessContext() {
   const captureDraft = () => {
     state.businessContextDraft = {
       businessName: nameInput.value,
+      timeZone: timeZoneInput.value,
       websiteUrl: websiteInput.value,
       fetchUrl: form.querySelector('#ctx-fetch-url')?.value || '',
       summary: summaryInput.value,
@@ -1024,7 +955,7 @@ async function renderBusinessContext() {
       if (!response) throw new Error('Website fetch is unavailable. Check the server and try again.');
       if (response.status === 404) throw new Error('Website fetch is not deployed yet. Fill in the form manually for now.');
       if (!response.ok) throw new Error(data.error || 'That website could not be read. Check the address and try again.');
-      if (data.businessName) nameInput.value = String(data.businessName).slice(0, 120);
+      if (data.businessName) nameInput.value = String(data.businessName).slice(0, 160);
       if (data.websiteUrl && !websiteInput.value.trim()) {
         websiteInput.value = String(data.websiteUrl);
         fetchUrlInput.value = String(data.websiteUrl);
@@ -1068,6 +999,13 @@ async function renderBusinessContext() {
     };
     error.textContent = '';
     saveButton.disabled = true;
+    const intent = event.submitter?.value === 'draft' ? 'draft' : 'review';
+    const payload = {businessName, timeZone:timeZoneInput.value.trim(), websiteUrl, summary, services, locations, hours, contactPhone, contactEmail, tone, faqs, pricing, policies, bookingRules, handoff};
+    if (intent === 'draft') {
+      try {const result=await saveOnboarding(payload,'draft');state.setupOnboarding={...result.data,source:'api'};state.businessContextDraft=null;await renderBusinessContext();}
+      catch (failure) {fail(failure.message);}
+      return;
+    }
     if (!businessName) return fail('Business name is required.', nameInput);
     if (websiteUrl && !/^https:\/\/\S+/.test(websiteUrl)) return fail('Website must start with https:// — or leave it blank.', websiteInput);
     if (summary && (summary.length < 20 || summary.length > 2000)) return fail('Summary must be 20–2000 characters — or leave it blank.', summaryInput);
@@ -1091,13 +1029,15 @@ async function renderBusinessContext() {
         saveButton.disabled = false;
         return;
       }
-      const result = await saveOnboarding({ businessName, websiteUrl, summary, services, locations, hours, contactPhone, contactEmail, tone, faqs, pricing, policies, bookingRules, handoff });
+      const result = await saveOnboarding(payload);
       state.setupOnboarding = {
+        ...result.data,
         onboarding: result.data.onboarding || {},
         onboardingComplete: Boolean(result.data.onboardingComplete),
         source: result.source,
       };
       state.businessContextDraft = null;
+      await loadTenantContext();
       state.view = 'overview';
       setActiveNav();
       await load();
@@ -1420,7 +1360,7 @@ function initNavFind() {
     const q = input.value.trim().toLowerCase();
     document.querySelectorAll('#nav .nav-item').forEach((item) => {
       const hay = `${item.textContent || ''} ${item.dataset.find || ''}`.toLowerCase();
-      item.hidden = (Boolean(q) && !hay.includes(q)) || (item.hasAttribute('data-platform-nav') && !state.platformStaff) || (state.tenant?.smsRead===false && item.dataset.view!=='web-forms' && !item.hasAttribute('data-platform-nav'));
+      item.hidden = !canOpenWorkspace(item.dataset.view,state.platformStaff,state.tenant) || (Boolean(q) && !hay.includes(q)) || (item.hasAttribute('data-platform-nav') && !state.platformStaff) || (state.tenant?.smsRead===false && item.dataset.view!=='web-forms' && !item.hasAttribute('data-platform-nav'));
     });
     document.querySelectorAll('#nav section').forEach((section) => {
       const visible = [...section.querySelectorAll('.nav-item')].some((n) => !n.hidden);
@@ -1544,7 +1484,7 @@ async function load() {
     }
     el.root.classList.remove('platform-root');
     if (!state.tenant) throw new Error('Choose or create a business workspace.');
-    if(state.tenant.smsRead===false){state.view='web-forms';setActiveNav();}
+    if (!canOpenWorkspace(state.view,state.platformStaff,state.tenant)) {state.view=state.tenant.smsRead?'overview':'web-forms';setActiveNav();}
     if (!state.categories.length && state.tenant.smsRead!==false) {
       const catRes = await apiFetch('/api/categories');
       if (catRes.status === 401 || catRes.status === 403) {
@@ -1585,6 +1525,8 @@ async function load() {
     el.root.innerHTML = `<div class="card"><div class="empty" role="alert"><strong>Could not load this page.</strong><p>${esc(err.message || 'Please try again.')}</p><button type="button" class="btn ghost" data-retry-load>Try again</button></div></div>`;
     el.root.querySelector('[data-retry-load]')?.addEventListener('click', () => load());
   } finally {
+    applyWorkspacePermissions();
+    el.root.querySelector('[data-open-registered-business]')?.addEventListener('click',()=>{state.view='platform-businesses';setActiveNav();platform.openBusiness(state.tenant.id);});
     el.root.setAttribute('aria-busy', 'false');
   }
 }
@@ -1668,12 +1610,12 @@ async function renderOverview() {
     console.error(err);
   }
   try {
-    const response = await apiFetch('/api/provisioning');
-    if (response.ok) provisioning = await response.json();
+    const response = state.platformStaff ? await apiFetch('/api/provisioning') : null;
+    if (response?.ok) provisioning = await response.json();
   } catch (error) { console.error(error); }
   state.setupProvisioning = provisioning;
   let onboardingComplete = state.setupOnboarding?.onboardingComplete;
-  if (onboardingComplete == null) {
+  if (state.platformStaff && onboardingComplete == null) {
     try {
       const onb = await fetchOnboarding();
       state.setupOnboarding = onb;
@@ -1689,7 +1631,8 @@ async function renderOverview() {
 
   el.root.innerHTML = `
     ${totalsAvailable ? '' : '<p class="muted" role="status">Message totals are unavailable. Select Refresh to try again.</p>'}
-    ${provisioning && !provisioning.sendingEnabled ? `
+    ${provisioning?.serviceAdded === false ? '<section class="card"><h2>SMS has not been added</h2><p>Review the profile and add SMS in Businesses.</p><button type="button" class="btn" data-open-registered-business>Open business setup</button></section>' : ''}
+    ${provisioning && provisioning.serviceAdded !== false && !provisioning.sendingEnabled ? `
       <details class="card dashboard-details" open>
         <summary>Business messaging setup</summary>
         <p><strong>${esc({pending:'Preparing Twilio account',creating_account:'Creating Twilio subaccount',account_created:'Twilio subaccount created',creating_service:'Creating Messaging Service',awaiting_number:'Ready for phone number and registration',submission_unknown:'Twilio setup needs review',ready:'Messaging setup complete'}[provisioning.state] || String(provisioning.state || 'Setup pending').replaceAll('_',' '))}</strong></p>
@@ -1704,7 +1647,7 @@ async function renderOverview() {
         <button type="button" class="btn ghost" data-open-business-context>${onboardingComplete ? 'Review business context' : 'Add business context'}</button>
       </details>` : ''}
     <div class="dashboard-actions" aria-label="Quick actions">
-      <button type="button" class="dashboard-action" data-dashboard-view="messaging"><strong>Open inbox <span aria-hidden="true">→</span></strong><span>Read and reply to customers</span></button>
+      <button type="button" class="dashboard-action" data-dashboard-view="messaging"><strong>Open inbox <span aria-hidden="true">→</span></strong><span>${state.platformStaff ? 'Read and reply to customers' : 'Read customer conversations'}</span></button>
       <button type="button" class="dashboard-action" data-dashboard-view="contacts"><strong>View contacts <span aria-hidden="true">→</span></strong><span>Find a customer or lead</span></button>
       <button type="button" class="dashboard-action" data-dashboard-view="automations"><strong>Manage follow-ups <span aria-hidden="true">→</span></strong><span>Review your automated messages</span></button>
     </div>
@@ -1756,13 +1699,14 @@ async function renderOverview() {
     </section>
   `;
 
-  if (globalThis.SMS_CONFIG?.apiBase) {
+  if (state.platformStaff && globalThis.SMS_CONFIG?.apiBase) {
     el.root.insertAdjacentHTML('beforeend', '<details class="card automation-health" id="worker-status"><summary><span class="automation-health-dot" aria-hidden="true"></span><span><strong>Automation system</strong><small>Scheduler, queues, and worker health</small></span><span class="automation-health-action">View status</span></summary><div class="worker-status-content muted">Open to check automation status.</div></details>');
     const details = el.root.querySelector('#worker-status');
     details.addEventListener('toggle', async () => {
       if (!details.open) return;
       const node = details.querySelector('.worker-status-content');
       try {
+        if (!state.platformStaff) return;
         const response = await apiFetch('/api/operations');
         if (!response.ok) throw new Error('Status is temporarily unavailable');
         const data = await response.json();
@@ -2487,7 +2431,7 @@ async function renderMessaging() {
     thread = detail.conversation || null;
     if(thread)state.conversationPhone=thread.phone;
     voiceCalls = Array.isArray(callsRes?.calls) ? callsRes.calls : [];
-    if (thread?.unreadCount) {
+    if (state.platformStaff && thread?.unreadCount) {
       await apiFetch(`/api/conversations/${encodeURIComponent(state.conversationId)}/read`, {
         method: 'POST',
       });
@@ -3201,7 +3145,7 @@ async function renderDeliverability() {
   el.pager.hidden = true;
   el.status.disabled = true;
 
-  const [res,operationsRes] = await Promise.all([apiFetch('/api/deliverability'),apiFetch('/api/operations')]);
+  const [res,operationsRes] = await Promise.all([apiFetch('/api/deliverability'),state.platformStaff?apiFetch('/api/operations'):Promise.resolve(new Response('{}',{status:403}))]);
   const data = await res.json(),operations=operationsRes.ok?await operationsRes.json():{},grounded=operations.grounded||{};
   const estimatedUsd = value => value == null ? 'Rate not set' : `$${(Number(value)/1000000).toFixed(4)}`;
   renderKpis(data);
@@ -3228,7 +3172,7 @@ async function renderDeliverability() {
         }
       </div>
     </div>
-    <div class="card" style="margin-top:16px">
+    <div class="card" style="margin-top:16px" ${state.platformStaff ? '' : 'hidden'}>
       <div class="card-head"><div><span class="eyebrow">Grounded AI operations</span><h2>Knowledge, handoffs, and compliance</h2></div></div>
       <div class="facet-grid">
         <div class="facet"><div class="n">${fmt(grounded.ingestionFailures||0)}</div><div class="l">Ingestion failures</div></div>
@@ -3701,6 +3645,14 @@ async function boot() {
     }
   }
 }
+
+function applyWorkspacePermissions() {
+  if (isDemoMode() || state.platformStaff === undefined || state.platformStaff) return;
+  document.querySelectorAll(staffActionSelector).forEach(node=>{node.hidden=true;if ('disabled' in node) node.disabled=true;});
+  document.querySelectorAll('[data-view]').forEach(node=>{if(!canOpenWorkspace(node.dataset.view,false,state.tenant))node.hidden=true;});
+  document.querySelectorAll('#nav section').forEach(section=>{section.hidden=![...section.querySelectorAll('.nav-item')].some(node=>!node.hidden);});
+}
+new MutationObserver(applyWorkspacePermissions).observe(document.getElementById('crm-app'),{childList:true,subtree:true});
 
 function installDemoActionGuard() {
   const selector = 'button[type="submit"], #call-place, #ai-pause-btn, #compose-send, #save-automation-group, #save-group-ai, #delete-automation-group, #drawer-opt-in, #drawer-opt-out, .enroll-btn, .unenroll-btn, [data-opt-in], [data-enrollment-id]';

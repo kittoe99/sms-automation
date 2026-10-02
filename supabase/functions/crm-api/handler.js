@@ -47,9 +47,9 @@ export function createCrmHandler(db,verify=authenticate,{platform=false,provisio
    }
    if(path==='/auth/me'||path==='/tenants'||(path==='/businesses'&&method==='GET')) {
     if(platform) await provision(db,user);
-    const data=await read('businesses');const tenants=data.rows.map(row=>({...business(row),smsRead:true}));
     const session=platform?await db.call('platform_session',user):{platformStaff:false};
-    for(const row of session.formWorkspaces||[])if(!tenants.some(t=>t.id===row.tenant_id))tenants.push({...business(row),smsRead:false,formsManage:true});
+    const rows=platform?session.workspaces:(await read('businesses')).rows;
+    const tenants=(rows||[]).map(row=>({...business(row),smsRead:platform?row.smsRead===true:true,formsManage:platform?row.formsManage===true:false}));
     return json({user:{id:user},tenants,businesses:tenants,currentTenant:tenants.find(x=>x.id===tenant)||tenants[0]||null,tenant:tenants[0]||null,capabilities:{databaseIsolation:true,providerCredentialsPerTenant:true,twilioCredentialsPerTenant:true,...session}},200,headers);
    }
    if(path==='/businesses'&&method==='POST') {
@@ -185,7 +185,7 @@ export function createCrmHandler(db,verify=authenticate,{platform=false,provisio
     if(path==='/voice-booking-rules'&&method==='PUT') return json({rule:await db.call('voice_save_rule',user,tenant,p)},200,headers);
     const bookingCancel=path.match(/^\/bookings\/([^/]+)\/cancel$/);if(bookingCancel)return json({booking:await db.call('cancel_booking',user,tenant,decodeURIComponent(bookingCancel[1]),request.headers.get('Idempotency-Key')||p.idempotencyKey||'')},200,headers);
     if(path==='/profile-versions') return json(await db.call('save_profile_version',user,tenant,p,false),201,headers);
-    const profileApproval=path.match(/^\/profile-versions\/([^/]+)\/approve$/);if(profileApproval)return json(await db.call('approve_profile_version',user,tenant,profileApproval[1]),200,headers);
+    const profileApproval=path.match(/^\/profile-versions\/([^/]+)\/approve$/);if(profileApproval)return json(await db.call('approve_profile_version',user,tenant,profileApproval[1],p.revision??null),200,headers);
     if(path==='/knowledge/uploads/sign') {await db.call('require_admin',user);return json(await signedKnowledgeUpload(tenant,p),201,headers);}
     if(path==='/knowledge/sources') return json(await db.call('create_knowledge_source',user,tenant,p),202,headers);
     const sourceArchive=path.match(/^\/knowledge\/sources\/([^/]+)$/);if(sourceArchive&&method==='DELETE')return json(await db.call('archive_knowledge_source',user,tenant,sourceArchive[1]),200,headers);

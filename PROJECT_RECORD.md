@@ -142,3 +142,36 @@ Implemented the paired lifecycle: atomic/retry-safe customer registration, origi
 Validation: CRM 200/200 tests and frontend production build passed; E2 128/128 tests, TypeScript, full lint and production build passed. Combined PGlite migrations cover atomic retries/rollback, no onboarding provisioning, idempotent additions, reviewed version activation, stale writes, role/realm isolation, compatibility modes, cache changes, ownership transfer/reassignment, independent visibility filters and reconciliation. Rendered-component checks cover hidden navigation/cards/counts/activity/direct links and SMS-only release. Synthetic local CRM browser checks verified profile prefills, review unlocks, draft service creation, Set live and Hide; no browser console errors. Node globals are now configured for existing E2 scripts/tests so the full lint suite runs.
 
 Not applied, pushed or deployed. No cloud records, provider services, messages or published websites changed. Supabase local `db lint --local` was attempted but could not connect to 127.0.0.1:54322 because the local database is not running. Docker-based lint/advisors and an authenticated deployed pilot remain release checks; this environment used the combined PGlite harness. Apply CRM prerequisite 20261001235349 before E2 lifecycle 20261001235352, reconciling live timestamp aliases first. See the business lifecycle documentation for existing-asset review and coordinated rollout.
+
+
+### October 2, 2026 — Canonical CRM linking and shared profile review
+
+Compared CRM with `../E2local-main` (`e2-local`). Canonical active CRM identities,
+staff grants and enabled operator memberships now authorize SMS/form access
+immediately, including revocation with either compatibility setting. Legacy grants
+and rollout flags are retained without migration. Session workspace discovery no
+longer calls an administrator-only directory. Scoped SMS reads and form-only
+workspaces are separated from administrator mutations and customer ownership.
+
+Both profile editors use the same persisted draft, revision and review transaction.
+Review updates approved facts, setup, business identity, audit and cache together;
+partial drafts retain omitted fields and never replace the customer submission.
+Stale/missing revisions fail with 409; API/network errors retain unsaved input.
+Provider setup and retries reject businesses without explicit Add SMS.
+
+Validation: full CRM 202/202 and E2 132/132 suites passed, E2 type/lint/build and CRM
+frontend build passed. Additional combined real-handler/PGlite checks cover both
+cutover values, canonical-only administrators, conflicting legacy grants,
+revocation, cross-business reads, authenticated RLS, suspension and deleted
+identities, profile concurrency/retention, and one-job SMS addition. Targeted
+regressions passed after final guards. Browser verification uses synthetic local
+records and real database-backed handlers; authenticated production verification
+is recorded separately below. No provider integrations were invoked by tests.
+
+Release order: existing lifecycle migrations, then CRM
+`20261002024327_sms_workspace_access_guards.sql`, then E2
+`20261002024330_canonical_crm_access_profiles.sql`, then crm-api and CRM assets.
+Compared 22 affected/dependent live functions with the combined local baseline:
+all matched. The guarded live rehearsal rolled back successfully, preserving
+services, providers/jobs, memberships, staff grants and compatibility settings.
+At this entry these new migrations and application changes are local, not released.

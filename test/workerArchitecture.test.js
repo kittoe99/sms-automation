@@ -34,7 +34,7 @@ test('migration preserves website data and isolates queue submissions',async()=>
   });
   assert.equal(setup.detailsComplete,true);assert.equal(setup.details.areaCode,'720');
   await assert.rejects(()=>call(db,'save_provider_setup','admin','alpha',{senderType:'local_a2p'}),/brand type|business name/i);
-  await assert.rejects(()=>call(db,'api_read','stranger','alpha','contacts',{}),/Admin access required/);
+  await assert.rejects(()=>call(db,'api_read','stranger','alpha','contacts',{}),/Business access required/);
   const alpha=await call(db,'api_read','admin','alpha','contacts',{});
   assert.equal(alpha.rows.length,1); assert.equal(alpha.rows[0].name,'alpha');
   await db.exec(`update public.sms_businesses set sending_enabled=true,status='active' where tenant_id='alpha';`);

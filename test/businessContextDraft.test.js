@@ -14,10 +14,11 @@ test('business context drafts survive realtime and polling refreshes',()=>{
   assert.match(app,/state\.businessContextDraft \? \{ \.\.\.defaults, \.\.\.state\.businessContextDraft \} : defaults/);
 });
 
-test('business context always refetches server truth and shouts about device-only saves',()=>{
-  assert.match(app,/known-good server copy/);
-  assert.match(app,/Saved on this device only/);
-  assert.match(app,/will NOT see it/);
+test('business context uses the shared draft and review workflow without local success fallback',()=>{
+  assert.match(app,/const onboardingState = await fetchOnboarding\(\)/);
+  assert.match(app,/writeBusinessProfile\(apiFetch, payload, state.setupOnboarding\?\.revision, intent\)/);
+  assert.match(app,/Save reviewed profile/);
+  assert.doesNotMatch(app,/Saved on this device only/);
 });
 
 test('business context website enrichment prefers the project Firecrawl endpoint',()=>{

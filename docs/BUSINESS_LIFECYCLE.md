@@ -50,8 +50,8 @@ remain outside this customer release registry.
 - Suspended/deleted customers cannot read services. Hiding an existing service
   remains available while its owner is suspended.
 - Customer authorization always uses the canonical service registry, regardless
-  of the existing compatibility switches. Staff/operator compatibility and the
-  separate legacy-cleanup process remain intact.
+  of the existing compatibility switches. CRM staff/operator authorization also uses canonical grants immediately; legacy
+  tables and switches remain for the separate cleanup process.
 
 ## Existing registrations and assets
 
@@ -101,3 +101,39 @@ profile normalization tests exercise the new request contract.
 See both project records for actual test results and deployment status. Local
 PGlite checks do not replace Supabase deployment checks, provider integration
 verification or the authenticated pilot.
+
+
+## CRM access and shared profile contract (October 2 follow-up)
+
+Apply CRM `20261002024327_sms_workspace_access_guards.sql` before E2
+`20261002024330_canonical_crm_access_profiles.sql`, after the October 1 lifecycle
+pair. Never replay migration history on the shared database. Compare live function
+definitions and rehearse the exact forward migrations transactionally first.
+Coordinate crm-api and CRM static assets; the profile write contract now requires
+an expected setup `revision` (409 on missing/stale values). Reverting only the UI
+would leave old profile submissions failing closed.
+
+Canonical CRM issuer/subject, active status, enabled staff grants and enabled
+operator memberships are authoritative regardless of compatibility flags. Global
+staff see all businesses; SMS-read operators see scoped read screens; forms-only
+operators see their form editor. Customer ownership never permits internal tools.
+Operational writes, profile review, provisioning and global diagnostics remain
+staff-only. Forms require their distinct permission. Realtime SELECT policies
+consult the same canonical SMS decision, so revocation applies to further reads.
+
+Businesses and Business context edit one server draft. Save draft changes no
+approved facts; Save reviewed profile atomically updates approved version, setup,
+name/time zone, audit and customer-cache revision. Both entry points merge omitted
+fields and preserve the original registration. Refresh before retrying a conflict;
+failed saves retain input and cannot report a local-only success.
+
+Without an initialized SMS provider, setup says **SMS has not been added** and
+links to Businesses. Retry/setup-detail writes create no jobs. Explicit **Add SMS**
+remains retry-safe and initializes one provider/bootstrap job. **Set live**,
+website publication and sending activation stay independent administrator actions.
+
+`tests/crm-linking-access.test.mjs` in E2 executes the CRM handler against both
+migration histories; CRM profile-client tests verify revision/error behavior and
+read-only capabilities. See both project records for actual release and browser
+verification evidence. These changes do not assign retained websites, release
+services or activate messaging.
