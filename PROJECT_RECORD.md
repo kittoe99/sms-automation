@@ -87,8 +87,14 @@ Applied this repository’s `20261001235349_business_service_prerequisites.sql` 
 Removed the horizontal Overview/Contacts/Inbox/Bookings/Automations/Email tab
 row that duplicated the sidebar. Sidebar menus still use retained in-page views,
 preserving drafts and avoiding full reloads. The content region is labelled by
-its page heading instead of a removed tab. Frontend-only change; release checks
-are recorded after deployment. No shared database or E2 application changes.
+its page heading instead of a removed tab. Frontend build, syntax/diff checks
+and three workspace tests passed. Synthetic desktop navigation preserved section
+history; the 390px drawer still exposed its menus without the extra tab row.
+
+Application `c219f95` is live on Render `dep-db00v15g1s2s73c5onu0` (October 2,
+02:09 PM MDT). Deployed HTML has no inner tab markup. Authenticated production
+Inbox inspection confirmed zero inner tab rows and the visible sidebar menu;
+console warnings/errors were empty. No shared database or E2 application changes.
 
 ### October 2, 2026 — CRM logo returns to its dashboard
 
