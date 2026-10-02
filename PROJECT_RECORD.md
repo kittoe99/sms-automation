@@ -82,6 +82,15 @@ Applied this repository’s `20261001235349_business_service_prerequisites.sql` 
 
 ## Change record
 
+### October 2, 2026 — Remove stock workspace names
+
+Removed the hardcoded business option and initials from the CRM shell and named
+example placeholders from setup forms. The selector now displays only returned
+businesses; loading/empty states are disabled and no-workspace resolution clears
+the old selector, business label and initials. Selection is reconciled against
+the returned workspace list. Frontend-only correction with no database, service
+or E2 application changes. Validation and release evidence follow after checks.
+
 ### October 2, 2026 — Remove duplicate inner CRM tabs
 
 Removed the horizontal Overview/Contacts/Inbox/Bookings/Automations/Email tab

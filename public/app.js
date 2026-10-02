@@ -317,7 +317,7 @@ function sampleFieldsHtml(samples) {
           <label class="compose-label" for="setup-sample-${i}">Sample ${i + 1} *</label>
           <span class="setup-count" data-count-for="setup-sample-${i}">${String(value || '').trim().length}/320</span>
         </div>
-        <textarea id="setup-sample-${i}" data-sample-input rows="3" minlength="20" maxlength="320" required placeholder="Thanks for contacting Example Business. Reply STOP to opt out.">${esc(value || '')}</textarea>
+        <textarea id="setup-sample-${i}" data-sample-input rows="3" minlength="20" maxlength="320" required placeholder="Enter a sample message your business will send.">${esc(value || '')}</textarea>
         <div class="setup-sample-foot">
           <span class="muted" data-hint-for="setup-sample-${i}">20–320 characters. Include STOP/HELP wording.</span>
           ${list.length > 2 ? `<button type="button" class="btn ghost setup-sample-remove" data-remove-sample="${i}">Remove</button>` : ''}
@@ -444,7 +444,7 @@ async function renderBusinessSetup() {
             <div class="setup-body setup-grid-2">
               <label class="field-wide">
                 <span class="compose-label">Legal business name *</span>
-                <input id="setup-legal-name" maxlength="160" required value="${esc(details.legalBusinessName || state.tenant?.name || '')}" autocomplete="organization" placeholder="Bello Moving LLC" />
+                <input id="setup-legal-name" maxlength="160" required value="${esc(details.legalBusinessName || state.tenant?.name || '')}" autocomplete="organization" placeholder="Registered legal business name" />
               </label>
               <label>
                 <span class="compose-label">Registration notification email *</span>
@@ -1560,7 +1560,7 @@ async function switchTenant(tenantId, options = {}) {
 }
 
 function syncSidebarBrand() {
-  const name = state.tenant?.name || 'Business workspace';
+  const name = state.tenant?.name || 'No business workspace';
   if (el.tenantSelect) el.tenantSelect.title = name;
 }
 
@@ -3803,16 +3803,17 @@ function updateAuthChrome() {
   const email = isDemoMode() ? 'Demo preview · sample data' : getSession()?.user?.email || '';
   if (emailEl) emailEl.textContent = email;
   const tenant = state.tenant;
-  if (tenant && el.toolbarTenant) el.toolbarTenant.textContent = tenant.shortName || tenant.name;
-  if (tenant && el.tenantAvatar) {
-    el.tenantAvatar.textContent = String(tenant.shortName || tenant.name || 'BA')
+  if (el.toolbarTenant) el.toolbarTenant.textContent = tenant?.shortName || tenant?.name || 'CRM';
+  if (el.tenantAvatar) {
+    el.tenantAvatar.textContent = String(tenant?.shortName || tenant?.name || '')
       .split(/\s+/)
       .map((part) => part[0])
       .join('')
       .slice(0, 2)
       .toUpperCase();
   }
-  if (tenant) document.title = `${tenant.shortName || tenant.name} · E2.Local CRM`;
+  document.title = tenant ? `${tenant.shortName || tenant.name} · E2.Local CRM` : 'E2.Local CRM';
+  if (!tenant) el.storeMeta.textContent = 'No business workspace';
   syncSidebarBrand();
   initNavFind();
 }
@@ -3823,20 +3824,28 @@ async function loadTenantContext() {
   const data = await response.json();
   state.tenants = Array.isArray(data.tenants) ? data.tenants : [];
   const stored = getTenantId();
-  state.tenant = state.tenants.find((tenant) => tenant.id === stored) || data.currentTenant || state.tenants[0];
-  if (!state.tenant) { if (state.platformStaff) return; throw new Error('No business account is configured'); }
+  state.tenant = state.tenants.find((tenant) => tenant.id === stored)
+    || state.tenants.find((tenant) => tenant.id === data.currentTenant?.id)
+    || state.tenants[0] || null;
+  if (el.tenantSelect) {
+    el.tenantSelect.disabled = !state.tenants.length;
+    el.tenantSelect.innerHTML = state.tenants.length
+      ? state.tenants.map((tenant) => `<option value="${esc(tenant.id)}">${esc(tenant.name)}</option>`).join('')
+      : '<option value="">No business workspace</option>';
+    el.tenantSelect.value = state.tenant?.id || '';
+  }
+  if (!state.tenant) {
+    state.categories = [];
+    updateAuthChrome();
+    if (state.platformStaff) return;
+    throw new Error('No business account is configured');
+  }
   if(state.tenant.smsRead===false){
     state.view='web-forms';
     document.querySelectorAll('#nav .nav-item').forEach(node=>{if(!node.hasAttribute('data-platform-nav')&&node.dataset.view!=='web-forms')node.hidden=true;});
     setActiveNav();
   }
   setTenantId(state.tenant.id);
-  if (el.tenantSelect) {
-    el.tenantSelect.innerHTML = state.tenants
-      .map((tenant) => `<option value="${esc(tenant.id)}">${esc(tenant.name)}</option>`)
-      .join('');
-    el.tenantSelect.value = state.tenant.id;
-  }
 }
 
 document.getElementById('sign-out-btn')?.addEventListener('click', async () => {

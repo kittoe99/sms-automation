@@ -5,6 +5,10 @@ section's individual menu options remain visible below those section controls.
 The duplicate horizontal workspace tab row has been removed. Navigation stays
 inside the current page and retains visited panels and unsaved drafts.
 
+The business selector displays only workspaces returned by the CRM. It is
+disabled while loading and shows No business workspace when none are available.
+Empty accounts do not display a sample business name or stale business initials.
+
 Open Automations to see the selected business's configured groups in its sidebar
 submenu. Selecting a group opens its workspace; selecting the Automations parent
 returns to the full group list. An unconfigured business can have an empty group

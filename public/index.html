@@ -55,8 +55,8 @@
 
         <label class="workspace-switcher" for="tenant-select">
           <span>Business workspace</span>
-          <select id="tenant-select" aria-label="Business account">
-            <option value="opek">Opek Junk Removal</option>
+          <select id="tenant-select" aria-label="Business account" disabled>
+            <option value="">Loading workspaces…</option>
           </select>
           <i aria-hidden="true">⌄</i>
         </label>
@@ -166,7 +166,7 @@
         <a class="dashboard-support-link" href="https://www.e2local.com/contact">Help &amp; support</a>
         <div class="sidebar-foot">
           <div class="auth-foot">
-            <span class="user-avatar" id="tenant-avatar" aria-hidden="true">OP</span>
+            <span class="user-avatar" id="tenant-avatar" aria-hidden="true"></span>
             <div>
               <strong id="auth-email">Account</strong>
               <span id="store-meta">Tracking outbound SMS</span>
@@ -255,6 +255,6 @@
 
     <script type="importmap">{"imports":{"fflate":"/vendor/fflate.js"}}</script>
     <script src="/config.js"></script>
-    <script src="/app.js?v=20261002-single-navigation" type="module"></script>
+    <script src="/app.js?v=20261002-real-workspaces" type="module"></script>
   </body>
 </html>
