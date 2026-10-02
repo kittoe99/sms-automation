@@ -82,6 +82,20 @@ Applied this repository’s `20261001235349_business_service_prerequisites.sql` 
 
 ## Change record
 
+### October 2, 2026 — Restore visible CRM menu options
+
+The refined shell hid the detailed sidebar behind navigation search. The current
+section's menu now remains visible alongside the retained workspace tabs.
+Automation submenus synchronize on first load; the parent returns to the group
+list after selecting a group. Search still spans permitted sections. See
+[CRM navigation](docs/CRM_NAVIGATION.md).
+
+Validation: frontend build, JavaScript syntax and all three tab workspace tests
+passed. Synthetic browser checks covered first-load group menus, group selection,
+return to the list, Platform menus, cross-section search and a 390px mobile drawer.
+This is a frontend-only repair; no migrations, service setup or access changes.
+Local implementation verified; production release verification follows below.
+
 ### October 1, 2026 — Coordinated production business lifecycle release
 
 Applied both migrations to shared WPacquisition Supabase (`wxamwhfmelxqahkdtcci`)

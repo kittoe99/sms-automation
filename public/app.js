@@ -1285,7 +1285,7 @@ function contactTypeLabel(source) {
 document.getElementById('nav').addEventListener('click', (e) => {
   const btn = e.target.closest('[data-view]');
   if (!btn) return;
-  switchView(btn.dataset.view, btn.dataset.category ? {categoryId: btn.dataset.category} : {}).then(() => {
+  switchView(btn.dataset.view, btn.dataset.view === 'automations' ? {categoryId: btn.dataset.category || null} : {}).then(() => {
     if (matchMedia('(max-width: 900px)').matches) {
       el.title.setAttribute('tabindex', '-1');
       el.title.focus({ preventScroll: true });
@@ -1437,6 +1437,7 @@ const TAB_GROUPS = [
 const sectionHistory = new Map();
 function renderSectionNavigation(activeGroup) {
   sectionHistory.set(activeGroup.id, state.view);
+  document.getElementById('nav').dataset.section = activeGroup.id === 'setup' ? 'settings' : activeGroup.id;
   const nav = document.getElementById('section-nav');
   nav.innerHTML = TAB_GROUPS.map(group => {
     const allowed = group.views.filter(tab => canOpenWorkspace(tab.view, state.platformStaff, state.tenant));
@@ -1801,6 +1802,7 @@ function renderNavAutomations() {
     count.hidden = !n;
     count.textContent = String(n);
   }
+  setActiveNav();
   initNavFind();
 }
 

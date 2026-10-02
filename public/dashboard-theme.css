@@ -265,8 +265,16 @@ body { font-family: "Plus Jakarta Sans", Arial, sans-serif; font-size: 14px; }
 .section-link:hover { background:#eef5f6; color:var(--text); }
 .section-link.active { background:#e6f3f7; border-color:#c9e4ed; color:var(--brand-deep); }
 .section-link:focus-visible { outline:2px solid var(--brand); outline-offset:3px; }
-.crm #nav { display:none; }
-.crm #nav.is-searching { display:flex; margin-top:20px; }
+.crm #nav { display:flex; flex:0 0 auto; margin-top:18px; }
+.crm #nav:not(.is-searching) > section { display:none; }
+.crm #nav[data-section="work"] > [data-nav-section="work"],
+.crm #nav[data-section="reports"] > [data-nav-section="reports"],
+.crm #nav[data-section="settings"] > [data-nav-section="settings"],
+.crm #nav[data-section="platform"] > [data-nav-section="platform"] { display:block; }
+.crm #nav.is-searching > section { display:block; }
+.crm .sidebar-note { order:1; margin-top:20px; }
+.crm .dashboard-support-link { order:2; }
+.crm .sidebar-foot { order:3; }
 .crm .nav-item { font-size:12px; min-height:40px; padding:8px; }
 .sidebar-note { margin:38px 4px 24px; padding-top:22px; border-top:1px solid var(--border); }
 .sidebar-note-icon { display:block; width:30px; height:30px; font-size:21px; color:var(--brand); margin-bottom:12px; }
