@@ -1,6 +1,6 @@
 # Opek SMS project record
 
-October 1, 2026 local implementation: **owner-linked onboarding, manual extended-profile review, explicit service addition and per-service customer release** are implemented across this CRM and `../E2local-main` (`e2-local`). These changes have not been applied, pushed or deployed. See [Business lifecycle](docs/BUSINESS_LIFECYCLE.md).
+October 1, 2026 production release: **owner-linked onboarding, manual extended-profile review, explicit service addition and per-service customer release** are live across this CRM and `../E2local-main` (`e2-local`). Both migrations and CRM API version 37 are deployed. See [Business lifecycle](docs/BUSINESS_LIFECYCLE.md) and the release evidence below.
 
 Last documentation reconciliation: **September 30, 2026 (America/Denver)**.
 
@@ -14,7 +14,7 @@ This is the current implementation and release-reference record for `opek-sms`. 
 | Backend | WPacquisition Supabase Edge APIs, PostgreSQL RPCs/triggers, durable queues and bounded workers |
 | Login | Independent CRM Clerk issuer; E2 customer accounts remain separate; explicit grants required |
 | Local Google login | Enabled on the CRM development instance October 1, 2026; localhost sign-in reaches Google account selection. Local preview remains read-only sample data with separate development identities. |
-| Registration and release (local) | Onboarding creates one owner-linked business without provider work; admin extends/reviews its profile, adds services, and selects Set live per service. Customer visibility is separate from publishing/sending. Transfers reset release. |
+| Registration and release (live) | Onboarding creates one owner-linked business without provider work; admin extends/reviews its profile, adds services, and selects Set live per service. Customer visibility is separate from publishing/sending. Transfers reset release. |
 | Business scope | `sms_businesses.tenant_id`; request tenant plus database authorization; scoped worker credentials |
 | Staff registry | Users, Businesses, Websites, issuer-qualified identities and audited permissions; canonical and compatibility paths coexist |
 | Messaging | Durable outbox, signed callbacks, delivery ledger and uncertainty handling; current manual send path uses marketing purpose |
@@ -30,13 +30,13 @@ See the [documentation index](docs/README.md) for developer, staff and operator 
 
 ## Recorded deployment evidence
 
-The following observations were already recorded in [staff CRM history](docs/STAFF_CRM.md) and the [E2 project record](../E2local-main/PROJECT_RECORD.md), reviewed on September 30. They were **not freshly verified against live services during this documentation work**. When an older specialist guide contradicts a newer release entry, use the newer explicitly dated record for status and the implementation for behavior.
+CRM, E2 and CRM API releases were verified October 1. Other observations retain their earlier recorded dates. Use the latest dated release evidence when specialist guides differ.
 
 | Component | Latest relevant recorded observation |
 | --- | --- |
-| CRM static release | `1de5387`, Render `dep-dauo39s1nsns73f1sh5g`; shared auth-module fix and E2 branding |
-| E2 release | `d6515e5`, Vercel `dpl_HkLYU2Fz7gy6mvWYhi2KmX7Zk29f`; customer reads and dashboard cache |
-| CRM API / compliance | `crm-api` version 35 and `compliance-session` version 10, separate CRM issuer |
+| CRM static release | `0638dcf`, Render `dep-davfsim7bikc73dtmn90`; business setup and service release |
+| E2 release | `9581ea2`, Vercel `dpl_GYDeFrFv2iEVqDT82CuMam7cSjQ1`; owner-linked onboarding and service visibility |
+| CRM API / compliance | `crm-api` version 37 verified October 1; `compliance-session` version 10 previously recorded, separate CRM issuer |
 | Public forms | `web-form` version 7 with website connection support |
 | Administrator bootstrap | One explicitly authorized CRM administrator recorded as enabled in canonical and compatibility grants; bootstrap is no longer a general pending release step |
 | Registry cutover | Recorded OFF; legacy access cleanup has not run |
@@ -72,11 +72,44 @@ Compare repository definitions and the actual live history before any future dat
 - The existing database review identified intake enrollment references without a foreign key and some non-tenant-qualified AI/handoff job references. These are recorded follow-up integrity work, not fixed by documentation.
 - The configuration helper does not automatically transfer every runtime setting and contains fixed model/rate defaults. Review generated secrets privately before use.
 
-## Local migration and verification status
+## Migration and verification status
 
-Apply this repository’s `20261001235349_business_service_prerequisites.sql` before E2’s `20261001235352_business_registration_services.sql`, after comparing recorded aliases with live history. Existing assets become hidden service drafts requiring admin review/release. Neither migration has been applied remotely. The shared account/registry/cache migration history is exercised together in offline tests.
+Applied this repository’s `20261001235349_business_service_prerequisites.sql` then E2’s `20261001235352_business_registration_services.sql` on October 1, after comparing recorded aliases and function contracts with live history. Both exact versions are recorded remotely. Existing linked assets become hidden service drafts requiring admin review/release. The shared account/registry/cache migration history is exercised together in offline tests.
 
 ## Change record
+
+### October 1, 2026 — Coordinated production business lifecycle release
+
+Applied both migrations to shared WPacquisition Supabase (`wxamwhfmelxqahkdtcci`)
+in one guarded transaction after a successful rollback rehearsal. Historical
+migrations were not replayed. CRM API **version 37** is active.
+
+CRM application commit `0638dcf0ca5d927dbcfdb053d0040fb9414c5b21` on `deploy-crm`
+is live on Render deployment `dep-davfsim7bikc73dtmn90` at
+https://crm.e2local.com. E2 commit `9581ea2b0e3179befc4ea4b3ac32f7d1a3020fc7`
+on `main` is Ready on Vercel deployment `dpl_GYDeFrFv2iEVqDT82CuMam7cSjQ1`,
+with https://www.e2local.com and https://e2local.com assigned. Render's Git hook
+did not start a build; a cleared-cache deployment succeeded. Unrelated local
+documentation and preview changes were excluded.
+
+Production checks found one canonical registered business with a verified owner,
+zero reconciliation issues, zero reviewed profiles/services/providers/jobs and
+no sending enabled. The retained website remains unassigned. Staff directory and
+customer workspace database readers returned the expected draft/source profile
+and empty services. New tables enforce RLS and deny direct authenticated SELECT;
+new server-only RPCs allow service-role execution only. Both cutover switches
+remain off. Security advisors returned the same five existing findings, none new.
+
+E2 public pages, browser dashboard redirects, unsigned API denials and CRM
+no-store authentication responses passed. CRM entrypoint and five JavaScript
+assets matched the committed release after line-ending normalization. Earlier
+implementation checks passed 200 CRM and 128 E2 tests, E2 TypeScript/full lint
+and both builds. The authenticated browser workflow pilot remains pending.
+Render's existing dependency-audit warning remains outside this change.
+
+An administrator must review the prefilled profile, link/add intended services,
+then select **Set live** individually. Deployment did not link/publish a website
+or activate services/messaging. This release supersedes older status above.
 
 ### October 1, 2026 — Local CRM Google login
 

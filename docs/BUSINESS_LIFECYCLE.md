@@ -1,7 +1,7 @@
 # Business registration and service release
 
-Implemented locally October 1, 2026. This change has **not** been applied to the
-shared database or deployed. Compare this CRM with `../E2local-main` (package
+Deployed October 1, 2026: both shared database migrations, CRM API version 37,
+CRM `0638dcf` and E2 `9581ea2` are live. Compare this CRM with `../E2local-main` (package
 `e2-local`) whenever changing registration, ownership or customer service access.
 
 ## Customer to CRM workflow
@@ -79,8 +79,8 @@ provider jobs. Historical unassigned websites stay unassigned until linked.
    extended profile and explicitly release intended services. Do not activate
    sending or publish websites merely to test customer visibility.
 5. Run a controlled authenticated pilot for onboarding, staff review, individual
-   service release/hide, ownership transfer and customer refresh. No live pilot
-   or cloud changes were performed during local implementation.
+   service release/hide, ownership transfer and customer refresh. Cloud rollout
+   is complete; the authenticated browser pilot remains pending.
 
 E2 browser snapshots use schema version 2. Registration, profile, provider,
 ownership and service changes invalidate applicable cache revisions; navigation,
