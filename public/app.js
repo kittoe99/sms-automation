@@ -1,5 +1,5 @@
-import { createPlatform } from './platform.js?v=20260930-session-shared';
-import { connectSupabaseLive } from './live.js?v=20260930-session-shared';
+import { createPlatform } from './platform.js?v=20261001-business-services';
+import { connectSupabaseLive } from './live.js?v=20261001-business-services';
 import { createFormBuilder } from './formBuilder.js';
 import { shouldRefreshFromBackground } from './refreshGuard.js';
 import {
@@ -15,10 +15,10 @@ import {
   showCrmApp,
   signOut,
   setTenantId,
-} from './auth.js?v=20260930-session-shared';
+} from './auth.js?v=20261001-business-services';
 
 const state = {
-  view: ['platform-accounts','platform-businesses','platform-websites'].includes(new URLSearchParams(location.search).get('view')) ? new URLSearchParams(location.search).get('view') : 'overview',
+  view: ['platform-accounts','platform-businesses','platform-websites','business-setup','web-forms','bookings'].includes(new URLSearchParams(location.search).get('view')) ? new URLSearchParams(location.search).get('view') : 'overview',
   categoryId: null,
   q: '',
   status: '',
@@ -77,6 +77,7 @@ const el = {
 
 const formBuilder = createFormBuilder({ root: el.root, apiFetch, config: runtimeConfig, canReadSubmissions:()=>state.tenant?.smsRead!==false });
 const platform = createPlatform({ root: el.root, title: el.title, subtitle: el.sub, pager: el.pager,
+  onWorkspace:(tenantId,service)=>{setTenantId(tenantId);location.href=`/?view=${service==='sms'?'business-setup':service==='enquiries'?'web-forms':'bookings'}`;},
   onNavigate:view=>{state.view=view;el.toolbarTenant.textContent='CRM';el.toolbarSection.textContent={ 'platform-accounts':'Users','platform-businesses':'Businesses','platform-websites':'Websites' }[view];setActiveNav();} });
 
 let drawerReturnFocus = null;
@@ -118,41 +119,8 @@ el.tenantSelect?.addEventListener('change', () => {
 window.addEventListener('clerk:organization-changed', () => location.reload());
 
 document.getElementById('add-business')?.addEventListener('click', () => {
-  const currentZone = state.tenant?.timeZone || Intl.DateTimeFormat().resolvedOptions().timeZone || 'America/Denver';
-  openDrawer('Add business', `
-    <form id="add-business-form" class="compose">
-      <label class="compose-label" for="business-name">Business name</label>
-      <input id="business-name" maxlength="100" required placeholder="Business name" autocomplete="organization" />
-      <label class="compose-label" for="business-timezone">Time zone</label>
-      <input id="business-timezone" value="${esc(currentZone)}" required placeholder="America/Denver" />
-      <p class="muted">Create an empty workspace. No user registration is required. A separate Twilio subaccount and Messaging Service will be prepared automatically under the parent billing account.</p>
-      <div class="compose-actions"><span id="business-error" class="login-error" role="alert"></span>
-        <button type="submit" class="btn">Add business</button>
-      </div>
-    </form>`);
-  const form = el.drawerBody.querySelector('#add-business-form');
-  form.addEventListener('submit', async (event) => {
-    event.preventDefault();
-    const button = form.querySelector('button[type="submit"]');
-    const error = form.querySelector('#business-error');
-    error.textContent = '';
-    button.disabled = true;
-    try {
-      const response = await apiFetch('/api/businesses', { tenant: false, method: 'POST',
-        headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({
-          name: form.querySelector('#business-name').value.trim(),
-          timeZone: form.querySelector('#business-timezone').value.trim(),
-        }) });
-      const data = await response.json();
-      if (!response.ok) throw new Error(data.error || 'Could not add business');
-      setTenantId(data.business.id);
-      location.reload();
-    } catch (failure) {
-      error.textContent = failure.message;
-      button.disabled = false;
-    }
-  });
-  el.drawerBody.querySelector('#business-name').focus();
+  state.view='platform-businesses';setActiveNav();
+  platform.openRegistration().catch(error=>console.error(error));
 });
 
 function openBusinessSetup(provisioning = null) {
@@ -3648,6 +3616,7 @@ async function openAuthenticatedWorkspace() {
   const session = await me.json();
   document.querySelectorAll('[data-platform-nav]').forEach(node => { node.hidden = !session.capabilities?.platformStaff; });
   state.platformStaff = Boolean(session.capabilities?.platformStaff);
+  document.getElementById('add-business').hidden = !state.platformStaff;
   await loadTenantContext();
   if (!state.tenant && state.platformStaff) { state.view = 'platform-accounts'; setActiveNav(); }
   showCrmApp();

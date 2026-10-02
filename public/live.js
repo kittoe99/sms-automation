@@ -1,4 +1,4 @@
-import {runtimeConfig,getAccessToken,getTenantId} from './auth.js?v=20260930-session-shared';
+import {runtimeConfig,getAccessToken,getTenantId} from './auth.js?v=20261001-business-services';
 let client,channel,poll,timer,refresh;
 export async function connectSupabaseLive(onChange,onStatus) {
  if(!runtimeConfig.supabaseUrl || !runtimeConfig.supabasePublishableKey) return false;

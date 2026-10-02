@@ -1,4 +1,5 @@
-import {apiFetch,getAccessToken,runtimeConfig} from './auth.js?v=20260930-session-shared';
+import {mountBusinessSetup} from './businessSetup.js?v=20261001-business-services';
+import {apiFetch,getAccessToken,runtimeConfig} from './auth.js?v=20261001-business-services';
 const esc=value=>String(value??'').replaceAll('&','&amp;').replaceAll('<','&lt;').replaceAll('>','&gt;').replaceAll('"','&quot;').replaceAll("'",'&#39;');
 const date=value=>value?new Date(value).toLocaleString():'—';
 async function json(response){const data=await response.json();if(!response.ok)throw new Error(data.error||'Request failed. Please retry.');return data;}
@@ -15,7 +16,7 @@ const button=(text,attrs='')=>`<button type="button" class="btn ghost" ${attrs}>
 const field=(label,name,value='',attrs='')=>`<label class="compose-label">${esc(label)}<input name="${name}" value="${esc(value)}" ${attrs}/></label>`;
 const checkbox=(label,name,checked=false)=>`<label><input type="checkbox" name="${name}" ${checked?'checked':''}/> ${esc(label)}</label>`;
 
-export function createPlatform({root,title,subtitle,pager,onNavigate}){
+export function createPlatform({root,title,subtitle,pager,onNavigate,onWorkspace}){
  let view='accounts',page=1,q='',selected=null,tab='dashboard',enquiryPage=1,enquiryType='all';
  function bind(selector,event,callback){root.querySelectorAll(selector).forEach(node=>node.addEventListener(event,callback));}
  async function run(callback){try{await callback();}catch(error){const alert=root.querySelector('[data-error]');if(alert)alert.textContent=error.message;else root.insertAdjacentHTML('afterbegin',`<p role="alert">${esc(error.message)}</p>`);}}
@@ -25,11 +26,11 @@ export function createPlatform({root,title,subtitle,pager,onNavigate}){
   const result=await read(view,{page,pageSize:25,q});
   root.innerHTML=`<section class="card"><form data-search class="compose"><label>Search ${esc(title.textContent.toLowerCase())}<input name="q" value="${esc(q)}" maxlength="120"/></label><button class="btn">Search</button></form>${error()}
     ${view==='websites'?button('Create website','data-create-site'):''}
-    ${view==='businesses'?button('Add business','data-create-business'):''}
+    ${view==='businesses'?button('Set up registered business','data-create-business'):''}
     <div class="platform-grid">${result.rows.map(row=>`<article class="card"><h2>${esc(row.clerk_display_name||row.name||row.clerk_primary_email||row.id)}</h2>
      <p>${esc(row.clerk_primary_email||row.tenant_id||(row.slug?`${row.slug}.e2local.com`:''))}</p>
      ${view==='accounts'?`<p>${esc(row.status)} · ${row.onboarding_completed_at?'Onboarding complete':'Onboarding pending'}${row.identityMapped?'':' · Identity mapping required'}</p><p>${row.loginApplication==='crm'?'Admin CRM':row.loginApplication==='customer'?'E2 Local':'Mapping required'} · ${esc(row.identity?.issuer)}</p>`:''}
-     ${view==='businesses'?`<p>${row.owner_account_id?'Owner assigned':'Owner not assigned'}</p>`:''}
+     ${view==='businesses'?`<p>${row.owner_account_id?'Owner assigned':'Owner not assigned'} · ${row.setup?.reviewed_profile_id?'Profile reviewed':'Awaiting admin setup'}</p>`:''}
      ${view==='websites'?`<p>${esc(row.business_name||'Business not assigned')} · ${row.owner_account_id?'Owner assigned':'Owner not assigned'}</p>`:''}
      ${button('View details',`data-open="${esc(row.id||row.tenant_id)}"`)}</article>`).join('')||'<p>No matching records.</p>'}</div>
      <div class="compose-actions">${button('Previous',`data-page="${page-1}" ${page<=1?'disabled':''}`)}<span>Page ${page} of ${result.totalPages} · ${result.total} records</span>${button('Next',`data-page="${page+1}" ${page>=result.totalPages?'disabled':''}`)}</div></section>`;
@@ -37,12 +38,12 @@ export function createPlatform({root,title,subtitle,pager,onNavigate}){
   bind('[data-page]','click',event=>{page=Number(event.currentTarget.dataset.page);run(directory);});
   bind('[data-open]','click',event=>{selected=event.currentTarget.dataset.open;tab='dashboard';run(detail);});
   bind('[data-create-site]','click',()=>run(createSite));
-  bind('[data-create-business]','click',()=>document.getElementById('add-business')?.click());
+  bind('[data-create-business]','click',()=>run(registration));
  }
  async function lookup(container,resource,label,initial){
   container.innerHTML=`<label>${esc(label)}<input data-lookup-q placeholder="Search by name or email"/></label>${button('Search','data-lookup-search')}<select data-lookup required aria-label="${esc(label)}"></select>`;
   const select=container.querySelector('select');
-  async function search(){const data=await read(resource,{q:container.querySelector('input').value,pageSize:100});select.innerHTML='<option value="">Choose…</option>'+data.rows.map(row=>`<option value="${esc(row.id||row.tenant_id)}">${esc(row.clerk_display_name||row.name||row.clerk_primary_email||row.id)}${row.clerk_primary_email?` (${esc(row.clerk_primary_email)})`:''}${resource==='accounts'&&row.identity?.issuer?` · ${esc(row.loginApplication||'unresolved')} · ${esc(row.identity.issuer)}`:''}</option>`).join('');if(initial&&!select.querySelector(`option[value="${CSS.escape(initial)}"]`))select.insertAdjacentHTML('beforeend',`<option value="${esc(initial)}">${esc(initial)}</option>`);if(initial)select.value=initial;}
+  async function search(){const data=await read(resource,{q:container.querySelector('input').value,pageSize:100});select.innerHTML='<option value="">Choose…</option>'+data.rows.map(row=>`<option value="${esc(row.id||row.tenant_id)}" data-revision="${Number(row.revision||0)}">${esc(row.clerk_display_name||row.name||row.clerk_primary_email||row.id)}${row.clerk_primary_email?` (${esc(row.clerk_primary_email)})`:''}${resource==='accounts'&&row.identity?.issuer?` · ${esc(row.loginApplication||'unresolved')} · ${esc(row.identity.issuer)}`:''}</option>`).join('');if(initial&&!select.querySelector(`option[value="${CSS.escape(initial)}"]`))select.insertAdjacentHTML('beforeend',`<option value="${esc(initial)}">${esc(initial)}</option>`);if(initial)select.value=initial;}
   container.querySelector('button').addEventListener('click',()=>run(search));await search();return select;
  }
  async function detail(){
@@ -87,8 +88,11 @@ export function createPlatform({root,title,subtitle,pager,onNavigate}){
     <p>Account ID: <code>${esc(row.id)}</code></p><p>Created ${date(row.created_at)}</p>
     <p>Login application: <strong>${row.loginApplication==='crm'?'Admin CRM':row.loginApplication==='customer'?'E2 Local':'Mapping required'}</strong><br/>Clerk issuer: <code>${esc(row.identity?.issuer||'Mapping required')}</code><br/>Clerk subject: <code>${esc(row.identity?.subject||'Mapping required')}</code></p>
     ${row.status!=='deleted'?button(row.status==='active'?'Suspend access':'Restore access','data-status'):''}
+    ${row.loginApplication==='customer'&&row.onboarding_completed_at?button('Set up business','data-setup-account'):''}
+    ${row.registrationIssue?`<p role="alert">${esc(row.registrationIssue)}</p>`:''}
     <details><summary>Saved onboarding</summary><pre>${esc(JSON.stringify({personal:row.personal_info,business:row.business_profile},null,2))}</pre></details>
     <h3>Websites</h3>${(row.websites||[]).map(s=>button(s.name,`data-user-site="${esc(s.id)}"`)).join('')||'<p>No websites associated.</p>'}<h3>Businesses and access</h3>${row.memberships.map(m=>`<div class="card"><strong>${esc(m.business_name)}</strong><p>${esc(m.role)} · ${m.enabled?'Enabled':'Disabled'}</p>${button('Open business',`data-business="${esc(m.tenant_id)}"`)} ${button('Edit access',`data-edit-membership="${esc(m.tenant_id)}"`)}</div>`).join('')||'<p>No business access assigned.</p>'}<div data-editor></div>`;
+  bind('[data-setup-account]','click',()=>run(()=>registration(row.id)));
   bind('[data-status]','click',()=>run(async()=>{if(row.status==='active'&&!confirm('Suspend access for this account? Its separate account in the other application will keep its own access.'))return;await write('status',{accountId:row.id,revision:row.revision,status:row.status==='active'?'suspended':'active'});await detail();}));
   bind('[data-user-site]','click',event=>{view='websites';selected=event.currentTarget.dataset.userSite;tab='dashboard';run(detail);});
   bind('[data-business]','click',event=>{view='businesses';selected=event.currentTarget.dataset.business;run(detail);});
@@ -97,16 +101,40 @@ export function createPlatform({root,title,subtitle,pager,onNavigate}){
  }
  async function business(body,row){
   body.innerHTML=`<h2>${esc(row.name)}</h2><p>Business ID: <code>${esc(row.tenant_id)}</code> · ${esc(row.time_zone)}</p>
-    <h3>People</h3>${row.memberships.map(m=>`<div class="card"><strong>${esc(m.name||m.email||m.account_id)}</strong><p>${esc(m.role)} · ${m.enabled?'Enabled':'Disabled'}</p>${button('Open user',`data-user="${esc(m.account_id)}"`)} ${button('Edit access',`data-edit="${esc(m.account_id)}"`)}</div>`).join('')||'<p>No owner or customer access assigned.</p>'}
+    <div data-business-setup></div><h3>People</h3>${row.memberships.map(m=>`<div class="card"><strong>${esc(m.name||m.email||m.account_id)}</strong><p>${esc(m.role)} · ${m.enabled?'Enabled':'Disabled'}</p>${button('Open user',`data-user="${esc(m.account_id)}"`)} ${button('Edit access',`data-edit="${esc(m.account_id)}"`)}</div>`).join('')||'<p>No owner or customer access assigned.</p>'}
     <h3>Websites</h3>${row.sites.map(s=>button(s.name,`data-website="${esc(s.id)}"`)).join('')||'<p>No websites assigned.</p>'}<div data-editor></div>`;
   bind('[data-user]','click',event=>{view='accounts';selected=event.currentTarget.dataset.user;run(detail);});
   bind('[data-website]','click',event=>{view='websites';selected=event.currentTarget.dataset.website;tab='dashboard';run(detail);});
   bind('[data-edit]','click',event=>run(()=>membershipEditor(body.querySelector('[data-editor]'),{tenantId:row.tenant_id,accountId:event.currentTarget.dataset.edit,membership:row.memberships.find(m=>m.account_id===event.currentTarget.dataset.edit),previousOwnerId:row.owner_account_id})));
+  mountBusinessSetup(body.querySelector('[data-business-setup]'),row,{write,reload:detail,lookup,
+    onCreateWebsite:tenantId=>run(()=>createSite(tenantId)),
+    onWebsite:id=>{view='websites';selected=id;tab='dashboard';run(detail);},onWorkspace});
   await membershipEditor(body.querySelector('[data-editor]'),{tenantId:row.tenant_id});
  }
- async function createSite(){
-  root.innerHTML=`${button('Back','data-back')}<section class="card">${error()}<form data-create class="compose"><h2>Create website</h2>${field('Name','name','','required maxlength="100"')}${field('E2 Local subdomain','slug','','required maxlength="32"')}<p>Assign its business after creation. Publishing is a separate action.</p><button class="btn">Create website</button></form></section>`;
-  bind('[data-back]','click',()=>run(directory));bind('[data-create]','submit',event=>{event.preventDefault();run(async()=>{const form=new FormData(event.currentTarget);const data=await hostWrite('',{name:form.get('name'),slug:form.get('slug')});selected=data.site.id;tab='dashboard';await detail();});});
+ async function registration(accountId=null){
+  root.classList.add('platform-root');title.textContent='Business setup';subtitle.textContent='Registered customer';pager.hidden=true;
+  onNavigate?.('platform-businesses');view='businesses';selected=null;
+  root.innerHTML=`${button('Back to businesses','data-back')}<section class="card"><h2>Set up registered business</h2><p>Choose an E2 Local customer who has completed registration. Their submitted profile and owner link are retained.</p>${error()}<form class="compose" data-register><div data-account></div><details><summary>Resolve an existing business match</summary><p>Use this only when registration needs review. The selected business must belong to this customer or be unassigned.</p><div data-existing></div></details><button class="btn">Open business setup</button></form></section>`;
+  bind('[data-back]','click',()=>run(directory));
+  const account=await lookup(root.querySelector('[data-account]'),'accounts','Registered customer',accountId);
+  const existing=await lookup(root.querySelector('[data-existing]'),'businesses','Existing business (optional)');existing.required=false;
+  bind('[data-register]','submit',event=>{event.preventDefault();const button=event.submitter;button.disabled=true;run(async()=>{
+    try{if(!account.value)throw new Error('Choose a registered customer.');
+      const result=await write('business-register',{accountId:account.value,...(existing.value?{tenantId:existing.value}:{})});
+      if(result.requiresReview)throw new Error('Several existing links need review. Choose the correct existing business above.');
+      selected=result.id;await detail();
+    }finally{button.disabled=false;}
+  });});
+ }
+ async function createSite(tenantId=null){
+  root.innerHTML=`${button('Back','data-back')}<section class="card">${error()}<form data-create class="compose"><h2>Create website</h2>${field('Name','name','','required maxlength="100"')}${field('E2 Local subdomain','slug','','required maxlength="32"')}<p>${tenantId?'This website will be linked to this business and hidden from the customer until you set it live.':'Assign its business after creation. Publishing is a separate action.'}</p><button class="btn">Create website</button></form></section>`;
+  bind('[data-back]','click',()=>run(tenantId?detail:directory));bind('[data-create]','submit',event=>{event.preventDefault();const submit=event.submitter;submit.disabled=true;run(async()=>{try{
+    const form=new FormData(event.currentTarget);const data=await hostWrite('',{name:form.get('name'),slug:form.get('slug')});
+    // Navigate to the created record even if linking fails, so retry cannot create it twice.
+    const siteId=data.site.id;selected=siteId;view='websites';tab='dashboard';
+    if(tenantId){const site=(await read('websites',{id:siteId})).rows[0];await write('services',{tenantId,kind:'website',siteId,siteRevision:site.revision});view='businesses';selected=tenantId;}
+    await detail();
+  }catch(error){if(view==='websites'&&selected){await detail();throw new Error(`Website created. Link it from business setup: ${error.message}`);}throw error;}finally{submit.disabled=false;}});});
  }
  async function website(body,row){
   body.innerHTML=`<p>${esc(row.slug)}.e2local.com · ${esc(row.business_name||'Business not assigned')} · ${row.owner_account_id?'Owner assigned':'Owner not assigned'}</p>
@@ -170,5 +198,5 @@ export function createPlatform({root,title,subtitle,pager,onNavigate}){
   bind('[data-type]','change',event=>{enquiryType=event.currentTarget.value;enquiryPage=1;run(detail);});
   bind('[data-enquiry-page]','click',event=>{enquiryPage=Number(event.currentTarget.dataset.enquiryPage);run(detail);});
  }
- return {async render(nextView){root.classList.add('platform-root');const resource=nextView.replace('platform-','');if(resource!==view){view=resource;selected=null;page=1;q='';}await (selected?detail():directory());}};
+ return {async openRegistration(){await run(registration);},async render(nextView){root.classList.add('platform-root');const resource=nextView.replace('platform-','');if(resource!==view){view=resource;selected=null;page=1;q='';}await (selected?detail():directory());}};
 }

@@ -6,7 +6,12 @@ const dir=resolve('dist'),accountId='00000000-0000-4000-8000-000000000001',siteI
 const membership={account_id:accountId,tenant_id:'demo',role:'owner',enabled:true,website_read:true,enquiries_read:false,bookings_read:false,revision:0,business_name:'Example Services',name:'Example Owner',email:'owner@example.test'};
 const site={id:siteId,slug:'example-preview',name:'Example Website',sms_tenant_id:'demo',owner_account_id:accountId,business_name:'Example Services',revision:0,created_at:'2026-09-29T12:00:00Z',details:{businessName:'Example Services',services:['Home repairs'],serviceAreas:['Denver']}};
 const records={accounts:[{id:accountId,clerk_display_name:'Example Owner',clerk_primary_email:'owner@example.test',status:'active',created_at:site.created_at,onboarding_completed_at:site.created_at,memberships:[membership],websites:[site],identityMapped:true,personal_info:{firstName:'Example',lastName:'Owner'},business_profile:{businessName:'Example Services'}}],businesses:[{tenant_id:'demo',name:'Example Services',time_zone:'America/Denver',owner_account_id:accountId,memberships:[membership],sites:[site]}],websites:[site]};
-const page=`<!doctype html><html><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><link rel="stylesheet" href="/styles.css"><link rel="stylesheet" href="/e2-theme.css"><style>body{padding:24px;background:#f4f8fa}.preview{max-width:1100px;margin:auto}h1{margin:16px 0}</style><script type="importmap">{"imports":{"fflate":"/vendor/fflate.js"}}</script></head><body><main class="preview"><p>Synthetic records · local visual verification</p><nav id="qa-nav"><button class="btn" data-view="accounts">Users</button> <button class="btn" data-view="businesses">Businesses</button> <button class="btn" data-view="websites">Websites</button></nav><h1 id="title"></h1><p id="subtitle"></p><div id="view-root"></div><div id="pager"></div></main><script>globalThis.SMS_CONFIG={hostingApiBase:location.origin+'/hosting'};</script><script type="module">import {initAuth} from '/auth.js?v=20260930-session-shared';import {createPlatform} from '/platform.js';await initAuth();const ui=createPlatform({root:document.querySelector('#view-root'),title:document.querySelector('#title'),subtitle:document.querySelector('#subtitle'),pager:document.querySelector('#pager')});await ui.render('platform-accounts');document.querySelectorAll('#qa-nav button').forEach(b=>b.onclick=()=>ui.render('platform-'+b.dataset.view));</script></body></html>`;
+const business=records.businesses[0];
+business.registration={accountId,profile:{businessName:'Example Services',timeZone:'America/Denver',contactEmail:'owner@example.test',contactPhone:'+13035550123',summary:'Home repairs and maintenance for Denver customers.',services:['Home repairs'],locations:['Denver']}};
+business.setup={revision:0,draft:{...business.registration.profile},reviewed_profile_id:null};
+business.services=[];
+records.accounts[0].loginApplication='customer';
+const page=`<!doctype html><html><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><link rel="stylesheet" href="/styles.css"><link rel="stylesheet" href="/e2-theme.css"><style>body{padding:24px;background:#f4f8fa}.preview{max-width:1100px;margin:auto}h1{margin:16px 0}</style><script type="importmap">{"imports":{"fflate":"/vendor/fflate.js"}}</script></head><body><main class="preview"><p>Synthetic records · local visual verification</p><nav id="qa-nav"><button class="btn" data-view="accounts">Users</button> <button class="btn" data-view="businesses">Businesses</button> <button class="btn" data-view="websites">Websites</button></nav><h1 id="title"></h1><p id="subtitle"></p><div id="view-root"></div><div id="pager"></div></main><script>globalThis.SMS_CONFIG={hostingApiBase:location.origin+'/hosting'};</script><script type="module">import {initAuth} from '/auth.js?v=20261001-business-services';import {createPlatform} from '/platform.js';await initAuth();const ui=createPlatform({root:document.querySelector('#view-root'),title:document.querySelector('#title'),subtitle:document.querySelector('#subtitle'),pager:document.querySelector('#pager')});await ui.render('platform-accounts');document.querySelectorAll('#qa-nav button').forEach(b=>b.onclick=()=>ui.render('platform-'+b.dataset.view));</script></body></html>`;
 http.createServer(async(req,res)=>{
  try{
   const url=new URL(req.url,'http://localhost');let data;
@@ -25,7 +30,18 @@ http.createServer(async(req,res)=>{
   else if(url.pathname==='/api/overview')data={conversationCount:12,total:48,deliveryRate:98,counts:{delivered:47},byCategory:[]};
   else if(url.pathname==='/api/provisioning')data={sendingEnabled:true};
   else if(url.pathname==='/api/onboarding')data={onboardingComplete:true,profile:{businessName:'Example Services'}};
-  else if(url.pathname.startsWith('/api/platform/')){const type=url.pathname.split('/')[3];if(req.method==='GET'){let rows=records[type]||[];const id=url.searchParams.get('id');if(id)rows=rows.filter(x=>(x.id||x.tenant_id)===id);data={rows,total:rows.length,page:1,pageSize:25,totalPages:1};}else data={saved:true};}
+  else if(url.pathname.startsWith('/api/platform/')){const type=url.pathname.split('/')[3];if(req.method==='GET'){let rows=records[type]||[];const id=url.searchParams.get('id');if(id)rows=rows.filter(x=>(x.id||x.tenant_id)===id);data={rows,total:rows.length,page:1,pageSize:25,totalPages:1};}else {
+   let body='';for await(const chunk of req)body+=chunk;const input=JSON.parse(body||'{}');
+   if(type==='business-profile'){
+    business.setup.draft=input.profile;business.setup.revision++;
+    if(url.pathname.endsWith('/review')){business.setup.reviewed_profile_id='reviewed';business.setup.reviewed_at=new Date().toISOString();}
+   }else if(type==='services'&&url.pathname.endsWith('/visibility')){
+    const service=business.services.find(s=>s.id===input.serviceId);service.visibility=input.visibility;service.revision++;
+   }else if(type==='services'){
+    business.services.push({id:input.kind,tenant_id:'demo',kind:input.kind,visibility:'draft',revision:0,providerState:'pending',...(input.kind==='website'?{site_id:siteId,siteName:site.name}:{})});
+   }
+   data=type==='business-register'?{id:'demo'}:{saved:true};
+  }}
   else if(url.pathname==='/hosting')data={sites:[{...site,publicationStatus:'unpublished',deployments:[]}]};
   else if(url.pathname.endsWith('/forms'))data={business:{tenantId:'demo',name:'Example Services'},connections:[]};
   else if(url.pathname.endsWith('/leads'))data={rows:[],total:0,totalPages:1};

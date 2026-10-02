@@ -27,3 +27,14 @@ test('forms-only operators receive an authorized selector without an SMS-read gr
  assert.equal(data.tenants.length,1);assert.equal(data.tenants[0].id,'alpha');
  assert.equal(data.tenants[0].smsRead,false);assert.equal(data.tenants[0].formsManage,true);
 });
+
+test('business setup actions preserve verified actor and reject ownerless creation',async()=>{
+ const x=setup();
+ const old=await x.handler(new Request('https://api.example.test/crm-api/businesses',{method:'POST',body:JSON.stringify({name:'Ownerless'})}));
+ assert.equal(old.status,400);assert.equal(x.calls.length,0);
+ for(const [path,action] of [['business-register','business_register'],['business-profile/draft','business_profile_draft'],['business-profile/review','business_profile_review'],['services','service_add'],['services/visibility','service_visibility']]){
+   const payload={accountId:'customer',tenantId:'registered',revision:2,user:'forged'};
+   const response=await x.handler(new Request(`https://api.example.test/crm-api/platform/${path}`,{method:'POST',body:JSON.stringify(payload)}));
+   assert.equal(response.status,200);assert.deepEqual(x.calls.at(-1),['platform_action','verified-subject',action,payload]);
+ }
+});

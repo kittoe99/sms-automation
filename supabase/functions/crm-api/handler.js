@@ -39,6 +39,8 @@ export function createCrmHandler(db,verify=authenticate,{platform=false,provisio
     const directory=path.match(/^\/platform\/(accounts|businesses|websites)(?:\/([^/]+))?$/);
     if(method==='GET' && directory) return json(await db.call('platform_read',user,directory[1],{...params,...(directory[2]?{id:decodeURIComponent(directory[2])}:{})}),200,headers);
     const actions={ '/platform/status':'status','/platform/memberships':'membership','/platform/ownership':'owner',
+      '/platform/business-register':'business_register','/platform/business-profile/draft':'business_profile_draft',
+      '/platform/business-profile/review':'business_profile_review','/platform/services':'service_add','/platform/services/visibility':'service_visibility',
       '/platform/website-business':'website_business','/platform/connections':'connection_create','/platform/connections/disable':'connection_disable' };
     if(['POST','PATCH'].includes(method) && actions[path]) return json(await db.call('platform_action',user,actions[path],await readJson(request)),200,headers);
     return json({error:'Route not found'},404,headers);
@@ -51,8 +53,9 @@ export function createCrmHandler(db,verify=authenticate,{platform=false,provisio
     return json({user:{id:user},tenants,businesses:tenants,currentTenant:tenants.find(x=>x.id===tenant)||tenants[0]||null,tenant:tenants[0]||null,capabilities:{databaseIsolation:true,providerCredentialsPerTenant:true,twilioCredentialsPerTenant:true,...session}},200,headers);
    }
    if(path==='/businesses'&&method==='POST') {
-    const p=await readJson(request);p.id ||= String(p.name||'').toLowerCase().replace(/[^a-z0-9]+/g,'-').replace(/^-|-$/g,'').slice(0,64);p.timeZone ||= 'America/Denver';
-    return json({business:await write('create_business',p)},201,headers);
+    const p=await readJson(request);
+    if(!p.accountId) return json({error:'Choose a registered customer in Businesses to set up their business.'},400,headers);
+    return json({business:await db.call('platform_action',user,'business_register',p)},200,headers);
    }
    if(!tenant) return json({error:'Select a business'},400,headers);
    if(method==='GET') {
