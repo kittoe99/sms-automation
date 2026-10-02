@@ -8,6 +8,12 @@ This is the current implementation and release-reference record for `opek-sms`. 
 
 ## Current implementation
 
+October 2 profile summary: a detailed, live preview now closes the guided business
+form, with per-section Edit links and explicit missing/pending details. It uses
+current form values and retains existing draft/review persistence. See the latest
+change record for validation and release status.
+
+
 October 2 guided business setup: the Businesses profile editor has numbered
 sections, editable entry cards, time-zone/hours choices, a pricing builder and
 explicitly selected guidance presets. Existing shared draft/review contracts
@@ -90,6 +96,29 @@ Compare repository definitions and the actual live history before any future dat
 Applied this repository’s `20261001235349_business_service_prerequisites.sql` then E2’s `20261001235352_business_registration_services.sql` on October 1, after comparing recorded aliases and function contracts with live history. Both exact versions are recorded remotely. Existing linked assets become hidden service drafts requiring admin review/release. The shared account/registry/cache migration history is exercised together in offline tests.
 
 ## Change record
+
+### October 2, 2026 — Detailed business profile summary
+
+Added a final Review your business profile section after all setup inputs and
+before Save draft / Save reviewed profile. It displays identity/contact details,
+description, services, areas, hours, FAQs, pricing, policies, booking rules,
+handoff guidance and brand voice. Current form changes update the summary without
+a fetch or save. Missing fields are labeled Not provided. Edit links focus the
+matching input or add control, retaining drafts. Completed pending pricing is
+shown separately and included on save; incomplete builder details are identified
+without claiming approval. Summary text is escaped, preserves multiline values,
+and adds no new submitted fields or shared contract changes.
+
+Compared E2 onboarding/service implementations and both records. No database/API
+change, migration, E2 application change or provider action. Existing owning-
+repository migration order is unchanged. Workflow docs updated in both projects.
+Validation: 15 targeted CRM profile/revision/draft/navigation tests and 20 E2
+onboarding/service UI tests passed; final summary refinements passed targeted
+checks and the production frontend build. Synthetic browser checks confirmed live
+updates, removal/empty states, Edit focus, pending price saved once and retained
+values on reload. Desktop and 390px mobile summary cards have no horizontal
+overflow. Local implementation/testing at this checkpoint; release evidence follows.
+
 
 ### October 2, 2026 — Guided business profile form
 

@@ -1,7 +1,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import {profileFromForm} from '../public/businessSetup.js';
-import {priceEntry,profileEditorHtml} from '../public/businessProfileEditor.js';
+import {priceEntry,profileEditorHtml,profileSummaryHtml} from '../public/businessProfileEditor.js';
 test('profile editor preserves submitted values and unknown fields without changing the source',()=>{
  const source={businessName:'東京引越し',services:['Moving'],customFact:'Keep me'};
  const form=new FormData();form.set('businessName','  東京引越し  ');form.set('timeZone','Asia/Tokyo');
@@ -9,6 +9,24 @@ test('profile editor preserves submitted values and unknown fields without chang
  const output=profileFromForm(form,source);
  assert.equal(output.businessName,'東京引越し');assert.deepEqual(output.services,['Moving','Storage']);
  assert.equal(output.customFact,'Keep me');assert.deepEqual(source.services,['Moving']);assert.equal(output.timeZone,'Asia/Tokyo');
+});
+
+test('detailed summary displays every profile area safely without changing saved facts',()=>{
+ const profile={businessName:'<img src=x onerror=alert(1)>',timeZone:'America/Denver',contactEmail:'info@example.test',contactPhone:'+13035550123',websiteUrl:'https://example.test',summary:'Our full description.',services:['Repairs','Moving'],locations:['Denver'],hours:'Mon–Fri 9–5',faqs:['Do you quote? Yes.'],pricing:['Moving: $100.00 per hour.'],policies:['Payment on completion.'],bookingRules:'Collect address.\nConfirm the date.',handoff:'Refund requests.',tone:'professional',customFact:'Retained'};
+ const original=structuredClone(profile),html=profileSummaryHtml(profile);
+ for(const name of ['timeZone','contactEmail','contactPhone','websiteUrl','summary','hours','bookingRules','handoff'])assert.ok(html.includes(profile[name]),name);
+ for(const name of ['services','locations','faqs','pricing','policies'])for(const entry of profile[name])assert.ok(html.includes(entry),name);
+ assert.ok(html.includes('&lt;img src=x onerror=alert(1)&gt;'));assert.ok(!html.includes('<img'));
+ assert.ok(html.includes('Professional'));assert.ok(html.includes('data-summary-edit="bookingRules"'));
+ assert.deepEqual(profile,original);
+});
+
+test('summary labels omissions and pending pricing without inventing completed information',()=>{
+ const empty=profileSummaryHtml({});assert.ok(empty.includes('Not provided'));assert.ok(empty.includes('Use the voice in AI instructions.'));
+ const complete=profileSummaryHtml({},{pendingPrice:'Repair: $50.00 per hour.'});assert.ok(complete.includes('Repair: $50.00 per hour.'));assert.ok(complete.includes('will be included when you save'));
+ const incomplete=profileSummaryHtml({},{pendingPriceError:'Enter the service <first>.'});assert.ok(incomplete.includes('Incomplete pricing detail'));assert.ok(incomplete.includes('&lt;first&gt;'));assert.ok(!incomplete.includes('will be included when you save'));
+ const items=Array.from({length:200},(_,i)=>`Service ${i}: quoted individually.`);assert.ok(profileSummaryHtml({pricing:items}).includes(items.at(-1)));
+ const editor=profileEditorHtml({});assert.ok(editor.indexOf('data-profile-summary')>editor.indexOf('05'));assert.ok(editor.includes('Review your business profile'));
 });
 
 test('guided entries serialize to the existing profile contract and allow clearing lists',()=>{

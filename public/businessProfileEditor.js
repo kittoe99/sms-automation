@@ -30,6 +30,27 @@ export function priceEntry({service,method,amount,details}) {
  const price=Number(amount).toLocaleString('en-US',{minimumFractionDigits:2,maximumFractionDigits:2});
  return `${service}: ${method==='from'?'from ':''}$${price}${method==='hourly'?' per hour':''}${details?`; ${details}`:'.'}`;
 }
+export function profileSummaryHtml(profile,{pendingPrice='',pendingPriceError=''}={}) {
+ const value=text=>String(text??'').trim()?`<p class="profile-summary-text">${esc(text)}</p>`:'<p class="profile-summary-empty">Not provided</p>';
+ const list=name=>{const items=(Array.isArray(profile[name])?profile[name]:[]).filter(item=>String(item).trim());return items.length?`<ul>${items.map(item=>`<li>${esc(item)}</li>`).join('')}</ul>`:value('');};
+ const card=(title,body,target,wide=false)=>`<article class="profile-summary-card${wide?' profile-wide':''}"><div class="profile-summary-head"><h4>${title}</h4><button type="button" class="profile-summary-edit" data-summary-edit="${target}" aria-label="Edit ${title.toLowerCase()}">Edit</button></div>${body}</article>`;
+ const basics=[['Business name','businessName'],['Time zone','timeZone'],['Email','contactEmail'],['Phone','contactPhone'],['Website','websiteUrl']].map(([label,name])=>`<div><dt>${label}</dt><dd>${String(profile[name]??'').trim()?esc(profile[name]):'<span class="profile-summary-empty">Not provided</span>'}</dd></div>`).join('');
+ const tone={friendly:'Friendly — warm, approachable, and helpful.',professional:'Professional — clear, polished, and respectful.',casual:'Casual — relaxed, simple, and conversational.'}[profile.tone]||'Use the voice in AI instructions.';
+ const pending=pendingPrice?`<div class="profile-summary-pending"><strong>Pricing detail in progress</strong>${value(pendingPrice)}<small>This completed detail will be included when you save.</small></div>`:pendingPriceError?`<div class="profile-summary-pending"><strong>Incomplete pricing detail</strong>${value(pendingPriceError)}<small>Complete or clear the pricing builder before saving.</small></div>`:'';
+ return `<div class="profile-summary-grid">
+ ${card('Business details',`<dl>${basics}</dl>`,'businessName')}
+ ${card('Business description',value(profile.summary),'summary')}
+ ${card('Services',list('services'),'services')}
+ ${card('Service areas',list('locations'),'locations')}
+ ${card('Opening hours',value(profile.hours),'hours')}
+ ${card('Brand voice',value(tone),'tone')}
+ ${card('Frequently asked questions',list('faqs'),'faqs',true)}
+ ${card('Pricing',(pendingPrice&&!profile.pricing?.length?'':list('pricing'))+pending,'pricing',true)}
+ ${card('Customer policies',list('policies'),'policies',true)}
+ ${card('Booking rules',value(profile.bookingRules),'bookingRules')}
+ ${card('When a person should step in',value(profile.handoff),'handoff')}
+ </div>`;
+}
 function field(profile,name,label,hint,{max=200,type='text',multi=false,required=false}={}) {
  return `<label class="profile-field"><span>${label}${required?' <small>Required</small>':''}</span>${multi?`<textarea name="${name}" maxlength="${max}" rows="3" placeholder="${esc(hint)}">${esc(profile[name])}</textarea>`:`<input name="${name}" type="${type}" maxlength="${max}" value="${esc(profile[name])}" placeholder="${esc(hint)}" ${required?'required':''}/>`}<small>${hint}</small></label>`;
 }
@@ -76,6 +97,7 @@ export function profileEditorHtml(profile) {
  <p class="profile-note">These are written instructions. Configure availability, required booking fields, and booking limits separately in Booking configuration.</p>
  ${guidanceField(profile,'handoff','When should a person step in?','Describe situations that need staff attention. This field does not configure notifications or routing.',1000)}`)}
  ${section('05','Brand voice','Choose how your business should sound in written replies.',`<div class="profile-voices">${[['','Use AI instructions','Keep the voice specified in your AI instructions.'],['friendly','Friendly','Warm, approachable, and helpful.'],['professional','Professional','Clear, polished, and respectful.'],['casual','Casual','Relaxed, simple, and conversational.']].map(([value,label,hint])=>`<label class="profile-voice"><input type="radio" name="tone" value="${value}" ${String(profile.tone||'')===value?'checked':''}/><span><strong>${label}</strong><small>${hint}</small></span></label>`).join('')}</div>`)}
+ <section class="profile-summary-section" aria-label="Detailed business profile summary"><h3><span class="profile-step">06</span>Review your business profile</h3><p class="profile-section-hint">A detailed summary of your current entries. Check the information below before saving. Use Edit to return to a field.</p><div data-profile-summary>${profileSummaryHtml(profile)}</div></section>
  <p class="profile-note">This profile supports general business conversations. Each automation group uses its own AI instructions and business details.</p><p data-editor-notice role="status" class="profile-editor-notice"></p>`;
 }
 export function bindProfileEditor(form) {
@@ -88,6 +110,7 @@ export function bindProfileEditor(form) {
   entries(name).insertAdjacentHTML('beforeend',html);entries(name).lastElementChild.querySelector('input,textarea').focus();changed();return true;
  }
  form.addEventListener('click',event=>{
+  const edit=event.target.closest('[data-summary-edit]');if(edit){const name=edit.dataset.summaryEdit;const target=listFields.includes(name)?entries(name).querySelector('input,textarea')||form.querySelector(name==='pricing'?'[data-price-service]':`[data-add-entry="${name}"]`):form.querySelector(name==='tone'?'[name="tone"]:checked':`[name="${name}"]`);if(target){target.scrollIntoView({behavior:'auto',block:'center'});target.focus({preventScroll:true});}return;}
   const remove=event.target.closest('[data-remove]');if(remove){const row=remove.closest('[data-entry]');const list=row.parentElement;row.remove();(list.lastElementChild?.querySelector('input,textarea')||list.parentElement.querySelector('[data-add-entry]')||list.parentElement.querySelector('[data-add-price]'))?.focus();changed();announce('Entry removed. Save to keep this change.');}
   const button=event.target.closest('[data-add-entry]');if(!button)return;
   const name=button.dataset.addEntry;
@@ -118,10 +141,14 @@ export function bindProfileEditor(form) {
  const priceInputs=['service','amount','details'].map(name=>form.querySelector(`[data-price-${name}]`));
  function addPrice() {
   const error=form.querySelector('[data-price-error]');error.textContent='';
-  try{const value=priceEntry({service:priceInputs[0].value,method:method.value,amount:priceInputs[1].value,details:priceInputs[2].value});if(!add('pricing',entryRow('pricing',value)))return false;priceInputs.forEach(input=>input.value='');announce('Pricing detail added.');return true;}catch(e){error.textContent=e.message;return false;}
+  try{const value=priceEntry({service:priceInputs[0].value,method:method.value,amount:priceInputs[1].value,details:priceInputs[2].value});if(!add('pricing',entryRow('pricing',value)))return false;priceInputs.forEach(input=>input.value='');changed();announce('Pricing detail added.');return true;}catch(e){error.textContent=e.message;return false;}
  }
  form.querySelector('[data-add-price]').addEventListener('click',addPrice);
- const progress=()=>{const profile=profileFromForm(new FormData(form));const count=[Boolean(profile.businessName&&profile.timeZone),Boolean(profile.services.length&&profile.locations.length),Boolean(profile.faqs.length||profile.pricing.length),Boolean(profile.policies.length||profile.bookingRules||profile.handoff),Boolean(profile.tone)].filter(Boolean).length;form.querySelector('[data-profile-progress]').textContent=`${count} of 5 sections have details · optional sections can be left blank`;};
+ const progress=()=>{
+  const profile=profileFromForm(new FormData(form));const count=[Boolean(profile.businessName&&profile.timeZone),Boolean(profile.services.length&&profile.locations.length),Boolean(profile.faqs.length||profile.pricing.length),Boolean(profile.policies.length||profile.bookingRules||profile.handoff),Boolean(profile.tone)].filter(Boolean).length;form.querySelector('[data-profile-progress]').textContent=`${count} of 5 sections have details · optional sections can be left blank`;
+  let pendingPrice='',pendingPriceError='';if(priceInputs.some(input=>input.value.trim()))try{pendingPrice=priceEntry({service:priceInputs[0].value,method:method.value,amount:priceInputs[1].value,details:priceInputs[2].value});}catch(error){pendingPriceError=error.message;}
+  form.querySelector('[data-profile-summary]').innerHTML=profileSummaryHtml(profile,{pendingPrice,pendingPriceError});
+ };
  form.addEventListener('input',progress);form.addEventListener('change',progress);progress();
  return {prepare(review){
   // Include a completed pending pricing detail; never silently discard a half-filled builder.

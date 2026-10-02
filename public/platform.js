@@ -1,5 +1,5 @@
 import {createRenderQueue} from './tabWorkspace.js?v=20261002-workspace';
-import {mountBusinessSetup} from './businessSetup.js?v=20261002-guided-profile';
+import {mountBusinessSetup} from './businessSetup.js?v=20261002-profile-summary';
 import {apiFetch,getAccessToken,runtimeConfig} from './auth.js?v=20261001-business-services';
 const esc=value=>String(value??'').replaceAll('&','&amp;').replaceAll('<','&lt;').replaceAll('>','&gt;').replaceAll('"','&quot;').replaceAll("'",'&#39;');
 const date=value=>value?new Date(value).toLocaleString():'—';

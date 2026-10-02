@@ -1,5 +1,5 @@
 const esc=value=>String(value??'').replaceAll('&','&amp;').replaceAll('<','&lt;').replaceAll('>','&gt;').replaceAll('"','&quot;').replaceAll("'",'&#39;');
-import {profileFromForm,profileEditorHtml,bindProfileEditor} from './businessProfileEditor.js?v=20261002-guided-profile';
+import {profileFromForm,profileEditorHtml,bindProfileEditor} from './businessProfileEditor.js?v=20261002-profile-summary';
 export {profileFromForm};
 export function mountBusinessSetup(container,row,{write,reload,onCreateWebsite,onWebsite,onWorkspace,lookup}) {
  const setup=row.setup||{revision:0,draft:{}},profile={...row.registration?.profile,...setup.draft};

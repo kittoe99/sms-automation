@@ -22,6 +22,14 @@ identified beside the controls.
 
 No presets are inserted on load, no business names or prices are invented, and
 original customer registration is retained in a collapsed reference section.
+
+After the input sections, **Review your business profile** shows every editable
+profile field in a detailed summary. It updates on typing, selections, preset
+insertion and entry removal. Empty fields say Not provided. Edit links return to
+the matching field without clearing the form. A completed pricing builder is
+shown as pending and included on save; incomplete pricing is identified separately.
+This is a preview of the current form, not a claim that unsaved edits are approved.
+
 Existing free-form FAQs and pricing entries, custom rules, non-USD saved pricing,
 and unknown profile fields remain supported. FAQ pairs are serialized as one
 plain-text entry, with a question mark separator or an em dash for topic headings.
