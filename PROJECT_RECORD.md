@@ -295,3 +295,6 @@ Contacts loading, and instant return to the retained Overview; no console warnin
 or errors. The final 205-test CRM run passed. Both project records were updated.
 No API/database migration, provider action, customer data edit or E2 app deployment
 was performed. Unrelated local auth/preview/documentation changes remain preserved.
+
+Production visual QA follow-up: refined the no-SMS setup notice spacing and
+responsive action placement; frontend build passed. This changes presentation only.
