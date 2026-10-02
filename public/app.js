@@ -1,18 +1,38 @@
+import {readBusinessProfile,writeBusinessProfile} from './profileClient.js?v=20261002-access';
+import {canOpenWorkspace,canWriteWorkspace,staffActionSelector} from './workspacePermissions.js?v=20261002-access';
+import { createPlatform } from './platform.js?v=20261002-tabs';
+import { connectSupabaseLive } from './live.js?v=20261001-business-services';
+import { createFormBuilder } from './formBuilder.js';
+import { shouldRefreshFromBackground } from './refreshGuard.js';
 import {
-  apiFetch,
+  apiFetch as authenticatedFetch,
   getAccessToken,
   getSession,
   getTenantId,
   initAuth,
   isDemoMode,
+  renderAccessScreen,
   renderLoginScreen,
+  runtimeConfig,
   showCrmApp,
   signOut,
   setTenantId,
-} from './auth.js?v=20260916-light1';
+} from './auth.js?v=20261001-business-services';
 
+async function apiFetch(path, options = {}) {
+  if (!isDemoMode() && !canWriteWorkspace(path, options.method || 'GET', state.platformStaff, state.tenant)) {
+    return new Response(JSON.stringify({error:'This workspace is read-only for your account.'}), {status:403,headers:{'Content-Type':'application/json'}});
+  }
+  return authenticatedFetch(path, options);
+}
+
+const KNOWN_VIEWS = ['overview','contacts','messaging','bookings','automations','email','call','messages','deliverability','optouts','ai-instructions','business-setup','business-context','booking-setup','web-forms','knowledge','platform-accounts','platform-businesses','platform-websites'];
+function initialViewFromUrl() {
+  const view = new URLSearchParams(location.search).get('view');
+  return KNOWN_VIEWS.includes(view) ? view : 'overview';
+}
 const state = {
-  view: 'overview',
+  view: initialViewFromUrl(),
   categoryId: null,
   q: '',
   status: '',
@@ -21,19 +41,24 @@ const state = {
   totalPages: 1,
   categories: [],
   cadences: [],
+  rulePresets: [],
   selected: null,
   conversationPhone: null,
+  conversationId: null,
   unreadOnly: false,
   contactStatus: '',
   contactTab: 'directory',
   sourceFilter: '',
   consentedOnly: false,
-  callPhone: '',
-  callName: '',
   tenants: [],
   tenant: null,
   automationBuilderOpen: false,
+  automationPresetId: null,
   aiBuilderOpen: false,
+  emailGroupId: null,
+  businessContextDraft: null,
+  bookingSettingsDraft: null,
+  bookingStatus: '',
 };
 
 const el = {
@@ -62,9 +87,36 @@ const el = {
   tenantSelect: document.getElementById('tenant-select'),
   toolbarTenant: document.getElementById('toolbar-tenant'),
   tenantAvatar: document.getElementById('tenant-avatar'),
+  viewTabs: document.getElementById('view-tabs'),
 };
 
+const formBuilder = createFormBuilder({ root: el.root, apiFetch, config: runtimeConfig, canReadSubmissions:()=>state.tenant?.smsRead!==false });
+const platform = createPlatform({ root: el.root, title: el.title, subtitle: el.sub, pager: el.pager,
+  onWorkspace:(tenantId,service)=>{setTenantId(tenantId);switchView(service==='sms'?'business-setup':service==='enquiries'?'web-forms':'bookings',{tenantId,force:true});},
+  onNavigate:view=>{state.view=view;el.toolbarTenant.textContent='CRM';el.toolbarSection.textContent={ 'platform-accounts':'Users','platform-businesses':'Businesses','platform-websites':'Websites' }[view];setActiveNav();} });
+
 let drawerReturnFocus = null;
+let lastRenderedView = null;
+
+function visibleFocusTargets(container) {
+  return [...container.querySelectorAll('a[href], button:not([disabled]), input:not([disabled]), select:not([disabled]), textarea:not([disabled]), [tabindex]:not([tabindex="-1"])')]
+    .filter((node) => !node.hidden && node.getClientRects().length);
+}
+
+function trapOverlayFocus(event, container) {
+  if (event.key !== 'Tab') return;
+  const targets = visibleFocusTargets(container);
+  if (!targets.length) return;
+  const first = targets[0];
+  const last = targets.at(-1);
+  if (event.shiftKey && (document.activeElement === first || !container.contains(document.activeElement))) {
+    event.preventDefault();
+    last.focus();
+  } else if (!event.shiftKey && (document.activeElement === last || !container.contains(document.activeElement))) {
+    event.preventDefault();
+    first.focus();
+  }
+}
 
 function syncOverlayLock() {
   const crm = document.querySelector('.crm');
@@ -75,37 +127,1106 @@ function syncOverlayLock() {
 }
 
 el.tenantSelect?.addEventListener('change', () => {
-  setTenantId(el.tenantSelect.value);
-  location.reload();
+  switchTenant(el.tenantSelect.value).catch(error=>console.error(error));
 });
 
-window.addEventListener('clerk:organization-changed', () => location.reload());
+window.addEventListener('clerk:organization-changed', () => {
+  switchTenant(getTenantId(), { force: true }).catch(error=>console.error(error));
+});
+
+document.getElementById('add-business')?.addEventListener('click', () => {
+  state.view='platform-businesses';setActiveNav();
+  platform.openRegistration().catch(error=>console.error(error));
+});
+
+function openBusinessSetup(provisioning = null) {
+  if (provisioning) state.setupProvisioning = provisioning;
+  switchView('business-setup');
+}
+
+function openBusinessContext() {
+  switchView('business-context');
+}
+
+function refreshFromBackground() {
+  const active = document.activeElement;
+  if (!shouldRefreshFromBackground({
+    view: state.view,
+    automationBuilderOpen: state.automationBuilderOpen,
+    aiBuilderOpen: state.aiBuilderOpen,
+    focusedInForm: active instanceof HTMLElement && el.root.contains(active) && Boolean(active.closest('form')),
+    hasDirtyForm: Boolean(el.root.querySelector('form[data-dirty="true"]')),
+  })) return Promise.resolve(false);
+  return load();
+}
+
+for (const eventName of ['input', 'change']) {
+  el.root.addEventListener(eventName, event => {
+    const form = event.target instanceof Element ? event.target.closest('form') : null;
+    if (form && el.root.contains(form)) form.dataset.dirty = 'true';
+  });
+}
+
+const bookingDays=['Sunday','Monday','Tuesday','Wednesday','Thursday','Friday','Saturday'];
+const defaultBookingSettings=()=>({enabled:false,version:0,slotDurationMinutes:60,capacityPerSlot:1,minimumNoticeMinutes:120,maximumAdvanceDays:90,followUpEnabled:false,followUpDelayHours:24,followUpIntervalHours:48,followUpMaxAttempts:2,weeklyAvailability:{0:[],1:[],2:[],3:[],4:[],5:[],6:[]},dateExceptions:[],extraFields:[]});
+const bookingKey=value=>String(value||'').trim().toLowerCase().replace(/[^a-z0-9]+/g,'_').replace(/^_|_$/g,'').slice(0,40);
+
+function renderVoiceBookingRules(root,rules,onSaved){
+ const section=document.createElement('section');section.className='card';
+ section.innerHTML=`<div class="card-head"><div><h2>Soni service job booking</h2><span class="muted">Set real ZIP coverage and capacity before enabling a market. Shared resource pools count overlapping jobs across services.</span></div></div><div class="setup-body"><label>Rule<select id="voice-rule-select"><option value="">New market rule</option>${rules.map(r=>`<option value="${esc(r.id)}">${esc(r.service.replaceAll('_',' '))} · ${esc(r.market)}${r.enabled?' · enabled':''}</option>`).join('')}</select></label><form id="voice-rule-form"><div class="automation-form-grid"><label>Service<select name="service"><option value="local_moving">Local Moving</option><option value="junk_removal">Junk Removal</option><option value="property_cleanout">Property Cleanouts</option><option value="dumpster_rental">Dumpster Rental</option></select></label><label>Service variant / dumpster size<input name="variant" maxlength="80" placeholder="10 yard, 20 yard, etc."/><small class="muted">Required for dumpster rental. Leave blank for other services.</small></label><label>Market name<input name="market" required maxlength="100" placeholder="Denver metro"/></label><label>ZIP codes<input name="zipCodes" required placeholder="80231, 80247"/><small class="muted">Only listed ZIP codes can be booked live.</small></label><label>Local time zone<input name="timeZone" required placeholder="America/Denver"/></label><label>Resource pool<input name="resourcePool" required placeholder="Denver crew"/><small class="muted">Services sharing staff or equipment should share a pool.</small></label><label>Job duration (minutes)<input name="durationMinutes" type="number" min="15" max="43200" required/></label><label>Jobs at once in pool<input name="capacity" type="number" min="1" max="100" required/></label><label>Minimum notice (minutes)<input name="minimumNoticeMinutes" type="number" min="0" max="43200" required/></label><label>Maximum advance (days)<input name="maximumAdvanceDays" type="number" min="1" max="730" required/></label></div><h3>Local hours</h3><div id="voice-rule-hours">${bookingDays.map((day,i)=>`<div class="booking-window" data-voice-day="${i}"><label><input type="checkbox" data-voice-enabled="${i}"/> ${day}</label><input type="time" data-voice-start="${i}" value="09:00"/><span>to</span><input type="time" data-voice-end="${i}" value="17:00"/></div>`).join('')}</div><label>Date exceptions (JSON)<textarea name="dateExceptions" rows="2">[]</textarea><small class="muted">Optional. Example: [{"date":"2026-12-25","closed":true,"windows":[]}]</small></label><label class="setup-radio"><input name="enabled" type="checkbox"/><span><strong>Enable live job booking for this market</strong><small>Confirmed bookings reserve capacity immediately.</small></span></label><div class="compose-actions"><span id="voice-rule-error" class="login-error" role="alert"></span><span id="voice-rule-saved" class="muted"></span><button class="btn" type="submit">Save service rule</button></div></form></div>`;
+ root.append(section);
+ const selector=section.querySelector('#voice-rule-select'),form=section.querySelector('#voice-rule-form');
+ const show=()=>{const r=rules.find(x=>x.id===selector.value);form.reset();form.elements.service.value=r?.service||'local_moving';form.elements.variant.value=r?.variant||'';form.elements.market.value=r?.market||'';form.elements.zipCodes.value=(r?.zip_codes||[]).join(', ');form.elements.timeZone.value=r?.time_zone||'America/Denver';form.elements.resourcePool.value=r?.resource_pool||'';form.elements.durationMinutes.value=r?.duration_minutes||120;form.elements.capacity.value=r?.capacity||1;form.elements.minimumNoticeMinutes.value=r?.minimum_notice_minutes??120;form.elements.maximumAdvanceDays.value=r?.maximum_advance_days??90;form.elements.dateExceptions.value=JSON.stringify(r?.date_exceptions||[]);form.elements.enabled.checked=Boolean(r?.enabled);bookingDays.forEach((_,i)=>{const window=r?.weekly_availability?.[i]?.[0];section.querySelector(`[data-voice-enabled="${i}"]`).checked=Boolean(window);section.querySelector(`[data-voice-start="${i}"]`).value=window?.start||'09:00';section.querySelector(`[data-voice-end="${i}"]`).value=window?.end||'17:00';});};
+ selector.addEventListener('change',show);show();
+ form.addEventListener('submit',async event=>{event.preventDefault();const error=section.querySelector('#voice-rule-error'),saved=section.querySelector('#voice-rule-saved'),button=form.querySelector('[type="submit"]');error.textContent='';saved.textContent='';button.disabled=true;try{const weeklyAvailability={};bookingDays.forEach((_,i)=>{weeklyAvailability[i]=section.querySelector(`[data-voice-enabled="${i}"]`).checked?[{start:section.querySelector(`[data-voice-start="${i}"]`).value,end:section.querySelector(`[data-voice-end="${i}"]`).value}]:[];});const payload={id:selector.value||undefined,service:form.elements.service.value,variant:form.elements.variant.value.trim(),market:form.elements.market.value.trim(),zipCodes:form.elements.zipCodes.value.split(',').map(x=>x.trim()).filter(Boolean),timeZone:form.elements.timeZone.value.trim(),resourcePool:form.elements.resourcePool.value.trim(),durationMinutes:Number(form.elements.durationMinutes.value),capacity:Number(form.elements.capacity.value),minimumNoticeMinutes:Number(form.elements.minimumNoticeMinutes.value),maximumAdvanceDays:Number(form.elements.maximumAdvanceDays.value),weeklyAvailability,dateExceptions:JSON.parse(form.elements.dateExceptions.value||'[]'),enabled:form.elements.enabled.checked};const response=await apiFetch('/api/voice-booking-rules',{method:'PUT',body:JSON.stringify(payload)}),body=await response.json();if(!response.ok)throw new Error(body.error||'Could not save service rule');saved.textContent='Saved';await onSaved();}catch(failure){error.textContent=failure.message;button.disabled=false;}});
+}
+
+async function renderBookingSetup(){
+ setTitle(...titles['booking-setup']);el.kpi.innerHTML='';el.pager.hidden=true;
+ if(!state.bookingSettingsDraft){const response=await apiFetch('/api/booking-settings'),data=await response.json();if(!response.ok)throw new Error(data.error||'Could not load booking settings');state.bookingSettingsDraft={...defaultBookingSettings(),...data};}
+ let voiceRules=[];const voiceResponse=await apiFetch('/api/voice-booking-rules');if(voiceResponse.ok)voiceRules=(await voiceResponse.json()).rules||[];
+ const draft=state.bookingSettingsDraft;
+ const draw=()=>{
+  const weekly=bookingDays.map((day,index)=>{const window=draft.weeklyAvailability?.[index]?.[0]||{};return `<div class="booking-window"><label><input type="checkbox" data-day-enabled="${index}" ${window.start?'checked':''}/> ${day}</label><input type="time" data-day-start="${index}" value="${esc(window.start||'09:00')}" ${window.start?'':'disabled'}/><span>to</span><input type="time" data-day-end="${index}" value="${esc(window.end||'17:00')}" ${window.start?'':'disabled'}/></div>`;}).join('');
+  const exceptions=(draft.dateExceptions||[]).map((x,index)=>`<div class="booking-config-row" data-exception-row="${index}"><input type="date" value="${esc(x.date||'')}" data-exception-date/><label><input type="checkbox" data-exception-closed ${x.closed?'checked':''}/> Closed</label><input type="time" data-exception-start value="${esc(x.windows?.[0]?.start||'09:00')}" ${x.closed?'disabled':''}/><span>to</span><input type="time" data-exception-end value="${esc(x.windows?.[0]?.end||'17:00')}" ${x.closed?'disabled':''}/><button type="button" class="btn ghost" data-remove-exception="${index}">Remove</button></div>`).join('');
+  const fields=(draft.extraFields||[]).map((f,index)=>`<div class="booking-field-row" data-field-row="${index}"><span class="drag-hint">${index+1}</span><input data-field-question maxlength="240" placeholder="Question to ask" value="${esc(f.question||'')}"/><input data-field-key maxlength="40" placeholder="field_key" value="${esc(f.key||'')}"/><select data-field-type><option value="short_text">Short text</option><option value="long_text">Long text</option><option value="number">Number</option><option value="boolean">Yes / no</option><option value="single_select">Single select</option></select><label><input type="checkbox" data-field-required ${f.required?'checked':''}/> Required</label><input data-field-options placeholder="Options, comma separated" value="${esc((f.options||[]).join(', '))}" ${f.type==='single_select'?'':'hidden'}/><button type="button" class="btn ghost" data-remove-field="${index}">Remove</button></div>`).join('');
+  el.root.innerHTML=`<form id="booking-settings-form" class="setup-page" data-dirty="${draft._dirty?'true':'false'}"><section class="card setup-hero"><div><span class="eyebrow">Deterministic SMS booking</span><h2>Let customers book from a text.</h2><p class="muted">The AI collects values; Supabase checks the slot and creates the booking only after the customer replies YES.</p></div><label class="setup-radio"><input id="booking-enabled" type="checkbox" ${draft.enabled?'checked':''}/><span><strong>Enable booking by SMS</strong><small>Existing inbound answers continue normally when disabled.</small></span></label></section><div class="setup-layout"><div class="setup-main"><section class="card"><div class="card-head"><h2>Availability</h2></div><div class="setup-body"><div class="automation-form-grid"><label>Slot length (minutes)<input id="booking-duration" type="number" min="15" max="480" value="${esc(draft.slotDurationMinutes)}"/></label><label>Bookings allowed per slot<input id="booking-capacity" type="number" min="1" max="100" value="${esc(draft.capacityPerSlot)}"/><small class="muted">The slot stays open until this many confirmed bookings exist.</small></label><label>Minimum notice (minutes)<input id="booking-notice" type="number" min="0" max="43200" value="${esc(draft.minimumNoticeMinutes)}"/></label><label>Maximum advance (days)<input id="booking-advance" type="number" min="1" max="730" value="${esc(draft.maximumAdvanceDays)}"/></label></div><div class="booking-windows">${weekly}</div></div></section><section class="card"><div class="card-head"><h2>AI booking follow-ups</h2></div><div class="setup-body"><label class="setup-radio"><input id="booking-followup-enabled" type="checkbox" ${draft.followUpEnabled?'checked':''}/><span><strong>Follow up on unfinished bookings</strong><small>The AI sends a helpful reminder from approved business context and stops after the limit or any customer reply.</small></span></label><div class="automation-form-grid" style="margin-top:16px"><label>First follow-up after (hours)<input id="booking-followup-delay" type="number" min="1" max="720" value="${esc(draft.followUpDelayHours)}"/></label><label>Time between follow-ups (hours)<input id="booking-followup-interval" type="number" min="1" max="720" value="${esc(draft.followUpIntervalHours)}"/></label><label>Maximum follow-ups<input id="booking-followup-max" type="number" min="1" max="5" value="${esc(draft.followUpMaxAttempts)}"/></label></div></div></section><section class="card"><div class="card-head"><h2>Date exceptions</h2><button type="button" class="btn ghost" id="add-booking-exception">Add date</button></div><div class="setup-body" id="booking-exceptions">${exceptions||'<p class="muted">No closures or custom-date hours.</p>'}</div></section><section class="card"><div class="card-head"><div><h2>Extra questions</h2><span class="muted">Name, phone, address, date, and time are always collected.</span></div><button type="button" class="btn ghost" id="add-booking-field">Add question</button></div><div class="setup-body" id="booking-fields">${fields||'<p class="muted">No additional questions.</p>'}</div></section><div class="compose-actions"><span id="booking-settings-error" class="login-error" role="alert"></span><span id="booking-settings-saved" class="muted"></span><button class="btn" type="submit">Save booking setup</button></div></div><aside class="setup-side"><div class="card setup-card"><div class="card-head"><h2>How confirmation works</h2></div><div class="setup-body"><ol class="setup-help-list"><li>The assistant asks one missing question at a time.</li><li>The database validates the requested slot.</li><li>The customer receives a summary and replies YES.</li><li>The slot is checked again and booked atomically.</li></ol><p class="muted">Configuration version ${esc(draft.version||'new')}</p></div></div></aside></div></form>`;
+  el.root.querySelectorAll('[data-field-type]').forEach((select,index)=>{select.value=draft.extraFields[index]?.type||'short_text';select.addEventListener('change',()=>{select.closest('[data-field-row]').querySelector('[data-field-options]').hidden=select.value!=='single_select';mark();});});
+  const mark=()=>{draft._dirty=true;el.root.querySelector('#booking-settings-form')?.setAttribute('data-dirty','true');};
+  const sync=()=>{draft.enabled=el.root.querySelector('#booking-enabled').checked;draft.slotDurationMinutes=Number(el.root.querySelector('#booking-duration').value);draft.capacityPerSlot=Number(el.root.querySelector('#booking-capacity').value);draft.minimumNoticeMinutes=Number(el.root.querySelector('#booking-notice').value);draft.maximumAdvanceDays=Number(el.root.querySelector('#booking-advance').value);draft.followUpEnabled=el.root.querySelector('#booking-followup-enabled').checked;draft.followUpDelayHours=Number(el.root.querySelector('#booking-followup-delay').value);draft.followUpIntervalHours=Number(el.root.querySelector('#booking-followup-interval').value);draft.followUpMaxAttempts=Number(el.root.querySelector('#booking-followup-max').value);draft.weeklyAvailability={};bookingDays.forEach((_,i)=>{const on=el.root.querySelector(`[data-day-enabled="${i}"]`).checked;draft.weeklyAvailability[i]=on?[{start:el.root.querySelector(`[data-day-start="${i}"]`).value,end:el.root.querySelector(`[data-day-end="${i}"]`).value}]:[];});draft.dateExceptions=[...el.root.querySelectorAll('[data-exception-row]')].map(row=>{const closed=row.querySelector('[data-exception-closed]').checked;return {date:row.querySelector('[data-exception-date]').value,closed,windows:closed?[]:[{start:row.querySelector('[data-exception-start]').value,end:row.querySelector('[data-exception-end]').value}]};});draft.extraFields=[...el.root.querySelectorAll('[data-field-row]')].map(row=>{const question=row.querySelector('[data-field-question]').value.trim(),type=row.querySelector('[data-field-type]').value;return {key:bookingKey(row.querySelector('[data-field-key]').value||question),question,type,required:row.querySelector('[data-field-required]').checked,options:type==='single_select'?row.querySelector('[data-field-options]').value.split(',').map(x=>x.trim()).filter(Boolean):[]};});};
+  el.root.querySelectorAll('input,select').forEach(input=>input.addEventListener('input',()=>{sync();mark();}));
+  el.root.querySelectorAll('[data-day-enabled]').forEach(box=>box.addEventListener('change',()=>{const i=box.dataset.dayEnabled;el.root.querySelector(`[data-day-start="${i}"]`).disabled=!box.checked;el.root.querySelector(`[data-day-end="${i}"]`).disabled=!box.checked;}));
+  el.root.querySelectorAll('[data-exception-closed]').forEach(box=>box.addEventListener('change',()=>box.closest('[data-exception-row]').querySelectorAll('[type="time"]').forEach(x=>x.disabled=box.checked)));
+  el.root.querySelector('#add-booking-exception')?.addEventListener('click',()=>{sync();draft.dateExceptions.push({date:'',closed:true,windows:[]});mark();draw();});
+  el.root.querySelector('#add-booking-field')?.addEventListener('click',()=>{sync();draft.extraFields.push({key:'',question:'',type:'short_text',required:false,options:[]});mark();draw();});
+  el.root.querySelectorAll('[data-remove-exception]').forEach(button=>button.addEventListener('click',()=>{sync();draft.dateExceptions.splice(Number(button.dataset.removeException),1);mark();draw();}));
+  el.root.querySelectorAll('[data-remove-field]').forEach(button=>button.addEventListener('click',()=>{sync();draft.extraFields.splice(Number(button.dataset.removeField),1);mark();draw();}));
+  el.root.querySelector('#booking-settings-form')?.addEventListener('submit',async event=>{event.preventDefault();sync();const error=el.root.querySelector('#booking-settings-error'),saved=el.root.querySelector('#booking-settings-saved'),button=event.currentTarget.querySelector('[type="submit"]');error.textContent='';saved.textContent='';button.disabled=true;try{const payload={...draft};delete payload._dirty;delete payload.version;const response=await apiFetch('/api/booking-settings',{method:'PUT',body:JSON.stringify(payload)}),data=await response.json();if(!response.ok)throw new Error(data.error||'Could not save booking setup');state.bookingSettingsDraft={...defaultBookingSettings(),...data};saved.textContent='Saved';draw();}catch(failure){error.textContent=failure.message;button.disabled=false;mark();}});
+  renderVoiceBookingRules(el.root,voiceRules,async()=>{const response=await apiFetch('/api/voice-booking-rules');if(response.ok)voiceRules=(await response.json()).rules||[];draw();});
+ };
+ draw();
+}
+
+async function renderBookings(){
+ setTitle(...titles.bookings);el.kpi.innerHTML='';el.pager.hidden=false;el.status.hidden=true;el.search.placeholder='Search name, phone, or address…';
+ const params=new URLSearchParams({page:String(state.page),pageSize:String(state.pageSize)});if(state.q)params.set('q',state.q);if(state.bookingStatus)params.set('status',state.bookingStatus);
+ const response=await apiFetch(`/api/bookings?${params}`),data=await response.json();if(!response.ok)throw new Error(data.error||'Could not load bookings');state.totalPages=data.totalPages||1;renderPager(data);
+ const rows=(data.bookings||[]).map(b=>`<tr data-booking-id="${esc(b.id)}"><td><strong>${esc(b.customer_name||'—')}</strong><br><span class="muted">${esc(b.customer_phone||b.contact_phone||'')}</span></td><td>${esc(fmtTime(b.appointment_at))}</td><td>${esc(b.service_address||'—')}</td><td><span class="status ${esc(b.status)}">${esc(b.status)}</span></td><td>${esc(b.source||'—')}</td></tr>`).join('');
+ el.root.innerHTML=`<section class="card"><div class="card-head"><div><h2>Appointments</h2><span class="muted">${fmt(data.total)} booking${Number(data.total)===1?'':'s'}</span></div><select id="booking-status-filter"><option value="">All statuses</option><option value="confirmed">Confirmed</option><option value="cancelled">Cancelled</option><option value="requested">Requested</option></select></div><div class="table-scroll"><table class="data"><thead><tr><th>Customer</th><th>Date and time</th><th>Address</th><th>Status</th><th>Source</th></tr></thead><tbody>${rows||'<tr><td colspan="5" class="empty">No bookings yet.</td></tr>'}</tbody></table></div></section>`;
+ const filter=el.root.querySelector('#booking-status-filter');filter.value=state.bookingStatus;filter.addEventListener('change',()=>{state.bookingStatus=filter.value;state.page=1;renderBookings();});
+ el.root.querySelectorAll('[data-booking-id]').forEach(row=>row.addEventListener('click',async()=>{const id=row.dataset.bookingId,res=await apiFetch(`/api/bookings/${encodeURIComponent(id)}`),body=await res.json();if(!res.ok)throw new Error(body.error||'Could not load booking');const b=body.booking,answers=Object.entries(b.extra_answers||{}).map(([key,value])=>`<div class="row"><div class="k">${esc(key.replaceAll('_',' '))}</div><div class="v">${esc(value)}</div></div>`).join('');openDrawer(`Booking ${id}`,`<div class="kv"><div class="row"><div class="k">Customer</div><div class="v">${esc(b.customer_name||'—')}</div></div><div class="row"><div class="k">Phone</div><div class="v">${esc(b.customer_phone||b.contact_phone||'—')}</div></div><div class="row"><div class="k">Appointment</div><div class="v">${esc(fmtTime(b.appointment_at))} · ${esc(b.time_zone||'')}</div></div><div class="row"><div class="k">Address</div><div class="v">${esc(b.service_address||'—')}</div></div><div class="row"><div class="k">Status</div><div class="v">${esc(b.status)}</div></div>${answers}</div><div class="compose-actions"><span id="booking-action-error" class="login-error"></span><button class="btn ghost" id="booking-open-thread">Open conversation</button>${b.status==='confirmed'?'<button class="btn danger" id="booking-cancel">Cancel booking</button>':''}</div>`);el.drawerBody.querySelector('#booking-open-thread')?.addEventListener('click',()=>{state.view='messaging';state.conversationId=null;state.conversationPhone=b.customer_phone||b.contact_phone;closeDrawer();setActiveNav();load();});el.drawerBody.querySelector('#booking-cancel')?.addEventListener('click',async event=>{if(!confirm('Cancel this booking and its pending reminders?'))return;event.currentTarget.disabled=true;const cancel=await apiFetch(`/api/bookings/${encodeURIComponent(id)}/cancel`,{method:'POST',headers:{'Idempotency-Key':crypto.randomUUID()},body:'{}'}),result=await cancel.json();if(!cancel.ok){el.drawerBody.querySelector('#booking-action-error').textContent=result.error||'Cancellation failed';event.currentTarget.disabled=false;return;}closeDrawer();await renderBookings();});}));
+}
+
+async function fetchOnboarding() {
+  return readBusinessProfile(apiFetch);
+}
+
+async function saveOnboarding(payload, intent = 'review') {
+  return writeBusinessProfile(apiFetch, payload, state.setupOnboarding?.revision, intent);
+}
+
+function setupStepsHtml(current = 1) {
+  const steps = ['Details', 'Twilio review', 'Approved'];
+  return `<ol class="setup-steps" aria-label="Setup progress">${steps
+    .map((label, i) => {
+      const n = i + 1;
+      const cls = n < current ? 'done' : n === current ? 'current' : '';
+      return `<li class="${cls}"><span class="setup-step-n">${n}</span><span>${esc(label)}</span></li>`;
+    })
+    .join('')}</ol>`;
+}
+
+function sampleFieldsHtml(samples) {
+  const list = samples.length ? samples : ['', ''];
+  return list
+    .map(
+      (value, i) => `
+      <div class="setup-sample" data-sample-row>
+        <div class="setup-sample-head">
+          <label class="compose-label" for="setup-sample-${i}">Sample ${i + 1} *</label>
+          <span class="setup-count" data-count-for="setup-sample-${i}">${String(value || '').trim().length}/320</span>
+        </div>
+        <textarea id="setup-sample-${i}" data-sample-input rows="3" minlength="20" maxlength="320" required placeholder="Thanks for contacting Example Business. Reply STOP to opt out.">${esc(value || '')}</textarea>
+        <div class="setup-sample-foot">
+          <span class="muted" data-hint-for="setup-sample-${i}">20–320 characters. Include STOP/HELP wording.</span>
+          ${list.length > 2 ? `<button type="button" class="btn ghost setup-sample-remove" data-remove-sample="${i}">Remove</button>` : ''}
+        </div>
+      </div>`
+    )
+    .join('');
+}
+
+function registrationControlsHtml(registration = {}, detailsComplete = false) {
+  const registrationState = registration.state || 'draft';
+  const button = (action, label) => `<button type="button" class="btn" data-registration-action="${action}">${label}</button>`;
+  let action = '';
+  if (!detailsComplete) action = '<p class="muted">Save the registration details first.</p>';
+  else if (registrationState === 'draft') action = button('start', 'Start registration');
+  else if (registrationState === 'profile_pending') action = button('session-brand-new', 'Open secure brand form');
+  else if (registrationState === 'brand_pending') action = `${registration.brand_inquiry_id ? button('session-brand-resume', 'Resume brand form') : ''}${button('refresh', 'Check brand status')}`;
+  else if (registrationState === 'campaign_pending') action = `${button(`session-campaign-${registration.campaign_inquiry_id ? 'resume' : 'new'}`, registration.campaign_inquiry_id ? 'Resume campaign form' : 'Open secure campaign form')}${registration.campaign_inquiry_id ? button('refresh', 'Check campaign status') : ''}`;
+  else if (registrationState === 'number_pending') action = `<label><span class="compose-label">Area code</span><input id="registration-area-code" inputmode="numeric" maxlength="3" placeholder="720" /></label>${button('search-number', 'Find available numbers')}`;
+  else if (registrationState === 'verification_pending') action = registration.sender_type === 'toll_free' ? button('session-toll_free-new', 'Open toll-free verification') : button('refresh', 'Check approval');
+  else if (['in_review', 'approved', 'canary_pending'].includes(registrationState)) action = button('refresh', 'Refresh Twilio status');
+  else if (registrationState === 'webhook_verified') action = `<label><span class="compose-label">Canary recipient</span><input id="registration-canary-phone" type="tel" placeholder="+15551234567" /></label>${button('canary', 'Send activation canary')}`;
+  else if (registrationState === 'ready') action = button('activate', 'Enable sending');
+  else if (registrationState === 'submission_unknown') action = button('reconcile', 'Reconcile uncertain operation');
+  else if (registrationState === 'rejected') action = button(`session-${registration.sender_type === 'toll_free' ? 'toll_free' : registration.campaign_inquiry_id ? 'campaign' : 'brand'}-resubmit`, 'Correct and resubmit');
+  return `<div class="card setup-card"><div class="card-head"><div><span class="eyebrow">Live registration</span><h2>${esc(registrationState.replaceAll('_', ' '))}</h2></div></div><div class="setup-body"><p class="muted">Paid submissions and number purchases always ask for confirmation. Legal answers stay in Twilio's secure form.</p><div class="compose-actions" style="align-items:stretch;flex-direction:column">${action}<span id="registration-action-error" class="login-error"></span></div>${registration.rejection_reason ? `<p class="login-error">${esc(registration.rejection_reason)}</p>` : ''}</div></div>`;
+}
+
+async function renderBusinessSetup() {
+  setTitle(...titles['business-setup']);
+  el.kpi.innerHTML = '';
+  el.pager.hidden = true;
+  el.storeMeta.textContent = state.tenant?.name || 'Your workspace';
+
+  let provisioning = state.setupProvisioning || null;
+  let onboardingState = state.setupOnboarding || null;
+  let registration = state.setupRegistration || null;
+  if (!provisioning || !onboardingState || !registration) {
+    el.root.innerHTML = '<div class="card"><div class="empty">Loading business setup…</div></div>';
+    try {
+      const [provRes, onb, regRes] = await Promise.all([
+        provisioning ? null : apiFetch('/api/provisioning'),
+        onboardingState ? null : fetchOnboarding(),
+        registration ? null : apiFetch('/api/twilio/registration'),
+      ]);
+      if (provRes && provRes.ok) provisioning = await provRes.json();
+      if (onb) onboardingState = onb;
+      if (regRes && regRes.ok) registration = await regRes.json();
+    } catch (error) {
+      console.error(error);
+    }
+  }
+  state.setupProvisioning = provisioning;
+  state.setupOnboarding = onboardingState || { onboarding: {}, onboardingComplete: false };
+  state.setupRegistration = registration || { state: 'draft' };
+  if (provisioning?.serviceAdded === false) {
+    el.root.innerHTML='<section class="card"><h2>SMS has not been added</h2><p>Review the business profile and add SMS from Businesses.</p><button type="button" class="btn" data-open-registered-business>Open business setup</button></section>';
+    return;
+  }
+  const details = provisioning?.details || {};
+  const senderType = details.senderType || 'local_a2p';
+  const brandType = details.brandType || 'standard';
+  const samples = Array.isArray(details.sampleMessages) && details.sampleMessages.length
+    ? details.sampleMessages.slice(0, 5)
+    : ['', ''];
+  const stateLabel = String(provisioning?.state || 'pending').replaceAll('_', ' ');
+  const sendingEnabled = Boolean(provisioning?.sendingEnabled);
+
+  el.root.innerHTML = `
+    <div class="setup-page">
+      <div class="setup-topbar">
+        <button type="button" class="btn ghost" id="setup-back">← Back to dashboard</button>
+        <span class="setup-status ${sendingEnabled ? 'ok' : ''}">${esc(sendingEnabled ? 'Sending enabled' : 'Sending disabled until Twilio approval')}</span>
+      </div>
+      <div class="card setup-hero">
+        <div>
+          <span class="eyebrow">Twilio registration · ${esc(state.tenant?.name || 'Business account')}</span>
+          <h2>Complete business setup</h2>
+          <p class="muted">Provide the information needed to choose a phone number and prepare the applicable Twilio registration. Legal identity and tax information are entered later in Twilio's secure form — this CRM does not store that here. Business context for SMS and AI lives on its own page under Setup → Business context.</p>
+          ${setupStepsHtml(provisioning?.detailsComplete ? 2 : 1)}
+        </div>
+        <dl class="setup-facts">
+          <div><dt>Status</dt><dd>${esc(stateLabel)}</dd></div>
+          <div><dt>Details</dt><dd>${provisioning?.detailsComplete ? 'saved · registration submission is next' : 'required'}</dd></div>
+          ${provisioning?.phoneNumber ? `<div><dt>Number</dt><dd>${esc(provisioning.phoneNumber)}</dd></div>` : ''}
+        </dl>
+      </div>
+      <form id="business-setup-page-form" class="setup-layout">
+        <div class="setup-main">
+          <section class="card setup-card" aria-labelledby="setup-sender-h">
+            <div class="card-head"><div><span class="eyebrow">Step 1</span><h2 id="setup-sender-h">Phone number</h2></div><span class="muted">Choose once per business</span></div>
+            <div class="setup-body">
+              <div class="setup-radio-grid" role="radiogroup" aria-label="Phone number type">
+                <label class="setup-radio ${senderType === 'local_a2p' ? 'selected' : ''}">
+                  <input type="radio" name="senderType" value="local_a2p" ${senderType === 'local_a2p' ? 'checked' : ''} />
+                  <strong>US local number</strong>
+                  <span>A2P 10DLC registration. Best for local presence. Requires brand type + area code.</span>
+                </label>
+                <label class="setup-radio ${senderType === 'toll_free' ? 'selected' : ''}">
+                  <input type="radio" name="senderType" value="toll_free" ${senderType === 'toll_free' ? 'checked' : ''} />
+                  <strong>US toll-free number</strong>
+                  <span>Toll-free verification. No area code needed.</span>
+                </label>
+              </div>
+              <div id="setup-local-fields" class="setup-grid-2">
+                <label>
+                  <span class="compose-label">Business registration type *</span>
+                  <select id="setup-brand-type">
+                    <option value="standard" ${brandType !== 'sole_proprietor' ? 'selected' : ''}>Registered business with EIN</option>
+                    <option value="sole_proprietor" ${brandType === 'sole_proprietor' ? 'selected' : ''}>Sole proprietor (no EIN)</option>
+                  </select>
+                  <small class="muted">Sole proprietors get a separate low-volume path. Choose EIN when available.</small>
+                </label>
+                <label>
+                  <span class="compose-label">Preferred area code *</span>
+                  <input id="setup-area-code" inputmode="numeric" maxlength="3" minlength="3" pattern="[0-9]{3}" value="${esc(details.areaCode || '')}" placeholder="720" autocomplete="off" />
+                  <small class="muted">Exactly 3 digits. Used when searching for a local number. Not needed for toll-free.</small>
+                </label>
+              </div>
+            </div>
+          </section>
+          <section class="card setup-card" aria-labelledby="setup-identity-h">
+            <div class="card-head"><div><span class="eyebrow">Step 2</span><h2 id="setup-identity-h">Business identity</h2></div><span class="muted">Must match public records</span></div>
+            <div class="setup-body setup-grid-2">
+              <label class="field-wide">
+                <span class="compose-label">Legal business name *</span>
+                <input id="setup-legal-name" maxlength="160" required value="${esc(details.legalBusinessName || state.tenant?.name || '')}" autocomplete="organization" placeholder="Bello Moving LLC" />
+              </label>
+              <label>
+                <span class="compose-label">Registration notification email *</span>
+                <input id="setup-email" type="email" maxlength="320" required value="${esc(details.notificationEmail || getSession()?.user?.email || '')}" autocomplete="email" placeholder="owner@example.com" />
+              </label>
+              <label>
+                <span class="compose-label">Public website *</span>
+                <input id="setup-website" type="url" inputmode="url" maxlength="2048" required pattern="https://.*" value="${esc(details.websiteUrl || '')}" placeholder="https://example.com" />
+                <small class="muted">Must start with https:// and be publicly accessible. Twilio reviews this site.</small>
+              </label>
+            </div>
+          </section>
+          <section class="card setup-card" aria-labelledby="setup-use-h">
+            <div class="card-head"><div><span class="eyebrow">Step 3</span><h2 id="setup-use-h">Messaging use case</h2></div><span class="muted">Twilio requires 40+ characters each</span></div>
+            <div class="setup-body">
+              <label>
+                <span class="compose-label">How will this business use SMS? *</span>
+                <textarea id="setup-campaign" minlength="40" maxlength="1500" rows="4" required placeholder="Describe the messages customers will receive and why.">${esc(details.campaignDescription || '')}</textarea>
+                <small class="muted"><span data-count-for="setup-campaign">${String(details.campaignDescription || '').trim().length}/1500</span> · minimum 40 characters.</small>
+              </label>
+              <label>
+                <span class="compose-label">How do customers agree to receive messages? *</span>
+                <textarea id="setup-opt-in" minlength="40" maxlength="1500" rows="4" required placeholder="Describe the form, checkbox, keyword, or verbal workflow used to collect consent.">${esc(details.optInDescription || '')}</textarea>
+                <small class="muted"><span data-count-for="setup-opt-in">${String(details.optInDescription || '').trim().length}/1500</span> · minimum 40 characters.</small>
+              </label>
+              <div>
+                <div class="setup-samples-head">
+                  <span class="compose-label">Sample messages * · 2–5 required</span>
+                  <button type="button" class="btn ghost" id="setup-add-sample" ${samples.length >= 5 ? 'disabled' : ''}>Add sample</button>
+                </div>
+                <div id="setup-samples" class="setup-samples">${sampleFieldsHtml(samples)}</div>
+              </div>
+            </div>
+          </section>
+        </div>
+        <aside class="setup-side">
+          ${registrationControlsHtml(state.setupRegistration, Boolean(provisioning?.detailsComplete))}
+          <div class="card setup-card setup-help">
+            <div class="card-head"><h2>What happens next</h2></div>
+            <ol class="setup-help-list">
+              <li>We save this draft and pick a phone number for the subaccount.</li>
+              <li>You complete Twilio's secure brand + campaign registration.</li>
+              <li>Sending unlocks automatically after Twilio approval.</li>
+            </ol>
+            <div class="card-head" style="border-top:1px solid var(--border)"><h2>Required for approval</h2></div>
+            <ul class="setup-help-list">
+              <li>Sender: local A2P 10DLC or toll-free.</li>
+              <li>Brand type + 3-digit area code (local only).</li>
+              <li>Legal name, notification email, public https:// website.</li>
+              <li>Use case + consent answers, 40+ characters each.</li>
+              <li>2–5 samples, 20–320 chars each, with STOP/HELP wording.</li>
+            </ul>
+            <p class="muted">Keep descriptions specific: who gets messages, what triggers them, and exactly where consent is collected. Vague answers are the most common Twilio rejection. EIN and address are collected later in Twilio's secure form.</p>
+          </div>
+          <div class="card setup-card setup-actions">
+            <span id="setup-error" class="login-error" role="alert"></span>
+            <button type="submit" class="btn" id="setup-save">Save setup details</button>
+            <button type="button" class="btn ghost" id="setup-cancel">Cancel</button>
+          </div>
+        </aside>
+      </form>
+    </div>`;
+
+  const form = el.root.querySelector('#business-setup-page-form');
+  const error = form.querySelector('#setup-error');
+  const saveButton = form.querySelector('#setup-save');
+  const radios = [...form.querySelectorAll('input[name="senderType"]')];
+  const localFields = form.querySelector('#setup-local-fields');
+  const brand = form.querySelector('#setup-brand-type');
+  const area = form.querySelector('#setup-area-code');
+  const campaign = form.querySelector('#setup-campaign');
+  const optIn = form.querySelector('#setup-opt-in');
+  const samplesWrap = form.querySelector('#setup-samples');
+  const addSample = form.querySelector('#setup-add-sample');
+
+  const reloadRegistration = async () => {
+    state.setupRegistration = null;
+    await renderBusinessSetup();
+  };
+  el.root.querySelectorAll('[data-registration-action]').forEach((button) => button.addEventListener('click', async () => {
+    const action = button.dataset.registrationAction;
+    const feedback = el.root.querySelector('#registration-action-error');
+    feedback.textContent = '';
+    button.disabled = true;
+    try {
+      if (action === 'start') {
+        const response = await apiFetch('/api/twilio/registration/start', { method: 'POST', body: JSON.stringify({ senderType, country: 'US' }) });
+        const body = await response.json(); if (!response.ok) throw new Error(body.error || 'Could not start registration');
+        return reloadRegistration();
+      }
+      if (action === 'refresh' || action === 'reconcile') {
+        const response = await apiFetch(`/api/twilio/${action === 'refresh' ? 'status-refresh' : 'reconcile'}`, { method: 'POST', body: '{}' });
+        const body = await response.json(); if (!response.ok) throw new Error(body.error || 'Could not refresh registration');
+        return reloadRegistration();
+      }
+      if (action === 'activate') {
+        const response = await apiFetch('/api/twilio/activate', { method: 'POST', body: '{}' });
+        const body = await response.json(); if (!response.ok) throw new Error(body.error || 'Activation is not ready');
+        return reloadRegistration();
+      }
+      if (action === 'canary') {
+        const phone = el.root.querySelector('#registration-canary-phone')?.value.trim();
+        if (!/^\+[1-9]\d{7,14}$/.test(phone || '')) throw new Error('Enter a canary recipient in E.164 format.');
+        if (!confirm('Send one billable activation test SMS to this number?')) return;
+        const response = await apiFetch('/api/twilio/canary', { method: 'POST', body: JSON.stringify({ phone, confirmed: true }) });
+        const body = await response.json(); if (!response.ok) throw new Error(body.error || 'Could not queue the canary');
+        return reloadRegistration();
+      }
+      if (action === 'search-number') {
+        const areaCode = el.root.querySelector('#registration-area-code')?.value.trim();
+        const response = await apiFetch('/api/twilio/number-search', { method: 'POST', body: JSON.stringify({ areaCode }) });
+        const body = await response.json(); if (!response.ok) throw new Error(body.error || 'Number search failed');
+        openDrawer('Choose a Twilio number', `<div class="compose">${(body.numbers || []).map((number) => `<button type="button" class="btn ghost" data-purchase-number="${esc(number.phoneNumber)}">${esc(number.friendlyName || number.phoneNumber)} ${esc([number.locality, number.region].filter(Boolean).join(', '))}</button>`).join('') || '<p class="empty">No matching numbers are available.</p>'}<span id="purchase-number-error" class="login-error"></span></div>`);
+        el.drawerBody.querySelectorAll('[data-purchase-number]').forEach((choice) => choice.addEventListener('click', async () => {
+          if (!confirm(`Purchase ${choice.dataset.purchaseNumber}? This creates recurring Twilio charges.`)) return;
+          choice.disabled = true;
+          const purchase = await apiFetch('/api/twilio/paid-action', { method: 'POST', body: JSON.stringify({ confirmed: true, operation: 'purchase_number', selection: { phoneNumber: choice.dataset.purchaseNumber }, idempotencyKey: `purchase:${choice.dataset.purchaseNumber}` }) });
+          const result = await purchase.json();
+          if (!purchase.ok) { el.drawerBody.querySelector('#purchase-number-error').textContent = result.error || 'Purchase could not be queued'; choice.disabled = false; return; }
+          closeDrawer(); await reloadRegistration();
+        }));
+        return;
+      }
+      if (action.startsWith('session-')) {
+        const [, stage, sessionAction] = action.split('-');
+        if (['new', 'resubmit'].includes(sessionAction) && !confirm('Continue to Twilio’s secure form? Submission may create registration charges.')) return;
+        if (['new', 'resubmit'].includes(sessionAction)) {
+          const charge = await apiFetch('/api/twilio/paid-action', { method: 'POST', body: JSON.stringify({ confirmed: true, operation: 'submit_registration', idempotencyKey: `registration:${stage}:${Date.now()}` }) });
+          const result = await charge.json(); if (!charge.ok) throw new Error(result.error || 'Charge confirmation failed');
+        }
+        const response = await apiFetch('/api/twilio/registration-session', { method: 'POST', body: JSON.stringify({ stage, action: sessionAction }) });
+        const session = await response.json(); if (!response.ok) throw new Error(session.error || 'Could not open Twilio registration');
+        await import('/vendor/compliance-embed.js');
+        globalThis.openTwilioComplianceEmbed({ inquiryId: session.inquiryId, sessionToken: session.sessionToken, onSubmitted: async () => { await apiFetch('/api/twilio/status-refresh', { method: 'POST', body: '{}' }); }, onClose: reloadRegistration });
+      }
+    } catch (error) {
+      feedback.textContent = error.message;
+    } finally {
+      button.disabled = false;
+    }
+  }));
+
+  const syncSender = () => {
+    const value = form.querySelector('input[name="senderType"]:checked')?.value || 'local_a2p';
+    const local = value === 'local_a2p';
+    localFields.hidden = !local;
+    localFields.style.display = local ? '' : 'none';
+    brand.required = local;
+    area.required = local;
+    form.querySelectorAll('.setup-radio').forEach((node) => {
+      node.classList.toggle('selected', node.querySelector('input')?.checked);
+    });
+  };
+  radios.forEach((r) => r.addEventListener('change', syncSender));
+  syncSender();
+
+  const bindCounter = (input) => {
+    const counter = form.querySelector(`[data-count-for="${input.id}"]`);
+    if (!counter || !input) return;
+    const update = () => {
+      counter.textContent = `${input.value.trim().length}/${input.maxLength > 0 ? input.maxLength : 1500}`;
+    };
+    input.addEventListener('input', update);
+    update();
+  };
+  bindCounter(campaign);
+  bindCounter(optIn);
+  samplesWrap.querySelectorAll('[data-sample-input]').forEach(bindCounter);
+
+  const refreshSamples = () => {
+    const rows = [...samplesWrap.querySelectorAll('[data-sample-row]')];
+    rows.forEach((row, i) => {
+      row.querySelector('.compose-label').textContent = `Sample ${i + 1}`;
+      row.querySelector('.compose-label').setAttribute('for', `setup-sample-${i}`);
+      const input = row.querySelector('[data-sample-input]');
+      input.id = `setup-sample-${i}`;
+      const count = row.querySelector('[data-count-for]');
+      if (count) count.setAttribute('data-count-for', input.id);
+    });
+    addSample.disabled = rows.length >= 5;
+    samplesWrap.querySelectorAll('[data-remove-sample]').forEach((btn) => {
+      btn.disabled = rows.length <= 2;
+    });
+  };
+  refreshSamples();
+
+  addSample.addEventListener('click', () => {
+    const rows = [...samplesWrap.querySelectorAll('[data-sample-row]')];
+    if (rows.length >= 5) return;
+    const div = document.createElement('div');
+    div.className = 'setup-sample';
+    div.setAttribute('data-sample-row', '');
+    div.innerHTML = `
+      <div class="setup-sample-head">
+        <label class="compose-label" for="setup-sample-new">Sample ${rows.length + 1} *</label>
+        <span class="setup-count" data-count-for="setup-sample-new">0/320</span>
+      </div>
+      <textarea data-sample-input rows="3" minlength="20" maxlength="320" required placeholder="Your appointment is confirmed for tomorrow. Reply HELP for help."></textarea>
+      <div class="setup-sample-foot"><span class="muted">20–320 characters. Include STOP/HELP wording.</span><button type="button" class="btn ghost setup-sample-remove">Remove</button></div>`;
+    samplesWrap.appendChild(div);
+    const input = div.querySelector('[data-sample-input]');
+    bindCounter(input);
+    refreshSamples();
+    input.focus();
+  });
+  samplesWrap.addEventListener('click', (event) => {
+    const btn = event.target.closest('[data-remove-sample], .setup-sample-remove');
+    if (!btn) return;
+    const rows = [...samplesWrap.querySelectorAll('[data-sample-row]')];
+    if (rows.length <= 2) return;
+    btn.closest('[data-sample-row]')?.remove();
+    refreshSamples();
+  });
+  samplesWrap.addEventListener('input', (event) => {
+    const input = event.target.closest?.('[data-sample-input]');
+    if (!input) return;
+    const row = input.closest('[data-sample-row]');
+    const counter = row?.querySelector('[data-count-for]');
+    if (counter) counter.textContent = `${input.value.trim().length}/320`;
+  });
+
+  const goOverview = () => {
+    switchView('overview');
+  };
+  el.root.querySelector('#setup-back')?.addEventListener('click', goOverview);
+  el.root.querySelector('#setup-cancel')?.addEventListener('click', goOverview);
+
+  form.addEventListener('submit', async (event) => {
+    event.preventDefault();
+    const sender = form.querySelector('input[name="senderType"]:checked')?.value || 'local_a2p';
+    const legalName = form.querySelector('#setup-legal-name').value.trim();
+    const notifyEmail = form.querySelector('#setup-email').value.trim();
+    const website = form.querySelector('#setup-website').value.trim();
+    const campaignText = campaign.value.trim();
+    const optInText = optIn.value.trim();
+    const sampleMessages = [...samplesWrap.querySelectorAll('[data-sample-input]')].map((n) => n.value.trim()).filter(Boolean);
+    const fail = (message, node) => {
+      error.textContent = message;
+      saveButton.disabled = false;
+      (node || error).scrollIntoView?.({ block: 'nearest' });
+      node?.focus?.();
+    };
+    error.textContent = '';
+    saveButton.disabled = true;
+    if (!legalName) return fail('Legal business name is required — use the exact registered name.', form.querySelector('#setup-legal-name'));
+    if (!/^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(notifyEmail)) return fail('Valid notification email is required — Twilio status goes here.', form.querySelector('#setup-email'));
+    if (!/^https:\/\/\S+/.test(website)) return fail('A public HTTPS website is required (must start with https://).', form.querySelector('#setup-website'));
+    if (sender === 'local_a2p' && !/^[0-9]{3}$/.test(area.value.trim())) return fail('A three-digit area code is required for a local number.', area);
+    if (campaignText.length < 40 || campaignText.length > 1500) return fail('Campaign description must be 40–1500 characters — describe who gets messages and why.', campaign);
+    if (optInText.length < 40 || optInText.length > 1500) return fail('Opt-in description must be 40–1500 characters — describe the exact consent workflow.', optIn);
+    if (sampleMessages.length < 2 || sampleMessages.length > 5) return fail('Provide 2–5 sample messages.', samplesWrap.querySelector('[data-sample-input]'));
+    const badSample = sampleMessages.findIndex((s) => s.length < 20 || s.length > 320);
+    if (badSample >= 0) return fail(`Sample ${badSample + 1} must be 20–320 characters.`, samplesWrap.querySelectorAll('[data-sample-input]')[badSample]);
+    try {
+      if (!form.reportValidity()) {
+        saveButton.disabled = false;
+        return;
+      }
+      const response = await apiFetch('/api/provisioning/details', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({
+        senderType: sender, brandType: brand.value, areaCode: area.value.trim(),
+        legalBusinessName: legalName, notificationEmail: notifyEmail, websiteUrl: website,
+        campaignDescription: campaignText, optInDescription: optInText, sampleMessages,
+      }) });
+      const data = await response.json();
+      if (!response.ok) throw new Error(data.error || data.detail || 'Could not save setup details');
+      state.setupProvisioning = data;
+      switchView('overview', { force: true });
+    } catch (failure) {
+      error.textContent = failure.message;
+      saveButton.disabled = false;
+      error.scrollIntoView({ block: 'nearest' });
+    }
+  });
+}
+
+function onboardingDefaults(provisioning) {
+  const twilio = provisioning?.details || {};
+  const saved = state.setupOnboarding?.onboarding || {};
+  const splitLines = (value) => String(value || '').split(/\r?\n/).map((s) => s.trim()).filter(Boolean);
+  const asLines = (value) => Array.isArray(value) ? value.filter(Boolean) : splitLines(value);
+  const services = asLines(saved.services);
+  const locations = asLines(saved.locations);
+  const faqs = asLines(saved.faqs);
+  const pricing = asLines(saved.pricing),policies=asLines(saved.policies);
+  const defaults = {
+    businessName: saved.businessName || twilio.legalBusinessName || state.tenant?.name || '',
+    websiteUrl: saved.websiteUrl || twilio.websiteUrl || '',
+    summary: saved.summary || '',
+    servicesText: services.join('\n'),
+    locationsText: locations.length ? locations.join('\n') : (saved.businessName || twilio.legalBusinessName ? '' : 'United States'),
+    hours: saved.hours || '',
+    contactPhone: saved.contactPhone || '',
+    contactEmail: saved.contactEmail || twilio.notificationEmail || '',
+    tone: saved.tone || '',
+    faqsText: faqs.join('\n'),
+    pricingText: pricing.join('\n'),
+    policiesText: policies.join('\n'),
+    bookingRules: saved.bookingRules || '',
+    handoff: saved.handoff || '',
+  };
+  return state.businessContextDraft ? { ...defaults, ...state.businessContextDraft } : defaults;
+}
+
+async function renderBusinessContext() {
+  setTitle(...titles['business-context']);
+  el.kpi.innerHTML = '';
+  el.pager.hidden = true;
+  el.storeMeta.textContent = state.tenant?.name || 'Your workspace';
+
+  const onboardingState = await fetchOnboarding();
+  state.setupOnboarding = onboardingState;
+  const defaults = onboardingDefaults(state.setupProvisioning);
+  el.root.innerHTML = `
+    <div class="setup-page">
+      <div class="setup-topbar">
+        <button type="button" class="btn ghost" id="setup-back">← Back to dashboard</button>
+        <span class="setup-status ${state.setupOnboarding.onboardingComplete ? 'ok' : ''}">${esc(state.setupOnboarding.onboardingComplete ? 'Profile reviewed · draft edits need review' : 'Profile awaiting review')}</span>
+      </div>
+      <div class="card setup-hero">
+        <div>
+          <span class="eyebrow">Business context · ${esc(state.tenant?.name || 'Business account')}</span>
+          <h2>Help SMS and AI sound like you.</h2>
+          <p class="muted">Keep your business profile and approved knowledge here. Automation texts use each group's own AI instructions and business details, which you can edit under AI instructions.</p>
+        </div>
+        <dl class="setup-facts">
+          <div><dt>Business context</dt><dd>${state.setupOnboarding.onboardingComplete ? 'saved' : 'required'}</dd></div>
+          ${state.setupOnboarding.onboarding?.updatedAt ? `<div><dt>Updated</dt><dd>${esc(fmtTime(state.setupOnboarding.onboarding.updatedAt))}</dd></div>` : ''}
+        </dl>
+      </div>
+      <form id="business-context-form" class="setup-layout">
+        <div class="setup-main">
+          <section class="card setup-card" aria-labelledby="ctx-fetch-h">
+            <div class="card-head"><div><span class="eyebrow">Start from the website</span><h2 id="ctx-fetch-h">Fetch business details</h2></div><span class="muted">Same reader as Get Started</span></div>
+            <div class="setup-body">
+              <div class="setup-fetch-row">
+                <label class="setup-fetch-url">
+                  <span class="compose-label">Website to read</span>
+                  <input id="ctx-fetch-url" type="text" inputmode="url" maxlength="2048" value="${esc(defaults.fetchUrl || defaults.websiteUrl)}" placeholder="yourbusiness.com" autocomplete="off" />
+                </label>
+                <button type="button" class="btn" id="ctx-fetch">Fetch details</button>
+              </div>
+              <p class="muted" style="margin:0" id="ctx-fetch-note">Reads the public homepage and prefills the form below. Review everything before saving — fetched text is a draft, not the truth.</p>
+            </div>
+          </section>
+          <section class="card setup-card" aria-labelledby="ctx-business-h">
+            <div class="card-head"><div><span class="eyebrow">Basics · Get Started step 1</span><h2 id="ctx-business-h">Business identity</h2></div><span class="muted">Prefilled where possible</span></div>
+            <div class="setup-body setup-grid-2">
+              <label>
+                <span class="compose-label">Your business name *</span>
+                <input id="ctx-name" maxlength="160" required value="${esc(defaults.businessName)}" placeholder="Business name" autocomplete="organization" />
+              </label>
+              <label>
+                <span class="compose-label">Website <span class="muted">Optional</span></span>
+                <input id="ctx-website" type="url" inputmode="url" maxlength="2048" pattern="https://.*" value="${esc(defaults.websiteUrl)}" placeholder="yourbusiness.com" autocomplete="off" />
+                <small class="muted">Public site, starting with https://.</small>
+              </label>
+              <label class="field-wide">
+                <span class="compose-label">What does this business do? <span class="muted">Optional · 20+ characters</span></span>
+                <textarea id="ctx-summary" maxlength="2000" rows="3" placeholder="Two or three sentences: what you do and who you serve.">${esc(defaults.summary)}</textarea>
+                <small class="muted"><span data-count-for="ctx-summary">${defaults.summary.trim().length}/2000</span> · shown to AI before every reply.</small>
+              </label>
+              <label class="field-wide">
+                <span class="compose-label">Services you sell *</span>
+                <textarea id="ctx-services" rows="4" required placeholder="One service per line">${esc(defaults.servicesText)}</textarea>
+                <small class="muted"><span data-count-for="ctx-services">${defaults.servicesText.split('\n').filter(Boolean).length} services</span> · 1–30 services, one per line, 160 characters max each.</small>
+              </label>
+              <label class="field-wide">
+                <span class="compose-label">Service areas *</span>
+                <textarea id="ctx-areas" rows="3" required placeholder="Cities, regions, or territories you serve">${esc(defaults.locationsText)}</textarea>
+                <small class="muted"><span data-count-for="ctx-areas">${defaults.locationsText.split('\n').filter(Boolean).length} areas</span> · 1–20 areas, one per line, 160 characters max each.</small>
+              </label>
+            </div>
+          </section>
+          <section class="card setup-card" aria-labelledby="ctx-reach-h">
+            <div class="card-head"><div><span class="eyebrow">Availability</span><h2 id="ctx-reach-h">When and how to reach you</h2></div><span class="muted">AI uses this in replies</span></div>
+            <div class="setup-body setup-grid-2">
+              <label>
+                <span class="compose-label">Business hours</span>
+                <input id="ctx-hours" maxlength="200" value="${esc(defaults.hours)}" placeholder="Mon–Fri 8am–6pm, Sat 9am–2pm" autocomplete="off" />
+                <small class="muted">Free text — AI quotes it when customers ask if you're open.</small>
+              </label>
+              <label>
+                <span class="compose-label">Main contact phone</span>
+                <input id="ctx-phone" type="tel" maxlength="32" value="${esc(defaults.contactPhone)}" placeholder="+15551234567" autocomplete="tel" />
+                <small class="muted">Offered when a customer asks to call.</small>
+              </label>
+              <label>
+                <span class="compose-label">Main contact email</span>
+                <input id="ctx-email" type="email" maxlength="320" value="${esc(defaults.contactEmail)}" placeholder="help@example.com" autocomplete="email" />
+              </label>
+            </div>
+          </section>
+          <section class="card setup-card" aria-labelledby="ctx-voice-h">
+            <div class="card-head"><div><span class="eyebrow">AI voice</span><h2 id="ctx-voice-h">How should replies sound?</h2></div><span class="muted">Guides tone + handoff</span></div>
+            <div class="setup-body">
+              <label>
+                <span class="compose-label">Brand voice</span>
+                <select id="ctx-tone">
+                  <option value="" ${!defaults.tone ? 'selected' : ''}>Default assistant voice</option>
+                  <option value="friendly" ${defaults.tone === 'friendly' ? 'selected' : ''}>Friendly and helpful</option>
+                  <option value="professional" ${defaults.tone === 'professional' ? 'selected' : ''}>Professional and direct</option>
+                  <option value="casual" ${defaults.tone === 'casual' ? 'selected' : ''}>Warm and casual</option>
+                </select>
+              </label>
+              <label>
+                <span class="compose-label">Key facts for AI <span class="muted">Optional · one per line</span></span>
+                <textarea id="ctx-faqs" rows="4" maxlength="8000" placeholder="Estimates are free within 20 miles.&#10;We book 2–3 days out in peak season.">${esc(defaults.faqsText)}</textarea>
+                <small class="muted"><span data-count-for="ctx-faqs">${defaults.faqsText.split('\n').filter(Boolean).length} facts</span> · up to 20, 300 characters max each. Pricing, booking, policies.</small>
+              </label>
+              <label>
+                <span class="compose-label">Pricing facts <span class="muted">Optional · one per line</span></span>
+                <textarea id="ctx-pricing" rows="4" maxlength="20000" placeholder="Service call: $99&#10;After-hours surcharge: $25">${esc(defaults.pricingText)}</textarea>
+                <small class="muted">Approved structured pricing outranks imported pages.</small>
+              </label>
+              <label>
+                <span class="compose-label">Policies <span class="muted">Optional · one per line</span></span>
+                <textarea id="ctx-policies" rows="4" maxlength="12000" placeholder="Cancellations are free with 24 hours notice.">${esc(defaults.policiesText)}</textarea>
+              </label>
+              <label>
+                <span class="compose-label">Booking rules <span class="muted">AI captures requests but never confirms them</span></span>
+                <textarea id="ctx-booking" maxlength="2000" rows="3" placeholder="Collect service, address, preferred date, and contact email. Staff must confirm availability.">${esc(defaults.bookingRules)}</textarea>
+              </label>
+              <label>
+                <span class="compose-label">When should AI hand off to a human? <span class="muted">Optional</span></span>
+                <textarea id="ctx-handoff" maxlength="1000" rows="3" placeholder="e.g. Angry customers, pricing disputes, or anything about refunds.">${esc(defaults.handoff)}</textarea>
+              </label>
+            </div>
+          </section>
+        </div>
+        <aside class="setup-side">
+          <div class="card setup-card setup-help">
+            <div class="card-head"><h2>Why this helps</h2></div>
+            <ol class="setup-help-list">
+              <li>Follow-ups reference what you actually sell.</li>
+              <li>AI answers hours, areas, and pricing from your facts.</li>
+              <li>Handoff rules keep tricky conversations human.</li>
+            </ol>
+            <p class="muted">Identity fields are copied from the Get Started first step. Voice fields tune AI replies only — nothing here is sent to Twilio.</p>
+          </div>
+          <div class="card setup-card setup-actions">
+            <span id="ctx-error" class="login-error" role="alert"></span>
+            <button type="submit" class="btn ghost" name="intent" value="draft" formnovalidate>Save draft</button>
+            <button type="submit" class="btn" id="ctx-save" name="intent" value="review">Save reviewed profile</button>
+            <button type="button" class="btn ghost" id="ctx-cancel">Cancel</button>
+          </div>
+        </aside>
+      </form>
+      <section class="card setup-card" style="margin-top:16px">
+        <div class="card-head"><div><span class="eyebrow">AI setup</span><h2>Prompts and automation context</h2></div></div>
+        <div class="setup-body"><p class="muted">Set the business-wide prompt for new texters and the instructions and facts for each automation group on the AI instructions page.</p><button type="button" class="btn" id="open-ai-instructions">Open AI instructions</button></div>
+      </section>
+      <section id="business-knowledge" class="business-knowledge" aria-label="AI knowledge">
+        <div class="card"><div class="empty">Loading AI knowledge…</div></div>
+      </section>
+    </div>`;
+
+  const form = el.root.querySelector('#business-context-form');
+  el.root.querySelector('#open-ai-instructions')?.addEventListener('click', () => {
+    switchView('ai-instructions');
+  });
+  const error = form.querySelector('#ctx-error');
+  const saveButton = form.querySelector('#ctx-save');
+  const nameInput = form.querySelector('#ctx-name');
+  nameInput.closest('label').insertAdjacentHTML('afterend', `<label><span class="compose-label">Business time zone</span><input id="ctx-time-zone" value="${esc(state.businessContextDraft?.timeZone || onboardingState.onboarding.timeZone || state.tenant.timeZone)}" required /></label>`);
+  const timeZoneInput = form.querySelector('#ctx-time-zone');
+  const websiteInput = form.querySelector('#ctx-website');
+  const summaryInput = form.querySelector('#ctx-summary');
+  const servicesInput = form.querySelector('#ctx-services');
+  const areasInput = form.querySelector('#ctx-areas');
+  const hoursInput = form.querySelector('#ctx-hours');
+  const phoneInput = form.querySelector('#ctx-phone');
+  const emailInput = form.querySelector('#ctx-email');
+  const toneInput = form.querySelector('#ctx-tone');
+  const faqsInput = form.querySelector('#ctx-faqs');
+  const pricingInput=form.querySelector('#ctx-pricing'),policiesInput=form.querySelector('#ctx-policies'),bookingInput=form.querySelector('#ctx-booking');
+  const handoffInput = form.querySelector('#ctx-handoff');
+  if (state.businessContextDraft) form.dataset.dirty = 'true';
+
+  const captureDraft = () => {
+    state.businessContextDraft = {
+      businessName: nameInput.value,
+      timeZone: timeZoneInput.value,
+      websiteUrl: websiteInput.value,
+      fetchUrl: form.querySelector('#ctx-fetch-url')?.value || '',
+      summary: summaryInput.value,
+      servicesText: servicesInput.value,
+      locationsText: areasInput.value,
+      hours: hoursInput.value,
+      contactPhone: phoneInput.value,
+      contactEmail: emailInput.value,
+      tone: toneInput.value,
+      faqsText: faqsInput.value,
+      pricingText: pricingInput.value,
+      policiesText: policiesInput.value,
+      bookingRules: bookingInput.value,
+      handoff: handoffInput.value,
+    };
+    form.dataset.dirty = 'true';
+  };
+  form.addEventListener('input', captureDraft);
+  form.addEventListener('change', captureDraft);
+
+  const goOverview = () => {
+    state.businessContextDraft = null;
+    switchView('overview');
+  };
+  el.root.querySelector('#setup-back')?.addEventListener('click', goOverview);
+  el.root.querySelector('#ctx-cancel')?.addEventListener('click', goOverview);
+
+  const lines = (value) => String(value || '').split(/\r?\n/).map((s) => s.trim()).filter(Boolean);
+  const bindCount = (input, format) => {
+    const counter = form.querySelector(`[data-count-for="${input.id}"]`);
+    if (!counter) return;
+    const update = () => {
+      counter.textContent = format(input.value);
+    };
+    input.addEventListener('input', update);
+    update();
+  };
+  bindCount(summaryInput, (v) => `${v.trim().length}/2000`);
+  bindCount(servicesInput, (v) => `${lines(v).length} services`);
+  bindCount(areasInput, (v) => `${lines(v).length} areas`);
+  bindCount(faqsInput, (v) => `${lines(v).length} facts`);
+
+  const fetchUrlInput = form.querySelector('#ctx-fetch-url');
+  const fetchButton = form.querySelector('#ctx-fetch');
+  const fetchNote = form.querySelector('#ctx-fetch-note');
+  const refreshCounts = () => {
+    summaryInput.dispatchEvent(new Event('input'));
+    servicesInput.dispatchEvent(new Event('input'));
+    areasInput.dispatchEvent(new Event('input'));
+    faqsInput.dispatchEvent(new Event('input'));
+  };
+  fetchButton?.addEventListener('click', async () => {
+    const url = fetchUrlInput.value.trim() || websiteInput.value.trim();
+    if (!url) {
+      error.textContent = 'Enter a website address to fetch.';
+      fetchUrlInput.focus();
+      return;
+    }
+    error.textContent = '';
+    fetchButton.disabled = true;
+    const original = fetchButton.textContent;
+    fetchButton.textContent = 'Fetching…';
+    try {
+      const payload = JSON.stringify({ websiteUrl: url });
+      const headers = { 'Content-Type': 'application/json' };
+      const token = await getAccessToken();
+      if (token) headers.Authorization = `Bearer ${token}`;
+      const tenantId = getTenantId();
+      if (tenantId) headers['X-Tenant-ID'] = tenantId;
+
+      // Prefer the project server: it owns the Firecrawl credential and keeps it
+      // out of the browser. Hosted static builds can fall back to the Edge API.
+      let response;
+      let data = {};
+      try {
+        response = await fetch('/api/enrich-website', { method: 'POST', headers, body: payload });
+        data = await response.json().catch(() => ({}));
+      } catch {
+        response = null;
+      }
+      const localResponseIsJson = response?.headers.get('content-type')?.toLowerCase().includes('application/json');
+      if ((!response || response.status === 404 || !localResponseIsJson) && runtimeConfig.apiBase) {
+        response = await apiFetch('/api/enrich-website', { method: 'POST', body: payload });
+        data = await response.json().catch(() => ({}));
+      }
+      if (!response) throw new Error('Website fetch is unavailable. Check the server and try again.');
+      if (response.status === 404) throw new Error('Website fetch is not deployed yet. Fill in the form manually for now.');
+      if (!response.ok) throw new Error(data.error || 'That website could not be read. Check the address and try again.');
+      if (data.businessName) nameInput.value = String(data.businessName).slice(0, 160);
+      if (data.websiteUrl && !websiteInput.value.trim()) {
+        websiteInput.value = String(data.websiteUrl);
+        fetchUrlInput.value = String(data.websiteUrl);
+      }
+      if (data.summary) summaryInput.value = String(data.summary).slice(0, 2000);
+      if (Array.isArray(data.services) && data.services.length) servicesInput.value = data.services.join('\n');
+      if (Array.isArray(data.locations) && data.locations.length) areasInput.value = data.locations.join('\n');
+      if (data.hours) hoursInput.value = String(data.hours).slice(0, 200);
+      if (data.contactPhone) phoneInput.value = String(data.contactPhone).slice(0, 32);
+      refreshCounts();
+      captureDraft();
+      const host = (() => { try { return new URL(data.websiteUrl || url).hostname; } catch { return url; } })();
+      fetchNote.textContent = `Populated from ${host} — review every field and save. Fetched text is a draft, not the truth.`;
+      nameInput.focus();
+    } catch (failure) {
+      error.textContent = failure.message;
+    } finally {
+      fetchButton.disabled = false;
+      fetchButton.textContent = original;
+    }
+  });
+
+  form.addEventListener('submit', async (event) => {
+    event.preventDefault();
+    const businessName = nameInput.value.trim();
+    const websiteUrl = websiteInput.value.trim();
+    const summary = summaryInput.value.trim();
+    const services = lines(servicesInput.value);
+    const locations = lines(areasInput.value);
+    const hours = hoursInput.value.trim();
+    const contactPhone = phoneInput.value.trim();
+    const contactEmail = emailInput.value.trim();
+    const tone = toneInput.value;
+    const faqs = lines(faqsInput.value);
+    const pricing=lines(pricingInput.value),policies=lines(policiesInput.value),bookingRules=bookingInput.value.trim();
+    const handoff = handoffInput.value.trim();
+    const fail = (message, node) => {
+      error.textContent = message;
+      saveButton.disabled = false;
+      node?.focus?.();
+    };
+    error.textContent = '';
+    saveButton.disabled = true;
+    const intent = event.submitter?.value === 'draft' ? 'draft' : 'review';
+    const payload = {businessName, timeZone:timeZoneInput.value.trim(), websiteUrl, summary, services, locations, hours, contactPhone, contactEmail, tone, faqs, pricing, policies, bookingRules, handoff};
+    if (intent === 'draft') {
+      try {const result=await saveOnboarding(payload,'draft');state.setupOnboarding={...result.data,source:'api'};state.businessContextDraft=null;await renderBusinessContext();}
+      catch (failure) {fail(failure.message);}
+      return;
+    }
+    if (!businessName) return fail('Business name is required.', nameInput);
+    if (websiteUrl && !/^https:\/\/\S+/.test(websiteUrl)) return fail('Website must start with https:// — or leave it blank.', websiteInput);
+    if (summary && (summary.length < 20 || summary.length > 2000)) return fail('Summary must be 20–2000 characters — or leave it blank.', summaryInput);
+    if (!services.length || services.length > 30 || services.some((s) => s.length > 160)) {
+      return fail('Add 1–30 services, one per line, with no more than 160 characters per service.', servicesInput);
+    }
+    if (!locations.length || locations.length > 20 || locations.some((s) => s.length > 160)) {
+      return fail('Add 1–20 service areas, one per line, with no more than 160 characters per area.', areasInput);
+    }
+    if (hours.length > 200) return fail('Hours must be 200 characters or fewer.', hoursInput);
+    if (contactPhone.length > 32) return fail('Contact phone must be 32 characters or fewer.', phoneInput);
+    if (contactEmail && !/^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(contactEmail)) return fail('Enter a valid contact email.', emailInput);
+    if (tone && !['friendly', 'professional', 'casual'].includes(tone)) return fail('Choose a brand voice.', toneInput);
+    if (faqs.length > 20 || faqs.some((s) => s.length > 300)) {
+      return fail('Add up to 20 FAQs, one per line, with no more than 300 characters each.', faqsInput);
+    }
+    if (handoff.length > 1000) return fail('Handoff rule must be 1000 characters or fewer.', handoffInput);
+    if (pricing.length > 200 || policies.length > 100 || bookingRules.length > 2000) return fail('Pricing, policies, or booking rules exceed the allowed limits.', bookingInput);
+    try {
+      if (!form.reportValidity()) {
+        saveButton.disabled = false;
+        return;
+      }
+      const result = await saveOnboarding(payload);
+      state.setupOnboarding = {
+        ...result.data,
+        onboarding: result.data.onboarding || {},
+        onboardingComplete: Boolean(result.data.onboardingComplete),
+        source: result.source,
+      };
+      state.businessContextDraft = null;
+      await loadTenantContext();
+      switchView('overview', { force: true });
+    } catch (failure) {
+      error.textContent = failure.message;
+      saveButton.disabled = false;
+    }
+  });
+  mountKnowledgePanel().catch((failure) => {
+    const host = el.root.querySelector('#business-knowledge');
+    if (host) host.innerHTML = `<div class="card"><div class="empty">${esc(failure.message || 'AI knowledge could not be loaded.')}</div></div>`;
+  });
+  nameInput.focus();
+}
+
+async function renderAiInstructions() {
+  setTitle(...titles['ai-instructions']);
+  el.kpi.innerHTML = '';
+  el.pager.hidden = true;
+  el.storeMeta.textContent = state.tenant?.name || 'Your workspace';
+  const [businessResponse, groupsResponse] = await Promise.all([
+    apiFetch('/api/business-ai'), apiFetch('/api/categories'),
+  ]);
+  if (!businessResponse.ok || !groupsResponse.ok) throw new Error('Could not load AI instructions');
+  const businessAi = await businessResponse.json();
+  const groupsData = await groupsResponse.json();
+  const groups = groupsData.categories || [];
+  state.categories = groups;
+  renderNavAutomations();
+  el.root.innerHTML = `
+    <div class="setup-page">
+      <div class="card setup-hero">
+        <div>
+          <span class="eyebrow">${esc(state.tenant?.name || 'Business account')} · AI setup</span>
+          <h2>Give each conversation the right instructions.</h2>
+          <p class="muted">General texts use the business-wide prompt below. Each automation group uses only its own instructions, business details, intake record, and conversation history. Save each group separately.</p>
+        </div>
+      </div>
+      <form id="business-ai-form" class="card setup-card">
+        <div class="card-head"><div><span class="eyebrow">General conversations</span><h2>Business-wide prompt</h2></div><span class="status ${businessAi.enabled ? 'delivered' : 'queued'}">${businessAi.enabled ? 'Replies on' : 'Replies off'}</span></div>
+        <div class="setup-body">
+          <p class="muted">For a new or unmatched texter whose intent is unknown. Tell the AI how to greet them, clarify their need, answer supported questions, and hand off. No automation group context is used.</p>
+          <label class="field-wide"><span class="compose-label">Custom prompt / instructions</span>
+            <textarea id="business-ai-prompt" maxlength="6000" rows="7" placeholder="Describe how to greet an unfamiliar texter and find out what they need.">${esc(businessAi.systemPrompt || '')}</textarea>
+          </label>
+          <label class="check"><input id="business-ai-enabled" type="checkbox" ${businessAi.enabled ? 'checked' : ''} />AI may reply in General conversations</label>
+          <div class="automation-builder-actions"><span class="muted" id="business-ai-result" role="status"></span><button type="submit" class="btn" id="business-ai-save">Save business-wide prompt</button></div>
+        </div>
+      </form>
+      <div class="card setup-card">
+        <div class="card-head"><div><span class="eyebrow">Automation conversations</span><h2>Group prompts and business details</h2></div></div>
+        <div class="setup-body"><p class="muted">Write the facts and instructions each group needs for scheduled messages and replies. These fields are specific to this business and are separate from the business-wide prompt.</p></div>
+      </div>
+      ${groups.map(group => `
+        <form class="card setup-card" data-group-ai-form="${esc(group.id)}" id="ai-group-${esc(group.id)}">
+          <div class="card-head"><div><span class="eyebrow">${esc(group.fixedType || 'Automation group')}</span><h2>${esc(group.name)}</h2></div><span class="status ${group.automationAiConfigured ? 'delivered' : 'queued'}" data-group-ai-status>${group.automationAiConfigured ? 'Configured' : 'Setup required'}</span></div>
+          <div class="setup-body">
+            <p class="muted">${esc(group.description || '')} ${group.ai?.enabled ? 'Inbound AI replies are on.' : 'Inbound AI replies are off; scheduled messages still use this setup.'}</p>
+            <label class="field-wide"><span class="compose-label">Custom prompt / AI instructions</span>
+              <textarea data-group-prompt maxlength="6000" rows="7" ${group.activeAutomation ? 'required' : ''} placeholder="How should this group speak, what should it accomplish, and when should it hand off?">${esc(group.systemPrompt || '')}</textarea>
+            </label>
+            <label class="field-wide"><span class="compose-label">Business details and everything this AI needs to know</span>
+              <textarea data-group-context maxlength="10000" rows="7" ${group.activeAutomation ? 'required' : ''} placeholder="Services, service area, hours, policies, relevant links, and facts for this group.">${esc(group.businessContext || '')}</textarea>
+            </label>
+            <div class="automation-builder-actions"><span class="muted" data-group-ai-result role="status"></span><button type="submit" class="btn">Save ${esc(group.name)} AI setup</button></div>
+          </div>
+        </form>`).join('')}
+    </div>`;
+  const businessForm = el.root.querySelector('#business-ai-form');
+  businessForm.addEventListener('submit', async event => {
+    event.preventDefault();
+    const button = businessForm.querySelector('#business-ai-save');
+    const result = businessForm.querySelector('#business-ai-result');
+    button.disabled = true; result.className = 'muted'; result.textContent = '';
+    try {
+      const response = await apiFetch('/api/business-ai', { method:'PUT', body:JSON.stringify({
+        enabled:businessForm.querySelector('#business-ai-enabled').checked,
+        systemPrompt:businessForm.querySelector('#business-ai-prompt').value.trim(),
+      }) });
+      const saved = await response.json();
+      if (!response.ok) throw new Error(saved.detail || saved.error || 'Could not save business-wide prompt');
+      result.textContent = 'Saved business-wide prompt.';
+      businessForm.dataset.dirty = 'false';
+      const status = businessForm.querySelector('.status');
+      status.textContent = saved.enabled ? 'Replies on' : 'Replies off';
+      status.classList.toggle('delivered',Boolean(saved.enabled));
+      status.classList.toggle('queued',!saved.enabled);
+    } catch (error) { result.className = 'login-error'; result.textContent = error.message || 'Could not save business-wide prompt'; }
+    button.disabled = false;
+  });
+  el.root.querySelectorAll('[data-group-ai-form]').forEach(form => form.addEventListener('submit', async event => {
+    event.preventDefault();
+    const button = form.querySelector('button[type="submit"]');
+    const result = form.querySelector('[data-group-ai-result]');
+    button.disabled = true; result.className = 'muted'; result.textContent = '';
+    try {
+      const response = await apiFetch(`/api/automation-groups/${encodeURIComponent(form.dataset.groupAiForm)}/prompt-context`, {
+        method:'PUT',body:JSON.stringify({
+          systemPrompt:form.querySelector('[data-group-prompt]').value.trim(),
+          businessContext:form.querySelector('[data-group-context]').value.trim(),
+        }),
+      });
+      const saved = await response.json();
+      if (!response.ok) throw new Error(saved.detail || saved.error || 'Could not save group AI setup');
+      form.dataset.dirty = 'false';
+      const group = state.categories.find(item => item.id === form.dataset.groupAiForm);
+      if (group) {
+        group.systemPrompt = saved.systemPrompt;
+        group.businessContext = saved.businessContext;
+        group.automationAiConfigured = saved.aiConfigured;
+      }
+      const status = form.querySelector('[data-group-ai-status]');
+      status.textContent = saved.aiConfigured ? 'Configured' : 'Setup required';
+      status.classList.toggle('delivered',Boolean(saved.aiConfigured));
+      status.classList.toggle('queued',!saved.aiConfigured);
+      result.textContent = `Saved ${group?.name || 'group'} AI setup.`;
+    } catch (error) { result.className = 'login-error'; result.textContent = error.message || 'Could not save group AI setup'; }
+    button.disabled = false;
+  }));
+}
 
 const titles = {
-  overview: ['Overview', 'Pipeline health across all SMS traffic'],
-  messaging: ['Messaging', 'Inbox of customer responses and conversations'],
-  call: ['Call', 'Place ElevenLabs outbound calls with editable system prompts'],
+  overview: ['Dashboard', 'Your messages, contacts, and follow-ups in one place.'],
+  messaging: ['Inbox', 'Read and reply to customer conversations.'],
+  call: ['Calls', 'Track inbound calls from your customers.'],
   messages: ['Messages', 'Searchable CRM log for every SMS'],
-  contacts: ['Contacts', 'Leads from Opek site — quotes, bookings, forms, phone agent'],
+  contacts: ['Contacts', 'Find customers and manage your contacts.'],
   optouts: ['Opt-Outs', 'Numbers that asked to stop receiving SMS'],
   deliverability: ['Deliverability', 'Delivery outcomes across the message store'],
   automations: ['Automations', 'Lifecycle-driven SMS sequences and enrollment rules'],
+  email: ['Email', 'Manage opted-in email follow-ups through Resend.'],
+  'ai-instructions': ['AI instructions', 'Set a separate prompt and context for each automation group, plus a business-wide prompt for general texts.'],
+  'business-setup': ['Business setup', 'Phone number and Twilio registration for this business.'],
+  'business-context': ['Business context', 'Business profile and approved knowledge for this business.'],
+  knowledge: ['AI knowledge', 'Approve evidence, review leads, and resolve human handoffs.'],
+  bookings: ['Bookings', 'Confirmed appointments created securely for this business.'],
+  'booking-setup': ['Booking setup', 'Availability and questions collected before an SMS booking.'],
+  'web-forms': ['Forms', 'Create and manage forms for your websites.'],
 };
+
+function knowledgePanelMarkup(data) {
+  const versions=data.sourceVersions||[],sources=data.sources||[],leads=data.leads||[],handoffs=data.handoffs||[];
+  const rows=sources.map(source=>{const draft=versions.find(v=>v.source_id===source.id&&v.status==='ready'),archived=source.status==='archived';return `<tr><td><strong>${esc(source.title||source.type)}</strong><br><span class="muted">${esc(source.origin||source.storage_path||'Manual')}</span></td><td><span class="status ${esc(source.status)}">${esc(source.status)}</span></td><td>${source.active_version_id?'Approved':'Not live'}</td><td>${archived?'—':`${draft?`<button class="btn ghost" data-approve-version="${esc(draft.id)}">Review & approve v${esc(draft.version)}</button>`:`<button class="btn ghost" data-refresh-source="${esc(source.id)}">Refresh</button>`} <button class="btn ghost" data-archive-source="${esc(source.id)}">Archive</button>`}</td></tr>`;}).join('');
+  const work=[...handoffs.map(x=>({...x,_type:'Handoff',_text:x.reason})),...leads.map(x=>({...x,_type:'Lead',_text:x.summary}))];
+  return `<div class="card setup-hero business-knowledge-hero"><div><span class="eyebrow">AI knowledge</span><h2>Ground every SMS answer.</h2><p class="muted">Import reference material here. Sources remain drafts until approved, while unsupported or conflicting questions create a human handoff.</p></div><dl class="setup-facts"><div><dt>Approved profile</dt><dd>${data.profile?'active':'required'}</dd></div><div><dt>Sources</dt><dd>${sources.length}</dd></div></dl></div>
+  <div class="setup-layout"><div class="setup-main"><section class="card"><div class="card-head"><div><span class="eyebrow">Sources</span><h2>Websites and private documents</h2></div></div><div class="setup-body"><form id="knowledge-url-form" class="setup-fetch-row"><label class="setup-fetch-url"><span class="compose-label">Public HTTPS website</span><input id="knowledge-url" type="url" required placeholder="https://example.com" /></label><button class="btn">Import draft</button></form><form id="knowledge-file-form" class="setup-fetch-row"><label class="setup-fetch-url"><span class="compose-label">PDF, DOCX, TXT, or Markdown · max 10 MB</span><input id="knowledge-file" type="file" required accept=".pdf,.docx,.txt,.md,application/pdf,application/vnd.openxmlformats-officedocument.wordprocessingml.document,text/plain,text/markdown" /></label><button class="btn">Upload draft</button></form><p id="knowledge-error" class="login-error" role="alert"></p><div class="table-wrap"><table><thead><tr><th>Source</th><th>Processing</th><th>Live</th><th></th></tr></thead><tbody>${rows||'<tr><td colspan="4" class="empty">No imported sources yet.</td></tr>'}</tbody></table></div></div></section>
+  <section class="card"><div class="card-head"><div><span class="eyebrow">CRM</span><h2>Open leads and handoffs</h2></div></div><div class="setup-body"><div class="table-wrap"><table><thead><tr><th>Type</th><th>Summary / reason</th><th>Priority</th><th>Status</th></tr></thead><tbody>${work.map(x=>`<tr><td>${esc(x._type)}</td><td>${esc(x._text||'Customer follow-up')}</td><td>${esc(x.priority)}</td><td>${esc(x.status)}</td></tr>`).join('')||'<tr><td colspan="4" class="empty">Nothing needs attention.</td></tr>'}</tbody></table></div></div></section></div>
+  <aside class="setup-side"><div class="card setup-card setup-help"><div class="card-head"><h2>Answer precedence</h2></div><ol class="setup-help-list"><li>Structured business profile</li><li>Admin-authored FAQs, pricing, policies</li><li>Approved imported content</li><li>Automation style instructions</li></ol><p class="muted">Scanned documents are intentionally rejected in v1.</p></div></aside></div>`;
+}
+
+function bindKnowledgePanel(host,data) {
+  const versions=data.sourceVersions||[],sources=data.sources||[];
+  const error=host.querySelector('#knowledge-error'),reload=()=>mountKnowledgePanel().catch(console.error);
+  host.querySelector('#knowledge-url-form')?.addEventListener('submit',async event=>{event.preventDefault();error.textContent='';const origin=host.querySelector('#knowledge-url').value.trim();try{const res=await apiFetch('/api/knowledge/sources',{method:'POST',body:JSON.stringify({type:'website',title:new URL(origin).hostname,origin})});const body=await res.json();if(!res.ok)throw new Error(body.error||'Import failed');await reload();}catch(e){error.textContent=e.message;}});
+  host.querySelector('#knowledge-file-form')?.addEventListener('submit',async event=>{event.preventDefault();error.textContent='';const file=host.querySelector('#knowledge-file').files?.[0];if(!file)return;try{const sign=await apiFetch('/api/knowledge/uploads/sign',{method:'POST',body:JSON.stringify({fileName:file.name,size:file.size,contentType:file.type||'text/plain'})}),signed=await sign.json();if(!sign.ok)throw new Error(signed.error||'Upload could not start');const uploadUrl=/^https?:/.test(signed.signedUrl)?signed.signedUrl:`${runtimeConfig.supabaseUrl||''}${signed.signedUrl}`;const upload=await fetch(uploadUrl,{method:'PUT',headers:{'Content-Type':file.type||'text/plain'},body:file});if(!upload.ok)throw new Error('Private upload failed');const create=await apiFetch('/api/knowledge/sources',{method:'POST',body:JSON.stringify({type:'file',title:file.name,storagePath:signed.path})});const created=await create.json();if(!create.ok)throw new Error(created.error||'Import failed');await reload();}catch(e){error.textContent=e.message;}});
+  host.querySelectorAll('[data-refresh-source]').forEach(button=>button.addEventListener('click',async()=>{await apiFetch(`/api/knowledge/sources/${button.dataset.refreshSource}/refresh`,{method:'POST',body:'{}'});await reload();}));
+  host.querySelectorAll('[data-archive-source]').forEach(button=>button.addEventListener('click',async()=>{if(!confirm('Archive this source and remove it from live AI retrieval?'))return;const res=await apiFetch(`/api/knowledge/sources/${button.dataset.archiveSource}`,{method:'DELETE'}),body=await res.json();if(!res.ok){error.textContent=body.error||'Archive failed';return;}await reload();}));
+  host.querySelectorAll('[data-approve-version]').forEach(button=>button.addEventListener('click',()=>{const draft=versions.find(v=>v.id===button.dataset.approveVersion),source=sources.find(s=>s.id===draft?.source_id),previous=versions.find(v=>v.id===source?.active_version_id),oldText=String(previous?.extracted_text||''),newText=String(draft?.extracted_text||'');openDrawer(`Review ${source?.title||'knowledge'} v${draft?.version||''}`,`<div class="kv"><div class="row"><div class="k">Change</div><div class="v">${previous?`${newText.length-oldText.length>=0?'+':''}${newText.length-oldText.length} characters`:'First approved version'}</div></div><div class="row"><div class="k">Previous approved text</div><div class="v"><pre style="white-space:pre-wrap;max-height:220px;overflow:auto">${esc(oldText.slice(0,8000)||'No previous version')}</pre></div></div><div class="row"><div class="k">New extracted text</div><div class="v"><pre style="white-space:pre-wrap;max-height:320px;overflow:auto">${esc(newText.slice(0,12000))}</pre></div></div></div><div class="compose-actions"><span id="approve-error" class="login-error"></span><button class="btn" id="approve-knowledge-now">Approve and make live</button></div>`);el.drawerBody.querySelector('#approve-knowledge-now')?.addEventListener('click',async event=>{event.currentTarget.disabled=true;const res=await apiFetch(`/api/knowledge/versions/${draft.id}/approve`,{method:'POST',body:'{}'}),body=await res.json();if(!res.ok){el.drawerBody.querySelector('#approve-error').textContent=body.error||'Approval failed';event.currentTarget.disabled=false;return;}closeDrawer();await reload();});}));
+}
+
+async function mountKnowledgePanel() {
+  const host=el.root.querySelector('#business-knowledge');
+  if(!host)return;
+  host.innerHTML='<div class="card"><div class="empty">Loading AI knowledge…</div></div>';
+  const response=await apiFetch('/api/knowledge'),data=await response.json();
+  if(!response.ok)throw new Error(data.error||'Could not load AI knowledge');
+  if(!host.isConnected||state.view!=='business-context')return;
+  host.innerHTML=knowledgePanelMarkup(data);
+  bindKnowledgePanel(host,data);
+}
+
+async function renderKnowledge() {
+  state.view='business-context';
+  setActiveNav();
+  await renderBusinessContext();
+}
+
+function contactTypeLabel(source) {
+  const labels = {
+    prebooking: 'Lead', booking: 'Appointment', contact: 'Inquiry',
+    phone_agent: 'Phone contact', customer: 'Customer', in_home_estimate: 'Inquiry',
+  };
+  return labels[source] || String(source).replaceAll('_', ' ');
+}
 
 document.getElementById('nav').addEventListener('click', (e) => {
   const btn = e.target.closest('[data-view]');
   if (!btn) return;
-  state.view = btn.dataset.view;
-  state.categoryId = btn.dataset.category || null;
-  state.page = 1;
-  if (state.view !== 'messaging') state.conversationPhone = null;
-  if (state.view === 'automations' && !btn.dataset.category) {
-    state.categoryId = null;
-  }
-  setActiveNav();
-  closeSidebar();
-  load();
+  switchView(btn.dataset.view, { categoryId: btn.dataset.category || null }).then(() => {
+    if (matchMedia('(max-width: 900px)').matches) {
+      el.title.setAttribute('tabindex', '-1');
+      el.title.focus({ preventScroll: true });
+    }
+  });
 });
+
+// Hover/focus prefetch: warm the HTTP cache so tab switches feel instant.
+document.getElementById('nav').addEventListener('pointerover', (e) => {
+  const btn = e.target.closest?.('[data-view]');
+  if (!btn || btn.dataset.view === state.view) return;
+  prefetchView(btn.dataset.view);
+}, { passive: true });
 
 function setSidebarOpen(open) {
   const isOpen = Boolean(open);
@@ -114,6 +1235,15 @@ function setSidebarOpen(open) {
   el.sidebarTrigger?.setAttribute('aria-expanded', String(isOpen));
   el.sidebarTrigger?.setAttribute('aria-label', isOpen ? 'Close navigation' : 'Open navigation');
   if (el.sidebarBackdrop) el.sidebarBackdrop.tabIndex = isOpen ? 0 : -1;
+  if (el.sidebar) {
+    if (isOpen && matchMedia('(max-width: 900px)').matches) {
+      el.sidebar.setAttribute('role', 'dialog');
+      el.sidebar.setAttribute('aria-modal', 'true');
+    } else {
+      el.sidebar.removeAttribute('role');
+      el.sidebar.removeAttribute('aria-modal');
+    }
+  }
   syncOverlayLock();
   if (isOpen) requestAnimationFrame(() => el.sidebarClose?.focus());
 }
@@ -130,6 +1260,11 @@ el.sidebarTrigger?.addEventListener('click', () => {
 el.sidebarClose?.addEventListener('click', () => closeSidebar({ restoreFocus: true }));
 el.sidebarBackdrop?.addEventListener('click', () => closeSidebar({ restoreFocus: true }));
 document.addEventListener('keydown', (event) => {
+  if (event.key === 'Tab') {
+    if (!el.drawer?.hidden) trapOverlayFocus(event, el.drawer);
+    else if (document.querySelector('.crm')?.classList.contains('sidebar-open')) trapOverlayFocus(event, el.sidebar);
+    return;
+  }
   if (event.key !== 'Escape') return;
   if (!el.drawer?.hidden) {
     closeDrawer();
@@ -138,7 +1273,7 @@ document.addEventListener('keydown', (event) => {
   closeSidebar({ restoreFocus: true });
 });
 
-document.getElementById('refresh').addEventListener('click', () => load());
+document.getElementById('refresh').addEventListener('click', () => load({ force: true }));
 document.getElementById('drawer-close').addEventListener('click', closeDrawer);
 el.drawerBackdrop?.addEventListener('click', closeDrawer);
 
@@ -187,23 +1322,354 @@ function setActiveNav() {
       active = node.dataset.view === state.view;
     }
     node.classList.toggle('active', active);
+    if (node.classList.contains('nav-item')) {
+      if (active) node.setAttribute('aria-current', 'page');
+      else node.removeAttribute('aria-current');
+    }
   });
 
   const parent = document.getElementById('nav-automations-root');
-  if (parent) parent.classList.toggle('parent-open', onAutomations && Boolean(state.categoryId));
+  if (parent) {
+    parent.classList.toggle('parent-open', onAutomations && Boolean(state.categoryId));
+    parent.classList.toggle('expanded', onAutomations);
+    parent.setAttribute('aria-expanded', String(onAutomations));
+  }
+  renderViewTabs();
+  syncViewUrl();
 }
 
-async function load() {
+// Contextual tab groups: related standalone pages become instant tabs
+// that share one URL (?view=) and switch without any page reload.
+const TAB_GROUPS = [
+  { id: 'reports', label: 'Reports', views: [
+    { view: 'call', label: 'Inbound calls' },
+    { view: 'messages', label: 'Message history' },
+    { view: 'deliverability', label: 'Delivery report' },
+    { view: 'optouts', label: 'Opt-Outs' },
+  ]},
+  { id: 'setup', label: 'Setup', views: [
+    { view: 'business-setup', label: 'Business setup' },
+    { view: 'business-context', label: 'Business context' },
+    { view: 'booking-setup', label: 'Booking setup' },
+    { view: 'web-forms', label: 'Forms' },
+    { view: 'ai-instructions', label: 'AI instructions' },
+  ]},
+  { id: 'platform', label: 'Platform', views: [
+    { view: 'platform-accounts', label: 'Users' },
+    { view: 'platform-businesses', label: 'Businesses' },
+    { view: 'platform-websites', label: 'Websites' },
+  ]},
+];
+
+function tabGroupForView(view) {
+  return TAB_GROUPS.find(group => group.views.some(tab => tab.view === view)) || null;
+}
+
+function renderViewTabs() {
+  const host = el.viewTabs;
+  if (!host) return;
+  const group = tabGroupForView(state.view);
+  const permitted = (view) => {
+    if (state.platformStaff) return true;
+    if (group?.id === 'platform') return false;
+    return canOpenWorkspace(view, state.platformStaff, state.tenant);
+  };
+  if (!group || !group.views.filter(tab => permitted(tab.view)).length) {
+    host.hidden = true;
+    host.innerHTML = '';
+    return;
+  }
+  host.hidden = false;
+  host.setAttribute('aria-label', `${group.label} tabs`);
+  host.innerHTML = group.views
+    .filter(tab => permitted(tab.view))
+    .map(tab => `<button type="button" role="tab" class="crm-tab" data-tab-view="${esc(tab.view)}" aria-selected="${String(tab.view === state.view)}" tabindex="${tab.view === state.view ? '0' : '-1'}">${esc(tab.label)}</button>`)
+    .join('');
+}
+
+el.viewTabs?.addEventListener('click', (event) => {
+  const tab = event.target.closest?.('[data-tab-view]');
+  if (!tab || tab.getAttribute('aria-selected') === 'true') return;
+  switchView(tab.dataset.tabView);
+});
+
+el.viewTabs?.addEventListener('keydown', (event) => {
+  if (event.key !== 'ArrowRight' && event.key !== 'ArrowLeft') return;
+  const tabs = [...el.viewTabs.querySelectorAll('[data-tab-view]')];
+  if (!tabs.length) return;
+  event.preventDefault();
+  const current = tabs.indexOf(document.activeElement);
+  const next = event.key === 'ArrowRight'
+    ? tabs[(current + 1 + tabs.length) % tabs.length]
+    : tabs[(current - 1 + tabs.length) % tabs.length];
+  next.focus();
+  switchView(next.dataset.tabView);
+});
+
+function syncViewUrl() {
   try {
-    if (!state.categories.length) {
+    const url = new URL(location.href);
+    if (url.searchParams.get('view') !== state.view) {
+      url.searchParams.set('view', state.view);
+      history.replaceState({ view: state.view }, '', url);
+    }
+  } catch { /* non-fatal: URL stays as-is */ }
+}
+
+window.addEventListener('popstate', (event) => {
+  const view = event.state?.view || new URLSearchParams(location.search).get('view');
+  if (view && KNOWN_VIEWS.includes(view) && view !== state.view) {
+    switchView(view).catch(error=>console.error(error));
+  }
+});
+
+// Central tab switch: one code path for sidebar, tabs, dashboard
+// shortcuts and drawers. No full-page reload; the shell, theme and
+// realtime connection stay mounted while only the view re-renders.
+let switchToken = 0;
+async function switchView(view, options = {}) {
+  if (!KNOWN_VIEWS.includes(view)) return load();
+  const { categoryId = undefined, force = false, tenantId = null } = options;
+  const mySwitch = ++switchToken;
+  if (tenantId && tenantId !== getTenantId()) setTenantId(tenantId);
+  const sameView = view === state.view
+    && (categoryId === undefined || categoryId === state.categoryId)
+    && !force;
+  state.view = view;
+  if (categoryId !== undefined) state.categoryId = categoryId;
+  else if (view === 'automations' && options.categoryId === undefined && !force) { /* keep group */ }
+  else if (view !== 'automations') state.categoryId = null;
+  if ('conversationPhone' in options) state.conversationPhone = options.conversationPhone;
+  else if (view !== 'messaging') state.conversationPhone = null;
+  if ('conversationId' in options) state.conversationId = options.conversationId;
+  else if (view !== 'messaging') state.conversationId = null;
+  state.page = 1;
+  state.q = '';
+  if (el.search) el.search.value = '';
+  setActiveNav();
+  closeDrawer();
+  closeSidebar();
+  if (sameView && !force) {
+    await load({ keepContent: true });
+  } else {
+    await load();
+  }
+  if (mySwitch !== switchToken) return;
+}
+
+// In-place workspace switch: re-resolve tenant context and re-render
+// the current tab without tearing down auth, theme or realtime.
+async function switchTenant(tenantId, options = {}) {
+  if (tenantId) setTenantId(tenantId);
+  state.categories = [];
+  state.cadences = [];
+  state.rulePresets = [];
+  state.setupProvisioning = null;
+  state.setupOnboarding = null;
+  state.setupRegistration = null;
+  state.businessContextDraft = null;
+  state.bookingSettingsDraft = null;
+  state.conversationPhone = null;
+  state.conversationId = null;
+  state.page = 1;
+  lastRenderedView = null;
+  viewFreshness.clear();
+  try {
+    await loadTenantContext();
+  } catch (error) {
+    console.error(error);
+    await forceLogin(error.message || 'Could not load business accounts');
+    return;
+  }
+  if (!canOpenWorkspace(state.view, state.platformStaff, state.tenant)) {
+    state.view = state.platformStaff || state.tenant?.smsRead !== false ? 'overview' : 'web-forms';
+  }
+  if (options.force) lastRenderedView = null;
+  updateAuthChrome();
+  setActiveNav();
+  await load({ force: true });
+}
+
+// Freshness-aware rendering: revisiting a recently loaded tab keeps its
+// content on screen (no skeleton flash) while data revalidates.
+const viewFreshness = new Map();
+function markViewFresh(view) {
+  viewFreshness.set(view, Date.now());
+}
+function isViewFresh(view, maxAgeMs = 30000) {
+  const at = viewFreshness.get(view);
+  return at != null && (Date.now() - at) < maxAgeMs;
+}
+
+// Prefetch hook used by hover/focus warming. Best-effort only.
+const prefetchedViews = new Set();
+function prefetchView(view) {
+  try {
+    if (!state.tenant || prefetchedViews.has(view) || view === state.view) return;
+    if (!canOpenWorkspace(view, state.platformStaff, state.tenant)) return;
+    if (String(view).startsWith('platform-')) return;
+    prefetchedViews.add(view);
+    const idle = globalThis.requestIdleCallback || ((fn) => setTimeout(fn, 800));
+    idle(() => {
+      if (view === state.view) return;
+      apiFetch(view === 'overview' ? '/api/overview' : '/api/categories', { method: 'GET' })
+        .then(res => res.arrayBuffer?.().catch(()=>null))
+        .catch(() => {});
+    });
+  } catch { /* never break navigation */ }
+}
+
+function syncSidebarBrand() {
+  const name = state.tenant?.name || 'Business workspace';
+  if (el.tenantSelect) el.tenantSelect.title = name;
+}
+
+function initNavFind() {
+  const input = document.getElementById('nav-find');
+  if (!input || input.dataset.bound) return;
+  input.dataset.bound = 'true';
+  input.addEventListener('input', () => {
+    const q = input.value.trim().toLowerCase();
+    document.querySelectorAll('#nav .nav-item').forEach((item) => {
+      const hay = `${item.textContent || ''} ${item.dataset.find || ''}`.toLowerCase();
+      item.hidden = !canOpenWorkspace(item.dataset.view,state.platformStaff,state.tenant) || (Boolean(q) && !hay.includes(q)) || (item.hasAttribute('data-platform-nav') && !state.platformStaff) || (state.tenant?.smsRead===false && item.dataset.view!=='web-forms' && !item.hasAttribute('data-platform-nav'));
+    });
+    document.querySelectorAll('#nav section').forEach((section) => {
+      const visible = [...section.querySelectorAll('.nav-item')].some((n) => !n.hidden);
+      section.hidden = !visible;
+    });
+    if (q && el.navAutomations && !el.navAutomations.hidden) {
+      el.navAutomations.querySelectorAll('.nav-item').forEach((item) => {
+        const hay = `${item.textContent || ''}`.toLowerCase();
+        item.hidden = !hay.includes(q);
+      });
+    }
+  });
+  document.addEventListener('keydown', (event) => {
+    if (event.key.toLowerCase() !== 'f' || event.metaKey || event.ctrlKey || event.altKey) return;
+    const tag = String(document.activeElement?.tagName || '').toLowerCase();
+    if (tag === 'input' || tag === 'textarea' || tag === 'select') return;
+    event.preventDefault();
+    input.focus();
+  });
+}
+
+async function renderEmailGroups() {
+  setTitle('Email', 'Manage opted-in follow-ups for each automation group.');
+  el.kpi.innerHTML = '';
+  el.pager.hidden = true;
+  const response = await apiFetch('/api/email');
+  const data = await response.json();
+  if (!response.ok) throw new Error(data.error || 'Could not load email');
+  if (!data.configured) {
+    el.root.innerHTML = '<section class="card"><div class="setup-body"><h2>Email is not configured for this business</h2></div></section>';
+    return;
+  }
+  const unitOptions = (selected) => ['hour','day','week','month'].map(value =>
+    `<option value="${value}" ${selected === value ? 'selected' : ''}>${value}(s)</option>`).join('');
+  const groupCards = (data.groups || []).map(s => {
+    const r = s.rule || {};
+    return `<section class="card" data-email-card="${esc(s.group_id)}"><div class="card-head"><div><h2>${esc(s.name)}</h2><span class="muted">${esc(s.fixedType)}</span></div><span class="status ${s.enabled ? 'active' : 'paused'}">${s.enabled ? 'Enabled' : 'Paused'}</span></div>
+      <div class="setup-body"><form class="compose" data-email-group="${esc(s.group_id)}">
+        <label class="checkbox-field"><input type="checkbox" name="enabled" ${s.enabled ? 'checked' : ''} /> Activate email for this group</label>
+        <p class="muted">Email follows a separate schedule. New consented records enroll only while this group is active. SMS settings are independent.</p>
+        <label>Purpose<input name="intent" maxlength="1600" value="${esc(s.intent)}" placeholder="What should this email help the customer do?" /></label>
+        <label>System prompt<textarea name="systemPrompt" maxlength="6000" rows="4" placeholder="Instructions for this group's email drafts">${esc(s.system_prompt)}</textarea></label>
+        <label>Business context<textarea name="businessContext" maxlength="10000" rows="4" placeholder="Verified service details, policies, and useful context">${esc(s.business_context)}</textarea></label>
+        <label>Business mailing address<input name="mailingAddress" maxlength="300" value="${esc(s.mailing_address)}" placeholder="Required before activation; shown in every email" /></label>
+        <div class="automation-form-grid">
+          ${s.fixedType === 'bookings' ? `<label>Hours before appointment<input name="leadHours" type="number" min="1" max="720" value="${esc(r.leadHours || 24)}" /></label>` : `<label>First email after<input name="firstDelayCount" type="number" min="0" max="365" value="${esc(r.firstDelayCount ?? 0)}" /></label><label>First delay unit<select name="firstDelayUnit">${unitOptions(r.firstDelayUnit)}</select></label>`}
+          <label>Maximum emails<input name="repeatCount" type="number" min="1" max="30" value="${esc(r.repeatCount || 1)}" /></label>
+          <label>Time between emails<input name="intervalCount" type="number" min="1" max="365" value="${esc(r.intervalCount || 1)}" /></label>
+          <label>Interval unit<select name="intervalUnit">${unitOptions(r.intervalUnit)}</select></label>
+          <label>Start hour (0–23)<input name="startHour" type="number" min="0" max="23" value="${esc(r.startHour ?? 9)}" /></label>
+          <label>End hour (1–24)<input name="endHour" type="number" min="1" max="24" value="${esc(r.endHour ?? 18)}" /></label>
+        </div><div class="compose-actions"><span class="login-error" role="alert"></span><button type="submit" class="btn">Save email settings</button></div>
+      </form></div></section>`;
+  }).join('');
+  const enrollments = (data.enrollments || []).map(e => `<tr><td>${esc(e.name || e.email)}<br><span class="muted">${esc(e.email)}</span></td><td>${esc(e.source_type)}</td><td>${esc(e.status)}</td><td>${e.next_run_at ? esc(fmtTime(e.next_run_at)) : '—'}</td><td>${e.status === 'active' ? `<button type="button" class="btn ghost" data-email-resolve="${esc(e.id)}">Mark resolved</button>` : '—'}</td></tr>`).join('');
+  const jobs = (data.jobs || []).map(j => `<tr><td>${esc(j.email)}</td><td>${esc(j.subject || 'Draft pending')}</td><td>${esc(j.provider_status || j.status)}</td><td>${esc(j.error_code || '—')}</td><td>${j.status === 'failed' ? `<button type="button" class="btn ghost" data-email-retry="${esc(j.id)}">Retry</button>` : '—'}</td></tr>`).join('');
+  el.root.innerHTML = `<section class="card"><div class="setup-body"><h2>Email marketing</h2><p class="muted">Sender: hello@e2local.com. Replies go to that mailbox. Customers opt in separately on enabled forms or staff record consent evidence. Unsubscribe stops this business's marketing email. Existing records are not backfilled.</p>
+    ${!data.workerReady || !data.providerReady ? '<p class="login-error">Activation requires the email worker, Resend, and OpenAI configuration.</p>' : ''}<p id="email-action-error" class="login-error" role="alert"></p></div></section>
+    ${groupCards}<section class="card"><div class="card-head"><h2>Recent email enrollments</h2></div><div class="table-scroll"><table class="data"><thead><tr><th>Contact</th><th>Group</th><th>Status</th><th>Next email</th><th></th></tr></thead><tbody>${enrollments || '<tr><td colspan="5">No email enrollments yet.</td></tr>'}</tbody></table></div></section>
+    <section class="card"><div class="card-head"><h2>Email jobs</h2></div><div class="table-scroll"><table class="data"><thead><tr><th>Email</th><th>Subject</th><th>Status</th><th>Issue</th><th></th></tr></thead><tbody>${jobs || '<tr><td colspan="5">No email jobs yet.</td></tr>'}</tbody></table></div></section>`;
+  if (state.emailGroupId) {
+    el.root.querySelector(`[data-email-card="${state.emailGroupId}"]`)?.scrollIntoView({ behavior: 'smooth', block: 'start' });
+    state.emailGroupId = null;
+  }
+  el.root.querySelectorAll('[data-email-group]').forEach(form => form.addEventListener('submit', async event => {
+    event.preventDefault();
+    const button = form.querySelector('button[type="submit"]'), error = form.querySelector('[role="alert"]');
+    const current = data.groups.find(group => group.group_id === form.dataset.emailGroup);
+    const field = name => form.elements.namedItem(name);
+    const rule = { ...current.rule, anchor: current.fixedType === 'bookings' ? 'appointment' : 'enrollment',
+      repeatCount: Number(field('repeatCount').value), intervalCount: Number(field('intervalCount').value),
+      intervalUnit: field('intervalUnit').value, startHour: Number(field('startHour').value), endHour: Number(field('endHour').value) };
+    if (current.fixedType === 'bookings') rule.leadHours = Number(field('leadHours').value);
+    else { rule.firstDelayCount = Number(field('firstDelayCount').value); rule.firstDelayUnit = field('firstDelayUnit').value; }
+    button.disabled = true; error.textContent = '';
+    try {
+      const saved = await apiFetch(`/api/email/groups/${encodeURIComponent(current.group_id)}`, { method: 'PUT', body: JSON.stringify({
+        enabled: field('enabled').checked, rule, intent: field('intent').value.trim(),
+        systemPrompt: field('systemPrompt').value.trim(), businessContext: field('businessContext').value.trim(),
+        mailingAddress: field('mailingAddress').value.trim(),
+      }) });
+      const result = await saved.json();
+      if (!saved.ok) throw new Error(result.error || 'Could not save email settings');
+      await renderEmailGroups();
+    } catch (cause) { error.textContent = cause.message; button.disabled = false; }
+  }));
+  for (const [selector, endpoint, method] of [['[data-email-resolve]','enrollments','PATCH'],['[data-email-retry]','jobs','POST']]) {
+    el.root.querySelectorAll(selector).forEach(button => button.addEventListener('click', async () => {
+      button.disabled = true;
+      const id = button.dataset.emailResolve || button.dataset.emailRetry;
+      const suffix = endpoint === 'jobs' ? 'retry' : 'resolve';
+      try {
+        const response = await apiFetch(`/api/email/${endpoint}/${encodeURIComponent(id)}/${suffix}`, { method, body: '{}' });
+        const result = await response.json();
+        if (!response.ok) throw new Error(result.error || 'Email action failed');
+        await renderEmailGroups();
+      } catch (cause) { el.root.querySelector('#email-action-error').textContent = cause.message; button.disabled = false; }
+    }));
+  }
+}
+
+async function load(options = {}) {
+  const { keepContent = false, force = false } = options;
+  if (state.view !== 'messaging') document.querySelector('.crm')?.classList.remove('thread-open');
+  const viewChanged = lastRenderedView !== state.view;
+  const revisitingFreshTab = viewChanged && !force && isViewFresh(state.view) && el.root.children.length > 0;
+  if (viewChanged && !keepContent && !revisitingFreshTab) {
+    el.root.innerHTML = '<div class="card ui-loading" role="status">Loading workspace…</div>';
+    el.kpi.innerHTML = '';
+    el.pager.hidden = true;
+  }
+  el.root.setAttribute('aria-busy', 'true');
+  document.getElementById('crm-app').dataset.view = state.view;
+  el.search.closest('.search-wrap').hidden = ['overview', 'call', 'deliverability', 'ai-instructions', 'business-setup', 'business-context', 'booking-setup', 'knowledge', 'web-forms', 'email'].includes(state.view);
+  el.status.hidden = !['messages', 'deliverability'].includes(state.view) && !(state.view === 'automations' && state.categoryId);
+  if (state.view === 'business-setup') el.pager.hidden = true;
+  try {
+    if (state.view.startsWith('platform-')) {
+      el.search.closest('.search-wrap').hidden = true; el.status.hidden = true; el.kpi.innerHTML = '';
+      el.toolbarTenant.textContent='CRM';
+      el.toolbarSection.textContent={ 'platform-accounts':'Users','platform-businesses':'Businesses','platform-websites':'Websites' }[state.view];
+      setActiveNav();
+      await platform.render(state.view); lastRenderedView = state.view; markViewFresh(state.view); return;
+    }
+    el.root.classList.remove('platform-root');
+    if (!state.tenant) throw new Error('Choose or create a business workspace.');
+    if (!canOpenWorkspace(state.view,state.platformStaff,state.tenant)) {state.view=state.tenant.smsRead?'overview':'web-forms';setActiveNav();}
+    if (!state.categories.length && state.tenant.smsRead!==false) {
       const catRes = await apiFetch('/api/categories');
       if (catRes.status === 401 || catRes.status === 403) {
-        await forceLogin('Session expired. Please sign in again.');
+        renderAccessScreen({ errorMessage: authFailureMessage(catRes), onRetry: openAuthenticatedWorkspace });
         return;
       }
       const catJson = await catRes.json();
       state.categories = catJson.categories || [];
       state.cadences = catJson.cadences || [];
+      state.rulePresets = catJson.rulePresets || [];
       renderNavAutomations();
     }
 
@@ -214,10 +1680,30 @@ async function load() {
     else if (state.view === 'optouts') await renderOptOuts();
     else if (state.view === 'deliverability') await renderDeliverability();
     else if (state.view === 'automations') await renderAutomations();
+    else if (state.view === 'email') await renderEmailGroups();
+    else if (state.view === 'ai-instructions') await renderAiInstructions();
+    else if (state.view === 'business-setup') await renderBusinessSetup();
+    else if (state.view === 'business-context') await renderBusinessContext();
+    else if (state.view === 'booking-setup') await renderBookingSetup();
+    else if (state.view === 'web-forms') {
+      setTitle(...titles['web-forms']);
+      el.pager.hidden = true;
+      el.kpi.innerHTML = '';
+      await formBuilder.render();
+    }
+    else if (state.view === 'bookings') await renderBookings();
+    else if (state.view === 'knowledge') await renderKnowledge();
     else await renderMessages();
+    lastRenderedView = state.view;
+    markViewFresh(state.view);
   } catch (err) {
     console.error(err);
-    el.root.innerHTML = `<div class="card"><div class="empty">Failed to load CRM data.</div></div>`;
+    el.root.innerHTML = `<div class="card"><div class="empty" role="alert"><strong>Could not load this page.</strong><p>${esc(err.message || 'Please try again.')}</p><button type="button" class="btn ghost" data-retry-load>Try again</button></div></div>`;
+    el.root.querySelector('[data-retry-load]')?.addEventListener('click', () => load());
+  } finally {
+    applyWorkspacePermissions();
+    el.root.querySelector('[data-open-registered-business]')?.addEventListener('click',()=>{state.view='platform-businesses';setActiveNav();platform.openBusiness(state.tenant.id);});
+    el.root.setAttribute('aria-busy', 'false');
   }
 }
 
@@ -228,240 +1714,205 @@ function renderNavAutomations() {
       (c) => `
       <button type="button" class="nav-item nav-subitem" data-view="automations" data-category="${esc(
         c.id
-      )}">
+      )}" data-find="${esc(`${c.name} ${c.description || ''}`.toLowerCase())}">
         ${esc(c.name)}
       </button>`
     )
     .join('');
+  const count = document.getElementById('nav-automations-count');
+  if (count) {
+    const n = state.categories.length;
+    count.hidden = !n;
+    count.textContent = String(n);
+  }
+  initNavFind();
 }
 
 function openAutomationGroup(categoryId = null) {
-  state.view = 'automations';
-  state.categoryId = categoryId;
   state.automationBuilderOpen = false;
+  state.automationPresetId = null;
   state.aiBuilderOpen = false;
-  state.page = 1;
-  setActiveNav();
-  load();
-}
-
-function openCallSection({ phone = '', name = '' } = {}) {
-  state.view = 'call';
-  state.callPhone = phone || '';
-  state.callName = name || '';
-  state.categoryId = null;
-  state.page = 1;
-  closeDrawer();
-  setActiveNav();
-  load();
+  switchView('automations', { categoryId, force: true });
 }
 
 async function renderCall() {
   setTitle(...titles.call);
   el.kpi.innerHTML = '';
+  el.status.disabled = true;
   el.pager.hidden = true;
-  el.storeMeta.textContent = 'Outbound voice via ElevenLabs';
-
-  let config = { configured: false, presets: [], from: '+18313187139' };
-  try {
-    config = await apiFetch('/api/ai/outbound-call').then((r) => r.json());
-  } catch {
-    /* keep defaults */
-  }
-
-  const presets = config.presets || [];
-  const defaultPreset =
-    presets.find((p) => p.id === config.defaultPresetId) || presets[0] || null;
-  const phoneVal = state.callPhone || '';
-  const nameVal = state.callName || '';
-  const firstMessage =
-    defaultPreset?.firstMessage ||
-    'Hello, Macy with Opek Junk Removal, Is this {{customer_name}}?';
-  const promptVal = defaultPreset?.prompt || '';
-
+  el.storeMeta.textContent = 'Inbound calls';
+  const params = new URLSearchParams({ page: String(state.page), pageSize: String(state.pageSize) });
+  const response = await apiFetch(`/api/calls?${params}`);
+  if (!response.ok) throw new Error('Could not load inbound calls');
+  const data = await response.json();
+  state.totalPages = data.totalPages || 1;
+  renderPager(data);
+  el.pager.hidden = !(data.total > 0);
   el.root.innerHTML = `
-    <div class="card call-card">
-      <div class="card-head">
-        <div>
-          <strong>Outbound call</strong>
-          <p class="muted" style="margin:4px 0 0">
-            From ${esc(config.from || '+18313187139')} ·
-            ${
-              config.configured
-                ? '<span class="consent ok">Ready</span>'
-                : '<span class="consent out">Not configured</span>'
-            }
-          </p>
-        </div>
-      </div>
-
-      <div class="call-form">
-        <div class="call-grid">
-          <div>
-            <label class="compose-label" for="call-phone">Phone</label>
-            <input id="call-phone" type="tel" value="${esc(phoneVal)}" placeholder="+1…" />
-          </div>
-          <div>
-            <label class="compose-label" for="call-name">Name</label>
-            <input id="call-name" type="text" value="${esc(nameVal)}" placeholder="Customer name" />
-          </div>
-        </div>
-
-        <label class="compose-label" for="call-preset">System prompt preset</label>
-        <select id="call-preset">
-          ${presets
-            .map(
-              (p) =>
-                `<option value="${esc(p.id)}" ${
-                  defaultPreset && p.id === defaultPreset.id ? 'selected' : ''
-                }>${esc(p.name)}</option>`
-            )
-            .join('')}
-          <option value="custom">Custom prompt</option>
-        </select>
-        <p class="muted call-preset-desc" id="call-preset-desc">${esc(
-          defaultPreset?.description || 'Write your own system prompt below.'
-        )}</p>
-
-        <label class="compose-label" for="call-first-message">First message</label>
-        <input id="call-first-message" type="text" value="${esc(firstMessage)}" />
-
-        <label class="compose-label" for="call-prompt">System prompt</label>
-        <textarea id="call-prompt" rows="18" spellcheck="false">${esc(promptVal)}</textarea>
-
-        <div class="call-options">
-          <label class="check">
-            <input type="checkbox" id="call-include-sms" checked />
-            Include SMS history + CRM context
-          </label>
-        </div>
-
-        <div class="compose-actions">
-          <span class="muted" id="call-hint"></span>
-          <button type="button" class="btn" id="call-place" ${
-            config.configured ? '' : 'disabled'
-          }>Place call</button>
-        </div>
-      </div>
-    </div>
-  `;
-
-  const phoneInput = el.root.querySelector('#call-phone');
-  const nameInput = el.root.querySelector('#call-name');
-  const presetSelect = el.root.querySelector('#call-preset');
-  const presetDesc = el.root.querySelector('#call-preset-desc');
-  const firstInput = el.root.querySelector('#call-first-message');
-  const promptInput = el.root.querySelector('#call-prompt');
-  const hint = el.root.querySelector('#call-hint');
-  const placeBtn = el.root.querySelector('#call-place');
-
-  phoneInput?.addEventListener('input', () => {
-    state.callPhone = phoneInput.value.trim();
-  });
-  nameInput?.addEventListener('input', () => {
-    state.callName = nameInput.value.trim();
-  });
-
-  presetSelect?.addEventListener('change', () => {
-    const id = presetSelect.value;
-    if (id === 'custom') {
-      presetDesc.textContent = 'Write your own system prompt. Dynamic vars like {{customer_name}} still work.';
-      return;
-    }
-    const preset = presets.find((p) => p.id === id);
-    if (!preset) return;
-    presetDesc.textContent = preset.description || '';
-    firstInput.value = preset.firstMessage || firstInput.value;
-    promptInput.value = preset.prompt || '';
-  });
-
-  placeBtn?.addEventListener('click', async () => {
-    const phone = phoneInput?.value.trim() || '';
-    const name = nameInput?.value.trim() || '';
-    const systemPrompt = promptInput?.value.trim() || '';
-    const firstMessageVal = firstInput?.value.trim() || '';
-    if (!phone) {
-      hint.textContent = 'Enter a phone number.';
-      return;
-    }
-    if (!systemPrompt) {
-      hint.textContent = 'System prompt cannot be empty.';
-      return;
-    }
-    if (
-      !confirm(
-        `Place an outbound call to ${name || phone}?\n\nThis will dial the contact with ElevenLabs.`
-      )
-    ) {
-      return;
-    }
-
-    placeBtn.disabled = true;
-    hint.textContent = 'Starting call…';
-    state.callPhone = phone;
-    state.callName = name;
-
-    try {
-      const res = await apiFetch(`/api/conversations/${encodeURIComponent(phone)}/call`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          name: name || null,
-          systemPrompt,
-          firstMessage: firstMessageVal || null,
-          includeSmsHistory: Boolean(el.root.querySelector('#call-include-sms')?.checked),
-          pauseAi: false,
-        }),
-      });
-      const json = await res.json();
-      if (!res.ok) throw new Error(json.detail || json.error || 'Call failed');
-      const sid = json.call?.callSid || json.call?.conversationId || '';
-      hint.textContent = `Call started${sid ? ` · ${sid}` : ''}`;
-    } catch (err) {
-      hint.textContent = err.message || 'Failed to start call';
-      placeBtn.disabled = false;
-    }
-  });
+    <div class="card">
+      <div class="card-head"><h2>Inbound calls</h2><span class="muted">${fmt(data.total || 0)} calls</span></div>
+      <div class="table-scroll"><table class="data">
+        <thead><tr><th>Caller</th><th>Received</th><th>Status</th><th>Duration</th></tr></thead>
+        <tbody>${(data.calls || []).filter(call => call.direction === 'inbound').map(call => `
+          <tr><td>${esc(call.phone || 'Unknown caller')}</td><td>${esc(fmtTime(call.started_at))}</td>
+          <td>${esc(call.status || 'Unknown')}</td><td>${call.duration_secs == null ? '—' : `${Math.max(0, Math.round(Number(call.duration_secs) || 0))} sec`}</td></tr>
+        `).join('') || '<tr><td colspan="4"><div class="empty">No inbound calls yet.</div></td></tr>'}</tbody>
+      </table></div>
+    </div>`;
 }
 
 async function renderOverview() {
-  setTitle('Overview', 'Pipeline health across all SMS traffic');
+  setTitle(...titles.overview);
   el.pager.hidden = true;
   el.status.disabled = true;
 
-  const res = await apiFetch('/api/overview');
-  const data = await res.json();
-  renderKpis(data);
-  el.storeMeta.textContent = `${fmt(data.total)} messages · ${fmt(
-    data.conversationCount || data.contactCount || 0
-  )} conversations · ${fmt(data.optedOutTotal || 0)} opted out`;
+  let data = {};
+  let provisioning = null;
+  let totalsAvailable = false;
+  try {
+    const res = await apiFetch('/api/overview');
+    if (res.status === 401 || res.status === 403) {
+      renderAccessScreen({ errorMessage: authFailureMessage(res), onRetry: openAuthenticatedWorkspace });
+      return;
+    }
+    if (!res.ok) throw new Error('Could not load dashboard totals');
+    data = await res.json();
+    totalsAvailable = true;
+  } catch (err) {
+    console.error(err);
+  }
+  try {
+    const response = state.platformStaff ? await apiFetch('/api/provisioning') : null;
+    if (response?.ok) provisioning = await response.json();
+  } catch (error) { console.error(error); }
+  state.setupProvisioning = provisioning;
+  let onboardingComplete = state.setupOnboarding?.onboardingComplete;
+  if (state.platformStaff && onboardingComplete == null) {
+    try {
+      const onb = await fetchOnboarding();
+      state.setupOnboarding = onb;
+      onboardingComplete = onb.onboardingComplete;
+    } catch (error) { console.error(error); onboardingComplete = false; }
+  }
+  el.kpi.innerHTML = [
+    kpiCard('Conversations', totalsAvailable ? data.conversationCount ?? data.contactCount ?? 0 : '—'),
+    kpiCard('Total SMS', totalsAvailable ? data.total ?? 0 : '—'),
+    kpiCard('Delivery rate', data.deliveryRate == null ? '—' : `${data.deliveryRate}%`),
+  ].join('');
+  el.storeMeta.textContent = state.tenant?.name || 'Your workspace';
 
   el.root.innerHTML = `
-    <div class="card">
-      <div class="card-head">
-        <h2>Automation groups</h2>
-        <span class="muted">Open Automations for group workspaces</span>
+    ${totalsAvailable ? '' : '<p class="muted" role="status">Message totals are unavailable. Select Refresh to try again.</p>'}
+    ${provisioning?.serviceAdded === false ? '<section class="card"><h2>SMS has not been added</h2><p>Review the profile and add SMS in Businesses.</p><button type="button" class="btn" data-open-registered-business>Open business setup</button></section>' : ''}
+    ${provisioning && provisioning.serviceAdded !== false && !provisioning.sendingEnabled ? `
+      <details class="card dashboard-details" open>
+        <summary>Business messaging setup</summary>
+        <p><strong>${esc({pending:'Preparing Twilio account',creating_account:'Creating Twilio subaccount',account_created:'Twilio subaccount created',creating_service:'Creating Messaging Service',awaiting_number:'Ready for phone number and registration',submission_unknown:'Twilio setup needs review',ready:'Messaging setup complete'}[provisioning.state] || String(provisioning.state || 'Setup pending').replaceAll('_',' '))}</strong></p>
+        <p class="muted">${provisioning.state === 'awaiting_number'
+          ? 'This business now has a separate Twilio subaccount under the parent billing account. Select and purchase its phone number, then complete the applicable campaign registration before enabling sending.'
+          : provisioning.state === 'submission_unknown'
+            ? 'Twilio may have created a resource before the response was interrupted. Review the parent Twilio account and reconcile it before retrying.'
+            : 'Setup runs in the background. Sending stays disabled until a phone number and the applicable registration are complete.'}</p>
+        <p class="muted">Twilio details: ${provisioning.detailsComplete ? 'saved · registration submission is next' : 'required'}</p>
+        <button type="button" class="btn" data-complete-business-setup>${provisioning.detailsComplete ? 'Review setup details' : 'Complete business setup'}</button>
+        <p class="muted" style="margin-top:12px">Business context for SMS + AI: ${onboardingComplete ? 'saved' : 'required'}</p>
+        <button type="button" class="btn ghost" data-open-business-context>${onboardingComplete ? 'Review business context' : 'Add business context'}</button>
+      </details>` : ''}
+    <div class="dashboard-actions" aria-label="Quick actions">
+      <button type="button" class="dashboard-action" data-dashboard-view="messaging"><strong>Open inbox <span aria-hidden="true">→</span></strong><span>${state.platformStaff ? 'Read and reply to customers' : 'Read customer conversations'}</span></button>
+      <button type="button" class="dashboard-action" data-dashboard-view="contacts"><strong>View contacts <span aria-hidden="true">→</span></strong><span>Find a customer or lead</span></button>
+      <button type="button" class="dashboard-action" data-dashboard-view="automations"><strong>Manage follow-ups <span aria-hidden="true">→</span></strong><span>Review your automated messages</span></button>
+    </div>
+    <details class="card dashboard-details">
+      <summary>More message statistics</summary>
+      <dl class="dashboard-stats">
+        <div><dt>Delivered messages</dt><dd>${totalsAvailable ? fmt(data.counts?.delivered ?? 0) : '—'}</dd></div>
+        <div><dt>Opted-out contacts</dt><dd>${totalsAvailable ? fmt(data.optedOutTotal ?? 0) : '—'}</dd></div>
+      </dl>
+      <button type="button" class="btn ghost" data-dashboard-view="deliverability">View delivery report</button>
+      <button type="button" class="btn ghost" data-dashboard-view="optouts">View opt-outs</button>
+    </details>
+    <section class="card followup-section" aria-labelledby="dashboard-followups-title">
+      <div class="followup-section-head">
+        <div>
+          <span class="eyebrow">Automations</span>
+          <h2 id="dashboard-followups-title">Follow-ups</h2>
+          <p>Monitor the sequences that keep customer conversations moving.</p>
+        </div>
+        <button type="button" class="btn ghost" data-dashboard-view="automations">Manage automations</button>
       </div>
-      <div class="category-grid">
+      <div class="followup-grid">
         ${state.categories
           .map((c) => {
             const s = data.byCategory?.find((x) => x.id === c.id);
+            const configured = c.automationAiConfigured === true;
+            const active = configured && c.activeAutomation !== false;
+            const total = totalsAvailable ? fmt(s?.total ?? 0) : '—';
+            const delivery = s?.deliveryRate == null ? '—' : `${s.deliveryRate}%`;
             return `
-              <button type="button" class="category-tile as-button" data-open-automation="${esc(
+              <button type="button" class="followup-card" data-open-automation="${esc(
                 c.id
-              )}">
-                <h3>${esc(c.name)}</h3>
-                <p>${esc(c.description || '')}</p>
-                <p class="muted">${fmt(s?.total || 0)} messages · ${
-                  s?.deliveryRate == null ? '—' : `${s.deliveryRate}% delivered`
-                }</p>
-                <div class="blank">${automationBlankLabel(c)}</div>
+              )}" aria-label="Open ${esc(c.name)} automation">
+                <span class="followup-card-top">
+                  <span class="followup-state ${active ? 'is-active' : 'is-paused'}"><i aria-hidden="true"></i>${configured ? (active ? 'Active' : 'Inactive') : 'Setup required'}</span>
+                  <span class="followup-arrow" aria-hidden="true">→</span>
+                </span>
+                <strong class="followup-name">${esc(c.name)}</strong>
+                <span class="followup-description">${esc(c.description || 'Automated customer follow-up.')}</span>
+                <span class="followup-schedule">${esc(automationBlankLabel(c))}</span>
+                <span class="followup-metrics">
+                  <span><b>${total}</b> messages</span>
+                  <span><b>${delivery}</b> delivered</span>
+                </span>
               </button>`;
           })
-          .join('')}
+          .join('') || '<div class="followup-empty"><strong>No follow-ups yet</strong><span>Create an automation to start nurturing customer conversations.</span></div>'}
       </div>
-    </div>
+    </section>
   `;
+
+  if (state.platformStaff && globalThis.SMS_CONFIG?.apiBase) {
+    el.root.insertAdjacentHTML('beforeend', '<details class="card automation-health" id="worker-status"><summary><span class="automation-health-dot" aria-hidden="true"></span><span><strong>Automation system</strong><small>Scheduler, queues, and worker health</small></span><span class="automation-health-action">View status</span></summary><div class="worker-status-content muted">Open to check automation status.</div></details>');
+    const details = el.root.querySelector('#worker-status');
+    details.addEventListener('toggle', async () => {
+      if (!details.open) return;
+      const node = details.querySelector('.worker-status-content');
+      try {
+        if (!state.platformStaff) return;
+        const response = await apiFetch('/api/operations');
+        if (!response.ok) throw new Error('Status is temporarily unavailable');
+        const data = await response.json();
+        const active = (data.workers || []).filter(w => Date.now() - new Date(w.seen_at).getTime() < 120000);
+        const automation = data.automationQueue || {};
+        node.innerHTML = `<p>Scheduling: ${data.scheduler?.scheduler_enabled ? 'On' : 'Paused'} · ${active.length} worker connections active</p>` +
+          `<p>Automation queue: ${fmt(automation.backlog || 0)} waiting · oldest ${automation.oldestAgeSeconds == null ? '—' : `${fmt(automation.oldestAgeSeconds)}s`} · ${fmt(automation.failed || 0)} failed</p>` +
+          (data.jobs || []).map(j => `<p>${esc(j.queue.replaceAll('_', ' '))}: ${fmt(j.count)} ${esc(j.status.replaceAll('_', ' '))}</p>`).join('') +
+          (data.automationFailures || []).map(i => `<p><strong>Paused automation:</strong> ${esc(i.group_name || 'Unknown group')} · ${esc(i.error_code || 'Draft failed')} <button class="btn ghost" data-redraft-job="${esc(i.id)}">Redraft and resume</button></p>`).join('') +
+          (data.problems || []).filter(j => j.queue !== 'automation_jobs').map(j => `<p>${esc(j.status === 'submission_unknown' ? 'Needs review — delivery could not be confirmed. Automatic retry is held.' : j.error_code || 'Job failed')}${j.status === 'failed' ? ` <button class="btn ghost" data-retry-job="${esc(j.id)}">Retry</button>` : ''}</p>`).join('');
+        node.querySelectorAll('[data-redraft-job]').forEach(button => button.addEventListener('click', async () => {
+          button.disabled = true;
+          const res = await apiFetch(`/api/automation-jobs/${encodeURIComponent(button.dataset.redraftJob)}/redraft`, { method: 'POST' });
+          button.textContent = res.ok ? 'Fresh draft queued' : 'Review eligibility before resuming';
+        }));
+        node.querySelectorAll('[data-retry-job]').forEach(button => button.addEventListener('click', async () => {
+          button.disabled = true;
+          const res = await apiFetch(`/api/jobs/${encodeURIComponent(button.dataset.retryJob)}/retry`, { method: 'POST' });
+          button.textContent = res.ok ? 'Queued' : 'Retry unavailable';
+        }));
+      } catch (error) { node.textContent = error.message; }
+    });
+  }
+  el.root.querySelectorAll('[data-dashboard-view]').forEach((btn) => {
+    btn.addEventListener('click', () => {
+      document.querySelector(`.nav-item[data-view="${btn.dataset.dashboardView}"]`)?.click();
+    });
+  });
+  el.root.querySelector('[data-complete-business-setup]')?.addEventListener('click', () => {
+    openBusinessSetup();
+  });
+  el.root.querySelector('[data-open-business-context]')?.addEventListener('click', () => {
+    openBusinessContext();
+  });
 
   el.root.querySelectorAll('[data-open-automation]').forEach((btn) => {
     btn.addEventListener('click', () => openAutomationGroup(btn.getAttribute('data-open-automation')));
@@ -469,78 +1920,96 @@ async function renderOverview() {
 }
 
 function automationBlankLabel(category) {
-  if (category.id === 'quote-requests') return 'Quote Request drip · 6 steps';
-  if (category.id === 'appointment-reminders') return 'Appointment reminder · 24h before';
-  if (category.custom && category.rule) {
-    return `${category.rule.firstSendAt ? `Scheduled ${fmtTime(category.rule.firstSendAt)}` : cadenceDisplay(category.rule)} · ${category.rule.repeatCount} send${
-      category.rule.repeatCount === 1 ? '' : 's'
-    }${category.activeAutomation ? '' : ' · inactive'}`;
+  if (category.automationAiConfigured !== true) return 'Setup required · Add AI instructions and business details';
+  if (category.kind === 'quote') return `Quote Request · ${category.rule?.repeatCount || 6} sends`;
+  if (category.kind === 'reminder') return `Appointment reminder · ${category.rule?.repeatCount || 1} send(s), first ${category.rule?.leadHours || 24}h before`;
+  if (category.fixedType && category.rule) {
+    const sendCount = Math.max(0, Number(category.rule.repeatCount) || 0);
+    const sendLabel = sendCount ? `${sendCount} send${sendCount === 1 ? '' : 's'}` : 'No messages';
+    return `${cadenceDisplay(category.rule)} · ${sendLabel}${category.activeAutomation ? '' : ' · inactive'}`;
   }
   return 'No automations yet';
 }
 
 function cadenceDisplay(rule) {
-  if (rule?.cadence !== 'custom') {
-    return state.cadences.find((cadence) => cadence.id === rule?.cadence)?.label || 'Custom';
-  }
-  return `Every ${rule.intervalCount} ${rule.intervalUnit}${rule.intervalCount === 1 ? '' : 's'}`;
+  return `Every ${rule?.intervalCount || 1} ${rule?.intervalUnit || 'day'}${Number(rule?.intervalCount || 1) === 1 ? '' : 's'}`;
 }
 
-function automationBuilderHtml(group = null) {
-  const rule = group?.rule || {
-    cadence: 'daily',
-    intervalCount: 1,
-    intervalUnit: 'day',
-    repeatCount: 3,
-    template: 'Hi {{first_name}}, this is a quick follow-up. Reply STOP to opt out.',
-    startHour: 9,
-    endHour: 19,
-    firstSendAt: null,
-    steps: [],
-  };
-  const steps = rule.steps?.length
-    ? rule.steps
-    : Array.from({ length: rule.repeatCount || 1 }, (_, index) => ({
-        id: `send-${index + 1}`,
-        template: rule.template,
-        delayCount: rule.intervalCount,
-        delayUnit: rule.intervalUnit,
-      }));
+function automationBuilderHtml(group) {
+  const rule = group.rule;
+  const intent = group.intent || '';
+  const systemPrompt = group.systemPrompt || '';
+  const businessContext = group.businessContext || '';
   return `
     <form class="automation-builder card" id="automation-builder">
       <div class="card-head">
         <div>
-          <span class="eyebrow">Manual rule</span>
-          <h2>${group ? 'Edit custom group' : 'Create custom group'}</h2>
+          <span class="eyebrow">SMS automation rule</span>
+          <h2>Edit ${esc(group.name)}</h2>
         </div>
         <button type="button" class="btn ghost" id="cancel-automation-builder">Cancel</button>
       </div>
       <div class="automation-form-grid">
         <label class="field-wide">
-          <span class="compose-label">Group name</span>
-          <input id="automation-name" maxlength="100" required value="${esc(group?.name || '')}" placeholder="Post-job follow-up" />
+          <span class="compose-label">Automation name</span>
+          <input id="automation-name" maxlength="100" readonly value="${esc(group.name)}" />
         </label>
         <label class="field-wide">
-          <span class="compose-label">Description</span>
-          <input id="automation-description" maxlength="300" value="${esc(group?.description || '')}" placeholder="What this automation is for" />
+          <span class="compose-label">Purpose for each fresh AI draft</span>
+          <textarea id="automation-intent" maxlength="1600" rows="4" required placeholder="What should this automation help the customer accomplish?">${esc(intent)}</textarea>
+          <small class="muted">The outcome this automation should work toward. Each send also uses the latest customer record and conversation.</small>
         </label>
-        <label>
-          <span class="compose-label">Cadence</span>
-          <select id="automation-cadence">
-            ${state.cadences
-              .map(({ id, label }) => `<option value="${esc(id)}" ${rule.cadence === id ? 'selected' : ''}>${esc(label)}</option>`)
-              .join('')}
-          </select>
+        <label class="field-wide">
+          <span class="compose-label">AI instructions for this automation group</span>
+          <textarea id="automation-system-prompt" maxlength="6000" rows="8" placeholder="Describe the voice, goal, questions to ask, and when to stop or hand off.">${esc(systemPrompt)}</textarea>
+          <small class="muted">Used for scheduled texts and replies from contacts enrolled in this group. Application safety and send rules still apply.</small>
         </label>
-        <div class="custom-interval" id="custom-interval" ${rule.cadence === 'custom' ? '' : 'hidden'}>
+        <label class="field-wide">
+          <span class="compose-label">Business details for this automation</span>
+          <textarea id="automation-business-context" maxlength="10000" rows="8" placeholder="Describe the services, service area, hours, policies, links, and facts this automation may use.">${esc(businessContext)}</textarea>
+          <small class="muted">The only general business context for this group's texts and replies. Current intake records and conversations are added at send time.</small>
+        </label>
+        ${rule.anchor === 'appointment' ? `<label>
+          <span class="compose-label">First send before appointment (hours)</span>
+          <input id="automation-lead-hours" type="number" min="1" max="720" value="${esc(rule.leadHours ?? 24)}" required />
+        </label>
+        <div class="custom-interval">
           <label>
-            <span class="compose-label">Every</span>
+            <span class="compose-label">Then every</span>
+            <input id="automation-interval-count" type="number" min="1" max="365" value="${esc(rule.intervalCount ?? 6)}" required />
+          </label>
+          <label>
+            <span class="compose-label">Unit</span>
+            <select id="automation-interval-unit">
+              <option value="hour">hours</option>
+            </select>
+          </label>
+        </div>
+        <label>
+          <span class="compose-label">Maximum number of sends</span>
+          <input id="automation-repeat-count" type="number" min="1" max="30" value="${esc(rule.repeatCount)}" required />
+        </label>
+        <p class="muted field-wide">The lead time must fit every send at the chosen interval. Booking changes reschedule the reminder and cancellation stops it.</p>` : `<div class="custom-interval">
+          <label>
+            <span class="compose-label">First send after</span>
+            <input id="automation-first-delay-count" type="number" min="0" max="365" value="${esc(rule.firstDelayCount ?? 1)}" required />
+          </label>
+          <label>
+            <span class="compose-label">Unit</span>
+            <select id="automation-first-delay-unit">
+              ${['hour', 'day', 'week', 'month'].map((unit) => `<option value="${unit}" ${rule.firstDelayUnit === unit ? 'selected' : ''}>${unit}s</option>`).join('')}
+            </select>
+          </label>
+        </div>
+        <div class="custom-interval">
+          <label>
+            <span class="compose-label">Then every</span>
             <input id="automation-interval-count" type="number" min="1" max="365" value="${esc(rule.intervalCount)}" />
           </label>
           <label>
             <span class="compose-label">Unit</span>
             <select id="automation-interval-unit">
-              ${['day', 'week', 'month'].map((unit) => `<option value="${unit}" ${rule.intervalUnit === unit ? 'selected' : ''}>${unit}${unit === rule.intervalUnit && rule.intervalCount === 1 ? '' : 's'}</option>`).join('')}
+              ${['hour', 'day', 'week', 'month'].map((unit) => `<option value="${unit}" ${rule.intervalUnit === unit ? 'selected' : ''}>${unit}${unit === rule.intervalUnit && rule.intervalCount === 1 ? '' : 's'}</option>`).join('')}
             </select>
           </label>
         </div>
@@ -558,21 +2027,7 @@ function automationBuilderHtml(group = null) {
             <select id="automation-end-hour">${hourOptions(rule.endHour, 1, 24)}</select>
           </label>
         </div>
-        <label class="field-wide">
-          <span class="compose-label">First send date and time (optional)</span>
-          <input id="automation-first-send" type="datetime-local" value="${esc(toDateTimeLocal(rule.firstSendAt))}" />
-          <small class="muted">Set this for a scheduled campaign. Leave blank to start after the first message delay.</small>
-        </label>
-        <div class="field-wide automation-message-head">
-          <div>
-            <span class="compose-label">Automated messages</span>
-            <small class="muted">Each delay is measured after enrollment or the previous successful send.</small>
-          </div>
-          <button type="button" class="btn ghost" id="add-automation-message">Add message</button>
-        </div>
-        <div class="field-wide automation-step-editor" id="automation-step-editor">
-          ${automationStepRows(steps)}
-        </div>
+        <p class="muted field-wide">The first delay starts at enrollment. Later intervals start when Twilio accepts the previous send. AI drafts each SMS when its job is due.</p>`}
         <label class="check field-wide">
           <input id="automation-active" type="checkbox" ${group?.activeAutomation === false ? '' : 'checked'} />
           Active and available for enrollment
@@ -580,39 +2035,9 @@ function automationBuilderHtml(group = null) {
       </div>
       <div class="automation-builder-actions">
         <span class="login-error" id="automation-builder-error"></span>
-        <button type="submit" class="btn" id="save-automation-group">${group ? 'Save changes' : 'Create group'}</button>
+        <button type="submit" class="btn" id="save-automation-group">Save changes</button>
       </div>
     </form>`;
-}
-
-function automationStepRows(steps) {
-  return steps
-    .map(
-      (step, index) => `
-      <div class="automation-step-row" data-step-row>
-        <div class="automation-step-title">
-          <strong>Message ${index + 1}</strong>
-          <button type="button" class="btn ghost remove-automation-message" ${steps.length === 1 ? 'disabled' : ''}>Remove</button>
-        </div>
-        <div class="automation-step-delay">
-          <label>
-            <span class="compose-label">Delay</span>
-            <input class="step-delay-count" type="number" min="0" max="365" value="${esc(step.delayCount ?? 1)}" required />
-          </label>
-          <label>
-            <span class="compose-label">Unit</span>
-            <select class="step-delay-unit">
-              ${['day', 'week', 'month'].map((unit) => `<option value="${unit}" ${step.delayUnit === unit ? 'selected' : ''}>${unit}${Number(step.delayCount) === 1 ? '' : 's'}</option>`).join('')}
-            </select>
-          </label>
-        </div>
-        <label>
-          <span class="compose-label">Message</span>
-          <textarea class="step-template" maxlength="1600" rows="4" required>${esc(step.template || '')}</textarea>
-        </label>
-      </div>`
-    )
-    .join('');
 }
 
 function toDateTimeLocal(value) {
@@ -649,73 +2074,17 @@ function hourOptions(selected, start, end) {
 function bindAutomationBuilder(group = null) {
   const form = el.root.querySelector('#automation-builder');
   if (!form) return;
-  const cadence = form.querySelector('#automation-cadence');
-  const customInterval = form.querySelector('#custom-interval');
-  const repeatCount = form.querySelector('#automation-repeat-count');
-  const stepEditor = form.querySelector('#automation-step-editor');
-  const cadenceDefaults = Object.fromEntries(
-    state.cadences.map((item) => [item.id, [item.intervalCount, item.intervalUnit]])
-  );
-
-  const readSteps = () =>
-    [...form.querySelectorAll('[data-step-row]')].map((row, index) => ({
-      id: `send-${index + 1}`,
-      delayCount: Number(row.querySelector('.step-delay-count').value),
-      delayUnit: row.querySelector('.step-delay-unit').value,
-      template: row.querySelector('.step-template').value,
-    }));
-
-  const renderSteps = (steps) => {
-    stepEditor.innerHTML = automationStepRows(steps);
-    repeatCount.value = String(steps.length);
-    stepEditor.querySelectorAll('.remove-automation-message').forEach((button) => {
-      button.addEventListener('click', () => {
-        const rows = readSteps();
-        const index = [...stepEditor.querySelectorAll('[data-step-row]')].indexOf(
-          button.closest('[data-step-row]')
-        );
-        if (rows.length > 1 && index >= 0) rows.splice(index, 1);
-        renderSteps(rows);
-      });
-    });
-  };
-
-  const defaultDelay = () =>
-    cadence.value === 'custom'
-      ? [
-          Number(form.querySelector('#automation-interval-count').value) || 1,
-          form.querySelector('#automation-interval-unit').value,
-        ]
-      : cadenceDefaults[cadence.value] || [1, 'day'];
-
-  const resizeSteps = (size) => {
-    const rows = readSteps();
-    const desired = Math.min(Math.max(Number(size) || 1, 1), 30);
-    const [delayCount, delayUnit] = defaultDelay();
-    while (rows.length < desired) {
-      rows.push({
-        id: `send-${rows.length + 1}`,
-        delayCount,
-        delayUnit,
-        template: rows.at(-1)?.template || 'Hi {{first_name}}, this is a quick follow-up. Reply STOP to opt out.',
-      });
+  const activeInput = form.querySelector('#automation-active');
+  const updateRequired = () => {
+    for (const id of ['#automation-system-prompt', '#automation-business-context']) {
+      form.querySelector(id).required = activeInput.checked;
     }
-    rows.length = desired;
-    renderSteps(rows);
   };
-
-  cadence?.addEventListener('change', () => {
-    customInterval.hidden = cadence.value !== 'custom';
-    const [delayCount, delayUnit] = defaultDelay();
-    renderSteps(readSteps().map((step) => ({ ...step, delayCount, delayUnit })));
-  });
-  repeatCount?.addEventListener('change', () => resizeSteps(repeatCount.value));
-  form.querySelector('#add-automation-message')?.addEventListener('click', () => {
-    resizeSteps(readSteps().length + 1);
-  });
-  renderSteps(readSteps());
+  activeInput.addEventListener('change', updateRequired);
+  updateRequired();
   form.querySelector('#cancel-automation-builder')?.addEventListener('click', () => {
     state.automationBuilderOpen = false;
+    state.automationPresetId = null;
     renderAutomations();
   });
   form.addEventListener('submit', async (event) => {
@@ -724,38 +2093,41 @@ function bindAutomationBuilder(group = null) {
     const error = form.querySelector('#automation-builder-error');
     button.disabled = true;
     error.textContent = '';
-    const steps = readSteps();
-    const firstSendValue = form.querySelector('#automation-first-send').value;
-    const firstSendAt = firstSendValue || null;
     const payload = {
-      name: form.querySelector('#automation-name').value.trim(),
-      description: form.querySelector('#automation-description').value.trim(),
+      intent: form.querySelector('#automation-intent').value.trim(),
+      systemPrompt: form.querySelector('#automation-system-prompt').value.trim(),
+      businessContext: form.querySelector('#automation-business-context').value.trim(),
       activeAutomation: form.querySelector('#automation-active').checked,
-      rule: {
-        cadence: cadence.value,
+      rule: group?.rule?.anchor === 'appointment' ? {
+        ...group.rule,
+        leadHours: Number(form.querySelector('#automation-lead-hours').value),
         intervalCount: Number(form.querySelector('#automation-interval-count').value),
         intervalUnit: form.querySelector('#automation-interval-unit').value,
-        repeatCount: steps.length,
+        repeatCount: Number(form.querySelector('#automation-repeat-count').value),
+      } : {
+        anchor: 'enrollment',
+        firstDelayCount: Number(form.querySelector('#automation-first-delay-count').value),
+        firstDelayUnit: form.querySelector('#automation-first-delay-unit').value,
+        intervalCount: Number(form.querySelector('#automation-interval-count').value),
+        intervalUnit: form.querySelector('#automation-interval-unit').value,
+        repeatCount: Number(form.querySelector('#automation-repeat-count').value),
         startHour: Number(form.querySelector('#automation-start-hour').value),
         endHour: Number(form.querySelector('#automation-end-hour').value),
-        template: steps[0]?.template.trim(),
-        firstSendAt,
-        steps,
       },
     };
     try {
-      const response = await apiFetch(
-        group ? `/api/automation-groups/${encodeURIComponent(group.id)}` : '/api/automation-groups',
-        { method: group ? 'PUT' : 'POST', body: JSON.stringify(payload) }
-      );
+      const response = await apiFetch(`/api/automation-groups/${encodeURIComponent(group.id)}`, {
+        method: 'PUT', body: JSON.stringify(payload),
+      });
       const json = await response.json();
-      if (!response.ok) throw new Error(json.detail || json.error || 'Could not save group');
+      if (!response.ok) throw new Error(json.detail || json.error || 'Could not save automation');
       state.categories = [];
       state.categoryId = json.group.id;
       state.automationBuilderOpen = false;
+      state.automationPresetId = null;
       await load();
     } catch (err) {
-      error.textContent = err.message || 'Could not save group';
+      error.textContent = err.message || 'Could not save automation';
       button.disabled = false;
     }
   });
@@ -766,25 +2138,34 @@ function groupAiBuilderHtml(group) {
     <form class="automation-builder card" id="group-ai-builder">
       <div class="card-head">
         <div>
-          <span class="eyebrow">Group AI behavior</span>
-          <h2>${esc(group.name)} instructions</h2>
+          <span class="eyebrow">Inbound reply controls</span>
+          <h2>${esc(group.name)} replies</h2>
         </div>
         <button type="button" class="btn ghost" id="cancel-group-ai">Cancel</button>
       </div>
       <div class="automation-form-grid">
         <label class="check field-wide">
           <input id="group-ai-enabled" type="checkbox" ${group.ai?.enabled ? 'checked' : ''} />
-          Apply custom AI instructions when a customer is enrolled in this group
+          Reply to texts from contacts enrolled in this group
+        </label>
+        <label class="check field-wide">
+          <input id="group-ai-grounded" type="checkbox" ${group.ai?.grounded_enabled||group.ai?.groundedEnabled ? 'checked' : ''} />
+          Answer only from approved business knowledge
+        </label>
+        <label class="check field-wide">
+          <input id="group-ai-shadow" type="checkbox" ${(group.ai?.shadow_mode??group.ai?.shadowMode??true) ? 'checked' : ''} />
+          Shadow mode (record evaluations without replying or creating CRM work)
         </label>
         <label class="field-wide">
-          <span class="compose-label">AI instructions</span>
-          <textarea id="group-ai-instructions" maxlength="6000" rows="8" placeholder="Describe the goal, questions to ask, tone, escalation conditions, and facts the AI may use.">${esc(group.ai?.instructions || '')}</textarea>
-          <small class="muted">Group instructions supplement platform safety, consent, privacy, and tool restrictions.</small>
+          <span class="compose-label">Staff alert phone</span>
+          <input id="group-ai-alert-phone" type="tel" placeholder="+15551234567" value="${esc(group.ai?.alert_phone||group.ai?.alertPhone||'')}" />
+          <small class="muted">One deduplicated alert is queued for an unsupported conversation. Use E.164.</small>
         </label>
+        <p class="muted field-wide">Replies use the AI instructions and business details in Edit automation.</p>
       </div>
       <div class="automation-builder-actions">
         <span class="login-error" id="group-ai-error"></span>
-        <button type="submit" class="btn" id="save-group-ai">Save AI instructions</button>
+        <button type="submit" class="btn" id="save-group-ai">Save reply controls</button>
       </div>
     </form>`;
 }
@@ -809,7 +2190,11 @@ function bindGroupAiBuilder(group) {
           method: 'PUT',
           body: JSON.stringify({
             enabled: form.querySelector('#group-ai-enabled').checked,
-            instructions: form.querySelector('#group-ai-instructions').value.trim(),
+            defaultForInbound: false,
+            instructions: '',
+            groundedEnabled: form.querySelector('#group-ai-grounded').checked,
+            shadowMode: form.querySelector('#group-ai-shadow').checked,
+            alertPhone: form.querySelector('#group-ai-alert-phone').value.trim()||null,
           }),
         }
       );
@@ -852,12 +2237,11 @@ async function renderAutomations() {
       <div class="card">
         <div class="card-head">
           <div>
-            <h2>Automation groups</h2>
-            <span class="muted">System sequences and manual cadence rules</span>
+            <h2>SMS automation types</h2>
+            <span class="muted">Each type has one purpose and schedule. Adding a record to its SMS table starts the automation when eligible.</span>
           </div>
-          <button type="button" class="btn" id="new-automation-group">Create group</button>
+          <button type="button" class="btn" data-open-ai-instructions>Edit AI instructions</button>
         </div>
-        ${state.automationBuilderOpen ? automationBuilderHtml() : ''}
         <div class="category-grid">
           ${state.categories
             .map((c) => {
@@ -884,11 +2268,9 @@ async function renderAutomations() {
         openAutomationGroup(btn.getAttribute('data-open-automation'))
       );
     });
-    el.root.querySelector('#new-automation-group')?.addEventListener('click', () => {
-      state.automationBuilderOpen = true;
-      renderAutomations();
+    el.root.querySelector('[data-open-ai-instructions]')?.addEventListener('click', () => {
+      switchView('ai-instructions');
     });
-    bindAutomationBuilder();
     return;
   }
 
@@ -914,6 +2296,16 @@ async function renderAutomations() {
 
   let enrollments = [];
   let sequence = null;
+  let intakeRecords = [];
+  const intakeType = category.fixedType;
+  if (intakeType) {
+    try {
+      const intake = await apiFetch(`/api/automation-intake/${encodeURIComponent(intakeType)}?pageSize=100`).then((r) => r.json());
+      intakeRecords = intake.rows || [];
+    } catch {
+      intakeRecords = [];
+    }
+  }
   try {
     const enr = await apiFetch(
       `/api/enrollments?category=${encodeURIComponent(category.id)}&pageSize=100`
@@ -931,32 +2323,54 @@ async function renderAutomations() {
   }
 
   const cadenceNote =
-    category.id === 'quote-requests'
-      ? 'Cadence: 1 text/day for 3 days, then 1 after 48h, another after 48h, and a final text after 7 days. Marketing sends stay between 9am and 7pm. A customer reply postpones the next touch for at least 24 hours; a booking, opt-out, manual removal, or final send ends the sequence.'
-      : category.id === 'appointment-reminders'
-        ? 'Sends one SMS ~24 hours before an upcoming appointment. New bookings enroll automatically, booking changes reschedule the reminder, and cancellations or expired appointments remove it without sending.'
-        : category.custom
-          ? `${category.rule.firstSendAt ? `First send scheduled for ${fmtTime(category.rule.firstSendAt)}.` : `${cadenceDisplay(category.rule)} cadence.`} ${category.rule.repeatCount} custom message${category.rule.repeatCount === 1 ? '' : 's'} constrained to ${category.rule.startHour}:00–${category.rule.endHour}:00 in the business account timezone. Each step can use its own delay and message.`
+    category.kind === 'quote'
+      ? `Up to ${category.rule?.repeatCount || 6} sends: ${category.rule?.firstDelayCount === 0 ? 'first due on submission within the send window' : `first after ${category.rule?.firstDelayCount ?? 1} ${category.rule?.firstDelayUnit || 'day'}(s)`}, then ${cadenceDisplay(category.rule).toLowerCase()}. Each message is freshly drafted from the request and current conversation. Booking or opt-out stops the sequence.`
+      : category.kind === 'reminder'
+        ? `Up to ${category.rule?.repeatCount || 1} reminder send(s), first ${category.rule?.leadHours || 24} hours before the appointment${(category.rule?.repeatCount || 1) > 1 ? `, then ${cadenceDisplay(category.rule).toLowerCase()} while the appointment is upcoming` : ''}. Booking changes reschedule and cancellation stops the reminders.`
+        : category.fixedType
+          ? `First send after ${category.rule.firstDelayCount} ${category.rule.firstDelayUnit}(s), then ${cadenceDisplay(category.rule).toLowerCase()} for ${category.rule.repeatCount} total sends. Sending is limited to ${category.rule.startHour}:00–${category.rule.endHour}:00 in the business timezone.`
           : '';
+
+  const triggerNote =
+    category.fixedType === 'quote_requests'
+      ? 'A new SMS Quote Request row starts the sequence. AI will not claim an estimate exists unless the record or conversation confirms one.'
+      : category.fixedType === 'bookings'
+        ? 'A confirmed SMS Bookings row schedules reminders. Changes reschedule and cancellation stops them.'
+        : `A new SMS ${category.fixedType === 'reviews' ? 'Reviews' : 'Contact'} row starts the sequence when the contact is eligible.`;
+
+  const intakeHtml = intakeType ? `
+    <div class="card" style="margin-bottom:12px">
+      <div class="card-head"><div><h2>${esc(category.name)} records</h2><span class="muted">Source table: sms_automation_${esc(intakeType)} · ${fmt(intakeRecords.length)} recent records</span></div></div>
+      <form id="automation-intake-form" class="automation-builder" style="padding:16px">
+        <div class="automation-form-grid">
+          <label><span class="compose-label">Name</span><input id="intake-name" maxlength="200" placeholder="Customer name" /></label>
+          <label><span class="compose-label">Phone</span><input id="intake-phone" type="tel" placeholder="+13035550123" /></label>
+          <label><span class="compose-label">Email</span><input id="intake-email" type="email" maxlength="320" placeholder="customer@example.com" /></label>
+          <label class="checkbox-field"><input id="intake-email-opt-in" type="checkbox" /> Customer consented to marketing email</label>
+          <label class="field-wide"><span class="compose-label">Email consent evidence</span><textarea id="intake-email-evidence" rows="2" maxlength="1500" placeholder="Where and when the customer agreed to marketing email"></textarea></label>
+          ${intakeType === 'bookings' ? `<label><span class="compose-label">Booking status</span><select id="intake-status"><option value="requested">Requested</option><option value="confirmed">Confirmed</option><option value="cancelled">Cancelled</option></select></label><label><span class="compose-label">Appointment in business timezone</span><input id="intake-appointment" type="datetime-local" /></label>` : ''}
+          <label class="field-wide"><span class="compose-label">Other context (JSON)</span><textarea id="intake-details" rows="4" placeholder='{"service":"moving","notes":"Customer requested a quote"}'>{}</textarea></label>
+        </div>
+        <p class="muted">Name and phone are standalone fields. Other details stay together as JSON. Marketing SMS requires recorded consent; ineligible records are saved with a skip reason.</p>
+        <div class="automation-builder-actions"><span class="login-error" id="intake-error"></span><button type="submit" class="btn" id="intake-submit">Add ${esc(category.name)} record</button><button type="button" class="btn ghost" id="intake-reset" hidden>Cancel edit</button></div>
+      </form>
+      <div class="table-scroll" style="max-height:320px"><table class="data"><thead><tr><th>Name</th><th>Phone</th><th>State</th><th>Added</th><th></th></tr></thead><tbody>
+        ${intakeRecords.length ? intakeRecords.map((record) => `<tr><td>${esc(record.name || '—')}</td><td>${esc(record.phone || '—')}</td><td>${esc(record.enrollment_status || record.intake_state || '—')}${record.skip_reason ? ` · ${esc(record.skip_reason)}` : ''}</td><td>${esc(fmtTime(record.created_at))}</td><td>${intakeType === 'bookings' ? `<button type="button" class="btn ghost" data-edit-intake="${esc(record.id)}">Edit</button>` : ''}</td></tr>`).join('') : '<tr><td colspan="5"><div class="empty">No records yet.</div></td></tr>'}
+      </tbody></table></div>
+    </div>` : '';
 
   const sequenceHtml = sequence
     ? `
       <div class="drip-sequence" style="margin:0 16px 16px">
         <h3 style="margin:0 0 8px">${esc(sequence.name)}</h3>
         <p class="muted" style="margin:0 0 12px">${esc(sequence.description || '')}</p>
-        <ol class="drip-steps">
-          ${(sequence.steps || [])
-            .map(
-              (s, i) => `
-            <li>
-              <div class="drip-step-head"><strong>Step ${i + 1}</strong> · ${esc(s.label || s.id)}</div>
-              <div class="muted drip-step-body">${esc(s.template)}</div>
-            </li>`
-            )
-            .join('')}
-        </ol>
+        <div class="automation-trigger" style="margin:0 0 14px;padding:10px 12px;border:1px solid var(--border);border-radius:10px">
+          <strong>Trigger</strong><br><span class="muted">${esc(triggerNote)}</span>
+        </div>
+        <p><strong>Purpose:</strong> ${esc(sequence.intent || 'Administrator review required')}</p>
+        <p class="muted">Outgoing AI: ${category.automationAiConfigured ? 'Configured' : 'Setup required before sending'}</p>
         ${cadenceNote ? `<p class="muted" style="margin:12px 0 0">${esc(cadenceNote)}</p>` : ''}
-        <p class="muted" style="margin:8px 0 0">Group AI: ${category.ai?.enabled ? 'custom instructions enabled' : 'default assistant behavior'}</p>
+        <p class="muted" style="margin:8px 0 0">Inbound AI: ${category.ai?.enabled ? 'enabled' : 'disabled'}</p>
       </div>`
     : `<div class="blank" style="margin:0 16px 16px">No automations yet in this group</div>`;
 
@@ -968,13 +2382,16 @@ async function renderAutomations() {
           <p class="muted" style="margin:4px 0 0">${esc(category.description || '')}</p>
         </div>
         <div class="automation-head-actions">
-          <button type="button" class="btn ghost" id="edit-group-ai">AI instructions</button>
-          ${category.custom ? '<button type="button" class="btn ghost" id="edit-automation-group">Edit rule</button><button type="button" class="btn danger" id="delete-automation-group">Delete</button>' : ''}
+          <button type="button" class="btn" id="edit-group-prompt">AI prompt &amp; context</button>
+          <button type="button" class="btn ghost" id="edit-group-ai">Inbound AI settings</button>
+          <button type="button" class="btn ghost" id="edit-group-email">Email settings</button>
+          ${category.rule ? '<button type="button" class="btn ghost" id="edit-automation-group">Edit automation</button>' : ''}
           <button type="button" class="btn ghost" id="back-automations">All groups</button>
         </div>
       </div>
+      <div class="setup-body"><p class="muted">${category.automationAiConfigured ? 'This group has its own saved AI prompt and business details.' : 'Add this group’s AI prompt and business details before it can draft SMS.'} These settings are separate from the business-wide prompt for General conversations.</p></div>
       ${state.aiBuilderOpen ? groupAiBuilderHtml(category) : ''}
-      ${state.automationBuilderOpen && category.custom ? automationBuilderHtml(category) : ''}
+      ${state.automationBuilderOpen && category.rule ? automationBuilderHtml(category) : ''}
       <div class="subcat-chips">
         ${state.categories
           .map(
@@ -1011,14 +2428,7 @@ async function renderAutomations() {
                 ? enrollments
                     .map((e) => {
                       const drip = e.metadata?.drip || null;
-                      const stepTotal =
-                        category.id === 'appointment-reminders'
-                          ? 1
-                          : category.id === 'quote-requests'
-                            ? 6
-                            : category.custom
-                              ? category.rule?.repeatCount || null
-                              : null;
+                      const stepTotal = category.rule?.repeatCount || null;
                       const dripLabel = drip
                         ? `${esc(drip.status || '—')}${
                             drip.stepIndex != null && stepTotal != null
@@ -1048,13 +2458,14 @@ async function renderAutomations() {
                 : `<tr><td colspan="7"><div class="empty">${
                     category.id === 'appointment-reminders'
                       ? 'No enrollments yet. New bookings with a valid future date auto-enroll.'
-                      : 'No enrollments yet. Enroll consented contacts from Contacts.'
+                      : 'No enrollments yet. Add an eligible record in the SMS intake form below.'
                   }</div></td></tr>`
             }
           </tbody>
         </table>
       </div>
     </div>
+    ${intakeHtml}
     ${messagesTable(data.messages || [])}
   `;
 
@@ -1069,26 +2480,79 @@ async function renderAutomations() {
     state.aiBuilderOpen = true;
     renderAutomations();
   });
-  el.root.querySelector('#delete-automation-group')?.addEventListener('click', async () => {
-    if (!confirm(`Delete “${category.name}”? Existing enrollments will be removed.`)) return;
-    const response = await apiFetch(`/api/automation-groups/${encodeURIComponent(category.id)}`, {
-      method: 'DELETE',
-    });
-    const json = await response.json();
-    if (!response.ok) {
-      alert(json.detail || json.error || 'Could not delete group');
-      return;
-    }
-    state.categories = [];
-    state.categoryId = null;
-    state.automationBuilderOpen = false;
-    await load();
+  el.root.querySelector('#edit-group-prompt')?.addEventListener('click', async () => {
+    await switchView('ai-instructions');
+    document.getElementById(`ai-group-${category.id}`)?.scrollIntoView({ behavior:'smooth', block:'start' });
+  });
+  el.root.querySelector('#edit-group-email')?.addEventListener('click', async () => {
+    state.emailGroupId = category.id;
+    await switchView('email');
   });
   el.root.querySelectorAll('[data-open-automation]').forEach((btn) => {
     btn.addEventListener('click', () => openAutomationGroup(btn.getAttribute('data-open-automation')));
   });
   bindUnenrollButtons();
-  bindAutomationBuilder(category.custom ? category : null);
+  bindAutomationBuilder(category);
+  const intakeForm = el.root.querySelector('#automation-intake-form');
+  const clearIntakeEdit = () => {
+    intakeForm?.reset();
+    if (intakeForm) intakeForm.dataset.editId = '';
+    for (const id of ['#intake-email','#intake-email-opt-in','#intake-email-evidence']) {
+      if (intakeForm) intakeForm.querySelector(id).disabled = false;
+    }
+    const button = intakeForm?.querySelector('#intake-submit');
+    if (button) button.textContent = `Add ${category.name} record`;
+    const reset = intakeForm?.querySelector('#intake-reset');
+    if (reset) reset.hidden = true;
+  };
+  intakeForm?.querySelector('#intake-reset')?.addEventListener('click', clearIntakeEdit);
+  el.root.querySelectorAll('[data-edit-intake]').forEach((button) => button.addEventListener('click', () => {
+    const record = intakeRecords.find((row) => row.id === button.dataset.editIntake);
+    if (!record || !intakeForm) return;
+    intakeForm.dataset.editId = record.id;
+    intakeForm.querySelector('#intake-name').value = record.name || '';
+    intakeForm.querySelector('#intake-phone').value = record.phone || '';
+    intakeForm.querySelector('#intake-email').value = record.email || '';
+    intakeForm.querySelector('#intake-email-opt-in').checked = Boolean(record.email_opt_in);
+    intakeForm.querySelector('#intake-email-evidence').value = record.email_consent_evidence || '';
+    for (const id of ['#intake-email','#intake-email-opt-in','#intake-email-evidence']) intakeForm.querySelector(id).disabled = true;
+    intakeForm.querySelector('#intake-details').value = JSON.stringify(record.details || {}, null, 2);
+    intakeForm.querySelector('#intake-status').value = record.status;
+    intakeForm.querySelector('#intake-appointment').value = toDateTimeLocal(record.appointment_at);
+    intakeForm.querySelector('#intake-submit').textContent = 'Save booking changes';
+    intakeForm.querySelector('#intake-reset').hidden = false;
+    intakeForm.scrollIntoView({ behavior: 'smooth', block: 'start' });
+  }));
+  intakeForm?.addEventListener('submit', async (event) => {
+    event.preventDefault();
+    const error = intakeForm.querySelector('#intake-error');
+    const submit = intakeForm.querySelector('#intake-submit');
+    error.textContent = '';
+    try {
+      const details = JSON.parse(intakeForm.querySelector('#intake-details').value || '{}');
+      if (!details || Array.isArray(details) || typeof details !== 'object') throw new Error('Other context must be a JSON object');
+      const payload = { name: intakeForm.querySelector('#intake-name').value.trim(), phone: intakeForm.querySelector('#intake-phone').value.trim(), details,
+        email: intakeForm.querySelector('#intake-email').value.trim(),
+        emailOptIn: intakeForm.querySelector('#intake-email-opt-in').checked,
+        emailConsentEvidence: intakeForm.querySelector('#intake-email-evidence').value.trim() };
+      if (intakeType === 'bookings') {
+        payload.status = intakeForm.querySelector('#intake-status').value;
+        payload.appointmentAt = intakeForm.querySelector('#intake-appointment').value || null;
+      }
+      const editId = intakeForm.dataset.editId;
+      const path = editId ? `/api/automation-intake/bookings/${encodeURIComponent(editId)}` : `/api/automation-intake/${encodeURIComponent(intakeType)}`;
+      submit.disabled = true;
+      const response = await apiFetch(path, { method: editId ? 'PATCH' : 'POST', headers: editId ? {} : { 'Idempotency-Key': intakeForm.dataset.sourceRecordId ||= crypto.randomUUID() }, body: JSON.stringify(payload) });
+      const result = await response.json();
+      if (!response.ok) throw new Error(result.detail || result.error || 'Could not save record');
+      clearIntakeEdit();
+      intakeForm.dataset.sourceRecordId = '';
+      await renderAutomations();
+    } catch (reason) {
+      error.textContent = reason.message || 'Could not save record';
+      submit.disabled = false;
+    }
+  });
   bindGroupAiBuilder(category);
   bindMessageRows(data.messages || []);
 }
@@ -1118,41 +2582,41 @@ async function renderMessaging() {
   el.storeMeta.textContent = `${fmt(list.total)} conversations · ${fmt(list.unreadTotal || 0)} unread`;
 
   const conversations = list.conversations || [];
-  if (
-    state.conversationPhone &&
-    !conversations.some((c) => c.phone === state.conversationPhone) &&
-    !state.q
-  ) {
-    // keep selection even if not on this page
-  } else if (!state.conversationPhone && conversations[0]) {
-    state.conversationPhone = conversations[0].phone;
+  if (!state.conversationId && state.conversationPhone) {
+    state.conversationId = conversations.find((c) => c.phone === state.conversationPhone && !c.groupId)?.id || null;
+  }
+  if (!state.conversationId && conversations[0] && !matchMedia('(max-width: 720px)').matches) {
+    state.conversationId = conversations[0].id;
   }
 
   let thread = null;
   let voiceCalls = [];
-  if (state.conversationPhone) {
+  if (state.conversationId) {
     const [detail, callsRes] = await Promise.all([
-      apiFetch(`/api/conversations/${encodeURIComponent(state.conversationPhone)}`).then((r) =>
+      apiFetch(`/api/conversations/${encodeURIComponent(state.conversationId)}`).then((r) =>
         r.json()
       ),
-      apiFetch(`/api/conversations/${encodeURIComponent(state.conversationPhone)}/calls`).then((r) =>
+      apiFetch(`/api/conversations/${encodeURIComponent(state.conversationId)}/calls`).then((r) =>
         r.json()
       ),
     ]);
     thread = detail.conversation || null;
+    if(thread)state.conversationPhone=thread.phone;
     voiceCalls = Array.isArray(callsRes?.calls) ? callsRes.calls : [];
-    if (thread?.unreadCount) {
-      await apiFetch(`/api/conversations/${encodeURIComponent(state.conversationPhone)}/read`, {
+    if (state.platformStaff && thread?.unreadCount) {
+      await apiFetch(`/api/conversations/${encodeURIComponent(state.conversationId)}/read`, {
         method: 'POST',
       });
       thread.unreadCount = 0;
-      const match = conversations.find((c) => c.phone === state.conversationPhone);
+      const match = conversations.find((c) => c.id === state.conversationId);
       if (match) match.unreadCount = 0;
     }
   }
+  document.querySelector('.crm')?.classList.toggle('thread-open', Boolean(thread));
+  if (thread && matchMedia('(max-width: 720px)').matches) el.pager.hidden = true;
 
   el.root.innerHTML = `
-    <div class="messaging">
+    <div class="messaging ${thread ? 'has-thread' : ''}">
       <div class="inbox card">
         <div class="card-head">
           <h2>Inbox</h2>
@@ -1166,20 +2630,19 @@ async function renderMessaging() {
             conversations.length
               ? conversations
                   .map((c) => {
-                    const active = c.phone === state.conversationPhone ? 'active' : '';
+                    const active = c.id === state.conversationId ? 'active' : '';
                     const unread = c.unreadCount > 0 ? 'unread' : '';
                     const preview =
                       c.lastDirection === 'inbound'
                         ? c.lastBody || '(empty)'
                         : `You: ${c.lastBody || '(empty)'}`;
                     return `
-              <button type="button" class="inbox-item ${active} ${unread}" data-phone="${esc(
-                      c.phone
-                    )}">
+              <button type="button" class="inbox-item ${active} ${unread}" data-conversation-id="${esc(c.id)}" data-phone="${esc(c.phone)}">
                 <div class="inbox-top">
                   <strong>${esc(c.name || c.phone)}</strong>
                   <span class="muted">${esc(fmtTimeShort(c.lastMessageAt))}</span>
                 </div>
+                <div class="muted inbox-phone">${esc(c.groupName || 'General')}</div>
                 ${c.name ? `<div class="muted inbox-phone">${esc(c.phone)}</div>` : ''}
                 <div class="inbox-preview">${esc(preview)}</div>
                 ${
@@ -1200,15 +2663,13 @@ async function renderMessaging() {
             ? `
           <div class="card-head thread-head">
             <div>
+              <button type="button" class="btn ghost thread-back" id="thread-back" aria-label="Back to inbox">← Inbox</button>
               <h2>${esc(thread.name || thread.phone)}</h2>
-              <p class="muted">${esc(thread.phone)} · ${fmt(thread.messageCount)} messages${
+              <p class="muted">${esc(thread.phone)} · ${esc(thread.groupName || 'General')} · ${fmt(thread.messageCount)} messages${
                 thread.aiPausedAt ? ' · AI paused' : ''
               }</p>
             </div>
             <div class="thread-actions">
-              <button type="button" class="btn btn-ghost" id="call-btn" ${
-                thread.optedOut ? 'disabled' : ''
-              }>Call</button>
               <button type="button" class="btn btn-ghost" id="ai-pause-btn">
                 ${thread.aiPausedAt ? 'Resume AI' : 'Pause AI'}
               </button>
@@ -1227,7 +2688,7 @@ async function renderMessaging() {
                       ? 'Customer'
                       : m.meta?.role === 'assistant'
                         ? 'AI'
-                        : 'Opek'
+                        : esc(state.tenant?.shortName || state.tenant?.name || 'Business')
                   }</span>
                   ${
                     m.meta?.role === 'assistant'
@@ -1235,6 +2696,10 @@ async function renderMessaging() {
                       : ''
                   }
                   <span>${esc(fmtTime(m.createdAt))}</span>
+                  ${m.direction === 'inbound' ? `<select class="message-route" data-reassign-message="${esc(m.id)}" aria-label="Move message to conversation">
+                    <option value="" ${!thread.groupId ? 'selected' : ''}>General</option>
+                    ${state.categories.map(g => `<option value="${esc(g.id)}" ${thread.groupId === g.id ? 'selected' : ''}>${esc(g.name)}</option>`).join('')}
+                  </select>` : ''}
                   ${
                     m.direction === 'outbound'
                       ? `<span class="status ${esc(m.deliverability)}">${esc(
@@ -1273,23 +2738,42 @@ async function renderMessaging() {
     load();
   });
 
-  el.root.querySelectorAll('[data-phone]').forEach((btn) => {
+  el.root.querySelector('#thread-back')?.addEventListener('click', () => {
+    state.conversationId = null;
+    state.conversationPhone = null;
+    load().then(() => el.root.querySelector('.inbox-item')?.focus({ preventScroll: true }));
+  });
+
+  el.root.querySelectorAll('[data-conversation-id]').forEach((btn) => {
     btn.addEventListener('click', () => {
+      state.conversationId = btn.getAttribute('data-conversation-id');
       state.conversationPhone = btn.getAttribute('data-phone');
-      load();
+      load().then(() => {
+        if (matchMedia('(max-width: 720px)').matches) el.root.querySelector('#thread-back')?.focus({ preventScroll: true });
+      });
     });
   });
+
+  el.root.querySelectorAll('[data-reassign-message]').forEach(select => select.addEventListener('change',async()=>{
+    const response=await apiFetch(`/api/conversation-messages/${encodeURIComponent(select.dataset.reassignMessage)}/reassign`,{
+      method:'POST',body:JSON.stringify({groupId:select.value||null})
+    });
+    const result=await response.json();
+    if(!response.ok){alert(result.detail||result.error||'Could not move message');await load();return;}
+    state.conversationId=result.conversationId;
+    await load();
+  }));
 
   const scroll = el.root.querySelector('#thread-scroll');
   if (scroll) scroll.scrollTop = scroll.scrollHeight;
 
   el.root.querySelector('#ai-pause-btn')?.addEventListener('click', async () => {
-    if (!state.conversationPhone) return;
+    if (!state.conversationId) return;
     const paused = Boolean(thread?.aiPausedAt);
     const path = paused ? 'resume' : 'pause';
     try {
       const res = await apiFetch(
-        `/api/conversations/${encodeURIComponent(state.conversationPhone)}/ai/${path}`,
+        `/api/conversations/${encodeURIComponent(state.conversationId)}/ai/${path}`,
         {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
@@ -1305,25 +2789,17 @@ async function renderMessaging() {
     }
   });
 
-  el.root.querySelector('#call-btn')?.addEventListener('click', () => {
-    if (!state.conversationPhone || thread?.optedOut) return;
-    openCallSection({
-      phone: state.conversationPhone,
-      name: thread?.name || '',
-    });
-  });
-
   const form = el.root.querySelector('#reply-form');
   form?.addEventListener('submit', async (e) => {
     e.preventDefault();
     const textarea = el.root.querySelector('#reply-body');
     const hint = el.root.querySelector('#reply-hint');
     const body = textarea?.value.trim() || '';
-    if (!body || !state.conversationPhone) return;
+    if (!body || !state.conversationId) return;
     hint.textContent = 'Sending…';
     try {
       const res = await apiFetch(
-        `/api/conversations/${encodeURIComponent(state.conversationPhone)}/reply`,
+        `/api/conversations/${encodeURIComponent(state.conversationId)}/reply`,
         {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
@@ -1393,35 +2869,33 @@ async function renderContacts() {
   const rows = data.contacts || [];
   const consentedCount = rows.filter((c) => c.canEnroll || c.smsMarketingConsent === true).length;
   el.kpi.innerHTML = [
-    kpiCard('Directory', data.configured === false ? '—' : data.total ?? rows.length),
-    kpiCard('Consented (page)', consentedCount),
-    kpiCard('Configured', data.supabaseConfigured || data.configured ? 'Yes' : 'No'),
+    kpiCard('Contacts', data.configured === false ? '—' : data.total ?? rows.length),
+    kpiCard('SMS consent (this page)', consentedCount),
   ].join('');
   el.storeMeta.textContent = data.configured
-    ? `${fmt(rows.length)} contacts · enroll only if SMS marketing consent = yes`
-    : data.error || 'Connect Supabase to load contacts';
+    ? `${fmt(data.total ?? rows.length)} contacts`
+    : 'No contacts yet.';
 
   el.root.innerHTML = `
     <div class="card">
       <div class="card-head contact-tabs">
         <div class="subcat-chips" style="padding:0">
-          <button type="button" class="chip active" data-contact-tab="directory">Supabase directory</button>
+          <button type="button" class="chip active" data-contact-tab="directory">Contacts</button>
           <button type="button" class="chip" data-contact-tab="activity">SMS activity</button>
         </div>
         <div class="contact-filters">
           <label class="unread-toggle">
             <input type="checkbox" id="consented-only" ${state.consentedOnly ? 'checked' : ''} />
-            Consented only
+            Has SMS consent
           </label>
-          <select id="source-filter" aria-label="Source filter">
-            <option value="">All sources</option>
+          <select id="source-filter" aria-label="Contact type">
+            <option value="">All contact types</option>
             ${[
-              ['prebooking', 'Quote / prebooking'],
-              ['booking', 'Booking'],
-              ['contact', 'Contact form'],
-              ['in_home_estimate', 'In-home estimate'],
-              ['phone_agent', 'Phone agent'],
-              ['customer', 'Customers table'],
+              ['prebooking', 'Lead'],
+              ['booking', 'Appointment'],
+              ['contact', 'Inquiry'],
+              ['phone_agent', 'Phone contact'],
+              ['customer', 'Customer'],
             ]
               .map(
                 ([s, label]) =>
@@ -1432,12 +2906,12 @@ async function renderContacts() {
         </div>
       </div>
       <p class="muted directory-note">
-        Consented contacts can be enrolled in automation groups or sent a custom SMS. Not auto-enrolled.
+        To start an automation, add a record under its type in Automations. Sending marketing SMS requires recorded consent.
       </p>
       ${
         data.configured === false
           ? `<div class="empty">${esc(
-              data.error || 'Set SUPABASE_URL and SUPABASE_SERVICE_ROLE_KEY to pull contacts.'
+              'No contacts yet.'
             )}</div>`
           : `
       <div class="table-scroll">
@@ -1446,12 +2920,10 @@ async function renderContacts() {
             <tr>
               <th>Name</th>
               <th>Phone</th>
-              <th>Source</th>
+              <th>Contact type</th>
               <th>Consent</th>
               <th>Enrolled</th>
-              <th>Automation group</th>
               <th>Message</th>
-              <th>Call</th>
             </tr>
           </thead>
           <tbody>
@@ -1461,12 +2933,12 @@ async function renderContacts() {
                     .map((c) => {
                       const canEnroll = c.canEnroll || c.smsMarketingConsent === true;
                       return `
-              <tr class="contact-row" data-open-call="${esc(c.phone)}" data-name="${esc(
+              <tr class="contact-row" tabindex="0" data-contact="${esc(c.phone || '')}" data-name="${esc(
                         c.name || ''
                       )}">
                 <td>${esc(c.name || '—')}</td>
                 <td>${esc(c.phone || '—')}</td>
-                <td class="muted">${esc((c.sources || [c.primarySource]).filter(Boolean).join(', '))}</td>
+                <td class="muted">${esc((c.sources || [c.primarySource]).filter(Boolean).map(contactTypeLabel).join(', '))}</td>
                 <td>${
                   c.smsMarketingConsent === true
                     ? '<span class="consent ok">Yes</span>'
@@ -1492,33 +2964,6 @@ async function renderContacts() {
                   }
                 </td>
                 <td>
-                  <div class="enroll-row">
-                    <select class="enroll-select" data-phone="${esc(c.phone)}" data-name="${esc(
-                      c.name || ''
-                    )}" data-source="${esc(c.primarySource || '')}" data-email="${esc(
-                      c.email || ''
-                    )}">
-                      <option value="">Choose group…</option>
-                      ${state.categories
-                        .filter(
-                          (cat) =>
-                            cat.activeAutomation !== false &&
-                            (canEnroll || cat.id === 'appointment-reminders')
-                        )
-                        .map(
-                          (cat) =>
-                            `<option value="${esc(cat.id)}" ${
-                              (c.enrollments || []).includes(cat.id) ? 'disabled' : ''
-                            }>${esc(cat.name)}${
-                              (c.enrollments || []).includes(cat.id) ? ' (enrolled)' : ''
-                            }</option>`
-                        )
-                        .join('')}
-                    </select>
-                    <button type="button" class="btn ghost enroll-btn">Enroll</button>
-                  </div>
-                </td>
-                <td>
                   ${
                     canEnroll
                       ? `<button type="button" class="btn ghost message-btn"
@@ -1527,15 +2972,10 @@ async function renderContacts() {
                       : `<span class="muted">—</span>`
                   }
                 </td>
-                <td>
-                  <button type="button" class="btn ghost call-contact-btn"
-                    data-phone="${esc(c.phone)}"
-                    data-name="${esc(c.name || '')}">Call</button>
-                </td>
               </tr>`;
                     })
                     .join('')
-                : `<tr><td colspan="8"><div class="empty">No contacts found.</div></td></tr>`
+                : `<tr><td colspan="6"><div class="empty">No contacts found.</div></td></tr>`
             }
           </tbody>
         </table>
@@ -1561,46 +3001,6 @@ async function renderContacts() {
     state.page = 1;
     load();
   });
-  el.root.querySelectorAll('.enroll-btn').forEach((btn) => {
-    btn.addEventListener('click', async () => {
-      const row = btn.closest('tr');
-      const select = row?.querySelector('.enroll-select');
-      const phone = select?.getAttribute('data-phone');
-      const categoryId = select?.value;
-      if (!phone || !categoryId) return;
-      let appointmentDate = null;
-      let preferredTime = null;
-      if (categoryId === 'appointment-reminders') {
-        appointmentDate = window.prompt('Appointment date (YYYY-MM-DD)');
-        if (!appointmentDate) return;
-        preferredTime = window.prompt(
-          'Preferred time or window (optional, for example "morning 8-12")'
-        );
-      }
-      btn.disabled = true;
-      try {
-        const res = await apiFetch('/api/directory/enroll', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({
-            phone,
-            categoryId,
-            name: select.getAttribute('data-name') || null,
-            email: select.getAttribute('data-email') || null,
-            source: select.getAttribute('data-source') || null,
-            appointmentDate,
-            preferredTime: preferredTime || null,
-          }),
-        });
-        const json = await res.json();
-        if (!res.ok) throw new Error(json.detail || json.error || 'Enroll failed');
-        await load();
-      } catch (err) {
-        alert(err.message || 'Failed to enroll');
-        btn.disabled = false;
-      }
-    });
-  });
   bindUnenrollButtons();
   el.root.querySelectorAll('.message-btn').forEach((btn) => {
     btn.addEventListener('click', (e) => {
@@ -1611,16 +3011,7 @@ async function renderContacts() {
       });
     });
   });
-  bindCallContactButtons();
-  el.root.querySelectorAll('[data-open-call]').forEach((row) => {
-    row.addEventListener('click', (e) => {
-      if (e.target.closest('button, select, a, input')) return;
-      openCallSection({
-        phone: row.getAttribute('data-open-call') || '',
-        name: row.getAttribute('data-name') || '',
-      });
-    });
-  });
+  bindContactRows(rows);
 }
 
 function openMessageComposer({ phone, name }) {
@@ -1678,15 +3069,12 @@ function openMessageComposer({ phone, name }) {
       });
       const json = await res.json();
       if (!res.ok) throw new Error(json.detail || json.error || 'Send failed');
-      hint.textContent = `Sent${json.message?.sid ? ` · ${json.message.sid}` : ''}`;
+      hint.textContent = 'Queued for sending';
       body.value = '';
       count.textContent = '0 / 1600';
       setTimeout(() => {
         closeDrawer();
-        state.view = 'messaging';
-        state.conversationPhone = json.to || phone;
-        setActiveNav();
-        load();
+        switchView('messaging', { conversationPhone: json.to || phone, conversationId: null, force: true });
       }, 700);
     } catch (err) {
       hint.textContent = err.message || 'Failed to send';
@@ -1746,7 +3134,7 @@ async function renderLocalContacts() {
     <div class="card">
       <div class="card-head contact-tabs">
         <div class="subcat-chips" style="padding:0">
-          <button type="button" class="chip" data-contact-tab="directory">Supabase directory</button>
+          <button type="button" class="chip" data-contact-tab="directory">Contacts</button>
           <button type="button" class="chip active" data-contact-tab="activity">SMS activity</button>
         </div>
         <select id="contact-status" aria-label="Consent filter">
@@ -1767,7 +3155,6 @@ async function renderLocalContacts() {
               <th>Messages</th>
               <th>Last status</th>
               <th>Last activity</th>
-              <th>Call</th>
             </tr>
           </thead>
           <tbody>
@@ -1776,9 +3163,7 @@ async function renderLocalContacts() {
                 ? rows
                     .map(
                       (c) => `
-              <tr data-contact="${esc(c.phone)}" data-open-call="${esc(
-                        c.phone
-                      )}" data-name="${esc(c.name || '')}" class="contact-row">
+              <tr data-contact="${esc(c.phone)}" data-name="${esc(c.name || '')}" class="contact-row">
                 <td>${esc(c.phone)}</td>
                 <td class="muted">${esc(c.name || '—')}</td>
                 <td>${consentBadge(c)}</td>
@@ -1787,15 +3172,10 @@ async function renderLocalContacts() {
                         c.lastDeliverability || '—'
                       )}</span></td>
                 <td class="muted">${esc(fmtTime(c.lastMessageAt))}</td>
-                <td>
-                  <button type="button" class="btn ghost call-contact-btn"
-                    data-phone="${esc(c.phone)}"
-                    data-name="${esc(c.name || '')}">Call</button>
-                </td>
               </tr>`
                     )
                     .join('')
-                : `<tr><td colspan="7"><div class="empty">No SMS activity contacts yet.</div></td></tr>`
+                : `<tr><td colspan="6"><div class="empty">No SMS activity contacts yet.</div></td></tr>`
             }
           </tbody>
         </table>
@@ -1892,7 +3272,10 @@ async function renderOptOuts() {
     btn.addEventListener('click', async (e) => {
       e.stopPropagation();
       const phone = btn.getAttribute('data-opt-in');
-      await apiFetch(`/api/contacts/${encodeURIComponent(phone)}/opt-in`, { method: 'POST' });
+      const evidence = prompt('Record how and when this contact agreed to receive SMS:');
+    if (!evidence?.trim()) return;
+    const response = await apiFetch(`/api/contacts/${encodeURIComponent(phone)}/opt-in`, { method: 'POST', body: JSON.stringify({ evidence }) });
+    if (!response.ok) { alert((await response.json()).error || 'Could not record consent'); return; }
       await load();
     });
   });
@@ -1901,31 +3284,19 @@ async function renderOptOuts() {
 }
 
 function bindContactRows(rows) {
-  bindCallContactButtons();
   el.root.querySelectorAll('[data-contact]').forEach((row) => {
+    const showDetails = () => {
+      const contact = rows.find(c => c.phone === row.getAttribute('data-contact'));
+      if (contact) openDrawer(contact.name || contact.phone, contactDetail(contact));
+    };
     row.addEventListener('click', (e) => {
-      if (e.target.closest('[data-opt-in], button, select, a, input')) return;
-      openCallSection({
-        phone: row.getAttribute('data-open-call') || row.getAttribute('data-contact') || '',
-        name: row.getAttribute('data-name') || byPhoneName(rows, row.getAttribute('data-contact')),
-      });
+      if (e.target.closest('button, select, a, input')) return;
+      showDetails();
     });
-  });
-}
-
-function byPhoneName(rows, phone) {
-  const hit = (rows || []).find((c) => c.phone === phone);
-  return hit?.name || '';
-}
-
-function bindCallContactButtons() {
-  el.root.querySelectorAll('.call-contact-btn').forEach((btn) => {
-    btn.addEventListener('click', (e) => {
-      e.stopPropagation();
-      openCallSection({
-        phone: btn.getAttribute('data-phone') || '',
-        name: btn.getAttribute('data-name') || '',
-      });
+    row.addEventListener('keydown', event => {
+      if (event.target !== row || !['Enter', ' '].includes(event.key)) return;
+      event.preventDefault();
+      showDetails();
     });
   });
 }
@@ -1942,8 +3313,9 @@ async function renderDeliverability() {
   el.pager.hidden = true;
   el.status.disabled = true;
 
-  const res = await apiFetch('/api/deliverability');
-  const data = await res.json();
+  const [res,operationsRes] = await Promise.all([apiFetch('/api/deliverability'),state.platformStaff?apiFetch('/api/operations'):Promise.resolve(new Response('{}',{status:403}))]);
+  const data = await res.json(),operations=operationsRes.ok?await operationsRes.json():{},grounded=operations.grounded||{};
+  const estimatedUsd = value => value == null ? 'Rate not set' : `$${(Number(value)/1000000).toFixed(4)}`;
   renderKpis(data);
   el.storeMeta.textContent = `${fmt(data.total)} messages tracked`;
 
@@ -1967,6 +3339,23 @@ async function renderDeliverability() {
             : `<div class="empty" style="grid-column:1/-1">No deliverability data yet.</div>`
         }
       </div>
+    </div>
+    <div class="card" style="margin-top:16px" ${state.platformStaff ? '' : 'hidden'}>
+      <div class="card-head"><div><span class="eyebrow">Grounded AI operations</span><h2>Knowledge, handoffs, and compliance</h2></div></div>
+      <div class="facet-grid">
+        <div class="facet"><div class="n">${fmt(grounded.ingestionFailures||0)}</div><div class="l">Ingestion failures</div></div>
+        <div class="facet"><div class="n">${fmt(grounded.retrievalMisses||0)}</div><div class="l">Retrieval misses · 30d</div></div>
+        <div class="facet"><div class="n">${fmt(grounded.aiValidationFailures||0)}</div><div class="l">AI validation failures · 30d</div></div>
+        <div class="facet"><div class="n">${Math.round(Number(grounded.handoffRate||0)*100)}%</div><div class="l">Handoff rate · 30d</div></div>
+        <div class="facet"><div class="n">${fmt(grounded.aiUsage?.runs||0)}</div><div class="l">AI runs this month</div></div>
+        <div class="facet"><div class="n">${estimatedUsd(grounded.aiUsage?.estimatedCostMicros)}</div><div class="l">Estimated AI cost · month</div></div>
+        <div class="facet"><div class="n">${estimatedUsd(grounded.smsUsage?.estimatedCostMicros)}</div><div class="l">Estimated SMS cost · month</div></div>
+        <div class="facet"><div class="n">${fmt(grounded.smsUsage?.segments||0)}</div><div class="l">SMS segments · month</div></div>
+        <div class="facet"><div class="n">${fmt(grounded.responseLatencyP95Ms||0)}ms</div><div class="l">AI latency p95 · 30d</div></div>
+        <div class="facet"><div class="n">${fmt(grounded.deliveryFailures||0)}</div><div class="l">Delivery failures · 30d</div></div>
+        <div class="facet"><div class="n">${esc(grounded.registration?.state||'not started')}</div><div class="l">Twilio registration</div></div>
+      </div>
+      <div class="table-wrap"><table><thead><tr><th>Queue</th><th>Backlog</th><th>Oldest age</th><th>Failed</th></tr></thead><tbody>${(grounded.queues||[]).map(q=>`<tr><td>${esc(q.queue)}</td><td>${fmt(q.backlog)}</td><td>${q.oldest_age_seconds==null?'—':fmt(q.oldest_age_seconds)+'s'}</td><td>${fmt(q.failed)}</td></tr>`).join('')||'<tr><td colspan="4" class="empty">No grounded-AI queue activity.</td></tr>'}</tbody></table></div>
     </div>
   `;
 }
@@ -2066,10 +3455,10 @@ function contactDetail(c) {
   if (!c) return `<div class="empty">Contact not found</div>`;
   return `
     <div class="kv">
-      <div class="row"><div class="k">Phone</div><div class="v" id="drawer-call-phone">${esc(
+      <div class="row"><div class="k">Phone</div><div class="v">${esc(
         c.phone
       )}</div></div>
-      <div class="row"><div class="k">Name</div><div class="v" id="drawer-call-name">${esc(
+      <div class="row"><div class="k">Name</div><div class="v">${esc(
         c.name || '—'
       )}</div></div>
       <div class="row"><div class="k">Consent</div><div class="v">${consentBadge(c)}</div></div>
@@ -2107,7 +3496,6 @@ function contactDetail(c) {
               : `<button type="button" class="btn ghost" id="drawer-opt-out">Mark opted out</button>`
           }
           <button type="button" class="btn ghost" id="drawer-open-thread">Open thread</button>
-          <button type="button" class="btn" id="drawer-open-call">Call</button>
         </div>
       </div>
     </div>
@@ -2152,7 +3540,9 @@ function renderPager(data) {
 function setTitle(title, sub) {
   el.title.textContent = title;
   el.sub.textContent = sub;
+  if (el.toolbarTenant) el.toolbarTenant.textContent = state.tenant?.shortName || state.tenant?.name || 'Workspace';
   if (el.toolbarSection) el.toolbarSection.textContent = title;
+  document.title = `${title} · ${state.tenant?.shortName || state.tenant?.name || 'Workspace'} · E2.Local CRM`;
 }
 
 function openDrawer(title, html) {
@@ -2171,7 +3561,10 @@ function openDrawer(title, html) {
   el.drawerBody.querySelector('#drawer-opt-in')?.addEventListener('click', async () => {
     const phone = el.drawerBody.querySelector('.kv .v')?.textContent;
     if (!phone) return;
-    await apiFetch(`/api/contacts/${encodeURIComponent(phone)}/opt-in`, { method: 'POST' });
+    const evidence = prompt('Record how and when this contact agreed to receive SMS:');
+    if (!evidence?.trim()) return;
+    const response = await apiFetch(`/api/contacts/${encodeURIComponent(phone)}/opt-in`, { method: 'POST', body: JSON.stringify({ evidence }) });
+    if (!response.ok) { alert((await response.json()).error || 'Could not record consent'); return; }
     closeDrawer();
     await load();
   });
@@ -2185,20 +3578,8 @@ function openDrawer(title, html) {
   el.drawerBody.querySelector('#drawer-open-thread')?.addEventListener('click', () => {
     const phone = el.drawerBody.querySelector('.kv .v')?.textContent;
     if (!phone) return;
-    state.view = 'messaging';
-    state.conversationPhone = phone;
-    state.page = 1;
     closeDrawer();
-    setActiveNav();
-    load();
-  });
-  el.drawerBody.querySelector('#drawer-open-call')?.addEventListener('click', () => {
-    const phone =
-      el.drawerBody.querySelector('#drawer-call-phone')?.textContent ||
-      el.drawerBody.querySelector('.kv .v')?.textContent;
-    const name = el.drawerBody.querySelector('#drawer-call-name')?.textContent || '';
-    if (!phone) return;
-    openCallSection({ phone, name: name === '—' ? '' : name });
+    switchView('messaging', { conversationPhone: phone, conversationId: null, force: true });
   });
 }
 
@@ -2325,13 +3706,38 @@ function esc(value) {
 async function forceLogin(message = '') {
   renderLoginScreen({
     errorMessage: message,
-    onSuccess: async () => {
-      await loadTenantContext();
-      updateAuthChrome();
-      await load();
-      connectLive();
-    },
+    onSuccess: openAuthenticatedWorkspace,
   });
+}
+
+function authFailureMessage(response) {
+  return response.status === 403
+    ? 'This account does not have access to the CRM. Ask a workspace administrator to check your access.'
+    : 'Your sign-in could not be verified. Try again or sign out and use another account.';
+}
+
+async function openAuthenticatedWorkspace() {
+  const me = await apiFetch('/api/auth/me', { tenant: false });
+  if (me.status === 401 || me.status === 403) throw new Error(authFailureMessage(me));
+  if (!me.ok) throw new Error('The CRM service is temporarily unavailable. Try again shortly.');
+  const session = await me.json();
+  document.querySelectorAll('[data-platform-nav]').forEach(node => { node.hidden = !session.capabilities?.platformStaff; });
+  state.platformStaff = Boolean(session.capabilities?.platformStaff);
+  document.getElementById('add-business').hidden = !state.platformStaff;
+  await loadTenantContext();
+  if (!state.tenant && state.platformStaff) { state.view = 'platform-accounts'; setActiveNav(); }
+  showCrmApp();
+  updateAuthChrome();
+  if (runtimeConfig.previewReadOnly) {
+    const banner = document.getElementById('demo-banner');
+    banner.textContent = 'Development preview · Test Clerk login · Sample data only · SMS, calls, and changes disabled';
+    banner.hidden = false;
+    document.getElementById('clerk-organization-switcher').hidden = true;
+    setLiveStatus(false, 'Sample data');
+    installDemoActionGuard();
+  }
+  await load();
+  if (!runtimeConfig.previewReadOnly && !document.getElementById('crm-app').hidden && state.tenant && state.tenant.smsRead!==false) connectLive();
 }
 
 function updateAuthChrome() {
@@ -2348,7 +3754,9 @@ function updateAuthChrome() {
       .slice(0, 2)
       .toUpperCase();
   }
-  if (tenant) document.title = `${tenant.shortName || tenant.name} · SMS CRM`;
+  if (tenant) document.title = `${tenant.shortName || tenant.name} · E2.Local CRM`;
+  syncSidebarBrand();
+  initNavFind();
 }
 
 async function loadTenantContext() {
@@ -2358,7 +3766,12 @@ async function loadTenantContext() {
   state.tenants = Array.isArray(data.tenants) ? data.tenants : [];
   const stored = getTenantId();
   state.tenant = state.tenants.find((tenant) => tenant.id === stored) || data.currentTenant || state.tenants[0];
-  if (!state.tenant) throw new Error('No business account is configured');
+  if (!state.tenant) { if (state.platformStaff) return; throw new Error('No business account is configured'); }
+  if(state.tenant.smsRead===false){
+    state.view='web-forms';
+    document.querySelectorAll('#nav .nav-item').forEach(node=>{if(!node.hasAttribute('data-platform-nav')&&node.dataset.view!=='web-forms')node.hidden=true;});
+    setActiveNav();
+  }
   setTenantId(state.tenant.id);
   if (el.tenantSelect) {
     el.tenantSelect.innerHTML = state.tenants
@@ -2393,22 +3806,24 @@ async function boot() {
       await forceLogin('');
       return;
     }
-    const me = await apiFetch('/api/auth/me', { tenant: false });
-    if (!me.ok) {
-      await signOut();
-      await forceLogin('This account does not have access to this business workspace.');
-      return;
-    }
-    await loadTenantContext();
-    showCrmApp();
-    updateAuthChrome();
-    await load();
-    connectLive();
+    await openAuthenticatedWorkspace();
   } catch (err) {
     console.error(err);
-    await forceLogin(err.message || 'Auth failed to start');
+    if (getSession()) {
+      renderAccessScreen({ errorMessage: err.message || 'Could not open the CRM.', onRetry: openAuthenticatedWorkspace });
+    } else {
+      await forceLogin(err.message || 'Auth failed to start');
+    }
   }
 }
+
+function applyWorkspacePermissions() {
+  if (isDemoMode() || state.platformStaff === undefined || state.platformStaff) return;
+  document.querySelectorAll(staffActionSelector).forEach(node=>{node.hidden=true;if ('disabled' in node) node.disabled=true;});
+  document.querySelectorAll('[data-view]').forEach(node=>{if(!canOpenWorkspace(node.dataset.view,false,state.tenant))node.hidden=true;});
+  document.querySelectorAll('#nav section').forEach(section=>{section.hidden=![...section.querySelectorAll('.nav-item')].some(node=>!node.hidden);});
+}
+new MutationObserver(applyWorkspacePermissions).observe(document.getElementById('crm-app'),{childList:true,subtree:true});
 
 function installDemoActionGuard() {
   const selector = 'button[type="submit"], #call-place, #ai-pause-btn, #compose-send, #save-automation-group, #save-group-ai, #delete-automation-group, #drawer-opt-in, #drawer-opt-out, .enroll-btn, .unenroll-btn, [data-opt-in], [data-enrollment-id]';
@@ -2438,6 +3853,10 @@ function setLiveStatus(online, label) {
 }
 
 function connectLive() {
+  if (globalThis.SMS_CONFIG?.apiBase) {
+    connectSupabaseLive(() => refreshFromBackground().catch(() => {}), setLiveStatus).catch(() => setLiveStatus(false, 'Live updates unavailable'));
+    return;
+  }
   const proto = location.protocol === 'https:' ? 'wss:' : 'ws:';
   let ws;
   let retryMs = 1000;
@@ -2455,7 +3874,7 @@ function connectLive() {
         String(evt.record.contactPhone).replace(/\D/g, '').slice(-10) ===
           String(state.conversationPhone).replace(/\D/g, '').slice(-10)
       ) {
-        load().catch(() => {});
+        refreshFromBackground().catch(() => {});
         return;
       }
       if (
@@ -2466,16 +3885,16 @@ function connectLive() {
         String(evt.record.phone).replace(/\D/g, '').slice(-10) ===
           String(state.conversationPhone).replace(/\D/g, '').slice(-10)
       ) {
-        load().catch(() => {});
+        refreshFromBackground().catch(() => {});
         return;
       }
-      load().catch(() => {});
+      refreshFromBackground().catch(() => {});
     }, 250);
   };
 
   const startPollFallback = () => {
     if (pollTimer) return;
-    pollTimer = setInterval(() => load().catch(() => {}), 15000);
+    pollTimer = setInterval(() => refreshFromBackground().catch(() => {}), 15000);
   };
   const stopPollFallback = () => {
     if (!pollTimer) return;

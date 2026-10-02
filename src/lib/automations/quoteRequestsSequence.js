@@ -23,68 +23,48 @@ export const QUOTE_REQUESTS_SEQUENCE = {
       id: 'day-1',
       label: 'Day 1 — 1 SMS, 24h after enroll',
       delayMs: 1 * DAY,
-      template:
-        'Hi {{first_name}} — Opek here. Your estimate is {{quoted_price}}. Want help choosing a pickup day? Reply here or book at https://opekjunkremoval.com/booking Reply STOP to opt out.',
+      intent: 'First quote follow-up: acknowledge the request and ask whether the customer needs clarification about the estimate or scope.',
     },
     {
       index: 1,
       id: 'day-2',
       label: 'Day 2 — 1 SMS, 24h after previous',
       delayMs: 1 * DAY,
-      template:
-        'Hi {{first_name}}, any questions about your {{quoted_price}} estimate? Reply with the items, timing, or access details you want us to review. Reply STOP to opt out.',
+      intent: 'Second quote follow-up: check whether scope or timing changed without repeating an answered question.',
     },
     {
       index: 2,
       id: 'day-3',
       label: 'Day 3 — 1 SMS, 24h after previous',
       delayMs: 1 * DAY,
-      template:
-        'Opek follow-up: if you would like to move ahead with the {{quoted_price}} estimate, send a preferred day and time window or book online: https://opekjunkremoval.com/booking Reply STOP to opt out.',
+      intent: 'Third quote follow-up: if the customer seems ready, invite a practical next step without claiming a booking.',
     },
     {
       index: 3,
       id: 'after-48h-1',
       label: '1 SMS, 48h after Day 3',
       delayMs: 2 * DAY,
-      template:
-        'Hi {{first_name}}, are you still planning this project? Your Opek estimate is {{quoted_price}}. Reply with a date if you want us to help schedule it. Reply STOP to opt out.',
+      intent: 'Fourth quote follow-up: ask whether a concern is holding up the decision.',
     },
     {
       index: 4,
       id: 'after-48h-2',
       label: '1 SMS, 48h after previous',
       delayMs: 2 * DAY,
-      template:
-        'Checking in from Opek — if your plans or item list changed, reply and we can update the {{quoted_price}} estimate before you book. Reply STOP to opt out.',
+      intent: 'Fifth quote follow-up: offer to review changed project details if relevant.',
     },
     {
       index: 5,
       id: 'final-week',
       label: 'Final — 1 SMS, 7 days after previous',
       delayMs: 7 * DAY,
-      template:
-        'Final follow-up from Opek: your estimate is {{quoted_price}}. We will close this reminder sequence, but you can reply anytime or book at https://opekjunkremoval.com/booking Reply STOP to opt out.',
+      intent: 'Final quote follow-up: close the sequence politely and invite a future reply.',
     },
   ],
 };
 
 export function getQuoteRequestsStep(stepIndex) {
   return QUOTE_REQUESTS_SEQUENCE.steps[stepIndex] || null;
-}
-
-export function renderTemplate(template, vars = {}) {
-  const map = {
-    name: clean(vars.name) || 'there',
-    first_name: clean(vars.first_name) || firstName(vars.name) || 'there',
-    phone: clean(vars.phone) || '',
-    quoted_price:
-      formatQuotedPrice(vars.quoted_price, vars.service_type) || 'the estimate we sent you',
-  };
-  return String(template || '').replace(
-    /\{\{\s*(name|first_name|phone|quoted_price)\s*\}\}/gi,
-    (_, key) => map[String(key).toLowerCase()] ?? ''
-  );
 }
 
 /** True for Local Moving / Moving Labor (hourly) — never SMS a job total. */
@@ -186,16 +166,4 @@ export function initialDripMetadata(enrolledAt = new Date()) {
       pauseReason: null,
     },
   };
-}
-
-function firstName(name) {
-  const s = clean(name);
-  if (!s) return null;
-  return s.split(/\s+/)[0] || null;
-}
-
-function clean(v) {
-  if (v == null) return null;
-  const s = String(v).trim();
-  return s || null;
 }

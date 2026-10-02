@@ -1,15 +1,20 @@
 // Deliberately standalone: never import live auth, database, Twilio, or AI modules.
 import express from 'express';
 import { fileURLToPath } from 'node:url';
+import { CADENCE_PRESETS } from './lib/automations/rulePresets.js';
 
 const tenants = [
   { id: 'demo-opek', name: 'Opek — Demo', shortName: 'Opek Demo' },
   { id: 'demo-acme', name: 'Acme Services — Demo', shortName: 'Acme Demo' },
 ];
+const demoRule = (count, interval = 1) => ({ anchor: 'enrollment', firstDelayCount: 1,
+  firstDelayUnit: 'day', intervalCount: interval, intervalUnit: 'day', repeatCount: count,
+  startHour: 9, endHour: 19 });
 const categories = [
-  { id: 'appointment-reminders', name: 'Appointment Reminders', description: 'Sample appointment reminders', activeAutomation: true },
-  { id: 'quote-requests', name: 'Quote Requests', description: 'Sample quote follow-ups', activeAutomation: true },
-  { id: 'followup-automations', name: 'Follow-up Automations', description: 'Sample follow-up workspace', activeAutomation: false },
+  { id: 'sms-contact', name: 'Contact', fixedType: 'contacts', kind: 'contact', rule: demoRule(1), intent: 'Help with the inquiry.', description: 'New SMS leads', activeAutomation: true },
+  { id: 'quote-requests', name: 'Quote Request', fixedType: 'quote_requests', kind: 'quote', rule: demoRule(6, 2), intent: 'Help with the quote request.', description: 'Quote inquiries', activeAutomation: true },
+  { id: 'appointment-reminders', name: 'Bookings', fixedType: 'bookings', kind: 'reminder', rule: { anchor: 'appointment', firstDelayCount: 0, firstDelayUnit: 'day', intervalCount: 6, intervalUnit: 'hour', repeatCount: 1, leadHours: 24, startHour: 0, endHour: 24 }, intent: 'Remind about the appointment.', description: 'Confirmed bookings', activeAutomation: true },
+  { id: 'sms-review', name: 'Reviews', fixedType: 'reviews', kind: 'review', rule: demoRule(1), intent: 'Invite feedback.', description: 'Completed services', activeAutomation: true },
 ];
 const demoError = { demo: true, error: 'Read-only demo: SMS, calls, account provisioning, and changes are disabled.' };
 
@@ -18,7 +23,8 @@ function fixtures(tenant) {
   const names = acme ? ['Taylor Sample', 'Morgan Sample'] : ['Alex Example', 'Jamie Example', 'Sam Example'];
   const base = acme ? 110 : 100;
   const contacts = names.map((name, i) => ({
-    phone: `+12025550${base + i}`, name, email: `${name.split(' ')[0].toLowerCase()}@example.com`,
+    id: `+12025550${base + i}`, phone: `+12025550${base + i}`, name,
+    email: `${name.split(' ')[0].toLowerCase()}@example.com`,
     sources: [i === 0 ? 'booking' : 'prebooking'], primarySource: i === 0 ? 'booking' : 'prebooking',
     smsMarketingConsent: i !== 2, canEnroll: i !== 2, enrollments: i === 0 ? ['appointment-reminders'] : [],
     optedOut: i === 2, optOutKeyword: i === 2 ? 'STOP' : null, optOutSource: 'demo',
@@ -71,6 +77,23 @@ export function createDemoApp() {
     next();
   });
   app.get('/api/auth/config', (_req, res) => res.json({ mode: 'demo', demo: true, configured: false }));
+  app.get('/config.js', (_req, res) => res.type('text/javascript').send(
+    "globalThis.SMS_CONFIG={apiBase:'',supabaseUrl:'',formApiBase:'/functions/v1/web-form',embedBaseUrl:''};"
+  ));
+  app.get('/functions/v1/web-form/:id', (req, res) => {
+    const presets = {
+      '00000000-0000-4000-8000-000000000001': ['contacts', 'Contact us', 'Send message'],
+      '00000000-0000-4000-8000-000000000002': ['quote_requests', 'Request a quote', 'Request quote'],
+      '00000000-0000-4000-8000-000000000003': ['bookings', 'Book an appointment', 'Book appointment'],
+    };
+    const preset = presets[req.params.id];
+    if (!preset) return res.status(404).json({ demo: true, error: 'Sample form not found' });
+    return res.json({ demo: true, form: {
+      preset: preset[0], title: preset[1], buttonLabel: preset[2], description: 'Tell us how we can help.',
+      businessName: 'Opek — Demo', timeZone: 'America/Denver', fields: [],
+      consentText: 'I agree to receive SMS updates and follow-ups from Opek — Demo at the number provided. Consent is optional. Message frequency varies. Message and data rates may apply. Reply STOP to opt out.',
+    } });
+  });
   app.get('/api/tenants', (_req, res) => res.json({ demo: true, tenants, currentTenant: tenants[0] }));
   app.use('/api', (req, res) => {
     const tenant = tenants.find(t => t.id === (req.get('X-Tenant-ID') || tenants[0].id));
@@ -79,7 +102,7 @@ export function createDemoApp() {
     const stats = summary(messages, contacts);
     let result;
     const path = req.path;
-    if (path === '/categories') result = { categories, cadences: [] };
+    if (path === '/categories') result = { categories, cadences: Object.entries(CADENCE_PRESETS).map(([id, value]) => ({ id, ...value })), rulePresets: [] };
     else if (path === '/overview' || path === '/deliverability') result = { ...stats,
       byCategory: categories.map(c => ({ id: c.id, ...summary(messages.filter(m => m.categoryId === c.id), contacts) })) };
     else if (path === '/messages') {
@@ -99,12 +122,39 @@ export function createDemoApp() {
       if (!contact) return res.status(404).json({ demo: true, error: 'Sample conversation not found' });
       result = path.endsWith('/calls') ? { calls: [] } : {
         conversation: { ...contact, messages: messages.filter(m => m.contactPhone === phone) } };
-    } else if (path === '/enrollments') result = { ...page(req, [], 'enrollments') };
+    } else if (path === '/calls') result = { ...page(req, [], 'calls') };
+    else if (path === '/bookings') result = { ...page(req, [{
+      id: `${tenant.id}-booking-1`, customer_name: contacts[0].name,
+      customer_phone: contacts[0].phone, appointment_at: '2026-10-01T16:00:00Z',
+      service_address: '123 Sample Street', status: 'confirmed', source: 'sms',
+    }], 'bookings') };
+    else if (path === `/bookings/${tenant.id}-booking-1`) result = { booking: {
+      id: `${tenant.id}-booking-1`, customer_name: contacts[0].name,
+      customer_phone: contacts[0].phone, appointment_at: '2026-10-01T16:00:00Z',
+      service_address: '123 Sample Street', status: 'confirmed', source: 'sms',
+      time_zone: 'America/Denver', extra_answers: {},
+    } };
+    else if (path === '/booking-settings') result = {
+      enabled: true, version: 1, slotDurationMinutes: 60, capacityPerSlot: 1,
+      minimumNoticeMinutes: 120, maximumAdvanceDays: 90,
+      weeklyAvailability: { 1: [{ start: '09:00', end: '17:00' }], 2: [{ start: '09:00', end: '17:00' }],
+        3: [{ start: '09:00', end: '17:00' }], 4: [{ start: '09:00', end: '17:00' }],
+        5: [{ start: '09:00', end: '17:00' }] }, dateExceptions: [], extraFields: [],
+    };
+    else if (path === '/enrollments') result = { ...page(req, [], 'enrollments') };
+    else if (path.startsWith('/automation-intake/')) result = { rows: [], total: 0, page: 1, pageSize: 50, totalPages: 1 };
+    else if (path === '/web-forms') result = { canEdit: false, timeZone: 'America/Denver',
+      consentText: `I agree to receive SMS updates and follow-ups from ${tenant.name} at the number provided. Consent is optional. Message frequency varies. Message and data rates may apply. Reply STOP to opt out.`, forms: [
+      { preset: 'contacts', public_id: '00000000-0000-4000-8000-000000000001', title: 'Contact us', description: '', button_label: 'Send message', enabled: true, fields: [] },
+      { preset: 'quote_requests', public_id: '00000000-0000-4000-8000-000000000002', title: 'Request a quote', description: '', button_label: 'Request quote', enabled: true, fields: [] },
+      { preset: 'bookings', public_id: '00000000-0000-4000-8000-000000000003', title: 'Book an appointment', description: '', button_label: 'Book appointment', enabled: true, fields: [] },
+    ] };
+    else if (/^\/web-forms\/(contacts|quote_requests|bookings)\/submissions$/.test(path)) result = { rows: [], total: 0, page: 1, pageSize: 50, totalPages: 1 };
     else if (/^\/automations\/[^/]+$/.test(path)) {
       const category = categories.find(c => c.id === path.split('/')[2]);
       if (!category) return res.status(404).json({ demo: true, error: 'Sample group not found' });
       result = { group: category, sequence: { name: category.name, description: category.description,
-        steps: [{ id: 'sample-reminder', label: 'Sample reminder', template: 'Hi {{name}}, this is a sample reminder. No message will be sent.' }] } };
+        steps: [{ id: 'sample-reminder', label: 'Sample reminder', intent: 'Remind the customer of their upcoming appointment using confirmed details.' }] } };
     } else if (path === '/ai/outbound-call') result = { configured: false, from: '+12025550199', presets: [] };
     else return res.status(403).json(demoError);
     res.json({ ...result, demo: true });

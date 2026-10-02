@@ -92,9 +92,9 @@ test('production health is unhealthy when required configuration is absent', asy
     'TWILIO_FROM_NUMBER',
     'SUPABASE_URL',
     'SUPABASE_SERVICE_ROLE_KEY',
-    'CLERK_PUBLISHABLE_KEY',
-    'NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY',
-    'CLERK_SECRET_KEY',
+    'CRM_CLERK_PUBLISHABLE_KEY',
+    'NEXT_PUBLIC_CRM_CLERK_PUBLISHABLE_KEY',
+    'CRM_CLERK_SECRET_KEY',
     'OPEK_SMS_API_KEY',
   ]) {
     delete process.env[key];
@@ -108,7 +108,7 @@ test('production health is unhealthy when required configuration is absent', asy
     assert.equal(response.status, 503);
     assert.equal(body.ok, false);
     assert.ok(body.missingConfiguration.includes('TWILIO_AUTH_TOKEN'));
-    assert.ok(body.missingConfiguration.includes('CLERK_PUBLISHABLE_KEY'));
-    assert.ok(body.missingConfiguration.includes('CLERK_SECRET_KEY'));
+    assert.ok(body.missingConfiguration.includes('CRM_CLERK_PUBLISHABLE_KEY'));
+    assert.ok(body.missingConfiguration.includes('CRM_CLERK_SECRET_KEY'));
   });
 });

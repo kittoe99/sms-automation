@@ -1,5 +1,4 @@
 import twilio from 'twilio';
-import { isOptedOut, recordOutbound } from './messageStore.js';
 import { getTenantTwilioConfig } from './tenantTwilio.js';
 
 const clients = new Map();
@@ -28,79 +27,7 @@ export function getTwilioClient() {
   return client;
 }
 
-/**
- * Send via Messaging Service when configured (preferred for compliance + pooling).
- * Records the message so the UI can show deliverability status.
- */
-export async function sendSms({
-  to,
-  body,
-  categoryId = null,
-  contactName = null,
-  statusCallback = null,
-  meta = null,
-}) {
-  if (await isOptedOut(to)) {
-    const err = new Error('Contact has opted out of SMS');
-    err.code = 'OPTED_OUT';
-    await recordOutbound({
-      categoryId,
-      to,
-      body,
-      status: 'canceled',
-      errorCode: 'OPTED_OUT',
-      errorMessage: 'Blocked: contact opted out',
-      contactName,
-      meta,
-    });
-    throw err;
-  }
-  const config = getTenantTwilioConfig();
-  const messagingServiceSid = config.messagingServiceSid;
-  const from = config.fromNumber;
-  const publicBase = (process.env.PUBLIC_BASE_URL || '').replace(/\/$/, '');
-  const rawCallback =
-    statusCallback ||
-    config.statusCallbackUrl ||
-    (publicBase ? `${publicBase}/webhooks/twilio/status` : undefined);
-  // Twilio rejects non-public URLs (localhost/http). Skip callback rather than fail the send.
-  const callback =
-    rawCallback && /^https:\/\//i.test(String(rawCallback)) ? String(rawCallback) : undefined;
-
-  const payload = { to, body };
-  if (messagingServiceSid) {
-    payload.messagingServiceSid = messagingServiceSid;
-  } else if (from) {
-    payload.from = from;
-  } else {
-    throw new Error('Set TWILIO_MESSAGING_SERVICE_SID or TWILIO_FROM_NUMBER');
-  }
-  if (callback) payload.statusCallback = callback;
-
-  try {
-    const msg = await getTwilioClient().messages.create(payload);
-    return await recordOutbound({
-      categoryId,
-      to,
-      body,
-      sid: msg.sid,
-      status: msg.status || 'queued',
-      errorCode: msg.errorCode || null,
-      errorMessage: msg.errorMessage || null,
-      contactName,
-      meta,
-    });
-  } catch (err) {
-    await recordOutbound({
-      categoryId,
-      to,
-      body,
-      status: 'failed',
-      errorCode: err.code || null,
-      errorMessage: err.message || String(err),
-      contactName,
-      meta,
-    });
-    throw err;
-  }
+/** Legacy HTTP paths are retired; the CRM Edge API creates durable SMS jobs. */
+export async function sendSms() {
+  throw Object.assign(new Error('Use the queued CRM send API; SMS submission is worker-only'), { status: 410, code: 'WORKER_REQUIRED' });
 }

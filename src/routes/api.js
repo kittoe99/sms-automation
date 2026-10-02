@@ -1,4 +1,6 @@
 import { Router } from 'express';
+import { emptyDataMiddleware, isDatabaseDisconnected, canManageLocalBusinesses } from '../lib/dataMode.js';
+import { addLocalBusiness } from '../lib/localBusinesses.js';
 import {
   categoryMessageCount,
   deliverabilitySummary,
@@ -32,25 +34,22 @@ import {
   getClerkPublishableKey,
   getClerkFrontendApiUrl,
   isCrmAuthConfigured,
+  isLocalAuthDisabled,
   requireClerkSession,
   requireCrmAuth,
 } from '../lib/crmAuth.js';
 import { getAiConfig, isAiConfigured } from '../lib/ai/client.js';
-import { checkEligibility } from '../lib/ai/agent.js';
 import {
   getElevenLabsOutboundConfig,
   getOutboundPromptPresets,
   isElevenLabsOutboundConfigured,
   placeOutboundFollowUpCall,
 } from '../lib/elevenlabsOutbound.js';
-import { runAutomationTick } from '../lib/automations/runner.js';
-import { QUOTE_REQUESTS_SEQUENCE } from '../lib/automations/quoteRequestsSequence.js';
-import { APPOINTMENT_REMINDERS_SEQUENCE } from '../lib/automations/appointmentRemindersSequence.js';
+import { AUTOMATION_RULE_PRESETS } from '../lib/automations/rulePresets.js';
 import { removeActiveEnrollmentsForPhone } from '../lib/automations/lifecycle.js';
 import {
   CADENCE_PRESETS,
   createCustomAutomationGroup,
-  customGroupToSequence,
   deleteCustomAutomationGroup,
   getAutomationGroup,
   listAutomationGroups,
@@ -74,6 +73,7 @@ import {
   toPublicTenant,
 } from '../lib/tenantContext.js';
 import { createRateLimiter } from '../lib/security.js';
+import { enrichBusinessFromWebsite } from '../lib/websiteEnrich.js';
 
 export const apiRouter = Router();
 const asyncRoute = (handler) => (req, res, next) =>
@@ -105,6 +105,8 @@ apiRouter.use((req, res, next) => {
 apiRouter.get('/auth/config', (_req, res) => {
   const publishableKey = getClerkPublishableKey();
   res.json({
+    mode: isLocalAuthDisabled() ? 'local' : 'clerk',
+    manualBusinesses: canManageLocalBusinesses(),
     configured: isCrmAuthConfigured(),
     publishableKey: publishableKey || null,
     frontendApiUrl: getClerkFrontendApiUrl(),
@@ -112,7 +114,7 @@ apiRouter.get('/auth/config', (_req, res) => {
 });
 
 apiRouter.get('/auth/me', requireClerkSession, (req, res) => {
-  const tenant = listTenants().find((item) => tenantMatchesClerkAuth(item, req.crmUser));
+  const tenant = listTenants().find((item) => canManageLocalBusinesses() || tenantMatchesClerkAuth(item, req.crmUser));
   res.json({
     user: {
       id: req.crmUser.userId,
@@ -126,7 +128,7 @@ apiRouter.get('/auth/me', requireClerkSession, (req, res) => {
 });
 
 apiRouter.get('/tenants', requireClerkSession, (req, res) => {
-  const tenants = listTenants().filter((tenant) => tenantMatchesClerkAuth(tenant, req.crmUser));
+  const tenants = listTenants().filter((tenant) => canManageLocalBusinesses() || tenantMatchesClerkAuth(tenant, req.crmUser));
   const current = tenants.find((tenant) => tenant.id === req.tenant.id) || tenants[0] || null;
   res.json({
     tenants: tenants.map(toPublicTenant),
@@ -147,6 +149,48 @@ apiRouter.use((req, res, next) => {
   return requireCrmAuth(req, res, next);
 });
 apiRouter.use(requireTenantDataIsolation);
+
+/**
+ * Business-website enrichment for the Business context form.
+ * Mirrors the Get Started site-read: Firecrawl when FIRECRAWL_API_KEY is set,
+ * plain-HTML parsing otherwise. CRM-authenticated and read-only (stores
+ * nothing), so it runs ahead of the empty-data guard.
+ */
+apiRouter.post('/enrich-website', crmActionLimiter, asyncRoute(async (req, res) => {
+  const websiteUrl = String(req.body?.websiteUrl || '').trim().slice(0, 2048);
+  if (!websiteUrl) return res.status(400).json({ error: 'Enter a website address.' });
+  try {
+    res.json(await enrichBusinessFromWebsite(websiteUrl, { apiKey: process.env.FIRECRAWL_API_KEY }));
+  } catch (error) {
+    res.status(error.status || 502).json({ error: error.message || 'That website could not be read.' });
+  }
+}));
+apiRouter.post('/businesses', crmActionLimiter, asyncRoute(async (req, res) => {
+  if (!canManageLocalBusinesses()) return res.status(403).json({ error: 'Manual local business setup is unavailable' });
+  try {
+    const business = await addLocalBusiness(req.body);
+    res.status(201).json({ business: toPublicTenant(business) });
+  } catch (error) {
+    if ([400, 403, 409].includes(error.status)) return res.status(error.status).json({ error: error.message });
+    throw error;
+  }
+}));
+apiRouter.use(emptyDataMiddleware);
+
+apiRouter.get('/calls', asyncRoute(async (req, res) => {
+  const page = Math.max(1, Math.floor(Number(req.query.page) || 1));
+  const pageSize = Math.max(1, Math.min(250, Math.floor(Number(req.query.pageSize) || 50)));
+  if (!isSupabaseConfigured()) return res.json({ calls: [], total: 0, page: 1, pageSize, totalPages: 1 });
+  const { data, count, error } = await getSupabaseAdmin()
+    .from('sms_voice_conversations')
+    .select('conversation_id, phone, direction, started_at, status, duration_secs', { count: 'exact' })
+    .eq('direction', 'inbound')
+    .order('started_at', { ascending: false, nullsFirst: false })
+    .range((page - 1) * pageSize, page * pageSize - 1);
+  if (error) throw error;
+  res.json({ calls: data || [], total: count || 0, page, pageSize,
+    totalPages: Math.max(1, Math.ceil((count || 0) / pageSize)) });
+}));
 
 /**
  * Transactional outbound SMS (quotes, booking updates, etc.).
@@ -231,13 +275,14 @@ apiRouter.get('/categories', async (_req, res) => {
       categories.push({
         ...c,
         automations: automationsForGroup(c),
-        messageCount: await categoryMessageCount(c.id),
-        summary: await deliverabilitySummary({ categoryId: c.id }),
+        messageCount: isDatabaseDisconnected() ? 0 : await categoryMessageCount(c.id),
+        summary: isDatabaseDisconnected() ? { total: 0, counts: {}, deliveryRate: null } : await deliverabilitySummary({ categoryId: c.id }),
       });
     }
     return res.json({
       categories,
       cadences: Object.entries(CADENCE_PRESETS).map(([id, value]) => ({ id, ...value })),
+      rulePresets: AUTOMATION_RULE_PRESETS,
     });
   } catch (err) {
     return res.status(err.status || 500).json({ error: 'Failed to load automation groups', detail: err.message });
@@ -345,28 +390,8 @@ apiRouter.delete('/automation-groups/:id', async (req, res) => {
 });
 
 function automationsForGroup(group) {
-  if (group.id === QUOTE_REQUESTS_SEQUENCE.categoryId) return [QUOTE_REQUESTS_SEQUENCE];
-  if (group.id === APPOINTMENT_REMINDERS_SEQUENCE.categoryId) {
-    return [APPOINTMENT_REMINDERS_SEQUENCE];
-  }
-  if (group.custom) return [customGroupToSequence(group)];
-  return [];
+  return group ? [{ ...group, steps: undefined }] : [];
 }
-
-/**
- * Cron / internal tick for drip automations. Requires OPEK_SMS_API_KEY.
- */
-apiRouter.post('/internal/automation-tick', requireApiKey, serverActionLimiter, async (req, res) => {
-  try {
-    const limit = req.body?.limit;
-    const summary = await runAutomationTick({ limit });
-    console.log('[opek-sms] automation tick', summary);
-    res.json({ ok: true, summary });
-  } catch (err) {
-    console.error('[opek-sms] automation tick failed', err);
-    res.status(500).json({ error: 'Automation tick failed', detail: err.message || String(err) });
-  }
-});
 
 /**
  * Server-to-server lifecycle trigger for quotes and bookings.
@@ -837,10 +862,9 @@ apiRouter.get('/ai/config', async (_req, res) => {
 apiRouter.get('/ai/eligibility/:phone', async (req, res) => {
   try {
     const contact = await getContact(req.params.phone);
-    const eligibility = await checkEligibility(req.params.phone);
     res.json({
       contact: contact || null,
-      eligibility,
+      eligibility: {eligible:false,reason:'supabase_worker_only'},
       aiConfigured: isAiConfigured(),
     });
   } catch (err) {

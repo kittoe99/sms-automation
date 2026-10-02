@@ -22,8 +22,7 @@ export const APPOINTMENT_REMINDERS_SEQUENCE = {
       id: 'reminder-24h',
       label: '1 SMS · ~24 hours before appointment date',
       delayMs: 1 * DAY,
-      template:
-        'Hi {{first_name}}, reminder from Opek: your {{service_type}} is scheduled for {{appointment_date}}{{#preferred_time}} ({{preferred_time}}){{/preferred_time}}.{{#service_address}} Address: {{service_address}}.{{/service_address}} Reply if you need to reschedule. Reply STOP to opt out.',
+      intent: 'Remind the customer about the confirmed appointment using its actual local date and time. Invite a reply if they need to reschedule; never imply an unconfirmed change is booked.',
     },
   ],
 };
@@ -76,28 +75,6 @@ export function formatAppointmentDateLabel(preferredDate) {
   } catch {
     return `${ymd.y}-${String(ymd.m).padStart(2, '0')}-${String(ymd.d).padStart(2, '0')}`;
   }
-}
-
-export function renderAppointmentTemplate(template, vars = {}) {
-  const preferredTime = clean(vars.preferred_time);
-  const serviceAddress = clean(vars.service_address);
-  const map = {
-    name: clean(vars.name) || 'there',
-    first_name: clean(vars.first_name) || firstName(vars.name) || 'there',
-    phone: clean(vars.phone) || '',
-    service_type: clean(vars.service_type) || 'appointment',
-    appointment_date: formatAppointmentDateLabel(vars.appointment_date || vars.preferred_date),
-    preferred_time: preferredTime || '',
-    service_address: serviceAddress || '',
-  };
-
-  let out = String(template || '');
-  // Simple optional blocks {{#key}}...{{/key}}
-  out = out.replace(/\{\{#(\w+)\}\}([\s\S]*?)\{\{\/\1\}\}/g, (_, key, inner) => {
-    return map[key] ? inner : '';
-  });
-  out = out.replace(/\{\{\s*(\w+)\s*\}\}/g, (_, key) => map[key] ?? '');
-  return out.replace(/\s{2,}/g, ' ').trim();
 }
 
 export function initialAppointmentDripMetadata({
@@ -158,12 +135,6 @@ function parsePreferredTime(value) {
   if (!meridiem && /evening|afternoon/.test(text) && hour < 12) hour += 12;
   if (hour > 23) return { hour: 9, minute: 0 };
   return { hour, minute };
-}
-
-function firstName(name) {
-  const s = clean(name);
-  if (!s) return null;
-  return s.split(/\s+/)[0] || null;
 }
 
 function clean(v) {

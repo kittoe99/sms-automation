@@ -1,0 +1,179 @@
+const root = document.getElementById('form-root');
+const formId = new URLSearchParams(location.search).get('form') || '';
+const connectionId = new URLSearchParams(location.search).get('connection');
+const config = globalThis.SMS_CONFIG || {};
+const apiBase = config.formApiBase || `${config.supabaseUrl || ''}/functions/v1/web-form`;
+const formUrl = `${apiBase}/${encodeURIComponent(formId)}${connectionId !== null ? `?connection=${encodeURIComponent(connectionId)}` : ''}`;
+
+function announceHeight() {
+  if (window.parent === window) return;
+  window.parent.postMessage({ type: 'sms-web-form:resize', formId, connectionId, height: Math.ceil(document.documentElement.scrollHeight + 8) }, '*');
+}
+new ResizeObserver(announceHeight).observe(document.documentElement);
+
+function field(label, type, name, required = false) {
+  const wrapper = document.createElement('label');
+  wrapper.textContent = required ? `${label} *` : label;
+  const input = document.createElement(type === 'textarea' ? 'textarea' : 'input');
+  if (type !== 'textarea') input.type = type;
+  input.name = name;
+  input.required = required;
+  if (type === 'text') input.maxLength = 300;
+  if (type === 'email') input.maxLength = 320;
+  if (type === 'tel') { input.placeholder = '+13035550123'; input.autocomplete = 'tel'; }
+  wrapper.append(input);
+  return { wrapper, input };
+}
+
+function normalizePhone(value) {
+  const raw = value.trim();
+  const digits = raw.replace(/\D/g, '');
+  if (raw.startsWith('+')) return `+${digits}`;
+  if (digits.length === 10) return `+1${digits}`;
+  return raw;
+}
+
+function brandElement(businessName) {
+  const brand = document.createElement('div'); brand.className = 'form-brand';
+  const icon = document.createElement('img'); icon.src = '/e2-icon.svg'; icon.alt = '';
+  const name = document.createElement('span'); name.textContent = businessName;
+  brand.append(icon, name);
+  return brand;
+}
+
+function footerElement() {
+  const footer = document.createElement('small'); footer.className = 'form-footer';
+  footer.textContent = 'Powered by E2.Local';
+  return footer;
+}
+
+async function start() {
+  if (!/^[0-9a-f-]{36}$/i.test(formId)) throw new Error('Form not found');
+  if (connectionId !== null && !/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(connectionId)) throw new Error('Invalid website connection');
+  const response = await fetch(formUrl);
+  const data = await response.json();
+  if (!response.ok || !data.form) throw new Error('Form is unavailable');
+  const definition = data.form;
+  document.title = `${definition.title} · ${definition.businessName}`;
+  root.replaceChildren();
+  const title = document.createElement('h1'); title.textContent = definition.title;
+  const description = document.createElement('p'); description.textContent = definition.description;
+  root.append(brandElement(definition.businessName), title, description);
+  const form = document.createElement('form'); form.className = 'web-form';
+  const name = field('Name', 'text', 'name', true);
+  const phone = field('Phone', 'tel', 'phone', true);
+  const email = field('Email', 'email', 'email', true);
+  name.input.autocomplete = 'name'; email.input.autocomplete = 'email';
+  form.append(name.wrapper, phone.wrapper, email.wrapper);
+  let appointment;
+  if (definition.preset === 'bookings') {
+    appointment = field(`Appointment date and time (${definition.timeZone})`, 'datetime-local', 'appointmentAt', true);
+    form.append(appointment.wrapper);
+  }
+  const controls = new Map();
+  for (const item of definition.fields || []) {
+    let element;
+    let wrapper;
+    if (item.type === 'checkbox') {
+      wrapper = document.createElement('label'); wrapper.className = 'checkbox-field';
+      element = document.createElement('input'); element.type = 'checkbox';
+      const caption = document.createElement('span'); caption.textContent = item.label;
+      wrapper.append(element, caption);
+      element.required = Boolean(item.required);
+    } else if (item.type === 'select') {
+      wrapper = document.createElement('label'); wrapper.textContent = item.label;
+      element = document.createElement('select'); element.required = Boolean(item.required);
+      const blank = document.createElement('option'); blank.value = ''; blank.textContent = 'Choose an option';
+      element.append(blank);
+      for (const choice of item.options || []) {
+        const option = document.createElement('option'); option.value = choice; option.textContent = choice;
+        element.append(option);
+      }
+      wrapper.append(element);
+    } else {
+      ({ wrapper, input: element } = field(item.label, item.type === 'date' ? 'date' : item.type, item.key, Boolean(item.required)));
+      if (item.type === 'textarea') element.maxLength = 2000;
+    }
+    controls.set(item.key, { item, element });
+    form.append(wrapper);
+  }
+  const consent = document.createElement('label'); consent.className = 'checkbox-field';
+  const consentInput = document.createElement('input'); consentInput.type = 'checkbox';
+  const consentText = document.createElement('span'); consentText.textContent = definition.consentText;
+  consent.append(consentInput, consentText); form.append(consent);
+  let emailConsentInput;
+  if (definition.emailEnabled) {
+    const emailConsent = document.createElement('label'); emailConsent.className = 'checkbox-field';
+    emailConsentInput = document.createElement('input'); emailConsentInput.type = 'checkbox';
+    const label = document.createElement('span');
+    label.textContent = definition.emailConsentText || `I agree to receive marketing emails from ${definition.businessName}. I can unsubscribe at any time.`;
+    emailConsent.append(emailConsentInput, label); form.append(emailConsent);
+  }
+  const honeypot = field('Website', 'text', 'website'); honeypot.wrapper.className = 'form-honeypot';
+  honeypot.input.tabIndex = -1; honeypot.input.autocomplete = 'off'; honeypot.wrapper.setAttribute('aria-hidden', 'true'); form.append(honeypot.wrapper);
+  const note = document.createElement('span'); note.className = 'form-note';
+  note.textContent = 'SMS consent is optional. Contact and quote follow-ups are sent only when you opt in.';
+  form.append(note);
+  const error = document.createElement('p'); error.className = 'form-error'; error.setAttribute('role', 'alert'); error.tabIndex = -1;
+  const button = document.createElement('button'); button.type = 'submit'; button.textContent = definition.buttonLabel;
+  form.append(error, button); root.append(form, footerElement());
+  let submissionId = crypto.randomUUID(); let previousPayload = '';
+  form.addEventListener('invalid', () => form.classList.add('was-validated'), true);
+  form.addEventListener('submit', async event => {
+    event.preventDefault();
+    error.textContent = '';
+    const details = {};
+    for (const [key, control] of controls) {
+      const value = control.item.type === 'checkbox' ? control.element.checked : control.element.value.trim();
+      if (value !== '') details[key] = value;
+    }
+    const payload = {
+      name: name.input.value.trim(), phone: normalizePhone(phone.input.value),
+      email: email.input.value.trim(), details, smsOptIn: consentInput.checked,
+      emailOptIn: Boolean(emailConsentInput?.checked),
+      website: honeypot.input.value,
+    };
+    if (appointment) payload.appointmentAt = appointment.input.value;
+    const nextPayload = JSON.stringify(payload);
+    if (nextPayload !== previousPayload) { submissionId = crypto.randomUUID(); previousPayload = nextPayload; }
+    button.disabled = true;
+    button.textContent = 'Sending…';
+    try {
+      const sent = await fetch(formUrl, {
+        method: 'POST', headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ ...payload, submissionId }),
+      });
+      const result = await sent.json();
+      if (!sent.ok) throw new Error(result.error || 'Could not submit the form');
+      root.replaceChildren();
+      const success = document.createElement('div'); success.className = 'form-success'; success.setAttribute('role', 'status');
+      const successTitle = document.createElement('h2'); successTitle.textContent = 'Thank you';
+      const successCopy = document.createElement('p');
+      successCopy.textContent = definition.preset === 'bookings'
+        ? 'Your appointment is confirmed.'
+        : 'Your form has been submitted.';
+      success.append(successTitle, successCopy);
+      root.append(brandElement(definition.businessName), success, footerElement());
+      announceHeight();
+    } catch (reason) {
+      error.textContent = reason.message || 'Could not submit the form';
+      button.disabled = false;
+      button.textContent = definition.buttonLabel;
+      error.focus();
+      announceHeight();
+    }
+  });
+  announceHeight();
+}
+
+start().catch(error => {
+  root.replaceChildren();
+  const panel = document.createElement('div'); panel.className = 'form-error-state';
+  const title = document.createElement('h1'); title.textContent = 'Form unavailable';
+  const message = document.createElement('p'); message.textContent = error.message || 'Please try again.';
+  const retry = document.createElement('button'); retry.type = 'button'; retry.textContent = 'Try again';
+  retry.addEventListener('click', () => { root.textContent = 'Loading form…'; start().catch(reason => { message.textContent = reason.message || 'Please try again.'; root.replaceChildren(panel); announceHeight(); }); });
+  panel.append(title, message, retry);
+  root.append(panel);
+  announceHeight();
+});

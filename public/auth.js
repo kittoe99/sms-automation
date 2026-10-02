@@ -1,11 +1,18 @@
 /** Clerk-backed CRM authentication and tenant request context. */
 
 let clerk = null;
+export const runtimeConfig = globalThis.SMS_CONFIG || {};
+export const apiUrl = url => runtimeConfig.apiBase && url.startsWith('/api/')
+  ? runtimeConfig.apiBase.replace(/\/$/, '') + url.slice(4) : url;
 let demoMode = false;
+let localMode = false;
 let bootstrapped = false;
+const requestKeys = new Map();
 let loginNode = null;
+let loginMode = 'sign-in';
 let loginUnsubscribe = null;
 let organizationSwitcherNode = null;
+let loginSession = null;
 const TENANT_STORAGE_KEY = 'opek_sms_tenant_id';
 const DEMO_TENANT_STORAGE_KEY = 'opek_sms_demo_tenant_id';
 
@@ -17,36 +24,49 @@ const clerkAppearance = {
   theme: 'simple',
   captcha: { theme: 'light' },
   variables: {
-    colorPrimary: '#087f5b',
+    colorPrimary: '#087aa5',
     colorBackground: '#ffffff',
-    colorForeground: '#182a23',
+    colorForeground: '#172f36',
     colorInputBackground: '#ffffff',
-    colorInputText: '#182a23',
-    colorText: '#182a23',
-    colorTextSecondary: '#596b63',
-    colorDanger: '#bd3445',
-    borderRadius: '0px',
-    fontFamily: 'Manrope, Arial, sans-serif',
+    colorInputText: '#172f36',
+    colorText: '#172f36',
+    colorTextSecondary: '#536d76',
+    colorDanger: '#b32637',
+    borderRadius: '8px',
+    fontFamily: '"Plus Jakarta Sans", Arial, sans-serif',
   },
   elements: {
-    cardBox: { width: 'min(100%, 430px)' },
+    rootBox: { width: '100%', maxWidth: '520px' },
+    cardBox: { width: '100%', maxWidth: '520px', margin: '0 auto', borderRadius: '24px', border: '2px solid #cbdfe8', boxShadow: '0 6px 0 #e4eef380, 0 20px 50px -30px #173e4c40' },
     card: {
-      border: '1px solid #d7e1dc',
-      background: '#ffffff',
-      boxShadow: '0 20px 60px rgba(24, 42, 35, 0.1)',
-    },
-    formButtonPrimary: {
-      background: '#087f5b',
-      color: '#ffffff',
-      boxShadow: '0 8px 20px rgba(8, 127, 91, 0.15)',
-      fontWeight: '800',
-    },
-    formFieldInput: {
-      border: '1px solid #d7e1dc',
+      width: '100%',
+      border: '0',
       background: '#ffffff',
       boxShadow: 'none',
     },
-    footerActionLink: { color: '#087f5b', fontWeight: '800' },
+    headerTitle: { fontSize: '24px', fontWeight: 600, letterSpacing: '-.04em', color: '#172f36' },
+    headerSubtitle: { color: '#536d76', lineHeight: '1.6' },
+    socialButtonsBlockButton: { minHeight: '48px', fontSize: '14px', borderRadius: '999px', background: '#fff', color: '#172f36', border: '2px solid #cbdfe8', boxShadow: '0 1px 2px #173e4c0a' },
+    socialButtonsBlockButtonText: { fontSize: '14px', fontWeight: 600, color: '#172f36' },
+    formFieldLabel: { fontSize: '13px', fontWeight: 600, color: '#314952' },
+    formButtonPrimary: {
+      minHeight: '48px',
+      fontSize: '14px',
+      borderRadius: '999px',
+      background: 'linear-gradient(180deg,#0e8fb9,#087aa5)',
+      color: '#ffffff',
+      boxShadow: '0 8px 16px -10px #087aa580',
+    },
+    formFieldInput: {
+      minHeight: '48px',
+      fontSize: '16px',
+      border: '2px solid #cbdfe8',
+      borderRadius: '10px',
+      background: '#fbfdfd',
+      boxShadow: 'none',
+    },
+    footer: { background: '#f0f7fa' },
+    footerActionLink: { color: '#087aa5', fontWeight: 600 },
   },
 };
 
@@ -67,6 +87,7 @@ export function setTenantId(tenantId) {
 }
 
 export function getSession() {
+  if (localMode) return { id: 'local-development', user: { id: 'local-developer', name: 'Local developer', email: '' } };
   if (!clerk?.user || !clerk?.session) return null;
   const email = clerk.user.primaryEmailAddress?.emailAddress ||
     clerk.user.emailAddresses?.[0]?.emailAddress || '';
@@ -85,16 +106,42 @@ export function getSession() {
 }
 
 export async function getAccessToken() {
-  return clerk?.session ? clerk.session.getToken() : null;
+  if (localMode) return 'local-development';
+  return (clerk?.session || loginSession)?.getToken() || null;
+}
+
+export function createOrganizationChangeHandler(sessionId, organizationId, onChange) {
+  let activeSessionId = sessionId || null;
+  let activeOrganizationId = organizationId || null;
+  return ({ session, organization }) => {
+    const nextSessionId = session?.id || null;
+    const nextOrganizationId = organization?.id || null;
+    if (nextSessionId !== activeSessionId) {
+      activeSessionId = nextSessionId;
+      activeOrganizationId = nextOrganizationId;
+      return;
+    }
+    if (nextSessionId && nextOrganizationId !== activeOrganizationId) {
+      activeOrganizationId = nextOrganizationId;
+      onChange();
+    }
+  };
 }
 
 export async function initAuth() {
   if (bootstrapped) return { session: getSession(), configured: Boolean(clerk), demo: demoMode };
   bootstrapped = true;
 
-  const cfgRes = await fetch('/api/auth/config');
+  const cfgRes = await fetch(apiUrl('/api/auth/config'));
   if (!cfgRes.ok) throw new Error('Could not load authentication configuration.');
   const cfg = await cfgRes.json();
+  const addBusinessButton = document.getElementById('add-business');
+  if (addBusinessButton) addBusinessButton.hidden = cfg.manualBusinesses !== true;
+  if (cfg?.mode === 'local') {
+    localMode = true;
+    document.getElementById('sign-out-btn')?.setAttribute('hidden', '');
+    return { session: getSession(), configured: true };
+  }
   if (cfg?.mode === 'demo' && cfg.demo === true) {
     demoMode = true;
     return { session: null, configured: false, demo: true };
@@ -119,18 +166,23 @@ export async function initAuth() {
     appearance: clerkAppearance,
     ui: { ClerkUI: globalThis.__internal_ClerkUICtor },
   });
-  let activeOrganizationId = clerk.organization?.id || null;
-  clerk.addListener(({ organization }) => {
-    const nextOrganizationId = organization?.id || null;
-    if (nextOrganizationId !== activeOrganizationId) {
-      activeOrganizationId = nextOrganizationId;
-      window.dispatchEvent(new CustomEvent('clerk:organization-changed'));
-    }
+  clerk.addListener(createOrganizationChangeHandler(
+    clerk.session?.id,
+    clerk.organization?.id,
+    () => {
+      if (!document.getElementById('crm-app')?.hidden) {
+        window.dispatchEvent(new CustomEvent('clerk:organization-changed'));
+      }
+    },
+  ));
+  clerk.addListener(({ session }) => {
+    if (!session) loginSession = null;
   });
   return { session: getSession(), configured: true };
 }
 
 export async function signOut() {
+  loginSession = null;
   if (clerk) await clerk.signOut({ redirectUrl: '/' });
 }
 
@@ -150,7 +202,15 @@ export async function apiFetch(url, options = {}) {
   if (options.body && !headers.has('Content-Type') && !(options.body instanceof FormData)) {
     headers.set('Content-Type', 'application/json');
   }
-  return fetch(url, { ...fetchOptions, headers });
+  const mutation = String(options.method || 'GET').toUpperCase() === 'POST';
+  const fingerprint = `${tenantId}:${url}:${options.body || ''}`;
+  if (mutation && !headers.has('Idempotency-Key')) {
+    if (!requestKeys.has(fingerprint)) requestKeys.set(fingerprint, crypto.randomUUID());
+    headers.set('Idempotency-Key', requestKeys.get(fingerprint));
+  }
+  const response = await fetch(apiUrl(url), { ...fetchOptions, headers });
+  if (response.ok || (response.status >= 400 && response.status < 500)) requestKeys.delete(fingerprint);
+  return response;
 }
 
 export function renderLoginScreen({ onSuccess, errorMessage = '' } = {}) {
@@ -165,8 +225,8 @@ export function renderLoginScreen({ onSuccess, errorMessage = '' } = {}) {
     <div class="login-shell">
       <div class="clerk-login-wrap">
         <div class="login-brand">
-          <span class="logo">Opek</span>
-          <span class="logo-sub">SMS CRM</span>
+          <img class="e2-logo" src="/e2-dashboard-logo.svg" alt="E2 Local" width="165" height="60" />
+          <span class="product-label">CRM</span>
         </div>
         <p class="login-error">${escapeHtml(errorMessage)}</p>
         <div id="clerk-sign-in"></div>
@@ -176,21 +236,63 @@ export function renderLoginScreen({ onSuccess, errorMessage = '' } = {}) {
 
   loginNode = root.querySelector('#clerk-sign-in');
   if (!clerk || !loginNode) return;
+  loginMode = new URLSearchParams(location.search).get('auth') === 'sign-up' ? 'sign-up' : 'sign-in';
 
   let completed = false;
   loginUnsubscribe = clerk.addListener(({ user, session }) => {
     if (!user || !session || completed) return;
     completed = true;
-    showCrmApp();
+    loginSession = session;
     Promise.resolve(onSuccess?.()).catch((err) => {
-      renderLoginScreen({ onSuccess, errorMessage: err?.message || 'Could not open the CRM.' });
+      renderAccessScreen({ errorMessage: err?.message || 'Could not open the CRM.', onRetry: onSuccess });
     });
   });
-  clerk.mountSignIn(loginNode, {
+  const options = {
     appearance: clerkAppearance,
     routing: 'hash',
     forceRedirectUrl: '/',
-    withSignUp: false,
+    signUpForceRedirectUrl: '/',
+  };
+  if (loginMode === 'sign-up') {
+    clerk.mountSignUp(loginNode, { ...options, signInUrl: '/' });
+  } else {
+    clerk.mountSignIn(loginNode, { ...options, signUpUrl: '/?auth=sign-up', withSignUp: false });
+  }
+}
+
+export function renderAccessScreen({ errorMessage = 'Could not open the CRM.', onRetry } = {}) {
+  const root = document.getElementById('auth-root');
+  const app = document.getElementById('crm-app');
+  if (app) app.hidden = true;
+  if (!root) return;
+  unmountLogin();
+  root.hidden = false;
+  root.innerHTML = `
+    <div class="login-shell">
+      <div class="clerk-login-wrap">
+        <div class="login-brand">
+          <img class="e2-logo" src="/e2-dashboard-logo.svg" alt="E2 Local" width="165" height="60" />
+          <span class="product-label">CRM</span>
+        </div>
+        <h1>Workspace unavailable</h1>
+        <p class="login-error" role="alert">${escapeHtml(errorMessage)}</p>
+        <div class="access-actions">
+          <button type="button" class="btn" id="access-retry">Try again</button>
+          <button type="button" class="btn ghost" id="access-sign-out">Sign out</button>
+        </div>
+      </div>
+    </div>`;
+  root.querySelector('#access-retry')?.addEventListener('click', async (event) => {
+    event.currentTarget.disabled = true;
+    try {
+      await onRetry?.();
+    } catch (err) {
+      renderAccessScreen({ errorMessage: err?.message || 'Could not open the CRM.', onRetry });
+    }
+  });
+  root.querySelector('#access-sign-out')?.addEventListener('click', async () => {
+    await signOut();
+    renderLoginScreen({ onSuccess: onRetry });
   });
 }
 
@@ -211,7 +313,8 @@ function unmountLogin() {
   loginUnsubscribe = null;
   if (clerk && loginNode) {
     try {
-      clerk.unmountSignIn(loginNode);
+      if (loginMode === 'sign-up') clerk.unmountSignUp(loginNode);
+      else clerk.unmountSignIn(loginNode);
     } catch {
       // The host node may already have been removed during navigation.
     }

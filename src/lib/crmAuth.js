@@ -8,18 +8,26 @@
 import { getAuth, verifyToken } from '@clerk/express';
 import { tenantMatchesClerkAuth } from './tenantContext.js';
 
+export function isLocalAuthDisabled(env = process.env) {
+  return env.NODE_ENV === 'development' && env.CRM_AUTH_DISABLED === 'true';
+}
+
+function localUser() {
+  return toCrmUser({ userId: 'local-developer', sessionId: 'local-development' });
+}
+
 export function getClerkPublishableKey(env = process.env) {
   return String(
-    env.CLERK_PUBLISHABLE_KEY || env.NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY || ''
+    env.CRM_CLERK_PUBLISHABLE_KEY || ''
   ).trim();
 }
 
 export function getClerkSecretKey(env = process.env) {
-  return String(env.CLERK_SECRET_KEY || '').trim();
+  return String(env.CRM_CLERK_SECRET_KEY || '').trim();
 }
 
 export function getClerkFrontendApiUrl(env = process.env) {
-  const explicit = String(env.CLERK_FRONTEND_API_URL || '').trim();
+  const explicit = String(env.CRM_CLERK_ISSUER || '').trim();
   if (explicit) {
     try {
       const url = new URL(explicit);
@@ -43,7 +51,9 @@ export function isCrmAuthConfigured(env = process.env) {
   return Boolean(
     getClerkPublishableKey(env) &&
       getClerkSecretKey(env) &&
-      getClerkFrontendApiUrl(env) &&
+      getClerkFrontendApiUrl(env) === env.CRM_CLERK_ISSUER &&
+      /^https:\/\/[^/]+$/.test(env.E2_CLERK_ISSUER || '') &&
+      env.CRM_CLERK_ISSUER !== env.E2_CLERK_ISSUER &&
       (env.NODE_ENV !== 'production' || getClerkAuthorizedParties(env).length)
   );
 }
@@ -96,6 +106,7 @@ function authFromVerifiedClaims(claims) {
 
 /** Verify a raw Clerk session token, used by the WebSocket upgrade path. */
 export async function verifyCrmAccessToken(accessToken, { tenant = null } = {}) {
+  if (isLocalAuthDisabled()) return localUser();
   if (!accessToken || !isCrmAuthConfigured()) return null;
 
   try {
@@ -103,6 +114,7 @@ export async function verifyCrmAccessToken(accessToken, { tenant = null } = {}) 
       secretKey: getClerkSecretKey(),
       authorizedParties: getClerkAuthorizedParties(),
     });
+    if (claims.iss !== process.env.CRM_CLERK_ISSUER) return null;
     const auth = authFromVerifiedClaims(claims);
     if (!auth.userId || !auth.sessionId || (tenant && !tenantMatchesClerkAuth(tenant, auth))) {
       return null;
@@ -115,16 +127,20 @@ export async function verifyCrmAccessToken(accessToken, { tenant = null } = {}) 
 
 /** Express middleware requiring a verified Clerk user session. */
 export function requireClerkSession(req, res, next) {
+  if (isLocalAuthDisabled()) {
+    req.crmUser = { ...localUser(), tenantId: req.tenant?.id || null };
+    return next();
+  }
   try {
     if (!isCrmAuthConfigured()) {
       return res.status(503).json({
         error: 'CRM auth not configured',
-        detail: 'Set CLERK_PUBLISHABLE_KEY and CLERK_SECRET_KEY.',
+        detail: 'Set dedicated CRM_CLERK_PUBLISHABLE_KEY, CRM_CLERK_SECRET_KEY, CRM_CLERK_ISSUER and E2_CLERK_ISSUER.',
       });
     }
 
     const auth = getAuth(req, { acceptsToken: 'session_token' });
-    if (!auth?.isAuthenticated || !auth.userId) {
+    if (!auth?.isAuthenticated || !auth.userId || auth.sessionClaims?.iss !== process.env.CRM_CLERK_ISSUER) {
       return res.status(401).json({ error: 'Unauthorized', detail: 'Sign in required' });
     }
     req.crmUser = {
@@ -140,6 +156,7 @@ export function requireClerkSession(req, res, next) {
 
 /** Express middleware requiring both a Clerk session and tenant membership. */
 export function requireCrmAuth(req, res, next) {
+  if (isLocalAuthDisabled()) return requireClerkSession(req, res, next);
   return requireClerkSession(req, res, () => {
     if (!tenantMatchesClerkAuth(req.tenant, req.crmUser)) {
       return res.status(403).json({

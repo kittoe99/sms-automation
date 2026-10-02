@@ -12,7 +12,7 @@ healthRouter.get('/health', async (_req, res) => {
     'TWILIO_AUTH_TOKEN',
     'SUPABASE_URL',
     'SUPABASE_SERVICE_ROLE_KEY',
-    'CLERK_SECRET_KEY',
+    'CRM_CLERK_SECRET_KEY',
     'OPEK_SMS_API_KEY',
     'PUBLIC_BASE_URL',
   ];
@@ -39,15 +39,15 @@ healthRouter.get('/health', async (_req, res) => {
   if (
     process.env.NODE_ENV === 'production' &&
     !String(
-      process.env.CLERK_PUBLISHABLE_KEY || process.env.NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY || ''
+      process.env.CRM_CLERK_PUBLISHABLE_KEY || ''
     ).trim()
   ) {
-    missing.push('CLERK_PUBLISHABLE_KEY');
+    missing.push('CRM_CLERK_PUBLISHABLE_KEY');
   }
   if (
     process.env.NODE_ENV === 'production' &&
-    String(process.env.CLERK_SECRET_KEY || '').trim() &&
-    String(process.env.CLERK_PUBLISHABLE_KEY || process.env.NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY || '').trim() &&
+    String(process.env.CRM_CLERK_SECRET_KEY || '').trim() &&
+    String(process.env.CRM_CLERK_PUBLISHABLE_KEY || '').trim() &&
     !isCrmAuthConfigured()
   ) {
     missing.push('CLERK_AUTH_ORIGIN_CONFIGURATION');

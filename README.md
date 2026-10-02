@@ -1,3 +1,7 @@
+# Supabase SMS automation
+
+The active implementation uses WPacquisition Postgres, durable queues, Cron and bounded Edge workers. Start with [the deployment guide](docs/WORKER_DEPLOYMENT.md). Render is optional static frontend hosting only. The DigitalOcean instructions below are retained for cutover reference and are not the current deployment path.
+
 # opek-sms
 
 SMS automation foundation for **Opek Junk Removal** — Twilio Messaging + DigitalOcean App Platform (RPS autoscaling 1–3).
@@ -83,43 +87,75 @@ and then update the remaining capability flags in
 
 ## Automation lifecycle
 
-- Quote follow-ups run over six steps, only between 9am and 7pm in `BUSINESS_TIME_ZONE`.
-- A normal customer reply postpones the next quote follow-up for at least 24 hours.
-- STOP removes all active automation enrollments; opting back in does not silently restart them.
-- Creating a booking ends quote follow-ups and enrolls a dated appointment reminder.
-- Updating a booking reschedules its reminder; cancelling it removes the reminder.
-- Expired appointments are removed without sending a stale reminder.
-- The scheduled runner executes every 15 minutes and scans beyond its processing batch so future-dated rows do not hide due work.
+Four fixed intake tables start SMS automations at the database level:
+`sms_automation_contacts`, `sms_automation_quote_requests`,
+`sms_automation_bookings`, and `sms_automation_reviews`. Each business has one
+editable intent and schedule per type. New Contact and Reviews rules start at one
+send after one day; Quote Request starts on submission within the business send
+window, then follows up every two days for six total sends (days 0, 2, 4, 6,
+8, and 10); Bookings starts at one reminder 24 hours before a confirmed appointment.
+The send count is editable from 1 to 30. Every due job asks AI for a fresh draft
+using the exact source row and current conversation; reusable templates are not sent.
 
-External quote and booking systems can publish lifecycle events through
-`POST /api/internal/automation-event` using `X-API-Key`. Supported types are
-`quote.created`, `booking.created`, `booking.updated`, `booking.confirmed`, and
-`booking.cancelled`.
+Staff can add and inspect rows under **Automations**, or trusted integrations can
+insert them through `POST /api/automation-intake/{contacts|quote_requests|bookings|reviews}`.
+`GET` on the same path lists recent rows. `PATCH /api/automation-intake/bookings/{id}`
+changes a booking's status or appointment. Name and phone are standalone; extra
+context is a JSON object in `details`. Supply a stable `Idempotency-Key` or
+`sourceRecordId` on retries. Trusted direct database inserts run the same trigger.
+The operational `sms_quotes` and `sms_bookings` tables mirror new records into
+their intake tables; old records are not backfilled.
 
-### Custom automation groups
+Records without a valid phone or required marketing consent, or whose contact
+has opted out, remain in the intake table with a skip reason and do not send.
+Requested bookings wait for confirmation; changes reschedule reminders and
+cancellations stop them. Newer rows replace active sequences of the same type.
+Quote Requests stop Contact nurture, confirmed Bookings stop Contact and Quote
+follow-ups, and Reviews stop obsolete booking reminders. Existing inbound AI
+settings and previously sent messages are unchanged.
 
-CRM users can create custom automation groups from **Automations → Create group**.
-Rules support daily, every other day, every 3 days, weekly, monthly, and custom
-day/week/month intervals, with 1–30 sends and an account-local send window. A specific
-first-send date/time can be scheduled for one-time or multi-step campaigns. Every step
-can have a different delay and message. Templates support `{{first_name}}`, `{{name}}`,
-and `{{phone}}`. Custom groups use the same contact consent, STOP suppression,
-claim/retry, delivery tracking, and automatic completion logic as the built-in quote
-sequence.
+### Web Forms submission storage
 
-Every system or custom group also has optional administrator-authored AI instructions.
-When enabled, instructions for all active groups in which a replying contact is enrolled
-are added to the AI request as trusted system context. They supplement rather than
-replace platform safety, consent, privacy, and tool constraints. Delayed AI jobs restore
-the inbound message's tenant context before resolving those instructions.
+Website Contact, Quote Request, and Booking submissions are stored in
+`sms_web_form_contact_submissions`, `sms_web_form_quote_request_submissions`, and
+`sms_web_form_booking_submissions`. Each row has a business `tenant_id`, a UUID,
+required `name`, E.164 `phone`, and `email`, plus object-valued `details` for
+website-specific answers. Booking rows also require an exact `appointment_at`
+timestamp. The database assigns `automation_group_id` and
+`automation_intake_id`; callers must not choose an automation group.
 
-Local development defaults to `data/automation-groups.json` (override with
-`AUTOMATION_RULES_FILE`). App Platform uses the shared `sms_automation_groups` Supabase
-table so web and scheduled-runner instances see the same definitions. Apply
-`supabase/migrations/20260910_sms_automation_groups.sql` followed by
-`supabase/migrations/20260910_sms_security_hardening.sql` before deploying and set
-`AUTOMATION_RULES_STORE=supabase`. Existing message and enrollment records continue to
-use their current Supabase tables.
+Trusted database inserts create a matching automation intake row in the same
+transaction. Contact and Quote Request rows require `sms_opt_in=true` and
+nonblank `consent_evidence` to start SMS automation; a prior opt-out still
+prevents sending. Booking rows enter the confirmed booking reminder flow on
+submission. Changes to `details` on a saved Web Forms row do not restart an
+automation; the intake row keeps the original submitted answers. Business
+memberships control read access.
+
+### Form Builder and website embeds
+
+Website-specific E2 connections are documented in
+[Website/E2 integration](docs/WEBSITE_E2_INTEGRATION.md). They preserve the
+existing SMS submission flow while separating enquiries by intended website.
+
+**Form Builder** in the dashboard has one Contact, Quote Request, and Booking form
+per business. Admins can edit the title, description, button, enabled state, and
+up to 20 ordered custom fields. Name, Phone, Email, optional SMS consent, and the
+Booking appointment time are fixed. Each form has a stable public ID and iframe
+snippet. Saving changes the live form without replacing existing snippets.
+Disabling a form stops its public configuration and submissions.
+
+Custom answers are saved in `details`. Each submission saves the form version and
+field-label snapshot so historical answers stay readable after edits. The public
+Edge endpoint validates the preset and answers, converts Booking times in the
+business time zone, stores consent evidence, and lets the database trigger choose
+the existing automation group. Unchecked Contact and Quote Request forms save
+without SMS enrollment; Booking forms submit as confirmed.
+
+During testing, the public `web-form` Edge endpoint accepts requests from all URL
+origins. The dashboard retains its framing and origin restrictions; only
+`/embed.html` permits framing. The iframe snippet includes automatic resizing and
+a fixed-height fallback. See [deployment setup](docs/WORKER_DEPLOYMENT.md#web-forms-deployment).
 
 ## Server-to-server send (quotes)
 
@@ -139,17 +175,38 @@ Requires `OPEK_SMS_API_KEY` on the SMS server. Opt-outs still block sends; marke
 
 ## Local
 
+The current deployment is a static CRM frontend backed by WPacquisition Edge
+Functions. For a matching local preview, set `CRM_API_BASE`,
+`SUPABASE_URL`, `SUPABASE_PUBLISHABLE_KEY`, and `PUBLIC_FORM_BASE_URL` in
+an ignored `.env` file, then run `npm start`. The build rejects any Supabase
+URL other than WPacquisition and any key that is not publishable. This preview
+serves only on localhost and uses the live database through authenticated Edge
+APIs. It does not need Clerk, Twilio, or Supabase service-role secrets locally.
+
+The former Express API remains available with `npm run start:legacy` for
+isolated migration testing. Do not use the legacy server as the current CRM.
+
+### Legacy Express preview
+
+To prepare an empty CRM before connecting record storage, set `CRM_DATA_MODE=empty`
+and `AUTOMATION_RULES_STORE=file` in `.env`, then restart. Record tabs return empty
+lists, customer actions and webhooks wait for storage, and automation definitions
+and editors continue using local files. No existing database records are deleted.
+To reconnect, clear `CRM_DATA_MODE`, configure the database credentials, choose
+the automation store, and restart.
+
 ```bash
 cp .env.example .env
 npm install
-npm run dev
+npm run dev:legacy
 ```
 
 For isolated local webhook testing only, set `TWILIO_VALIDATE_SIGNATURE=false`.
 Production health checks return `503` until the required Twilio, Supabase, Clerk, and
 API-key configuration is present. Copy this app's publishable and secret keys from the
-Clerk Dashboard into `CLERK_PUBLISHABLE_KEY` and `CLERK_SECRET_KEY`; do not copy Antra's
-keys unless both products are intentionally meant to share users. Add the deployed URL
+Clerk Dashboard into dedicated `CRM_CLERK_PUBLISHABLE_KEY`, `CRM_CLERK_SECRET_KEY`
+and `CRM_CLERK_ISSUER`. Set `E2_CLERK_ISSUER` to the separate customer app issuer;
+do not share keys. Identical emails may have independent accounts in both apps. Add the deployed URL
 as an allowed Clerk origin/redirect. For a Clerk Organization-backed account, set
 `DEFAULT_TENANT_CLERK_ORGANIZATION_ID` (or the slug) so the active organization becomes
 the tenant membership boundary.
@@ -165,3 +222,14 @@ businesses without loading Clerk, Supabase, Twilio, or AI clients. All writes,
 unknown APIs, webhooks, and WebSockets are blocked. Point a temporary device-testing
 tunnel at this port, not the live CRM on port 8080. Live CRM authentication is
 unchanged; switching sample businesses is only a preview, not production tenancy.
+
+## E2 platform staff CRM
+
+Users, Businesses, and Websites management uses the shared registry. See
+[staff CRM architecture and rollout](docs/STAFF_CRM.md). Registry/API migrations are
+live in compatibility mode. The CRM static frontend is live on Render at b5d25c1;
+E2 hosting/API release, production Clerk webhook configuration, website pairing
+and the controlled published pilot remain unverified.
+
+Separate customer/staff Clerk applications, dedicated secrets and lifecycle webhooks are configured. The additive E2 login-realm migration is live as 20260930054730; CRM Edge version 35 and compliance-session version 10 are deployed. E2 37c9a2d is Ready on Vercel and CRM a4b5247 is live on Render; both independent login pages are verified. Fresh CRM signup and explicit staff bootstrap remain required. See the login-split instructions
+in [staff CRM documentation](docs/STAFF_CRM.md) before releasing these changes.

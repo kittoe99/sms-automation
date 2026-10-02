@@ -10,6 +10,7 @@ export function constantTimeEqual(left, right) {
 
 /** Basic hardening headers without introducing a runtime dependency. */
 export function securityHeaders(req, res, next) {
+  const isWebFormEmbed = req.path === '/embed.html';
   const connectSources = ["'self'"];
   const clerkScriptSources = [
     "'self'",
@@ -60,7 +61,7 @@ export function securityHeaders(req, res, next) {
     "object-src 'none'",
     "base-uri 'self'",
     "form-action 'self'",
-    "frame-ancestors 'none'",
+    ...(isWebFormEmbed ? [] : ["frame-ancestors 'none'"]),
   ];
   if (process.env.NODE_ENV === 'production') policy.push('upgrade-insecure-requests');
 
@@ -68,7 +69,7 @@ export function securityHeaders(req, res, next) {
   res.setHeader('Cross-Origin-Opener-Policy', 'same-origin');
   res.setHeader('Referrer-Policy', 'no-referrer');
   res.setHeader('X-Content-Type-Options', 'nosniff');
-  res.setHeader('X-Frame-Options', 'DENY');
+  if (!isWebFormEmbed) res.setHeader('X-Frame-Options', 'DENY');
   res.setHeader(
     'Permissions-Policy',
     'camera=(), microphone=(), geolocation=(), payment=(), usb=()'
