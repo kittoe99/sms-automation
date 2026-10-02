@@ -2,6 +2,8 @@
 
 The paired E2 customer dashboard uses the same visual language and now retains
 visited hash-tab panels, filter/page selections, website details and account drafts.
+Its sidebar is the only section navigation and becomes a horizontal row on mobile;
+the duplicate inner strip has been removed.
 Its separate access/revision validation and account-wide Refresh policy remain
 unchanged; see `../E2local-main/docs/dashboard-cache.md` from the CRM repository.
 

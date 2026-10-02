@@ -342,3 +342,25 @@ browser warnings/errors were recorded. Screenshot saved in this task. Both recor
 and workflow docs now reflect the release. This E2 Git-triggered deployment worked;
 the separately recorded CRM Render webhook issue remains unchanged. No database,
 API, provider configuration or customer data mutation was part of this release.
+
+
+### October 2, 2026 (America/Denver) — Remove duplicate customer navigation
+
+Removed the extra Overview/Website/Account strip inside E2 dashboard content at
+user request. The existing sidebar remains the only section navigation, becoming
+one horizontally scrollable row on mobile. Refresh and retained visited panels
+remain; panel labels no longer refer to removed tab buttons. No API, authentication,
+customer visibility contract, database or migration changes. Both workflow docs updated.
+
+Validation: 13 targeted E2 cache, service-visibility and dashboard tests passed;
+production build passed. Full lint passed after removing a redundant section role.
+Local actual-component checks confirmed no inner strip, retained account input
+through sidebar switching, and working 390px mobile navigation without page overflow.
+Implementation is local at this checkpoint; live release verification follows.
+
+
+Release verified: E2 `446a5c8` is Ready on Vercel deployment
+`dpl_6BNevksKLAnigdJk21AB8nmenLQa` (October 2, 12:08 AM MDT). The authenticated
+production Account page has no inner workspace strip and retains Overview/Website/
+Account sidebar navigation. Screenshot saved in this task. Three paired CRM tab-memory
+tests also passed. Changes are pushed; no database/API/provider release was needed.
