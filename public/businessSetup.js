@@ -1,30 +1,18 @@
 const esc=value=>String(value??'').replaceAll('&','&amp;').replaceAll('<','&lt;').replaceAll('>','&gt;').replaceAll('"','&quot;').replaceAll("'",'&#39;');
-const fields=[
- ['businessName','Business name',160],['timeZone','Business time zone',100],
- ['contactEmail','Business email',254],['contactPhone','Business phone',32],['websiteUrl','Website',500],
- ['summary','Business description',2000,true],['services','Services · one per line',6000,true],
- ['locations','Service areas · one per line',4000,true],['hours','Hours',200],
- ['faqs','FAQs · one per line',6500,true],['pricing','Pricing · one per line',10000,true],
- ['policies','Policies · one per line',10000,true],['bookingRules','Booking rules',2000,true],
- ['handoff','When to hand off to a person',1000,true],
-];
-const lists=new Set(['services','locations','faqs','pricing','policies']);
-export function profileFromForm(form,previous={}) {
- const profile={...previous};
- for(const [name] of fields){const value=String(form.get(name)||'').trim();profile[name]=lists.has(name)?value.split(/\r?\n/).map(x=>x.trim()).filter(Boolean):value;}
- profile.tone=String(form.get('tone')||'').trim();return profile;
-}
+import {profileFromForm,profileEditorHtml,bindProfileEditor} from './businessProfileEditor.js?v=20261002-guided-profile';
+export {profileFromForm};
 export function mountBusinessSetup(container,row,{write,reload,onCreateWebsite,onWebsite,onWorkspace,lookup}) {
  const setup=row.setup||{revision:0,draft:{}},profile={...row.registration?.profile,...setup.draft};
  const services=row.services||[],reviewed=Boolean(setup.reviewed_profile_id);
- container.innerHTML=`<section class="card"><h3>${reviewed?'Reviewed business profile':'Awaiting admin setup'}</h3>
-   <p>Review the customer’s information, add service details, then choose which services they can see.</p>
-   ${row.registration?`<details><summary>Original customer registration</summary><pre>${esc(JSON.stringify(row.registration.profile,null,2))}</pre></details>`:''}
-   <form class="compose" data-profile><p data-profile-error class="login-error" role="alert"></p>
-   ${fields.map(([name,label,max,multi])=>`<label class="compose-label">${label}${multi?`<textarea name="${name}" maxlength="${max}" rows="3">${esc(Array.isArray(profile[name])?profile[name].join('\n'):profile[name])}</textarea>`:`<input name="${name}" value="${esc(profile[name])}" maxlength="${max}" ${['businessName','timeZone'].includes(name)?'required':''}/>`}</label>`).join('')}
-   <label>Brand voice<select name="tone">${['','friendly','professional','casual'].map(value=>`<option value="${value}" ${profile.tone===value?'selected':''}>${value||'Choose a voice (optional)'}</option>`).join('')}</select></label>
-   <div class="compose-actions"><button class="btn ghost" type="submit" name="intent" value="draft" formnovalidate>Save draft</button><button class="btn" type="submit" name="intent" value="review">Save reviewed profile</button></div>
-   <p>${reviewed?'Reviewed '+esc(new Date(setup.reviewed_at).toLocaleString())+'. Draft edits take effect after review.':'Services can be added after the profile is reviewed.'}</p></form></section>
+ container.innerHTML=`<section class="card business-profile-card">
+   <form class="compose business-profile-form" data-profile><p data-profile-error class="login-error" role="alert"></p>
+   ${profileEditorHtml(profile)}
+   <div class="profile-savebar"><div><strong>${reviewed?'Reviewed profile':'Ready when you are'}</strong><p>${reviewed?'Reviewed '+esc(new Date(setup.reviewed_at).toLocaleString())+'. Draft edits take effect after review.':'Save your progress, or review the facts to continue with service setup.'}</p></div>
+   <div class="compose-actions"><button class="btn ghost" type="submit" name="intent" value="draft" formnovalidate>Save draft</button><button class="btn" type="submit" name="intent" value="review">Save reviewed profile</button></div></div>
+   <p class="profile-note">Saving a reviewed profile does not publish a website or activate SMS sending.</p>
+   </form>
+   ${row.registration?`<details class="profile-registration"><summary>View original customer registration</summary><pre>${esc(JSON.stringify(row.registration.profile,null,2))}</pre></details>`:''}
+   </section>
    <section class="card"><h3>Services</h3><p>Set live makes a service visible in the customer dashboard. Publishing a website and activating SMS are separate controls.</p>
    <p data-service-error class="login-error" role="alert"></p>
    ${services.map(s=>`<article class="card"><h4>${esc(s.kind==='website'?s.siteName||'Website':({sms:'SMS',enquiries:'Website enquiries',bookings:'Bookings'}[s.kind]))}</h4>
@@ -35,9 +23,11 @@ export function mountBusinessSetup(container,row,{write,reload,onCreateWebsite,o
    <button type="button" class="btn ghost" data-new-site ${!reviewed?'disabled':''}>Create website</button>
    <button type="button" class="btn ghost" data-link-site ${!reviewed?'disabled':''}>Link existing website</button></div><div data-site-link></div></section>`;
  async function perform(button,error,action){if(button)button.disabled=true;error.textContent='';try{await action();await reload();}catch(e){error.textContent=e.message;if(button)button.disabled=false;}}
+ const editor=bindProfileEditor(container.querySelector('[data-profile]'));
  container.querySelector('[data-profile]').addEventListener('submit',event=>{
   event.preventDefault();const form=event.currentTarget,button=event.submitter;
   const intent=button?.value==='draft'?'draft':'review';
+  try{editor.prepare(intent==='review');}catch(error){form.querySelector('[data-profile-error]').textContent=error.message;return;}
   void perform(button,form.querySelector('[data-profile-error]'),()=>write(`business-profile/${intent}`,{
     tenantId:row.tenant_id,revision:setup.revision,profile:profileFromForm(new FormData(form),profile),
   }));

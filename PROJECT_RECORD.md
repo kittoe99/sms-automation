@@ -8,6 +8,13 @@ This is the current implementation and release-reference record for `opek-sms`. 
 
 ## Current implementation
 
+October 2 guided business setup: the Businesses profile editor has numbered
+sections, editable entry cards, time-zone/hours choices, a pricing builder and
+explicitly selected guidance presets. Existing shared draft/review contracts
+remain unchanged. See [form workflow](docs/BUSINESS_PROFILE_FORM.md); implementation
+and local verification are recorded below, with release verification separately.
+
+
 Paired customer dashboard: E2 now has the matching workspace refinement and
 retained hash-tab panels in production (E2 application 7098031). Both authorization contracts remain unchanged;
 see the latest paired dashboard change record for validation and release status.
@@ -81,6 +88,30 @@ Compare repository definitions and the actual live history before any future dat
 Applied this repository’s `20261001235349_business_service_prerequisites.sql` then E2’s `20261001235352_business_registration_services.sql` on October 1, after comparing recorded aliases and function contracts with live history. Both exact versions are recorded remotely. Existing linked assets become hidden service drafts requiring admin review/release. The shared account/registry/cache migration history is exercised together in offline tests.
 
 ## Change record
+
+### October 2, 2026 — Guided business profile form
+
+Replaced the long raw Businesses profile form with five numbered sections matching
+the E2 theme. Added a time-zone dropdown, hours presets, services/areas as individual
+entries, FAQ question/answer cards with topic suggestions, a pricing-method builder,
+policy prompts, appendable booking/handoff suggestions, and brand voice cards.
+Presets require explicit selection; original registration and custom/unknown facts
+remain. Saved facts keep the current string/array API shape and revision checks.
+Draft saves do not approve; review uses the existing API and service-addition gate.
+No extra navigation tabs, migrations, provider changes or E2 application changes.
+Compared E2 onboarding, service readers, shared profile implementation and both
+records; existing owning-repository migration order is unchanged. Workflow:
+[Guided profile form](docs/BUSINESS_PROFILE_FORM.md).
+
+Validation: 208 CRM tests passed, followed by targeted serialization/navigation
+checks after final refinements; production frontend build passed. All 24 selected
+E2 business-services UI, onboarding and combined CRM linking/access tests passed.
+Synthetic browser checks covered preset insertion, FAQ validation, pricing included
+on draft save, saved value round trips, review enabling service addition, desktop
+and 390px mobile layout with no horizontal overflow. Screenshot saved in task.
+Local implementation at this checkpoint; release verification follows separately.
+Unrelated local documentation/auth/preview changes remain excluded.
+
 
 ### October 2, 2026 — Remove stock workspace names
 

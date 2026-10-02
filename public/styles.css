@@ -3370,3 +3370,72 @@ tr[data-booking-id] { cursor: pointer; }
 .platform-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(260px,1fr));gap:16px;margin:20px 0}.platform-permissions{display:grid;gap:10px}.platform-grid h2{font-size:18px}#view-root pre{white-space:pre-wrap;overflow-wrap:anywhere}#view-root [data-detail] .card{margin:12px 0}#view-root [data-detail] nav{flex-wrap:wrap;margin:16px 0}
 
 .platform-root .card{padding:20px}.platform-root .compose{max-width:760px}.platform-root label{display:grid;gap:8px}.platform-root .platform-permissions label{display:flex;align-items:center;gap:10px}.platform-root textarea{min-height:96px}.platform-root code{overflow-wrap:anywhere}.platform-root nav button{text-transform:capitalize}.platform-root .compose-actions{flex-wrap:wrap;gap:10px}
+
+/* Guided business profile; keep the existing E2 paper and blue theme. */
+.platform-root .business-profile-card { padding: 0; overflow: hidden; }
+.platform-root .business-profile-form { max-width: none; gap: 0; }
+.business-profile-form > .login-error:empty { display: none; }
+.business-profile-form > .login-error { margin: 18px 28px 0; }
+.profile-intro { padding: 28px; background: var(--paper, #f4f9fa); border-bottom: 1px solid var(--border); }
+.profile-intro h3 { margin: 8px 0; font-size: clamp(1.25rem, 2vw, 1.65rem); letter-spacing: -.04em; }
+.profile-intro p { margin: 0 0 15px; max-width: 65ch; color: var(--muted); font-size: .85rem; line-height: 1.6; }
+.profile-status { display: inline-block; color: var(--brand); font-size: .72rem; line-height: 1.5; }
+.profile-section { min-width: 0; margin: 0; padding: 24px 28px 28px; border: 0; border-bottom: 1px solid var(--border); }
+.profile-section legend { float: left; display: flex; align-items: center; gap: 10px; width: 100%; padding: 0; margin-bottom: 8px; font-size: 1rem; font-weight: 650; letter-spacing: -.02em; }
+.profile-step { display: inline-grid; place-items: center; flex: 0 0 28px; height: 28px; border: 1px solid var(--border); border-radius: 50%; color: var(--brand); background: var(--paper, #f4f9fa); font-size: .64rem; font-weight: 500; letter-spacing: 0; }
+.profile-section-hint { clear: both; margin: 0 0 18px; color: var(--muted); font-size: .76rem; line-height: 1.6; }
+.profile-grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 16px; }
+.profile-wide { grid-column: 1 / -1; }
+.profile-field { min-width: 0; display: grid; align-content: start; gap: 7px; font-size: .8rem; font-weight: 500; }
+.profile-field > span { color: var(--text); }
+.profile-field small, .profile-hours > small { color: var(--muted); font-size: .7rem; line-height: 1.5; font-weight: 400; }
+.profile-field > span small { margin-left: 5px; font-size: .64rem; }
+.business-profile-form input:not([type="radio"]), .business-profile-form select, .business-profile-form textarea { width: 100%; min-width: 0; padding: 11px 12px; border: 1px solid var(--border); border-radius: 8px; background: #fff; color: var(--text); font: inherit; font-size: .82rem; box-shadow: none; }
+.business-profile-form input:not([type="radio"]), .business-profile-form select { min-height: 44px; }
+.business-profile-form textarea { min-height: 76px; resize: vertical; line-height: 1.6; }
+.business-profile-form input::placeholder, .business-profile-form textarea::placeholder { color: #6b8190; opacity: 1; }
+.business-profile-form :is(input,select,textarea,button):focus-visible { outline: 2px solid var(--brand); outline-offset: 3px; }
+.profile-list h4 { margin: 0 0 6px; font-size: .85rem; font-weight: 600; }
+.profile-list .profile-section-hint { margin-bottom: 12px; font-size: .72rem; }
+.profile-list + .profile-list { margin-top: 25px; padding-top: 25px; border-top: 1px dashed var(--border); }
+.profile-list [data-entries] { display: grid; gap: 10px; margin-bottom: 12px; }
+.profile-entry { display: grid; grid-template-columns: minmax(0, 1fr) 32px; align-items: start; gap: 6px; }
+.profile-remove { width: 32px; height: 40px; padding: 0; background: transparent; border: 0; border-radius: 6px; color: var(--muted); cursor: pointer; font-size: 1.3rem; }
+.profile-remove:hover { background: #fdf0f1; color: var(--bad); }
+.profile-faq { position: relative; padding: 16px 42px 16px 16px; border: 1px solid var(--border); border-radius: 10px; background: var(--paper, #f4f9fa); }
+.profile-faq .profile-remove { position: absolute; right: 5px; top: 17px; }
+.profile-hours { margin-top: 22px; padding: 18px; background: var(--paper, #f4f9fa); border-radius: 10px; border: 1px solid var(--border); }
+.profile-preset-row { display: flex; gap: 10px; align-items: end; margin-top: 12px; margin-bottom: 10px; }
+.profile-preset-row .profile-field { flex: 1; }
+.profile-preset-row .btn { min-height: 44px; flex-shrink: 0; }
+.profile-price-builder { padding: 18px; border: 1px dashed var(--border); border-radius: 10px; background: var(--paper, #f4f9fa); }
+.profile-price-builder .login-error:empty { display: none; }
+.profile-price-builder > .btn { margin-top: 14px; }
+.profile-guidance { margin-top: 24px; }
+.profile-note { margin: 14px 0 0; color: var(--muted); font-size: .72rem; line-height: 1.6; }
+.business-profile-form > .profile-note { margin: 0; padding: 16px 28px; }
+.profile-voices { clear: both; display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 10px; }
+.platform-root .profile-voice { display: flex; align-items: start; gap: 10px; padding: 14px; border: 1px solid var(--border); border-radius: 10px; cursor: pointer; }
+.profile-voice:has(input:checked) { border-color: var(--brand); background: var(--paper, #edf7fb); }
+.profile-voice input { margin: 3px 0 0; accent-color: var(--brand); }
+.profile-voice strong { display: block; font-size: .79rem; font-weight: 600; }
+.profile-voice small { display: block; margin-top: 5px; color: var(--muted); font-size: .71rem; line-height: 1.5; }
+.profile-savebar { display: flex; align-items: center; justify-content: space-between; gap: 18px; padding: 22px 28px 8px; border-top: 1px solid var(--border); }
+.profile-savebar strong { font-size: .8rem; }
+.profile-savebar p { margin: 5px 0 0; color: var(--muted); font-size: .7rem; line-height: 1.5; }
+.profile-savebar .compose-actions { flex-shrink: 0; }
+.profile-editor-notice:empty { display: none; }
+.profile-editor-notice { margin: 0; padding: 10px 28px; color: var(--brand); font-size: .78rem; }
+.profile-registration { margin: 0 28px 20px; color: var(--muted); font-size: .76rem; }
+.profile-registration summary { cursor: pointer; }
+@media (max-width: 700px) {
+ .profile-grid, .profile-voices { grid-template-columns: 1fr; }
+ .profile-intro, .profile-section { padding: 20px 16px; }
+ .profile-savebar { align-items: stretch; flex-direction: column; padding: 20px 16px 8px; }
+ .profile-savebar .compose-actions { justify-content: stretch; }
+ .profile-savebar .btn { flex: 1; }
+ .profile-preset-row { align-items: stretch; flex-direction: column; }
+ .profile-hours, .profile-price-builder { padding: 14px; }
+ .business-profile-form > .profile-note, .profile-editor-notice { padding-inline: 16px; }
+ .profile-registration { margin-inline: 16px; }
+}

@@ -31,3 +31,8 @@ to their permitted forms workspace.
 
 The October 2 navigation repair changes frontend visibility only. It does not
 create groups, add services, change access, activate messaging or apply migrations.
+
+Business details now have a guided profile form with numbered sections, hours
+presets, FAQ cards, a pricing builder, suggested rules and voice choices. See the
+[business setup guide](BUSINESS_PROFILE_FORM.md) for draft/review behavior and
+which fields provide written guidance rather than operational booking settings.
