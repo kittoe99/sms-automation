@@ -11,7 +11,8 @@ This is the current implementation and release-reference record for `opek-sms`. 
 October 2 profile summary: a detailed, live preview now closes the guided business
 form, with per-section Edit links and explicit missing/pending details. It uses
 current form values and retains existing draft/review persistence. See the latest
-change record for validation and release status.
+change record for validation and release status. Application `ce99d35` is Live
+on Render `dep-db01gs60tbcc73fpuik0`; summary UI and all six assets were verified.
 
 
 October 2 guided business setup: the Businesses profile editor has numbered
@@ -118,6 +119,15 @@ checks and the production frontend build. Synthetic browser checks confirmed liv
 updates, removal/empty states, Edit focus, pending price saved once and retained
 values on reload. Desktop and 390px mobile summary cards have no horizontal
 overflow. Local implementation/testing at this checkpoint; release evidence follows.
+
+Release verified: CRM application `ce99d35` is Live on Render
+`dep-db01gs60tbcc73fpuik0` (October 2, 2026, 2:47 PM MDT). All six
+changed production assets matched the release after newline normalization.
+Authenticated read-only production inspection confirmed the detailed summary,
+saved business facts and explicit missing-field labels, with no browser errors
+or warnings. Live screenshot saved in this task. No production profile save,
+API/database deployment or provider change was performed during verification.
+
 
 
 ### October 2, 2026 — Guided business profile form
