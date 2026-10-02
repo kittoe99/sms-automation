@@ -94,7 +94,12 @@ Validation: frontend build, JavaScript syntax and all three tab workspace tests
 passed. Synthetic browser checks covered first-load group menus, group selection,
 return to the list, Platform menus, cross-section search and a 390px mobile drawer.
 This is a frontend-only repair; no migrations, service setup or access changes.
-Local implementation verified; production release verification follows below.
+Released application `6d92401` to Render as `dep-davsub49v7es7392vuo0`
+(live October 2, 09:35 AM MDT). Live app/CSS matched the source and the HTML
+matched after line-ending normalization. An authenticated production browser
+confirmed the Automations and Workspace sidebar menu options without search;
+console warnings/errors were empty. E2's paired record is `ec5833e`; no E2
+application change was needed.
 
 ### October 1, 2026 — Coordinated production business lifecycle release
 
