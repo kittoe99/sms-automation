@@ -86,8 +86,12 @@ Applied this repository’s `20261001235349_business_service_prerequisites.sql` 
 
 The header logo now points to the CRM overview instead of the public E2 homepage.
 Normal clicks use retained tab navigation; opening a new tab uses the CRM URL.
-Forms-only accounts retain their existing workspace restrictions. Frontend-only
-change with no migration or E2 application change. Release verification follows.
+Forms-only accounts retain their existing workspace restrictions. Frontend build,
+syntax and diff checks passed; synthetic browser navigation opened overview.
+Application `6824198` is live on Render `dep-db00t5u7bikc73foknn0` (October 2,
+02:05 PM MDT). Live HTML points to the CRM overview, and an authenticated browser
+logo click stayed on crm.e2local.com and opened its Dashboard. Console warnings
+and errors were empty. No migration or E2 application change.
 
 ### October 2, 2026 — Visible automation setup entry point
 
