@@ -89,7 +89,16 @@ example placeholders from setup forms. The selector now displays only returned
 businesses; loading/empty states are disabled and no-workspace resolution clears
 the old selector, business label and initials. Selection is reconciled against
 the returned workspace list. Frontend-only correction with no database, service
-or E2 application changes. Validation and release evidence follow after checks.
+or E2 application changes. Frontend build, syntax/diff checks and three workspace
+tests passed. Synthetic browser checks covered a populated list and an empty
+list with a stale currentTenant: the latter showed a disabled No business
+workspace selector, blank initials and a neutral CRM label.
+
+Application `6b6470f`, Render `dep-db012mnavr4c73do20eg`, is live (October 2,
+02:17 PM MDT). Live HTML contains no stock business option and app source matches
+the released implementation. An authenticated production browser displayed its
+actual returned workspace; console warnings/errors were empty. Existing business
+records were not renamed or deleted.
 
 ### October 2, 2026 — Remove duplicate inner CRM tabs
 
