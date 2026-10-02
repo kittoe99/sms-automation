@@ -26,8 +26,13 @@ async function apiFetch(path, options = {}) {
   return authenticatedFetch(path, options);
 }
 
+const KNOWN_VIEWS = ['overview','contacts','messaging','bookings','automations','email','call','messages','deliverability','optouts','ai-instructions','business-setup','business-context','booking-setup','web-forms','knowledge','platform-accounts','platform-businesses','platform-websites'];
+function initialViewFromUrl() {
+  const view = new URLSearchParams(location.search).get('view');
+  return KNOWN_VIEWS.includes(view) ? view : 'overview';
+}
 const state = {
-  view: ['platform-accounts','platform-businesses','platform-websites','business-setup','web-forms','bookings'].includes(new URLSearchParams(location.search).get('view')) ? new URLSearchParams(location.search).get('view') : 'overview',
+  view: initialViewFromUrl(),
   categoryId: null,
   q: '',
   status: '',
@@ -82,11 +87,12 @@ const el = {
   tenantSelect: document.getElementById('tenant-select'),
   toolbarTenant: document.getElementById('toolbar-tenant'),
   tenantAvatar: document.getElementById('tenant-avatar'),
+  viewTabs: document.getElementById('view-tabs'),
 };
 
 const formBuilder = createFormBuilder({ root: el.root, apiFetch, config: runtimeConfig, canReadSubmissions:()=>state.tenant?.smsRead!==false });
 const platform = createPlatform({ root: el.root, title: el.title, subtitle: el.sub, pager: el.pager,
-  onWorkspace:(tenantId,service)=>{setTenantId(tenantId);location.href=`/?view=${service==='sms'?'business-setup':service==='enquiries'?'web-forms':'bookings'}`;},
+  onWorkspace:(tenantId,service)=>{setTenantId(tenantId);switchView(service==='sms'?'business-setup':service==='enquiries'?'web-forms':'bookings',{tenantId,force:true});},
   onNavigate:view=>{state.view=view;el.toolbarTenant.textContent='CRM';el.toolbarSection.textContent={ 'platform-accounts':'Users','platform-businesses':'Businesses','platform-websites':'Websites' }[view];setActiveNav();} });
 
 let drawerReturnFocus = null;
@@ -121,11 +127,12 @@ function syncOverlayLock() {
 }
 
 el.tenantSelect?.addEventListener('change', () => {
-  setTenantId(el.tenantSelect.value);
-  location.reload();
+  switchTenant(el.tenantSelect.value).catch(error=>console.error(error));
 });
 
-window.addEventListener('clerk:organization-changed', () => location.reload());
+window.addEventListener('clerk:organization-changed', () => {
+  switchTenant(getTenantId(), { force: true }).catch(error=>console.error(error));
+});
 
 document.getElementById('add-business')?.addEventListener('click', () => {
   state.view='platform-businesses';setActiveNav();
@@ -134,21 +141,11 @@ document.getElementById('add-business')?.addEventListener('click', () => {
 
 function openBusinessSetup(provisioning = null) {
   if (provisioning) state.setupProvisioning = provisioning;
-  state.view = 'business-setup';
-  state.page = 1;
-  setActiveNav();
-  closeDrawer();
-  closeSidebar();
-  load();
+  switchView('business-setup');
 }
 
 function openBusinessContext() {
-  state.view = 'business-context';
-  state.page = 1;
-  setActiveNav();
-  closeDrawer();
-  closeSidebar();
-  load();
+  switchView('business-context');
 }
 
 function refreshFromBackground() {
@@ -599,10 +596,7 @@ async function renderBusinessSetup() {
   });
 
   const goOverview = () => {
-    state.view = 'overview';
-    state.page = 1;
-    setActiveNav();
-    load();
+    switchView('overview');
   };
   el.root.querySelector('#setup-back')?.addEventListener('click', goOverview);
   el.root.querySelector('#setup-cancel')?.addEventListener('click', goOverview);
@@ -646,9 +640,7 @@ async function renderBusinessSetup() {
       const data = await response.json();
       if (!response.ok) throw new Error(data.error || data.detail || 'Could not save setup details');
       state.setupProvisioning = data;
-      state.view = 'overview';
-      setActiveNav();
-      await load();
+      switchView('overview', { force: true });
     } catch (failure) {
       error.textContent = failure.message;
       saveButton.disabled = false;
@@ -840,7 +832,7 @@ async function renderBusinessContext() {
 
   const form = el.root.querySelector('#business-context-form');
   el.root.querySelector('#open-ai-instructions')?.addEventListener('click', () => {
-    state.view = 'ai-instructions'; setActiveNav(); load();
+    switchView('ai-instructions');
   });
   const error = form.querySelector('#ctx-error');
   const saveButton = form.querySelector('#ctx-save');
@@ -886,10 +878,7 @@ async function renderBusinessContext() {
 
   const goOverview = () => {
     state.businessContextDraft = null;
-    state.view = 'overview';
-    state.page = 1;
-    setActiveNav();
-    load();
+    switchView('overview');
   };
   el.root.querySelector('#setup-back')?.addEventListener('click', goOverview);
   el.root.querySelector('#ctx-cancel')?.addEventListener('click', goOverview);
@@ -1038,9 +1027,7 @@ async function renderBusinessContext() {
       };
       state.businessContextDraft = null;
       await loadTenantContext();
-      state.view = 'overview';
-      setActiveNav();
-      await load();
+      switchView('overview', { force: true });
     } catch (failure) {
       error.textContent = failure.message;
       saveButton.disabled = false;
@@ -1226,22 +1213,20 @@ function contactTypeLabel(source) {
 document.getElementById('nav').addEventListener('click', (e) => {
   const btn = e.target.closest('[data-view]');
   if (!btn) return;
-  state.view = btn.dataset.view;
-  state.categoryId = btn.dataset.category || null;
-  state.page = 1;
-  if (state.view !== 'messaging') { state.conversationPhone = null; state.conversationId = null; }
-  if (state.view === 'automations' && !btn.dataset.category) {
-    state.categoryId = null;
-  }
-  setActiveNav();
-  closeSidebar();
-  load().then(() => {
+  switchView(btn.dataset.view, { categoryId: btn.dataset.category || null }).then(() => {
     if (matchMedia('(max-width: 900px)').matches) {
       el.title.setAttribute('tabindex', '-1');
       el.title.focus({ preventScroll: true });
     }
   });
 });
+
+// Hover/focus prefetch: warm the HTTP cache so tab switches feel instant.
+document.getElementById('nav').addEventListener('pointerover', (e) => {
+  const btn = e.target.closest?.('[data-view]');
+  if (!btn || btn.dataset.view === state.view) return;
+  prefetchView(btn.dataset.view);
+}, { passive: true });
 
 function setSidebarOpen(open) {
   const isOpen = Boolean(open);
@@ -1288,7 +1273,7 @@ document.addEventListener('keydown', (event) => {
   closeSidebar({ restoreFocus: true });
 });
 
-document.getElementById('refresh').addEventListener('click', () => load());
+document.getElementById('refresh').addEventListener('click', () => load({ force: true }));
 document.getElementById('drawer-close').addEventListener('click', closeDrawer);
 el.drawerBackdrop?.addEventListener('click', closeDrawer);
 
@@ -1337,6 +1322,10 @@ function setActiveNav() {
       active = node.dataset.view === state.view;
     }
     node.classList.toggle('active', active);
+    if (node.classList.contains('nav-item')) {
+      if (active) node.setAttribute('aria-current', 'page');
+      else node.removeAttribute('aria-current');
+    }
   });
 
   const parent = document.getElementById('nav-automations-root');
@@ -1345,6 +1334,189 @@ function setActiveNav() {
     parent.classList.toggle('expanded', onAutomations);
     parent.setAttribute('aria-expanded', String(onAutomations));
   }
+  renderViewTabs();
+  syncViewUrl();
+}
+
+// Contextual tab groups: related standalone pages become instant tabs
+// that share one URL (?view=) and switch without any page reload.
+const TAB_GROUPS = [
+  { id: 'reports', label: 'Reports', views: [
+    { view: 'call', label: 'Inbound calls' },
+    { view: 'messages', label: 'Message history' },
+    { view: 'deliverability', label: 'Delivery report' },
+    { view: 'optouts', label: 'Opt-Outs' },
+  ]},
+  { id: 'setup', label: 'Setup', views: [
+    { view: 'business-setup', label: 'Business setup' },
+    { view: 'business-context', label: 'Business context' },
+    { view: 'booking-setup', label: 'Booking setup' },
+    { view: 'web-forms', label: 'Forms' },
+    { view: 'ai-instructions', label: 'AI instructions' },
+  ]},
+  { id: 'platform', label: 'Platform', views: [
+    { view: 'platform-accounts', label: 'Users' },
+    { view: 'platform-businesses', label: 'Businesses' },
+    { view: 'platform-websites', label: 'Websites' },
+  ]},
+];
+
+function tabGroupForView(view) {
+  return TAB_GROUPS.find(group => group.views.some(tab => tab.view === view)) || null;
+}
+
+function renderViewTabs() {
+  const host = el.viewTabs;
+  if (!host) return;
+  const group = tabGroupForView(state.view);
+  const permitted = (view) => {
+    if (state.platformStaff) return true;
+    if (group?.id === 'platform') return false;
+    return canOpenWorkspace(view, state.platformStaff, state.tenant);
+  };
+  if (!group || !group.views.filter(tab => permitted(tab.view)).length) {
+    host.hidden = true;
+    host.innerHTML = '';
+    return;
+  }
+  host.hidden = false;
+  host.setAttribute('aria-label', `${group.label} tabs`);
+  host.innerHTML = group.views
+    .filter(tab => permitted(tab.view))
+    .map(tab => `<button type="button" role="tab" class="crm-tab" data-tab-view="${esc(tab.view)}" aria-selected="${String(tab.view === state.view)}" tabindex="${tab.view === state.view ? '0' : '-1'}">${esc(tab.label)}</button>`)
+    .join('');
+}
+
+el.viewTabs?.addEventListener('click', (event) => {
+  const tab = event.target.closest?.('[data-tab-view]');
+  if (!tab || tab.getAttribute('aria-selected') === 'true') return;
+  switchView(tab.dataset.tabView);
+});
+
+el.viewTabs?.addEventListener('keydown', (event) => {
+  if (event.key !== 'ArrowRight' && event.key !== 'ArrowLeft') return;
+  const tabs = [...el.viewTabs.querySelectorAll('[data-tab-view]')];
+  if (!tabs.length) return;
+  event.preventDefault();
+  const current = tabs.indexOf(document.activeElement);
+  const next = event.key === 'ArrowRight'
+    ? tabs[(current + 1 + tabs.length) % tabs.length]
+    : tabs[(current - 1 + tabs.length) % tabs.length];
+  next.focus();
+  switchView(next.dataset.tabView);
+});
+
+function syncViewUrl() {
+  try {
+    const url = new URL(location.href);
+    if (url.searchParams.get('view') !== state.view) {
+      url.searchParams.set('view', state.view);
+      history.replaceState({ view: state.view }, '', url);
+    }
+  } catch { /* non-fatal: URL stays as-is */ }
+}
+
+window.addEventListener('popstate', (event) => {
+  const view = event.state?.view || new URLSearchParams(location.search).get('view');
+  if (view && KNOWN_VIEWS.includes(view) && view !== state.view) {
+    switchView(view).catch(error=>console.error(error));
+  }
+});
+
+// Central tab switch: one code path for sidebar, tabs, dashboard
+// shortcuts and drawers. No full-page reload; the shell, theme and
+// realtime connection stay mounted while only the view re-renders.
+let switchToken = 0;
+async function switchView(view, options = {}) {
+  if (!KNOWN_VIEWS.includes(view)) return load();
+  const { categoryId = undefined, force = false, tenantId = null } = options;
+  const mySwitch = ++switchToken;
+  if (tenantId && tenantId !== getTenantId()) setTenantId(tenantId);
+  const sameView = view === state.view
+    && (categoryId === undefined || categoryId === state.categoryId)
+    && !force;
+  state.view = view;
+  if (categoryId !== undefined) state.categoryId = categoryId;
+  else if (view === 'automations' && options.categoryId === undefined && !force) { /* keep group */ }
+  else if (view !== 'automations') state.categoryId = null;
+  if ('conversationPhone' in options) state.conversationPhone = options.conversationPhone;
+  else if (view !== 'messaging') state.conversationPhone = null;
+  if ('conversationId' in options) state.conversationId = options.conversationId;
+  else if (view !== 'messaging') state.conversationId = null;
+  state.page = 1;
+  state.q = '';
+  if (el.search) el.search.value = '';
+  setActiveNav();
+  closeDrawer();
+  closeSidebar();
+  if (sameView && !force) {
+    await load({ keepContent: true });
+  } else {
+    await load();
+  }
+  if (mySwitch !== switchToken) return;
+}
+
+// In-place workspace switch: re-resolve tenant context and re-render
+// the current tab without tearing down auth, theme or realtime.
+async function switchTenant(tenantId, options = {}) {
+  if (tenantId) setTenantId(tenantId);
+  state.categories = [];
+  state.cadences = [];
+  state.rulePresets = [];
+  state.setupProvisioning = null;
+  state.setupOnboarding = null;
+  state.setupRegistration = null;
+  state.businessContextDraft = null;
+  state.bookingSettingsDraft = null;
+  state.conversationPhone = null;
+  state.conversationId = null;
+  state.page = 1;
+  lastRenderedView = null;
+  viewFreshness.clear();
+  try {
+    await loadTenantContext();
+  } catch (error) {
+    console.error(error);
+    await forceLogin(error.message || 'Could not load business accounts');
+    return;
+  }
+  if (!canOpenWorkspace(state.view, state.platformStaff, state.tenant)) {
+    state.view = state.platformStaff || state.tenant?.smsRead !== false ? 'overview' : 'web-forms';
+  }
+  if (options.force) lastRenderedView = null;
+  updateAuthChrome();
+  setActiveNav();
+  await load({ force: true });
+}
+
+// Freshness-aware rendering: revisiting a recently loaded tab keeps its
+// content on screen (no skeleton flash) while data revalidates.
+const viewFreshness = new Map();
+function markViewFresh(view) {
+  viewFreshness.set(view, Date.now());
+}
+function isViewFresh(view, maxAgeMs = 30000) {
+  const at = viewFreshness.get(view);
+  return at != null && (Date.now() - at) < maxAgeMs;
+}
+
+// Prefetch hook used by hover/focus warming. Best-effort only.
+const prefetchedViews = new Set();
+function prefetchView(view) {
+  try {
+    if (!state.tenant || prefetchedViews.has(view) || view === state.view) return;
+    if (!canOpenWorkspace(view, state.platformStaff, state.tenant)) return;
+    if (String(view).startsWith('platform-')) return;
+    prefetchedViews.add(view);
+    const idle = globalThis.requestIdleCallback || ((fn) => setTimeout(fn, 800));
+    idle(() => {
+      if (view === state.view) return;
+      apiFetch(view === 'overview' ? '/api/overview' : '/api/categories', { method: 'GET' })
+        .then(res => res.arrayBuffer?.().catch(()=>null))
+        .catch(() => {});
+    });
+  } catch { /* never break navigation */ }
 }
 
 function syncSidebarBrand() {
@@ -1462,9 +1634,12 @@ async function renderEmailGroups() {
   }
 }
 
-async function load() {
+async function load(options = {}) {
+  const { keepContent = false, force = false } = options;
   if (state.view !== 'messaging') document.querySelector('.crm')?.classList.remove('thread-open');
-  if (lastRenderedView !== state.view) {
+  const viewChanged = lastRenderedView !== state.view;
+  const revisitingFreshTab = viewChanged && !force && isViewFresh(state.view) && el.root.children.length > 0;
+  if (viewChanged && !keepContent && !revisitingFreshTab) {
     el.root.innerHTML = '<div class="card ui-loading" role="status">Loading workspace…</div>';
     el.kpi.innerHTML = '';
     el.pager.hidden = true;
@@ -1480,7 +1655,7 @@ async function load() {
       el.toolbarTenant.textContent='CRM';
       el.toolbarSection.textContent={ 'platform-accounts':'Users','platform-businesses':'Businesses','platform-websites':'Websites' }[state.view];
       setActiveNav();
-      await platform.render(state.view); lastRenderedView = state.view; return;
+      await platform.render(state.view); lastRenderedView = state.view; markViewFresh(state.view); return;
     }
     el.root.classList.remove('platform-root');
     if (!state.tenant) throw new Error('Choose or create a business workspace.');
@@ -1520,6 +1695,7 @@ async function load() {
     else if (state.view === 'knowledge') await renderKnowledge();
     else await renderMessages();
     lastRenderedView = state.view;
+    markViewFresh(state.view);
   } catch (err) {
     console.error(err);
     el.root.innerHTML = `<div class="card"><div class="empty" role="alert"><strong>Could not load this page.</strong><p>${esc(err.message || 'Please try again.')}</p><button type="button" class="btn ghost" data-retry-load>Try again</button></div></div>`;
@@ -1553,14 +1729,10 @@ function renderNavAutomations() {
 }
 
 function openAutomationGroup(categoryId = null) {
-  state.view = 'automations';
-  state.categoryId = categoryId;
   state.automationBuilderOpen = false;
   state.automationPresetId = null;
   state.aiBuilderOpen = false;
-  state.page = 1;
-  setActiveNav();
-  load();
+  switchView('automations', { categoryId, force: true });
 }
 
 async function renderCall() {
@@ -2097,7 +2269,7 @@ async function renderAutomations() {
       );
     });
     el.root.querySelector('[data-open-ai-instructions]')?.addEventListener('click', () => {
-      state.view = 'ai-instructions'; setActiveNav(); load();
+      switchView('ai-instructions');
     });
     return;
   }
@@ -2309,12 +2481,12 @@ async function renderAutomations() {
     renderAutomations();
   });
   el.root.querySelector('#edit-group-prompt')?.addEventListener('click', async () => {
-    state.view = 'ai-instructions'; setActiveNav(); await load();
+    await switchView('ai-instructions');
     document.getElementById(`ai-group-${category.id}`)?.scrollIntoView({ behavior:'smooth', block:'start' });
   });
   el.root.querySelector('#edit-group-email')?.addEventListener('click', async () => {
     state.emailGroupId = category.id;
-    state.view = 'email'; setActiveNav(); await load();
+    await switchView('email');
   });
   el.root.querySelectorAll('[data-open-automation]').forEach((btn) => {
     btn.addEventListener('click', () => openAutomationGroup(btn.getAttribute('data-open-automation')));
@@ -2902,11 +3074,7 @@ function openMessageComposer({ phone, name }) {
       count.textContent = '0 / 1600';
       setTimeout(() => {
         closeDrawer();
-        state.view = 'messaging';
-        state.conversationId = null;
-        state.conversationPhone = json.to || phone;
-        setActiveNav();
-        load();
+        switchView('messaging', { conversationPhone: json.to || phone, conversationId: null, force: true });
       }, 700);
     } catch (err) {
       hint.textContent = err.message || 'Failed to send';
@@ -3410,13 +3578,8 @@ function openDrawer(title, html) {
   el.drawerBody.querySelector('#drawer-open-thread')?.addEventListener('click', () => {
     const phone = el.drawerBody.querySelector('.kv .v')?.textContent;
     if (!phone) return;
-    state.view = 'messaging';
-    state.conversationId = null;
-    state.conversationPhone = phone;
-    state.page = 1;
     closeDrawer();
-    setActiveNav();
-    load();
+    switchView('messaging', { conversationPhone: phone, conversationId: null, force: true });
   });
 }
 
@@ -3565,8 +3728,16 @@ async function openAuthenticatedWorkspace() {
   if (!state.tenant && state.platformStaff) { state.view = 'platform-accounts'; setActiveNav(); }
   showCrmApp();
   updateAuthChrome();
+  if (runtimeConfig.previewReadOnly) {
+    const banner = document.getElementById('demo-banner');
+    banner.textContent = 'Development preview · Test Clerk login · Sample data only · SMS, calls, and changes disabled';
+    banner.hidden = false;
+    document.getElementById('clerk-organization-switcher').hidden = true;
+    setLiveStatus(false, 'Sample data');
+    installDemoActionGuard();
+  }
   await load();
-  if (!document.getElementById('crm-app').hidden && state.tenant && state.tenant.smsRead!==false) connectLive();
+  if (!runtimeConfig.previewReadOnly && !document.getElementById('crm-app').hidden && state.tenant && state.tenant.smsRead!==false) connectLive();
 }
 
 function updateAuthChrome() {

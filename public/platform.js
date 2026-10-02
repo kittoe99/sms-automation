@@ -18,6 +18,10 @@ const checkbox=(label,name,checked=false)=>`<label><input type="checkbox" name="
 
 export function createPlatform({root,title,subtitle,pager,onNavigate,onWorkspace}){
  let view='accounts',page=1,q='',selected=null,tab='dashboard',enquiryPage=1,enquiryType='all';
+ // Cached website record + hosting payload so sub-tabs (dashboard,
+ // domain, assets, business-info, leads) switch instantly without
+ // refetching on every tab click. Invalidated by mutations.
+ let siteCache=null;
  function bind(selector,event,callback){root.querySelectorAll(selector).forEach(node=>node.addEventListener(event,callback));}
  async function run(callback){try{await callback();}catch(error){const alert=root.querySelector('[data-error]');if(alert)alert.textContent=error.message;else root.insertAdjacentHTML('afterbegin',`<p role="alert">${esc(error.message)}</p>`);}}
  function error(){return '<p data-error class="login-error" role="alert"></p>';}
@@ -36,7 +40,7 @@ export function createPlatform({root,title,subtitle,pager,onNavigate,onWorkspace
      <div class="compose-actions">${button('Previous',`data-page="${page-1}" ${page<=1?'disabled':''}`)}<span>Page ${page} of ${result.totalPages} · ${result.total} records</span>${button('Next',`data-page="${page+1}" ${page>=result.totalPages?'disabled':''}`)}</div></section>`;
   bind('[data-search]','submit',event=>{event.preventDefault();q=new FormData(event.currentTarget).get('q').trim();page=1;run(directory);});
   bind('[data-page]','click',event=>{page=Number(event.currentTarget.dataset.page);run(directory);});
-  bind('[data-open]','click',event=>{selected=event.currentTarget.dataset.open;tab='dashboard';run(detail);});
+  bind('[data-open]','click',event=>{if(selected!==event.currentTarget.dataset.open)siteCache=null;selected=event.currentTarget.dataset.open;tab='dashboard';run(detail);});
   bind('[data-create-site]','click',()=>run(createSite));
   bind('[data-create-business]','click',()=>run(registration));
  }
@@ -46,14 +50,22 @@ export function createPlatform({root,title,subtitle,pager,onNavigate,onWorkspace
   async function search(){const data=await read(resource,{q:container.querySelector('input').value,pageSize:100});select.innerHTML='<option value="">Choose…</option>'+data.rows.map(row=>`<option value="${esc(row.id||row.tenant_id)}" data-revision="${Number(row.revision||0)}">${esc(row.clerk_display_name||row.name||row.clerk_primary_email||row.id)}${row.clerk_primary_email?` (${esc(row.clerk_primary_email)})`:''}${resource==='accounts'&&row.identity?.issuer?` · ${esc(row.loginApplication||'unresolved')} · ${esc(row.identity.issuer)}`:''}</option>`).join('');if(initial&&!select.querySelector(`option[value="${CSS.escape(initial)}"]`))select.insertAdjacentHTML('beforeend',`<option value="${esc(initial)}">${esc(initial)}</option>`);if(initial)select.value=initial;}
   container.querySelector('button').addEventListener('click',()=>run(search));await search();return select;
  }
- async function detail(){
+  async function detail(options={}){
   onNavigate?.(`platform-${view}`);
   const result=await read(view,{id:selected});const row=result.rows[0];if(!row)throw new Error('Record no longer exists.');
+  if(view==='websites'&&!options.keepSite)siteCache=null;
   title.textContent=row.clerk_display_name||row.name||row.clerk_primary_email||'Account';subtitle.textContent={accounts:row.loginApplication==='crm'?'CRM account':row.loginApplication==='customer'?'E2 Local account':'User account — mapping required',businesses:'Business workspace',websites:'Hosted website'}[view];
   root.innerHTML=`${button('Back to directory','data-back')}<section class="card">${error()}<div data-detail></div></section>`;
-  bind('[data-back]','click',()=>{selected=null;run(directory);});
+  bind('[data-back]','click',()=>{selected=null;siteCache=null;run(directory);});
   const body=root.querySelector('[data-detail]');
   if(view==='accounts')await account(body,row);else if(view==='businesses')await business(body,row);else await website(body,row);
+ }
+ // Instant website sub-tab switch: re-render from the cached record
+ // instead of refetching the business directory + hosting payload.
+ async function switchSiteTab(next){
+  if(next===tab)return;
+  tab=next;enquiryPage=1;
+  await run(()=>detail({keepSite:true}));
  }
  async function membershipEditor(container,{accountId,tenantId,membership,previousOwnerId=null}){
   const m=membership||{};
@@ -94,7 +106,7 @@ export function createPlatform({root,title,subtitle,pager,onNavigate,onWorkspace
     <h3>Websites</h3>${(row.websites||[]).map(s=>button(s.name,`data-user-site="${esc(s.id)}"`)).join('')||'<p>No websites associated.</p>'}<h3>Businesses and access</h3>${row.memberships.map(m=>`<div class="card"><strong>${esc(m.business_name)}</strong><p>${esc(m.role)} · ${m.enabled?'Enabled':'Disabled'}</p>${button('Open business',`data-business="${esc(m.tenant_id)}"`)} ${button('Edit access',`data-edit-membership="${esc(m.tenant_id)}"`)}</div>`).join('')||'<p>No business access assigned.</p>'}<div data-editor></div>`;
   bind('[data-setup-account]','click',()=>run(()=>registration(row.id)));
   bind('[data-status]','click',()=>run(async()=>{if(row.status==='active'&&!confirm('Suspend access for this account? Its separate account in the other application will keep its own access.'))return;await write('status',{accountId:row.id,revision:row.revision,status:row.status==='active'?'suspended':'active'});await detail();}));
-  bind('[data-user-site]','click',event=>{view='websites';selected=event.currentTarget.dataset.userSite;tab='dashboard';run(detail);});
+  bind('[data-user-site]','click',event=>{view='websites';selected=event.currentTarget.dataset.userSite;tab='dashboard';siteCache=null;run(detail);});
   bind('[data-business]','click',event=>{view='businesses';selected=event.currentTarget.dataset.business;run(detail);});
   bind('[data-edit-membership]','click',event=>run(async()=>{const id=event.currentTarget.dataset.editMembership;const b=(await read('businesses',{id})).rows[0];await membershipEditor(body.querySelector('[data-editor]'),{accountId:row.id,tenantId:id,membership:row.memberships.find(m=>m.tenant_id===id),previousOwnerId:b.owner_account_id});}));
   if(row.status==='active')await membershipEditor(body.querySelector('[data-editor]'),{accountId:row.id});
@@ -104,7 +116,7 @@ export function createPlatform({root,title,subtitle,pager,onNavigate,onWorkspace
     <div data-business-setup></div><h3>People</h3>${row.memberships.map(m=>`<div class="card"><strong>${esc(m.name||m.email||m.account_id)}</strong><p>${esc(m.role)} · ${m.enabled?'Enabled':'Disabled'}</p>${button('Open user',`data-user="${esc(m.account_id)}"`)} ${button('Edit access',`data-edit="${esc(m.account_id)}"`)}</div>`).join('')||'<p>No owner or customer access assigned.</p>'}
     <h3>Websites</h3>${row.sites.map(s=>button(s.name,`data-website="${esc(s.id)}"`)).join('')||'<p>No websites assigned.</p>'}<div data-editor></div>`;
   bind('[data-user]','click',event=>{view='accounts';selected=event.currentTarget.dataset.user;run(detail);});
-  bind('[data-website]','click',event=>{view='websites';selected=event.currentTarget.dataset.website;tab='dashboard';run(detail);});
+  bind('[data-website]','click',event=>{view='websites';selected=event.currentTarget.dataset.website;tab='dashboard';siteCache=null;run(detail);});
   bind('[data-edit]','click',event=>run(()=>membershipEditor(body.querySelector('[data-editor]'),{tenantId:row.tenant_id,accountId:event.currentTarget.dataset.edit,membership:row.memberships.find(m=>m.account_id===event.currentTarget.dataset.edit),previousOwnerId:row.owner_account_id})));
   mountBusinessSetup(body.querySelector('[data-business-setup]'),row,{write,reload:detail,lookup,
     onCreateWebsite:tenantId=>run(()=>createSite(tenantId)),
@@ -136,39 +148,50 @@ export function createPlatform({root,title,subtitle,pager,onNavigate,onWorkspace
     await detail();
   }catch(error){if(view==='websites'&&selected){await detail();throw new Error(`Website created. Link it from business setup: ${error.message}`);}throw error;}finally{submit.disabled=false;}});});
  }
- async function website(body,row){
+  async function website(body,row){
   body.innerHTML=`<p>${esc(row.slug)}.e2local.com · ${esc(row.business_name||'Business not assigned')} · ${row.owner_account_id?'Owner assigned':'Owner not assigned'}</p>
-   <nav class="compose-actions" aria-label="Website sections">${['dashboard','domain','assets','business-info','leads'].map(t=>button(t.replaceAll('-',' '),`data-tab="${t}" ${tab===t?'aria-current="page"':''}`)).join('')}</nav><div data-website-body></div>`;
-  bind('[data-tab]','click',event=>{tab=event.currentTarget.dataset.tab;enquiryPage=1;run(detail);});const panel=body.querySelector('[data-website-body]');
+   <nav class="compose-actions" role="tablist" aria-label="Website sections">${['dashboard','domain','assets','business-info','leads'].map(t=>`<button type="button" role="tab" class="btn ghost" data-tab="${t}" aria-selected="${String(tab===t)}" tabindex="${tab===t?'0':'-1'}" ${tab===t?'aria-current="page"':''}>${esc(t.replaceAll('-',' '))}</button>`).join('')}</nav><div data-website-body role="tabpanel"></div>`;
+  bind('[data-tab]','click',event=>{switchSiteTab(event.currentTarget.dataset.tab);});
+  body.querySelector('[role="tablist"]')?.addEventListener('keydown',event=>{
+    if(event.key!=='ArrowRight'&&event.key!=='ArrowLeft')return;
+    const tabs=[...body.querySelectorAll('[data-tab]')];if(!tabs.length)return;
+    event.preventDefault();
+    const current=tabs.indexOf(document.activeElement);
+    const next=event.key==='ArrowRight'?tabs[(current+1+tabs.length)%tabs.length]:tabs[(current-1+tabs.length)%tabs.length];
+    next.focus();switchSiteTab(next.dataset.tab);
+  });
+  const panel=body.querySelector('[data-website-body]');
   if(tab==='dashboard'){
-    const all=await hosting(),site=all.sites.find(s=>s.id===row.id);if(!site)throw new Error('Website not found.');
+    if(!siteCache||siteCache.id!==row.id){const all=await hosting();siteCache={id:row.id,all};}
+    const site=siteCache.all.sites.find(s=>s.id===row.id);if(!site)throw new Error('Website not found.');
     panel.innerHTML=`<h3>${esc(site.name)}</h3><p>Publication: ${esc(site.publicationStatus)} · ${site.deployments.length} versions · Created ${date(site.created_at)}</p>
      ${site.publicationStatus==='published'?`<a class="btn" href="https://${esc(site.slug)}.e2local.com/" target="_blank" rel="noopener noreferrer">Visit website</a>`:''}
      <form data-assign class="compose"><h3>Assign business</h3><div data-lookup-business></div><p>The primary business owner receives website access. Form connections prevent cross-business reassignment.</p><button class="btn">Save assignment</button></form>
      ${button('Unpublish','data-unpublish')}${button('Delete website','data-delete-site')}`;
     const select=await lookup(panel.querySelector('[data-lookup-business]'),'businesses','Business',row.sms_tenant_id);
-    bind('[data-assign]','submit',event=>{event.preventDefault();run(async()=>{if(!select.value)throw new Error('Choose a business.');await write('website-business',{siteId:row.id,tenantId:select.value,revision:row.revision});await detail();});});
-    bind('[data-unpublish]','click',()=>run(async()=>{if(confirm('Unpublish this website?')){await hostWrite(`/${row.id}`,null,'DELETE');await detail();}}));
-    bind('[data-delete-site]','click',()=>run(async()=>{const slug=prompt('Type the website subdomain to permanently delete its hosting files and records.');if(slug!==row.slug)return;await hostWrite(`/${row.id}?permanent=1`,{confirmSlug:slug},'DELETE');selected=null;await directory();}));
+    bind('[data-assign]','submit',event=>{event.preventDefault();run(async()=>{if(!select.value)throw new Error('Choose a business.');await write('website-business',{siteId:row.id,tenantId:select.value,revision:row.revision});siteCache=null;await detail();});});
+    bind('[data-unpublish]','click',()=>run(async()=>{if(confirm('Unpublish this website?')){await hostWrite(`/${row.id}`,null,'DELETE');siteCache=null;await detail();}}));
+    bind('[data-delete-site]','click',()=>run(async()=>{const slug=prompt('Type the website subdomain to permanently delete its hosting files and records.');if(slug!==row.slug)return;await hostWrite(`/${row.id}?permanent=1`,{confirmSlug:slug},'DELETE');selected=null;siteCache=null;await directory();}));
   }else if(tab==='domain')panel.innerHTML=`<h3>E2 Local address</h3><p>https://${esc(row.slug)}.e2local.com/</p><p>Customer-owned domains are not configured in this release.</p>`;
   else if(tab==='business-info'){
     const d=row.details||{};panel.innerHTML=`<form data-details class="compose">${field('Website name','name',row.name,'required maxlength="100"')}${field('Business name','businessName',d.businessName,'maxlength="160"')}
       <label>Description<textarea name="description" maxlength="1500">${esc(d.description)}</textarea></label>${field('Contact email','contactEmail',d.contactEmail,'type="email"')}${field('Contact phone','contactPhone',d.contactPhone)}
       <label>Services (one per line)<textarea name="services">${esc((d.services||[]).join('\n'))}</textarea></label><label>Areas served (one per line)<textarea name="serviceAreas">${esc((d.serviceAreas||[]).join('\n'))}</textarea></label><button class="btn">Save website details</button></form>`;
-    bind('[data-details]','submit',event=>{event.preventDefault();run(async()=>{const data=Object.fromEntries(new FormData(event.currentTarget));await hostWrite(`/${row.id}`,{name:data.name,details:{businessName:data.businessName,description:data.description,contactEmail:data.contactEmail,contactPhone:data.contactPhone,services:data.services.split('\n').map(x=>x.trim()).filter(Boolean),serviceAreas:data.serviceAreas.split('\n').map(x=>x.trim()).filter(Boolean)}},'PATCH');await detail();});});
+    bind('[data-details]','submit',event=>{event.preventDefault();run(async()=>{const data=Object.fromEntries(new FormData(event.currentTarget));await hostWrite(`/${row.id}`,{name:data.name,details:{businessName:data.businessName,description:data.description,contactEmail:data.contactEmail,contactPhone:data.contactPhone,services:data.services.split('\n').map(x=>x.trim()).filter(Boolean),serviceAreas:data.serviceAreas.split('\n').map(x=>x.trim()).filter(Boolean)}},'PATCH');siteCache=null;await detail();});});
   }else if(tab==='assets')await assets(panel,row);
   else await leads(panel,row);
  }
- async function assets(panel,row){
-  const all=await hosting(),site=all.sites.find(s=>s.id===row.id);if(!site)throw new Error('Website not found.');
+  async function assets(panel,row){
+  if(!siteCache||siteCache.id!==row.id){siteCache={id:row.id,all:await hosting()};}
+  const all=siteCache.all,site=all.sites.find(s=>s.id===row.id);if(!site)throw new Error('Website not found.');
   panel.innerHTML=`<h3>Website files and versions</h3><form data-upload class="compose"><label>Choose a folder<input data-folder type="file" webkitdirectory multiple/></label><label>Or choose files / ZIP<input data-files type="file" multiple/></label><p>Root index.html required. Maximum 500 files, 20 MB per file, and 50 MB total.</p><button class="btn">Upload and build preview</button><p data-upload-status role="status"></p></form>
    ${site.deployments.map(d=>`<article class="card"><strong>${date(d.created_at)}</strong><p>${esc(d.status)} · ${Math.round(d.source_bytes/1024)} KB${site.liveDeploymentId===d.id?' · Live':''}</p>${d.error_message?`<p>${esc(d.error_message)}</p>`:''}
      ${button('View files',`data-files-id="${d.id}"`)} ${['staging','failed'].includes(d.status)?button('Build preview',`data-build="${d.id}"`):''}
      ${d.status==='ready'?`${d.preview_token?`<a class="btn ghost" href="https://p-${esc(d.preview_token)}.e2local.com/" target="_blank" rel="noopener noreferrer">Preview</a>`:''} ${button(site.liveDeploymentId===d.id?'Published':'Publish',`data-publish="${d.id}" ${site.liveDeploymentId===d.id?'disabled':''}`)}`:''}
      ${button('Delete version',`data-delete-version="${d.id}" ${site.liveDeploymentId===d.id||d.status==='building'?'disabled':''}`)}</article>`).join('')||'<p>No deployments uploaded.</p>'}<div data-file-list></div>`;
-  bind('[data-build]','click',event=>run(async()=>{await hostWrite(`/${row.id}/deployments/${event.currentTarget.dataset.build}`,{action:'build'});await detail();}));
-  bind('[data-publish]','click',event=>run(async()=>{if(confirm('Publish this version to the live website?')){await hostWrite(`/${row.id}/deployments/${event.currentTarget.dataset.publish}`,{action:'publish'});await detail();}}));
-  bind('[data-delete-version]','click',event=>run(async()=>{if(confirm('Permanently delete this unpublished version?')){await hostWrite(`/${row.id}/deployments/${event.currentTarget.dataset.deleteVersion}`,null,'DELETE');await detail();}}));
+  bind('[data-build]','click',event=>run(async()=>{await hostWrite(`/${row.id}/deployments/${event.currentTarget.dataset.build}`,{action:'build'});siteCache=null;await detail();}));
+  bind('[data-publish]','click',event=>run(async()=>{if(confirm('Publish this version to the live website?')){await hostWrite(`/${row.id}/deployments/${event.currentTarget.dataset.publish}`,{action:'publish'});siteCache=null;await detail();}}));
+  bind('[data-delete-version]','click',event=>run(async()=>{if(confirm('Permanently delete this unpublished version?')){await hostWrite(`/${row.id}/deployments/${event.currentTarget.dataset.deleteVersion}`,null,'DELETE');siteCache=null;await detail();}}));
   bind('[data-files-id]','click',event=>run(async()=>{const data=await hosting(`/${row.id}/deployments/${event.currentTarget.dataset.filesId}`);panel.querySelector('[data-file-list]').innerHTML=`<h3>Saved files</h3><ul>${data.assets.files.map(f=>`<li>${esc(f.path)} · ${Math.round(f.size/1024)} KB</li>`).join('')}</ul>`;}));
   bind('[data-upload]','submit',event=>{event.preventDefault();run(async()=>{
     const form=event.currentTarget,submit=form.querySelector('button');submit.disabled=true;
@@ -178,7 +201,7 @@ export function createPlatform({root,title,subtitle,pager,onNavigate,onWorkspace
       const status=form.querySelector('[data-upload-status]');status.textContent='Preparing upload…';
       const created=await hostWrite(`/${row.id}/deployments`,{mode:'static',files:files.map(f=>({path:f.path,size:f.file.size}))});
       for(const upload of created.uploads){const f=files.find(f=>f.path===upload.path);const response=await fetch(upload.url,{method:'PUT',headers:{'Content-Type':upload.contentType},body:f.file});if(!response.ok)throw new Error('Upload failed. Check R2 upload CORS and retry with a new version.');status.textContent=`Uploaded ${upload.path}`;}
-      status.textContent='Building preview…';const built=await hostWrite(`/${row.id}/deployments/${created.deploymentId}`,{action:'build'});await detail();
+      status.textContent='Building preview…';const built=await hostWrite(`/${row.id}/deployments/${created.deploymentId}`,{action:'build'});siteCache=null;await detail();
       if(built.previewUrl)root.querySelector('[data-detail]').insertAdjacentHTML('afterbegin',`<p><a href="${esc(built.previewUrl)}" target="_blank" rel="noopener noreferrer">Open the new preview</a></p>`);
     }finally{submit.disabled=false;}
   });});
@@ -195,8 +218,8 @@ export function createPlatform({root,title,subtitle,pager,onNavigate,onWorkspace
   bind('[data-disable]','click',event=>run(async()=>{if(confirm('Disable this connection? Customers will lose access to its enquiries.')){await hostWrite(`/${row.id}/forms?connection=${event.currentTarget.dataset.disable}`,null,'DELETE');await detail();}}));
   if(connections.business){const response=await apiFetch('/api/web-forms',{headers:{'X-Tenant-ID':connections.business.tenantId}});const data=await json(response);panel.querySelector('[data-form]').innerHTML=data.forms.filter(f=>f.enabled).map(f=>`<option value="${esc(f.public_id||f.publicId||f.id)}">${esc(f.title||f.preset)}</option>`).join('');}
   bind('[data-connect]','submit',event=>{event.preventDefault();run(async()=>{await hostWrite(`/${row.id}/forms`,{formId:panel.querySelector('[data-form]').value});await detail();});});
-  bind('[data-type]','change',event=>{enquiryType=event.currentTarget.value;enquiryPage=1;run(detail);});
-  bind('[data-enquiry-page]','click',event=>{enquiryPage=Number(event.currentTarget.dataset.enquiryPage);run(detail);});
+  bind('[data-type]','change',event=>{enquiryType=event.currentTarget.value;enquiryPage=1;run(()=>detail({keepSite:true}));});
+  bind('[data-enquiry-page]','click',event=>{enquiryPage=Number(event.currentTarget.dataset.enquiryPage);run(()=>detail({keepSite:true}));});
  }
- return {async openBusiness(id){root.classList.add('platform-root');view='businesses';selected=id;await run(detail);},async openRegistration(){await run(registration);},async render(nextView){root.classList.add('platform-root');const resource=nextView.replace('platform-','');if(resource!==view){view=resource;selected=null;page=1;q='';}await (selected?detail():directory());}};
+ return {async openBusiness(id){root.classList.add('platform-root');view='businesses';selected=id;siteCache=null;await run(detail);},async openRegistration(){await run(registration);},async render(nextView){root.classList.add('platform-root');const resource=nextView.replace('platform-','');if(resource!==view){view=resource;selected=null;siteCache=null;page=1;q='';}await (selected?detail():directory());}};
 }

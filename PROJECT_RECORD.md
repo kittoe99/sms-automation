@@ -1,8 +1,8 @@
 # Opek SMS project record
 
-October 1, 2026 production release: **owner-linked onboarding, manual extended-profile review, explicit service addition and per-service customer release** are live across this CRM and `../E2local-main` (`e2-local`). Both migrations and CRM API version 37 are deployed. See [Business lifecycle](docs/BUSINESS_LIFECYCLE.md) and the release evidence below.
+Current verified release — **October 1, 2026 (America/Denver)**: owner-linked registration, canonical CRM permissions, shared profile drafts/reviews, explicit SMS addition and individual customer service release are deployed. CRM API **v38** is active; all three linking/access follow-up migrations are applied. See the consolidated [implementation and release document](docs/CRM_LINKING_RELEASE.md) for current versions, migration order, 334 passing tests, authenticated verification and limits. Earlier local-only and v35/v37 entries below are historical checkpoints.
 
-Last documentation reconciliation: **September 30, 2026 (America/Denver)**.
+Last documentation reconciliation: **October 1, 2026 (America/Denver)**.
 
 This is the current implementation and release-reference record for `opek-sms`. Update it after material code, schema, authentication or deployment work. Configuration names and synthetic examples are appropriate here; credentials and customer data are not.
 
@@ -16,7 +16,7 @@ This is the current implementation and release-reference record for `opek-sms`. 
 | Local Google login | Enabled on the CRM development instance October 1, 2026; localhost sign-in reaches Google account selection. Local preview remains read-only sample data with separate development identities. |
 | Registration and release (live) | Onboarding creates one owner-linked business without provider work; admin extends/reviews its profile, adds services, and selects Set live per service. Customer visibility is separate from publishing/sending. Transfers reset release. |
 | Business scope | `sms_businesses.tenant_id`; request tenant plus database authorization; scoped worker credentials |
-| Staff registry | Users, Businesses, Websites, issuer-qualified identities and audited permissions; canonical and compatibility paths coexist |
+| Staff registry | Users, Businesses, Websites, issuer-qualified identities and audited permissions; canonical grants authorize immediately; compatibility tables/flags are retained |
 | Messaging | Durable outbox, signed callbacks, delivery ledger and uncertainty handling; current manual send path uses marketing purpose |
 | Automations | Four fixed intake types, fresh AI drafts, group-specific context and lifecycle cancellation |
 | Email | Separate group/form activation and consent; Resend delivery, suppression and unsubscribe; no inbound mailbox ingestion |
@@ -216,3 +216,40 @@ messaging was activated. Security Advisor after rerun remains 0 errors, 5 existi
 warnings and 36 informational suggestions; no new findings. The pre-existing
 Render npm audit high-severity warning remains; dependencies were not changed.
 Unrelated local documentation and preview work were preserved.
+
+
+### October 1, 2026 (America/Denver) — Consolidated linking documentation
+
+Consolidated all registration, canonical permission, shared profile, provisioning,
+read-only lookup, migration, deployment and verification details in the paired
+CRM release document. Corrected current guide summaries that still said not
+released or referenced API v35/v37. Recorded the deployment recheck: CRM assets
+match repository head d1aa8bb (frontend bytes from 4dd63fc), crm-api v38 is ACTIVE,
+E2 fe009ce is READY as dpl_kqawguS3mJBQ3H3SDLNi41qSLJTj, and all three follow-up
+migration versions are present. Older October 2 entries use UTC; this heading
+uses local America/Denver time. Historical checkpoints remain intact.
+
+This update changes documentation only. It records the existing 202 CRM + 132 E2
+passing tests, both builds, E2 lint/type checks, authenticated staff/customer
+walkthroughs and unchanged security findings; those checks were not rerun just
+for prose edits. No application, database, provider or deployment state changed.
+
+### October 2, 2026 — CRM tab navigation without page reloads (local)
+
+Converted related standalone pages into instant in-page tabs. A contextual
+tab bar now groups Reports (Inbound calls, Message history, Delivery report,
+Opt-Outs), Setup (Business setup, Business context, Booking setup, Forms, AI
+instructions) and Platform (Users, Businesses, Websites); website detail
+sub-pages (dashboard, domain, assets, business info, leads) switch from a
+cached record instead of refetching. All view changes go through one
+`switchView` path using the History API, so workspace/tenant changes,
+organization switches and dashboard shortcuts no longer trigger full page
+reloads; auth, theme and realtime stay mounted. Revisited tabs keep content
+on screen while data revalidates, and sidebar hover prefetches. Tab styles
+match the E2 dashboard theme. No database, API, provider or deployment state
+changed; no E2 counterpart change was needed (no registration, ownership,
+profile, linking, visibility, authentication or shared-contract behavior
+changed).
+
+Validation: full CRM 202/202 tests passed and the frontend production build
+passed. Not applied, pushed or deployed.

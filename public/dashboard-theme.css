@@ -183,3 +183,61 @@ body { font-family: Arial, Helvetica, sans-serif; font-size: 16px; }
   .crm #toolbar-tenant { display: inline; }
   .crm .toolbar-actions > .btn { min-width: 0; }
 }
+
+/* Contextual section tabs: instant in-page switching, no full reloads.
+   Matches the E2 dashboard theme (white surface, #cbdfe8 borders,
+   #087aa5 brand, soft #e4f2f8 active pill). */
+.crm .crm-tabs {
+  display: flex;
+  width: 100%;
+  max-width: 1312px;
+  margin: 18px auto 0;
+  padding: 0 clamp(24px, 3.5vw, 56px);
+  gap: 4px;
+  overflow-x: auto;
+  scrollbar-width: thin;
+}
+.crm .crm-tabs[hidden] { display: none !important; }
+.crm .crm-tab {
+  appearance: none;
+  flex: 0 0 auto;
+  min-height: 44px;
+  padding: 10px 18px;
+  border: 2px solid transparent;
+  border-bottom: 0;
+  border-radius: 8px 8px 0 0;
+  background: transparent;
+  color: #365563;
+  font-size: 15px;
+  font-weight: 600;
+  line-height: 1.4;
+  cursor: pointer;
+  white-space: nowrap;
+}
+.crm .crm-tab:hover { background: #edf6fa; color: #076f94; }
+.crm .crm-tab[aria-selected="true"] {
+  background: #fff;
+  border-color: #cbdfe8;
+  color: #076f94;
+  box-shadow: 0 -2px 0 #e4eef380;
+}
+.crm .crm-tab:focus-visible {
+  outline: 2px solid #087aa5 !important;
+  outline-offset: 2px;
+}
+.crm .crm-tab .crm-tab-count {
+  margin-left: 8px;
+  padding: 1px 7px;
+  border-radius: 5px;
+  background: #e4f2f8;
+  color: #076f94;
+  font-size: 13px;
+  font-weight: 600;
+}
+@media (max-width: 720px) {
+  .crm .crm-tabs { margin-top: 14px; padding: 0 18px; }
+  .crm .crm-tab { min-height: 44px; padding: 10px 14px; font-size: 14px; }
+}
+@media (prefers-reduced-motion: reduce) {
+  .crm .crm-tab { transition: none !important; }
+}
