@@ -1,6 +1,6 @@
 import {readBusinessProfile,writeBusinessProfile} from './profileClient.js?v=20261002-access';
 import {canOpenWorkspace,canWriteWorkspace,staffActionSelector} from './workspacePermissions.js?v=20261002-access';
-import { createPlatform } from './platform.js?v=20261002-access';
+import { createPlatform } from './platform.js?v=20261002-tabs';
 import { connectSupabaseLive } from './live.js?v=20261001-business-services';
 import { createFormBuilder } from './formBuilder.js';
 import { shouldRefreshFromBackground } from './refreshGuard.js';
