@@ -94,8 +94,14 @@ group list. See [CRM navigation](docs/CRM_NAVIGATION.md).
 Local frontend build, JavaScript syntax and three tab workspace tests passed.
 Synthetic browser verification confirmed the empty-state button opens the correct
 business details and existing profile-review/service controls. This is a frontend
-change only, with no migrations or shared contract changes. Release verification
-follows after deployment.
+change only, with no migrations or shared contract changes. A simulated category
+500 displayed the error and Try again successfully reloaded the setup view.
+
+Released application `bd39e6e`, Render `dep-davtukvlk1mc73chu8q0` (live October 2,
+10:44 AM MDT). Authenticated production verification confirmed Set up automations
+on the empty Automations page and its selected-business destination with Add SMS
+available. Navigation only was exercised; no service was added and no messaging
+was activated. The deployed app includes the new setup markup.
 
 ### October 2, 2026 — Restore visible CRM menu options
 
