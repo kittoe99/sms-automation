@@ -1,5 +1,10 @@
 # CRM tabbed workspace
 
+The paired E2 customer dashboard uses the same visual language and now retains
+visited hash-tab panels, filter/page selections, website details and account drafts.
+Its separate access/revision validation and account-wide Refresh policy remain
+unchanged; see `../E2local-main/docs/dashboard-cache.md` from the CRM repository.
+
 The CRM uses one persistent shell with Workspace, Reports, Setup and Platform areas.
 Each area's tools are tabs. Find a tool in the sidebar also searches all permitted
 tools. Visibility follows the existing staff/operator/form permissions.

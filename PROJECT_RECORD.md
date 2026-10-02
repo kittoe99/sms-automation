@@ -8,6 +8,10 @@ This is the current implementation and release-reference record for `opek-sms`. 
 
 ## Current implementation
 
+Paired customer dashboard: E2 now has the matching workspace refinement and
+retained hash-tab panels in production (E2 application 7098031). Both authorization contracts remain unchanged;
+see the latest paired dashboard change record for validation and release status.
+
 | Area | Checked-in behavior |
 | --- | --- |
 | Frontend | Persistent tabbed browser CRM; esbuild dependency bundles; Render static-site configuration; loopback local preview |
@@ -298,3 +302,43 @@ was performed. Unrelated local auth/preview/documentation changes remain preserv
 
 Production visual QA follow-up: refined the no-SMS setup notice spacing and
 responsive action placement; frontend build passed. This changes presentation only.
+
+Final visual follow-up `80f63d7` is Live as Render deployment
+`dep-davk1hvavr4c73cbeg8g` (October 1, 11:27 PM MDT). HTML/CSS matched the
+commit; the authenticated production screenshot confirmed notice spacing and
+healthy Live status with no browser errors. JavaScript is unchanged from the
+205-test verified application release.
+
+
+### October 1, 2026 (America/Denver) — Paired E2 workspace refinement
+
+Applied the CRM workspace design to the E2 customer dashboard: sticky header and
+accessible tab strip, business identity sidebar, joined summary cards, blue primary
+service card, compact typography and responsive layouts. Existing Website deployment
+cards remain. Visited panels now retain drafts, expanded details, filters and
+pagination; explicit filtered links select their requested view. Browser Back/Forward
+and Arrow/Home/End navigation work without full page navigation. Cache identity/revision
+and access validation bound panel lifetime; unreleased/revoked services are removed.
+No API, authentication policy, database, migration or provider configuration changed.
+Both records and dashboard workflow docs were compared and updated.
+
+Validation: all 132 E2 tests and 205 CRM tests passed; E2 full lint, TypeScript and
+production build passed. Updated stale test imports to exercise the current tabbed
+entry and service visibility. Actual components with synthetic local HTTP data verified
+retained account draft, website expansion and enquiry page 2, keyboard navigation,
+browser Back, zero extra reads on tab revisits, service-revision clearing, and a 390px
+layout with no page overflow. No browser warnings/errors. A local fixture is retained
+under E2 tests/fixtures/dashboard-preview.mjs. Implementation is local at this checkpoint;
+production verification is recorded separately below. No combined migration order is
+required. Unrelated CRM local work is preserved.
+
+
+Production release verified: E2 application `7098031` was pushed to `main` and
+Vercel automatically built deployment `dpl_5kpzkv8yUC8H3zAw8EfE7QaW8Yye`, Ready
+at October 1, 2026, 11:42 PM MDT. The authenticated dashboard at
+https://www.e2local.com/dashboard shows the redesigned Overview and Website tabs.
+Production tab switching preserved the expanded website Business info panel; no
+browser warnings/errors were recorded. Screenshot saved in this task. Both records
+and workflow docs now reflect the release. This E2 Git-triggered deployment worked;
+the separately recorded CRM Render webhook issue remains unchanged. No database,
+API, provider configuration or customer data mutation was part of this release.
