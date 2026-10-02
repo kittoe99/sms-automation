@@ -82,6 +82,21 @@ Applied this repository’s `20261001235349_business_service_prerequisites.sql` 
 
 ## Change record
 
+### October 2, 2026 — Visible automation setup entry point
+
+An empty Automations view now explains how the four preset groups are initialized
+and shows administrators a Set up automations button. It opens the selected
+business's existing service setup without creating a service or provisioning a
+provider. Configured businesses retain their existing group editors. Failed
+category requests now show a retryable error instead of being cached as an empty
+group list. See [CRM navigation](docs/CRM_NAVIGATION.md).
+
+Local frontend build, JavaScript syntax and three tab workspace tests passed.
+Synthetic browser verification confirmed the empty-state button opens the correct
+business details and existing profile-review/service controls. This is a frontend
+change only, with no migrations or shared contract changes. Release verification
+follows after deployment.
+
 ### October 2, 2026 — Restore visible CRM menu options
 
 The refined shell hid the detailed sidebar behind navigation search. The current

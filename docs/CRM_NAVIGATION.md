@@ -10,6 +10,13 @@ submenu. Selecting a group opens its workspace; selecting the Automations parent
 returns to the full group list. An unconfigured business can have an empty group
 submenu while the Automations menu itself remains available to authorized staff.
 
+When there are no groups, Automations shows **Set up automations** for CRM
+administrators. This opens the selected business's details. Review its profile
+if needed, then select **Add SMS** under Services to initialize the four preset
+groups. Return to Automations, open a group, and select **Edit automation** for
+its schedule or **AI prompt & context** for its messages. Arbitrary custom group
+creation is not supported by the current backend.
+
 Find a tool searches permitted menu options across all sections. Clearing search
 returns to the selected section. On mobile, open Menu to reach the same controls.
 Permissions continue to determine which tools a user can open.

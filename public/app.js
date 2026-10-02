@@ -1740,6 +1740,7 @@ async function renderWorkspace(options = {}) {
         return;
       }
       const catJson = await catRes.json();
+      if (!catRes.ok) throw new Error(catJson.error || 'Could not load automation groups. Please retry.');
       state.categories = catJson.categories || [];
       state.cadences = catJson.cadences || [];
       state.rulePresets = catJson.rulePresets || [];
@@ -2316,10 +2317,17 @@ async function renderAutomations() {
         <div class="card-head">
           <div>
             <h2>SMS automation types</h2>
-            <span class="muted">Each type has one purpose and schedule. Adding a record to its SMS table starts the automation when eligible.</span>
+            <span class="muted">Choose a type to configure its schedule, AI instructions and customer enrollment.</span>
           </div>
-          <button type="button" class="btn" data-open-ai-instructions>Edit AI instructions</button>
+          ${state.categories.length ? '<button type="button" class="btn" data-open-ai-instructions>Edit AI instructions</button>' : ''}
         </div>
+        ${!state.categories.length ? `<div class="automation-setup-empty">
+          <span class="eyebrow">Get started</span>
+          <h3>Set up your automations</h3>
+          <p>This business has no automation groups yet. Add the SMS service in business setup to create Contact, Quote Request, Bookings and Reviews.</p>
+          <p>Then open a group and choose <strong>Edit automation</strong> to set its schedule, or <strong>AI prompt &amp; context</strong> to configure its messages.</p>
+          ${state.platformStaff ? '<button type="button" class="btn" data-open-registered-business>Set up automations</button>' : '<p class="muted">Ask your CRM administrator to set up this business’s automations.</p>'}
+        </div>` : ''}
         <div class="category-grid">
           ${state.categories
             .map((c) => {
