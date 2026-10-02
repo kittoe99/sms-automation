@@ -1,29 +1,37 @@
+import {createRenderQueue} from './tabWorkspace.js?v=20261002-workspace';
 import {mountBusinessSetup} from './businessSetup.js?v=20261001-business-services';
 import {apiFetch,getAccessToken,runtimeConfig} from './auth.js?v=20261001-business-services';
 const esc=value=>String(value??'').replaceAll('&','&amp;').replaceAll('<','&lt;').replaceAll('>','&gt;').replaceAll('"','&quot;').replaceAll("'",'&#39;');
 const date=value=>value?new Date(value).toLocaleString():'—';
 async function json(response){const data=await response.json();if(!response.ok)throw new Error(data.error||'Request failed. Please retry.');return data;}
 const read=(resource,params={})=>apiFetch(`/api/platform/${resource}?${new URLSearchParams(params)}`,{tenant:false}).then(json);
-const write=(action,input)=>apiFetch(`/api/platform/${action}`,{tenant:false,method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(input)}).then(json);
+const write=(action,input)=>apiFetch(`/api/platform/${action}`,{tenant:false,method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(input)}).then(json).then(data=>{window.dispatchEvent(new Event('crm:data-changed'));return data;});
 async function hosting(path='',options={}){
  const base=runtimeConfig.hostingApiBase;
  if(!base)throw new Error('Website tools are not configured. Set HOSTING_API_BASE for the CRM deployment.');
  const token=await getAccessToken();if(!token)throw new Error('Sign in again to continue.');
  return json(await fetch(base.replace(/\/$/,'')+path,{...options,headers:{Authorization:`Bearer ${token}`,...(options.body?{'Content-Type':'application/json'}:{}),...options.headers},cache:'no-store'}));
 }
-const hostWrite=(path,body,method='POST')=>hosting(path,{method,...(body?{body:JSON.stringify(body)}:{})});
+const hostWrite=(path,body,method='POST')=>hosting(path,{method,...(body?{body:JSON.stringify(body)}:{})}).then(data=>{window.dispatchEvent(new Event('crm:data-changed'));return data;});
 const button=(text,attrs='')=>`<button type="button" class="btn ghost" ${attrs}>${esc(text)}</button>`;
 const field=(label,name,value='',attrs='')=>`<label class="compose-label">${esc(label)}<input name="${name}" value="${esc(value)}" ${attrs}/></label>`;
 const checkbox=(label,name,checked=false)=>`<label><input type="checkbox" name="${name}" ${checked?'checked':''}/> ${esc(label)}</label>`;
 
-export function createPlatform({root,title,subtitle,pager,onNavigate,onWorkspace}){
+export function createPlatform({root,title,subtitle,pager,onNavigate,onWorkspace,onOpenRecord}){
  let view='accounts',page=1,q='',selected=null,tab='dashboard',enquiryPage=1,enquiryType='all';
  // Cached website record + hosting payload so sub-tabs (dashboard,
  // domain, assets, business-info, leads) switch instantly without
  // refetching on every tab click. Invalidated by mutations.
- let siteCache=null;
+ let siteCache=null, siteRecord=null;
+ const sitePanels=new Map(), siteQueue=createRenderQueue();
+ const pending = new Set();
+ function openRecord(resource,id){if(onOpenRecord){onOpenRecord(resource,id);return;}view=resource;selected=id;tab='dashboard';siteCache=null;run(detail);}
  function bind(selector,event,callback){root.querySelectorAll(selector).forEach(node=>node.addEventListener(event,callback));}
- async function run(callback){try{await callback();}catch(error){const alert=root.querySelector('[data-error]');if(alert)alert.textContent=error.message;else root.insertAdjacentHTML('afterbegin',`<p role="alert">${esc(error.message)}</p>`);}}
+ function run(callback){
+  let task;try{task=Promise.resolve(callback());}catch(error){task=Promise.reject(error);}
+  task=task.catch(error=>{const alert=root.querySelector('[data-error]');if(alert)alert.textContent=error.message;else root.insertAdjacentHTML('afterbegin',`<p role="alert">${esc(error.message)}</p>`);});
+  pending.add(task);task.finally(()=>pending.delete(task));return task;
+ }
  function error(){return '<p data-error class="login-error" role="alert"></p>';}
  async function directory(){
   title.textContent={accounts:'Users',businesses:'Businesses',websites:'Websites'}[view];subtitle.textContent='Platform management';pager.hidden=true;
@@ -53,7 +61,7 @@ export function createPlatform({root,title,subtitle,pager,onNavigate,onWorkspace
   async function detail(options={}){
   onNavigate?.(`platform-${view}`);
   const result=await read(view,{id:selected});const row=result.rows[0];if(!row)throw new Error('Record no longer exists.');
-  if(view==='websites'&&!options.keepSite)siteCache=null;
+  if(view==='websites'){siteRecord=row;sitePanels.clear();if(!options.keepSite)siteCache=null;}
   title.textContent=row.clerk_display_name||row.name||row.clerk_primary_email||'Account';subtitle.textContent={accounts:row.loginApplication==='crm'?'CRM account':row.loginApplication==='customer'?'E2 Local account':'User account — mapping required',businesses:'Business workspace',websites:'Hosted website'}[view];
   root.innerHTML=`${button('Back to directory','data-back')}<section class="card">${error()}<div data-detail></div></section>`;
   bind('[data-back]','click',()=>{selected=null;siteCache=null;run(directory);});
@@ -62,10 +70,22 @@ export function createPlatform({root,title,subtitle,pager,onNavigate,onWorkspace
  }
  // Instant website sub-tab switch: re-render from the cached record
  // instead of refetching the business directory + hosting payload.
- async function switchSiteTab(next){
-  if(next===tab)return;
-  tab=next;enquiryPage=1;
-  await run(()=>detail({keepSite:true}));
+ function switchSiteTab(next){
+  return run(()=>siteQueue.run(async()=>{
+    if(next===tab)return;
+    const panel=root.querySelector('[data-website-body]');
+    if(!panel||!siteRecord)return;
+    sitePanels.set(tab,{nodes:[...panel.childNodes],enquiryPage,enquiryType});
+    tab=next;
+    const saved=sitePanels.get(tab);
+    if(saved){panel.replaceChildren(...saved.nodes);enquiryPage=saved.enquiryPage;enquiryType=saved.enquiryType;}
+    else {enquiryPage=1;panel.innerHTML='<p role="status">Opening tab…</p>';await renderWebsitePanel(panel,siteRecord);}
+    root.querySelectorAll('[data-tab]').forEach(button=>{
+      const active=button.dataset.tab===tab;
+      button.setAttribute('aria-selected',String(active));button.tabIndex=active?0:-1;
+      if(active)button.setAttribute('aria-current','page');else button.removeAttribute('aria-current');
+    });
+  }));
  }
  async function membershipEditor(container,{accountId,tenantId,membership,previousOwnerId=null}){
   const m=membership||{};
@@ -106,8 +126,8 @@ export function createPlatform({root,title,subtitle,pager,onNavigate,onWorkspace
     <h3>Websites</h3>${(row.websites||[]).map(s=>button(s.name,`data-user-site="${esc(s.id)}"`)).join('')||'<p>No websites associated.</p>'}<h3>Businesses and access</h3>${row.memberships.map(m=>`<div class="card"><strong>${esc(m.business_name)}</strong><p>${esc(m.role)} · ${m.enabled?'Enabled':'Disabled'}</p>${button('Open business',`data-business="${esc(m.tenant_id)}"`)} ${button('Edit access',`data-edit-membership="${esc(m.tenant_id)}"`)}</div>`).join('')||'<p>No business access assigned.</p>'}<div data-editor></div>`;
   bind('[data-setup-account]','click',()=>run(()=>registration(row.id)));
   bind('[data-status]','click',()=>run(async()=>{if(row.status==='active'&&!confirm('Suspend access for this account? Its separate account in the other application will keep its own access.'))return;await write('status',{accountId:row.id,revision:row.revision,status:row.status==='active'?'suspended':'active'});await detail();}));
-  bind('[data-user-site]','click',event=>{view='websites';selected=event.currentTarget.dataset.userSite;tab='dashboard';siteCache=null;run(detail);});
-  bind('[data-business]','click',event=>{view='businesses';selected=event.currentTarget.dataset.business;run(detail);});
+  bind('[data-user-site]','click',event=>{openRecord('websites',event.currentTarget.dataset.userSite);});
+  bind('[data-business]','click',event=>{openRecord('businesses',event.currentTarget.dataset.business);});
   bind('[data-edit-membership]','click',event=>run(async()=>{const id=event.currentTarget.dataset.editMembership;const b=(await read('businesses',{id})).rows[0];await membershipEditor(body.querySelector('[data-editor]'),{accountId:row.id,tenantId:id,membership:row.memberships.find(m=>m.tenant_id===id),previousOwnerId:b.owner_account_id});}));
   if(row.status==='active')await membershipEditor(body.querySelector('[data-editor]'),{accountId:row.id});
  }
@@ -115,12 +135,12 @@ export function createPlatform({root,title,subtitle,pager,onNavigate,onWorkspace
   body.innerHTML=`<h2>${esc(row.name)}</h2><p>Business ID: <code>${esc(row.tenant_id)}</code> · ${esc(row.time_zone)}</p>
     <div data-business-setup></div><h3>People</h3>${row.memberships.map(m=>`<div class="card"><strong>${esc(m.name||m.email||m.account_id)}</strong><p>${esc(m.role)} · ${m.enabled?'Enabled':'Disabled'}</p>${button('Open user',`data-user="${esc(m.account_id)}"`)} ${button('Edit access',`data-edit="${esc(m.account_id)}"`)}</div>`).join('')||'<p>No owner or customer access assigned.</p>'}
     <h3>Websites</h3>${row.sites.map(s=>button(s.name,`data-website="${esc(s.id)}"`)).join('')||'<p>No websites assigned.</p>'}<div data-editor></div>`;
-  bind('[data-user]','click',event=>{view='accounts';selected=event.currentTarget.dataset.user;run(detail);});
-  bind('[data-website]','click',event=>{view='websites';selected=event.currentTarget.dataset.website;tab='dashboard';siteCache=null;run(detail);});
+  bind('[data-user]','click',event=>{openRecord('accounts',event.currentTarget.dataset.user);});
+  bind('[data-website]','click',event=>{openRecord('websites',event.currentTarget.dataset.website);});
   bind('[data-edit]','click',event=>run(()=>membershipEditor(body.querySelector('[data-editor]'),{tenantId:row.tenant_id,accountId:event.currentTarget.dataset.edit,membership:row.memberships.find(m=>m.account_id===event.currentTarget.dataset.edit),previousOwnerId:row.owner_account_id})));
   mountBusinessSetup(body.querySelector('[data-business-setup]'),row,{write,reload:detail,lookup,
     onCreateWebsite:tenantId=>run(()=>createSite(tenantId)),
-    onWebsite:id=>{view='websites';selected=id;tab='dashboard';run(detail);},onWorkspace});
+    onWebsite:id=>openRecord('websites',id),onWorkspace});
   await membershipEditor(body.querySelector('[data-editor]'),{tenantId:row.tenant_id});
  }
  async function registration(accountId=null){
@@ -161,6 +181,9 @@ export function createPlatform({root,title,subtitle,pager,onNavigate,onWorkspace
     next.focus();switchSiteTab(next.dataset.tab);
   });
   const panel=body.querySelector('[data-website-body]');
+  await renderWebsitePanel(panel,row);
+ }
+ async function renderWebsitePanel(panel,row){
   if(tab==='dashboard'){
     if(!siteCache||siteCache.id!==row.id){const all=await hosting();siteCache={id:row.id,all};}
     const site=siteCache.all.sites.find(s=>s.id===row.id);if(!site)throw new Error('Website not found.');
@@ -221,5 +244,5 @@ export function createPlatform({root,title,subtitle,pager,onNavigate,onWorkspace
   bind('[data-type]','change',event=>{enquiryType=event.currentTarget.value;enquiryPage=1;run(()=>detail({keepSite:true}));});
   bind('[data-enquiry-page]','click',event=>{enquiryPage=Number(event.currentTarget.dataset.enquiryPage);run(()=>detail({keepSite:true}));});
  }
- return {async openBusiness(id){root.classList.add('platform-root');view='businesses';selected=id;siteCache=null;await run(detail);},async openRegistration(){await run(registration);},async render(nextView){root.classList.add('platform-root');const resource=nextView.replace('platform-','');if(resource!==view){view=resource;selected=null;siteCache=null;page=1;q='';}await (selected?detail():directory());}};
+ return {snapshot(){return {view,page,q,selected,tab,enquiryPage,enquiryType,siteCache,siteRecord,panels:new Map(sitePanels)};},restore(saved){({view,page,q,selected,tab,enquiryPage,enquiryType,siteCache,siteRecord}=saved);sitePanels.clear();for(const [key,value] of saved.panels)sitePanels.set(key,value);},async whenIdle(){await Promise.all([...pending]);},async openRecord(resource,id){root.classList.add('platform-root');view=resource;selected=id;tab='dashboard';siteCache=null;await run(detail);},async openBusiness(id){root.classList.add('platform-root');view='businesses';selected=id;siteCache=null;await run(detail);},async openRegistration(){await run(registration);},async render(nextView){root.classList.add('platform-root');const resource=nextView.replace('platform-','');if(resource!==view){view=resource;selected=null;siteCache=null;page=1;q='';}await (selected?detail():directory());}};
 }

@@ -10,7 +10,7 @@ This is the current implementation and release-reference record for `opek-sms`. 
 
 | Area | Checked-in behavior |
 | --- | --- |
-| Frontend | Static browser CRM; esbuild dependency bundles; Render static-site configuration; loopback local preview |
+| Frontend | Persistent tabbed browser CRM; esbuild dependency bundles; Render static-site configuration; loopback local preview |
 | Backend | WPacquisition Supabase Edge APIs, PostgreSQL RPCs/triggers, durable queues and bounded workers |
 | Login | Independent CRM Clerk issuer; E2 customer accounts remain separate; explicit grants required |
 | Local Google login | Enabled on the CRM development instance October 1, 2026; localhost sign-in reaches Google account selection. Local preview remains read-only sample data with separate development identities. |
@@ -253,3 +253,29 @@ changed).
 
 Validation: full CRM 202/202 tests passed and the frontend production build
 passed. Not applied, pushed or deployed.
+
+### October 1, 2026 (America/Denver) — Persistent CRM workspace redesign
+
+Replaced the long page-style navigation with Workspace, Reports, Setup and Platform
+areas and a persistent tab strip. Restored E2 site typography and paper/blue theme,
+with a cleaner header, KPI strip, action cards and mobile drawer. Main tabs retain
+actual DOM nodes, draft inputs, filters, pagination, scroll and directory state.
+Website sub-tabs retain their own panels and drafts too. Removed discarded hover
+requests and repeated empty-category loads. Serialized main rendering prevents slow
+loads from painting a subsequently selected tab. Existing URL bookmarks and browser
+Back/Forward remain supported, with keyboard navigation on the main tab strip.
+Background updates flag snapshots for refresh instead of replacing the screen;
+Inbox live refresh remains guarded while editing. Workspace/session changes clear
+memory. Existing API authorization and revision enforcement are unchanged.
+
+Compared the current E2 dashboard and both project records. No database/API/shared
+contract or migration change; no combined migration sequence is required. Workflow:
+[Tabbed workspace](docs/TABBED_WORKSPACE.md). Unrelated local docs and auth/preview
+work remain excluded from the release.
+
+Validation: 205 CRM tests passed, frontend build passed; E2 business-services UI
+and hosting-tabs tests passed (11). Synthetic browser verification covered desktop
+and 390px mobile layout, retained search and profile drafts, website sub-tab drafts,
+browser Back and zero extra API reads when revisiting tabs. No provider actions or
+live data edits were used. At this checkpoint implementation is local; deployment
+verification is recorded separately after release.

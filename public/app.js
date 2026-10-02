@@ -1,6 +1,7 @@
+import {createTabMemory, createRenderQueue} from './tabWorkspace.js?v=20261002-workspace';
 import {readBusinessProfile,writeBusinessProfile} from './profileClient.js?v=20261002-access';
 import {canOpenWorkspace,canWriteWorkspace,staffActionSelector} from './workspacePermissions.js?v=20261002-access';
-import { createPlatform } from './platform.js?v=20261002-tabs';
+import { createPlatform } from './platform.js?v=20261002-workspace';
 import { connectSupabaseLive } from './live.js?v=20261001-business-services';
 import { createFormBuilder } from './formBuilder.js';
 import { shouldRefreshFromBackground } from './refreshGuard.js';
@@ -23,13 +24,15 @@ async function apiFetch(path, options = {}) {
   if (!isDemoMode() && !canWriteWorkspace(path, options.method || 'GET', state.platformStaff, state.tenant)) {
     return new Response(JSON.stringify({error:'This workspace is read-only for your account.'}), {status:403,headers:{'Content-Type':'application/json'}});
   }
-  return authenticatedFetch(path, options);
+  const response = await authenticatedFetch(path, options);
+  if (response.ok && !['GET','HEAD'].includes((options.method || 'GET').toUpperCase())) window.dispatchEvent(new Event('crm:data-changed'));
+  return response;
 }
 
 const KNOWN_VIEWS = ['overview','contacts','messaging','bookings','automations','email','call','messages','deliverability','optouts','ai-instructions','business-setup','business-context','booking-setup','web-forms','knowledge','platform-accounts','platform-businesses','platform-websites'];
 function initialViewFromUrl() {
   const view = new URLSearchParams(location.search).get('view');
-  return KNOWN_VIEWS.includes(view) ? view : 'overview';
+  return view === 'knowledge' ? 'business-context' : KNOWN_VIEWS.includes(view) ? view : 'overview';
 }
 const state = {
   view: initialViewFromUrl(),
@@ -91,12 +94,80 @@ const el = {
 };
 
 const formBuilder = createFormBuilder({ root: el.root, apiFetch, config: runtimeConfig, canReadSubmissions:()=>state.tenant?.smsRead!==false });
-const platform = createPlatform({ root: el.root, title: el.title, subtitle: el.sub, pager: el.pager,
-  onWorkspace:(tenantId,service)=>{setTenantId(tenantId);switchView(service==='sms'?'business-setup':service==='enquiries'?'web-forms':'bookings',{tenantId,force:true});},
-  onNavigate:view=>{state.view=view;el.toolbarTenant.textContent='CRM';el.toolbarSection.textContent={ 'platform-accounts':'Users','platform-businesses':'Businesses','platform-websites':'Websites' }[view];setActiveNav();} });
+const platformInstances = new Map();
+function currentPlatform() {
+  const key = state.view.startsWith('platform-') ? state.view : 'platform-businesses';
+  if (!platformInstances.has(key)) {
+    const instance = createPlatform({root:el.root, title:el.title, subtitle:el.sub, pager:el.pager,
+      onOpenRecord:(resource,id)=>switchView(`platform-${resource}`).then(()=>platform.openRecord(resource,id)),
+      onWorkspace:async(tenantId,service)=>{await switchTenant(tenantId);await switchView(service==='sms'?'business-setup':service==='enquiries'?'web-forms':'bookings',{force:true});},
+      onNavigate:view=>{
+        if (view !== state.view) {
+          tabMemory.take(view);
+          for (const [entry, value] of platformInstances) if (value === instance) platformInstances.delete(entry);
+          platformInstances.set(view, instance);
+          lastRenderedView = view;
+        }
+        state.view=view;el.toolbarTenant.textContent='CRM';
+        el.toolbarSection.textContent={'platform-accounts':'Users','platform-businesses':'Businesses','platform-websites':'Websites'}[view];
+        setActiveNav();
+      },
+    });
+    platformInstances.set(key, instance);
+  }
+  return platformInstances.get(key);
+}
+const platform = new Proxy({}, {get: (_, method) => (...args) => currentPlatform()[method](...args)});
 
 let drawerReturnFocus = null;
 let lastRenderedView = null;
+const tabMemory = createTabMemory();
+const renderQueue = createRenderQueue();
+const tabStateKeys = ['categoryId','q','status','page','pageSize','totalPages','selected',
+  'conversationPhone','conversationId','unreadOnly','contactStatus','contactTab',
+  'sourceFilter','consentedOnly','automationBuilderOpen','automationPresetId',
+  'aiBuilderOpen','emailGroupId','businessContextDraft','bookingSettingsDraft','bookingStatus'];
+const tabDefaults = Object.fromEntries(tabStateKeys.map(key => [key, state[key]]));
+let currentTabStale = false;
+let categoriesLoaded = false;
+function tabStatus(stale = false) {
+  currentTabStale = stale;
+  const status = document.getElementById('tab-status');
+  status.textContent = stale ? 'Refresh for latest activity' : 'Your workspace, in one place';
+  status.classList.toggle('has-updates', stale);
+}
+window.addEventListener('crm:data-changed', () => {tabMemory.markStale(); tabStatus(true);});
+function rememberTab() {
+  if (!lastRenderedView || lastRenderedView !== state.view) return;
+  tabMemory.save(state.view, {
+    nodes: [...el.root.childNodes], kpis: [...el.kpi.childNodes], className: el.root.className,
+    state: Object.fromEntries(tabStateKeys.map(key => [key, state[key]])),
+    title: el.title.textContent, sub: el.sub.textContent, meta: el.storeMeta.textContent,
+    crumb: el.toolbarTenant.textContent, section: el.toolbarSection.textContent, documentTitle: `${el.title.textContent} · E2.Local CRM`,
+    platformState: state.view.startsWith('platform-') ? currentPlatform().snapshot() : null,
+    pager: el.pager.hidden, pageInfo: el.pageInfo.textContent,
+    prev: el.prev.disabled, next: el.next.disabled, scroll: window.scrollY,
+    stale: currentTabStale,
+  });
+}
+function restoreTab(snapshot) {
+  Object.assign(state, snapshot.state);
+  el.root.replaceChildren(...snapshot.nodes); el.root.className = snapshot.className;
+  el.kpi.replaceChildren(...snapshot.kpis);
+  setTitle(snapshot.title, snapshot.sub); el.storeMeta.textContent = snapshot.meta;
+  el.toolbarTenant.textContent = snapshot.crumb; el.toolbarSection.textContent = snapshot.section;
+  document.title = snapshot.documentTitle;
+  if (snapshot.platformState) currentPlatform().restore(snapshot.platformState);
+  el.pager.hidden = snapshot.pager; el.pageInfo.textContent = snapshot.pageInfo;
+  el.prev.disabled = snapshot.prev; el.next.disabled = snapshot.next;
+  el.search.value = state.q; el.status.value = state.status; el.pageSize.value = state.pageSize;
+  document.querySelector('.crm').classList.toggle('thread-open', state.view === 'messaging' && Boolean(state.conversationPhone));
+  lastRenderedView = state.view; tabStatus(snapshot.stale);
+  window.scrollTo({top: snapshot.scroll, behavior: 'instant'});
+}
+function clearTabs() {
+  tabMemory.clear(); platformInstances.clear(); sectionHistory.clear(); categoriesLoaded = false; lastRenderedView = null;
+}
 
 function visibleFocusTargets(container) {
   return [...container.querySelectorAll('a[href], button:not([disabled]), input:not([disabled]), select:not([disabled]), textarea:not([disabled]), [tabindex]:not([tabindex="-1"])')]
@@ -135,8 +206,7 @@ window.addEventListener('clerk:organization-changed', () => {
 });
 
 document.getElementById('add-business')?.addEventListener('click', () => {
-  state.view='platform-businesses';setActiveNav();
-  platform.openRegistration().catch(error=>console.error(error));
+  switchView('platform-businesses').then(() => platform.openRegistration()).catch(error=>console.error(error));
 });
 
 function openBusinessSetup(provisioning = null) {
@@ -149,13 +219,15 @@ function openBusinessContext() {
 }
 
 function refreshFromBackground() {
+  tabMemory.markStale(); tabStatus(true);
+  if (state.view !== 'messaging') return Promise.resolve(false);
   const active = document.activeElement;
   if (!shouldRefreshFromBackground({
     view: state.view,
     automationBuilderOpen: state.automationBuilderOpen,
     aiBuilderOpen: state.aiBuilderOpen,
     focusedInForm: active instanceof HTMLElement && el.root.contains(active) && Boolean(active.closest('form')),
-    hasDirtyForm: Boolean(el.root.querySelector('form[data-dirty="true"]')),
+    hasDirtyForm: Boolean(el.root.querySelector('form[data-dirty="true"]') || el.root.querySelector('#reply-body')?.value),
   })) return Promise.resolve(false);
   return load();
 }
@@ -214,7 +286,7 @@ async function renderBookings(){
  const rows=(data.bookings||[]).map(b=>`<tr data-booking-id="${esc(b.id)}"><td><strong>${esc(b.customer_name||'—')}</strong><br><span class="muted">${esc(b.customer_phone||b.contact_phone||'')}</span></td><td>${esc(fmtTime(b.appointment_at))}</td><td>${esc(b.service_address||'—')}</td><td><span class="status ${esc(b.status)}">${esc(b.status)}</span></td><td>${esc(b.source||'—')}</td></tr>`).join('');
  el.root.innerHTML=`<section class="card"><div class="card-head"><div><h2>Appointments</h2><span class="muted">${fmt(data.total)} booking${Number(data.total)===1?'':'s'}</span></div><select id="booking-status-filter"><option value="">All statuses</option><option value="confirmed">Confirmed</option><option value="cancelled">Cancelled</option><option value="requested">Requested</option></select></div><div class="table-scroll"><table class="data"><thead><tr><th>Customer</th><th>Date and time</th><th>Address</th><th>Status</th><th>Source</th></tr></thead><tbody>${rows||'<tr><td colspan="5" class="empty">No bookings yet.</td></tr>'}</tbody></table></div></section>`;
  const filter=el.root.querySelector('#booking-status-filter');filter.value=state.bookingStatus;filter.addEventListener('change',()=>{state.bookingStatus=filter.value;state.page=1;renderBookings();});
- el.root.querySelectorAll('[data-booking-id]').forEach(row=>row.addEventListener('click',async()=>{const id=row.dataset.bookingId,res=await apiFetch(`/api/bookings/${encodeURIComponent(id)}`),body=await res.json();if(!res.ok)throw new Error(body.error||'Could not load booking');const b=body.booking,answers=Object.entries(b.extra_answers||{}).map(([key,value])=>`<div class="row"><div class="k">${esc(key.replaceAll('_',' '))}</div><div class="v">${esc(value)}</div></div>`).join('');openDrawer(`Booking ${id}`,`<div class="kv"><div class="row"><div class="k">Customer</div><div class="v">${esc(b.customer_name||'—')}</div></div><div class="row"><div class="k">Phone</div><div class="v">${esc(b.customer_phone||b.contact_phone||'—')}</div></div><div class="row"><div class="k">Appointment</div><div class="v">${esc(fmtTime(b.appointment_at))} · ${esc(b.time_zone||'')}</div></div><div class="row"><div class="k">Address</div><div class="v">${esc(b.service_address||'—')}</div></div><div class="row"><div class="k">Status</div><div class="v">${esc(b.status)}</div></div>${answers}</div><div class="compose-actions"><span id="booking-action-error" class="login-error"></span><button class="btn ghost" id="booking-open-thread">Open conversation</button>${b.status==='confirmed'?'<button class="btn danger" id="booking-cancel">Cancel booking</button>':''}</div>`);el.drawerBody.querySelector('#booking-open-thread')?.addEventListener('click',()=>{state.view='messaging';state.conversationId=null;state.conversationPhone=b.customer_phone||b.contact_phone;closeDrawer();setActiveNav();load();});el.drawerBody.querySelector('#booking-cancel')?.addEventListener('click',async event=>{if(!confirm('Cancel this booking and its pending reminders?'))return;event.currentTarget.disabled=true;const cancel=await apiFetch(`/api/bookings/${encodeURIComponent(id)}/cancel`,{method:'POST',headers:{'Idempotency-Key':crypto.randomUUID()},body:'{}'}),result=await cancel.json();if(!cancel.ok){el.drawerBody.querySelector('#booking-action-error').textContent=result.error||'Cancellation failed';event.currentTarget.disabled=false;return;}closeDrawer();await renderBookings();});}));
+ el.root.querySelectorAll('[data-booking-id]').forEach(row=>row.addEventListener('click',async()=>{const id=row.dataset.bookingId,res=await apiFetch(`/api/bookings/${encodeURIComponent(id)}`),body=await res.json();if(!res.ok)throw new Error(body.error||'Could not load booking');const b=body.booking,answers=Object.entries(b.extra_answers||{}).map(([key,value])=>`<div class="row"><div class="k">${esc(key.replaceAll('_',' '))}</div><div class="v">${esc(value)}</div></div>`).join('');openDrawer(`Booking ${id}`,`<div class="kv"><div class="row"><div class="k">Customer</div><div class="v">${esc(b.customer_name||'—')}</div></div><div class="row"><div class="k">Phone</div><div class="v">${esc(b.customer_phone||b.contact_phone||'—')}</div></div><div class="row"><div class="k">Appointment</div><div class="v">${esc(fmtTime(b.appointment_at))} · ${esc(b.time_zone||'')}</div></div><div class="row"><div class="k">Address</div><div class="v">${esc(b.service_address||'—')}</div></div><div class="row"><div class="k">Status</div><div class="v">${esc(b.status)}</div></div>${answers}</div><div class="compose-actions"><span id="booking-action-error" class="login-error"></span><button class="btn ghost" id="booking-open-thread">Open conversation</button>${b.status==='confirmed'?'<button class="btn danger" id="booking-cancel">Cancel booking</button>':''}</div>`);el.drawerBody.querySelector('#booking-open-thread')?.addEventListener('click',()=>{switchView('messaging',{conversationId:null,conversationPhone:b.customer_phone||b.contact_phone,force:true});});el.drawerBody.querySelector('#booking-cancel')?.addEventListener('click',async event=>{if(!confirm('Cancel this booking and its pending reminders?'))return;event.currentTarget.disabled=true;const cancel=await apiFetch(`/api/bookings/${encodeURIComponent(id)}/cancel`,{method:'POST',headers:{'Idempotency-Key':crypto.randomUUID()},body:'{}'}),result=await cancel.json();if(!cancel.ok){el.drawerBody.querySelector('#booking-action-error').textContent=result.error||'Cancellation failed';event.currentTarget.disabled=false;return;}closeDrawer();await renderBookings();});}));
 }
 
 async function fetchOnboarding() {
@@ -1033,7 +1105,7 @@ async function renderBusinessContext() {
       saveButton.disabled = false;
     }
   });
-  mountKnowledgePanel().catch((failure) => {
+  await mountKnowledgePanel().catch((failure) => {
     const host = el.root.querySelector('#business-knowledge');
     if (host) host.innerHTML = `<div class="card"><div class="empty">${esc(failure.message || 'AI knowledge could not be loaded.')}</div></div>`;
   });
@@ -1213,20 +1285,13 @@ function contactTypeLabel(source) {
 document.getElementById('nav').addEventListener('click', (e) => {
   const btn = e.target.closest('[data-view]');
   if (!btn) return;
-  switchView(btn.dataset.view, { categoryId: btn.dataset.category || null }).then(() => {
+  switchView(btn.dataset.view, btn.dataset.category ? {categoryId: btn.dataset.category} : {}).then(() => {
     if (matchMedia('(max-width: 900px)').matches) {
       el.title.setAttribute('tabindex', '-1');
       el.title.focus({ preventScroll: true });
     }
   });
 });
-
-// Hover/focus prefetch: warm the HTTP cache so tab switches feel instant.
-document.getElementById('nav').addEventListener('pointerover', (e) => {
-  const btn = e.target.closest?.('[data-view]');
-  if (!btn || btn.dataset.view === state.view) return;
-  prefetchView(btn.dataset.view);
-}, { passive: true });
 
 function setSidebarOpen(open) {
   const isOpen = Boolean(open);
@@ -1273,7 +1338,10 @@ document.addEventListener('keydown', (event) => {
   closeSidebar({ restoreFocus: true });
 });
 
-document.getElementById('refresh').addEventListener('click', () => load({ force: true }));
+document.getElementById('refresh').addEventListener('click', () => {
+  if (el.root.querySelector('form[data-dirty="true"]') && !confirm('Refresh this tab and discard its unsaved changes?')) return;
+  load({ force: true });
+});
 document.getElementById('drawer-close').addEventListener('click', closeDrawer);
 el.drawerBackdrop?.addEventListener('click', closeDrawer);
 
@@ -1335,12 +1403,17 @@ function setActiveNav() {
     parent.setAttribute('aria-expanded', String(onAutomations));
   }
   renderViewTabs();
-  syncViewUrl();
+
 }
 
 // Contextual tab groups: related standalone pages become instant tabs
 // that share one URL (?view=) and switch without any page reload.
 const TAB_GROUPS = [
+  { id: 'work', label: 'Workspace', views: [
+    {view:'overview',label:'Overview'}, {view:'contacts',label:'Contacts'},
+    {view:'messaging',label:'Inbox'}, {view:'bookings',label:'Bookings'},
+    {view:'automations',label:'Automations'}, {view:'email',label:'Email'},
+  ]},
   { id: 'reports', label: 'Reports', views: [
     { view: 'call', label: 'Inbound calls' },
     { view: 'messages', label: 'Message history' },
@@ -1361,6 +1434,25 @@ const TAB_GROUPS = [
   ]},
 ];
 
+const sectionHistory = new Map();
+function renderSectionNavigation(activeGroup) {
+  sectionHistory.set(activeGroup.id, state.view);
+  const nav = document.getElementById('section-nav');
+  nav.innerHTML = TAB_GROUPS.map(group => {
+    const allowed = group.views.filter(tab => canOpenWorkspace(tab.view, state.platformStaff, state.tenant));
+    if (!allowed.length) return '';
+    const icons = {work:'▦', reports:'↗', setup:'⚙', platform:'◈'};
+    return `<button type="button" class="section-link ${group.id === activeGroup.id ? 'active' : ''}" data-section="${group.id}" ${group.id === activeGroup.id ? 'aria-current="true"' : ''}><span aria-hidden="true">${icons[group.id]}</span><span>${group.label}</span><small>${allowed.length}</small></button>`;
+  }).join('');
+}
+document.getElementById('section-nav').addEventListener('click', event => {
+  const button = event.target.closest('[data-section]');
+  if (!button) return;
+  const group = TAB_GROUPS.find(group => group.id === button.dataset.section);
+  const view = sectionHistory.get(group.id) || group.views.find(tab => canOpenWorkspace(tab.view, state.platformStaff, state.tenant))?.view;
+  if (view) switchView(view);
+});
+
 function tabGroupForView(view) {
   return TAB_GROUPS.find(group => group.views.some(tab => tab.view === view)) || null;
 }
@@ -1380,10 +1472,13 @@ function renderViewTabs() {
     return;
   }
   host.hidden = false;
+  el.root.setAttribute('role', 'tabpanel');
+  el.root.setAttribute('aria-labelledby', `tab-${state.view}`);
+  renderSectionNavigation(group);
   host.setAttribute('aria-label', `${group.label} tabs`);
   host.innerHTML = group.views
     .filter(tab => permitted(tab.view))
-    .map(tab => `<button type="button" role="tab" class="crm-tab" data-tab-view="${esc(tab.view)}" aria-selected="${String(tab.view === state.view)}" tabindex="${tab.view === state.view ? '0' : '-1'}">${esc(tab.label)}</button>`)
+    .map(tab => `<button type="button" role="tab" id="tab-${esc(tab.view)}" aria-controls="view-root" class="crm-tab" data-tab-view="${esc(tab.view)}" aria-selected="${String(tab.view === state.view)}" tabindex="${tab.view === state.view ? '0' : '-1'}">${esc(tab.label)}</button>`)
     .join('');
 }
 
@@ -1394,16 +1489,16 @@ el.viewTabs?.addEventListener('click', (event) => {
 });
 
 el.viewTabs?.addEventListener('keydown', (event) => {
-  if (event.key !== 'ArrowRight' && event.key !== 'ArrowLeft') return;
+  if (!['ArrowRight', 'ArrowLeft', 'Home', 'End'].includes(event.key)) return;
   const tabs = [...el.viewTabs.querySelectorAll('[data-tab-view]')];
   if (!tabs.length) return;
   event.preventDefault();
   const current = tabs.indexOf(document.activeElement);
-  const next = event.key === 'ArrowRight'
+  const next = event.key === 'Home' ? tabs[0] : event.key === 'End' ? tabs.at(-1) : event.key === 'ArrowRight'
     ? tabs[(current + 1 + tabs.length) % tabs.length]
     : tabs[(current - 1 + tabs.length) % tabs.length];
-  next.focus();
-  switchView(next.dataset.tabView);
+  const nextView = next.dataset.tabView;
+  switchView(nextView).then(() => document.getElementById(`tab-${nextView}`)?.focus({preventScroll:true}));
 });
 
 function syncViewUrl() {
@@ -1419,47 +1514,51 @@ function syncViewUrl() {
 window.addEventListener('popstate', (event) => {
   const view = event.state?.view || new URLSearchParams(location.search).get('view');
   if (view && KNOWN_VIEWS.includes(view) && view !== state.view) {
-    switchView(view).catch(error=>console.error(error));
+    switchView(view, {history: false}).catch(error=>console.error(error));
   }
 });
 
 // Central tab switch: one code path for sidebar, tabs, dashboard
 // shortcuts and drawers. No full-page reload; the shell, theme and
 // realtime connection stay mounted while only the view re-renders.
-let switchToken = 0;
-async function switchView(view, options = {}) {
-  if (!KNOWN_VIEWS.includes(view)) return load();
-  const { categoryId = undefined, force = false, tenantId = null } = options;
-  const mySwitch = ++switchToken;
-  if (tenantId && tenantId !== getTenantId()) setTenantId(tenantId);
-  const sameView = view === state.view
-    && (categoryId === undefined || categoryId === state.categoryId)
-    && !force;
-  state.view = view;
-  if (categoryId !== undefined) state.categoryId = categoryId;
-  else if (view === 'automations' && options.categoryId === undefined && !force) { /* keep group */ }
-  else if (view !== 'automations') state.categoryId = null;
-  if ('conversationPhone' in options) state.conversationPhone = options.conversationPhone;
-  else if (view !== 'messaging') state.conversationPhone = null;
-  if ('conversationId' in options) state.conversationId = options.conversationId;
-  else if (view !== 'messaging') state.conversationId = null;
-  state.page = 1;
-  state.q = '';
-  if (el.search) el.search.value = '';
-  setActiveNav();
-  closeDrawer();
-  closeSidebar();
-  if (sameView && !force) {
-    await load({ keepContent: true });
-  } else {
-    await load();
-  }
-  if (mySwitch !== switchToken) return;
+let navigationTicket = 0;
+function switchView(view, options = {}) {
+  if (view === 'knowledge') view = 'business-context';
+  const ticket = ++navigationTicket;
+  return renderQueue.run(async () => {
+    if (ticket !== navigationTicket || !KNOWN_VIEWS.includes(view)) return;
+    await Promise.all([...platformInstances.values()].map(instance => instance.whenIdle()));
+    if (ticket !== navigationTicket || !canOpenWorkspace(view, state.platformStaff, state.tenant)) return;
+    clearTimeout(searchTimer); state.q = el.search.value.trim();
+    const changed = state.view !== view;
+    if (changed) rememberTab();
+    const snapshot = changed ? tabMemory.take(view) : null;
+    if (changed) Object.assign(state, tabDefaults);
+    state.view = view; closeDrawer(); closeSidebar();
+    const explicitTarget = Object.keys(options).some(key => key !== 'history');
+    if (snapshot && !explicitTarget) restoreTab(snapshot);
+    else if (changed || explicitTarget) {
+      if ('categoryId' in options) state.categoryId = options.categoryId;
+      if ('conversationPhone' in options) state.conversationPhone = options.conversationPhone;
+      if ('conversationId' in options) state.conversationId = options.conversationId;
+      el.search.value = state.q; el.status.value = state.status;
+      await renderWorkspace({force: options.force});
+      window.scrollTo({top: 0, behavior: 'instant'});
+    }
+    if (changed && options.history !== false) {
+      const url = new URL(location.href); url.searchParams.set('view', view);
+      history.pushState({view}, '', url);
+    }
+    setActiveNav(); syncViewControls(); applyWorkspacePermissions();
+  });
 }
 
 // In-place workspace switch: re-resolve tenant context and re-render
 // the current tab without tearing down auth, theme or realtime.
 async function switchTenant(tenantId, options = {}) {
+  return renderQueue.run(async () => {
+  await Promise.all([...platformInstances.values()].map(instance => instance.whenIdle()));
+  clearTabs();
   if (tenantId) setTenantId(tenantId);
   state.categories = [];
   state.cadences = [];
@@ -1473,7 +1572,6 @@ async function switchTenant(tenantId, options = {}) {
   state.conversationId = null;
   state.page = 1;
   lastRenderedView = null;
-  viewFreshness.clear();
   try {
     await loadTenantContext();
   } catch (error) {
@@ -1487,36 +1585,8 @@ async function switchTenant(tenantId, options = {}) {
   if (options.force) lastRenderedView = null;
   updateAuthChrome();
   setActiveNav();
-  await load({ force: true });
-}
-
-// Freshness-aware rendering: revisiting a recently loaded tab keeps its
-// content on screen (no skeleton flash) while data revalidates.
-const viewFreshness = new Map();
-function markViewFresh(view) {
-  viewFreshness.set(view, Date.now());
-}
-function isViewFresh(view, maxAgeMs = 30000) {
-  const at = viewFreshness.get(view);
-  return at != null && (Date.now() - at) < maxAgeMs;
-}
-
-// Prefetch hook used by hover/focus warming. Best-effort only.
-const prefetchedViews = new Set();
-function prefetchView(view) {
-  try {
-    if (!state.tenant || prefetchedViews.has(view) || view === state.view) return;
-    if (!canOpenWorkspace(view, state.platformStaff, state.tenant)) return;
-    if (String(view).startsWith('platform-')) return;
-    prefetchedViews.add(view);
-    const idle = globalThis.requestIdleCallback || ((fn) => setTimeout(fn, 800));
-    idle(() => {
-      if (view === state.view) return;
-      apiFetch(view === 'overview' ? '/api/overview' : '/api/categories', { method: 'GET' })
-        .then(res => res.arrayBuffer?.().catch(()=>null))
-        .catch(() => {});
-    });
-  } catch { /* never break navigation */ }
+  await renderWorkspace({ force: true });
+  });
 }
 
 function syncSidebarBrand() {
@@ -1530,6 +1600,7 @@ function initNavFind() {
   input.dataset.bound = 'true';
   input.addEventListener('input', () => {
     const q = input.value.trim().toLowerCase();
+    document.getElementById('nav').classList.toggle('is-searching', Boolean(q));
     document.querySelectorAll('#nav .nav-item').forEach((item) => {
       const hay = `${item.textContent || ''} ${item.dataset.find || ''}`.toLowerCase();
       item.hidden = !canOpenWorkspace(item.dataset.view,state.platformStaff,state.tenant) || (Boolean(q) && !hay.includes(q)) || (item.hasAttribute('data-platform-nav') && !state.platformStaff) || (state.tenant?.smsRead===false && item.dataset.view!=='web-forms' && !item.hasAttribute('data-platform-nav'));
@@ -1634,33 +1705,34 @@ async function renderEmailGroups() {
   }
 }
 
-async function load(options = {}) {
-  const { keepContent = false, force = false } = options;
+function load(options = {}) {
+  return renderQueue.run(() => renderWorkspace(options));
+}
+function syncViewControls() {
+  document.getElementById('crm-app').dataset.view = state.view;
+  el.search.closest('.search-wrap').hidden = state.view.startsWith('platform-') || ['overview', 'call', 'deliverability', 'ai-instructions', 'business-setup', 'business-context', 'booking-setup', 'knowledge', 'web-forms', 'email'].includes(state.view);
+  el.status.hidden = !['messages', 'deliverability'].includes(state.view) && !(state.view === 'automations' && state.categoryId);
+}
+async function renderWorkspace(options = {}) {
   if (state.view !== 'messaging') document.querySelector('.crm')?.classList.remove('thread-open');
-  const viewChanged = lastRenderedView !== state.view;
-  const revisitingFreshTab = viewChanged && !force && isViewFresh(state.view) && el.root.children.length > 0;
-  if (viewChanged && !keepContent && !revisitingFreshTab) {
-    el.root.innerHTML = '<div class="card ui-loading" role="status">Loading workspace…</div>';
-    el.kpi.innerHTML = '';
-    el.pager.hidden = true;
+  if (lastRenderedView !== state.view) {
+    el.root.innerHTML = '<div class="workspace-skeleton" role="status"><span>Opening your workspace…</span><i></i><i></i><i></i></div>';
+    el.kpi.replaceChildren(); el.pager.hidden = true;
   }
   el.root.setAttribute('aria-busy', 'true');
-  document.getElementById('crm-app').dataset.view = state.view;
-  el.search.closest('.search-wrap').hidden = ['overview', 'call', 'deliverability', 'ai-instructions', 'business-setup', 'business-context', 'booking-setup', 'knowledge', 'web-forms', 'email'].includes(state.view);
-  el.status.hidden = !['messages', 'deliverability'].includes(state.view) && !(state.view === 'automations' && state.categoryId);
-  if (state.view === 'business-setup') el.pager.hidden = true;
+  const refresh = document.getElementById('refresh'); refresh.disabled = true;
+  syncViewControls();
   try {
     if (state.view.startsWith('platform-')) {
       el.search.closest('.search-wrap').hidden = true; el.status.hidden = true; el.kpi.innerHTML = '';
       el.toolbarTenant.textContent='CRM';
       el.toolbarSection.textContent={ 'platform-accounts':'Users','platform-businesses':'Businesses','platform-websites':'Websites' }[state.view];
-      setActiveNav();
-      await platform.render(state.view); lastRenderedView = state.view; markViewFresh(state.view); return;
+      await platform.render(state.view); lastRenderedView = state.view; tabStatus(); return;
     }
     el.root.classList.remove('platform-root');
     if (!state.tenant) throw new Error('Choose or create a business workspace.');
     if (!canOpenWorkspace(state.view,state.platformStaff,state.tenant)) {state.view=state.tenant.smsRead?'overview':'web-forms';setActiveNav();}
-    if (!state.categories.length && state.tenant.smsRead!==false) {
+    if (!categoriesLoaded && state.tenant.smsRead!==false) {
       const catRes = await apiFetch('/api/categories');
       if (catRes.status === 401 || catRes.status === 403) {
         renderAccessScreen({ errorMessage: authFailureMessage(catRes), onRetry: openAuthenticatedWorkspace });
@@ -1670,6 +1742,7 @@ async function load(options = {}) {
       state.categories = catJson.categories || [];
       state.cadences = catJson.cadences || [];
       state.rulePresets = catJson.rulePresets || [];
+      categoriesLoaded = true;
       renderNavAutomations();
     }
 
@@ -1695,14 +1768,17 @@ async function load(options = {}) {
     else if (state.view === 'knowledge') await renderKnowledge();
     else await renderMessages();
     lastRenderedView = state.view;
-    markViewFresh(state.view);
+    tabStatus();
   } catch (err) {
     console.error(err);
     el.root.innerHTML = `<div class="card"><div class="empty" role="alert"><strong>Could not load this page.</strong><p>${esc(err.message || 'Please try again.')}</p><button type="button" class="btn ghost" data-retry-load>Try again</button></div></div>`;
     el.root.querySelector('[data-retry-load]')?.addEventListener('click', () => load());
   } finally {
+    refresh.disabled = false;
+    document.title = `${el.title.textContent} · E2.Local CRM`;
+    renderViewTabs();
     applyWorkspacePermissions();
-    el.root.querySelector('[data-open-registered-business]')?.addEventListener('click',()=>{state.view='platform-businesses';setActiveNav();platform.openBusiness(state.tenant.id);});
+    el.root.querySelector('[data-open-registered-business]')?.addEventListener('click',()=>{const id=state.tenant.id;switchView('platform-businesses').then(()=>platform.openBusiness(id));});
     el.root.setAttribute('aria-busy', 'false');
   }
 }
@@ -1904,7 +1980,7 @@ async function renderOverview() {
   }
   el.root.querySelectorAll('[data-dashboard-view]').forEach((btn) => {
     btn.addEventListener('click', () => {
-      document.querySelector(`.nav-item[data-view="${btn.dataset.dashboardView}"]`)?.click();
+      switchView(btn.dataset.dashboardView);
     });
   });
   el.root.querySelector('[data-complete-business-setup]')?.addEventListener('click', () => {
@@ -3704,6 +3780,7 @@ function esc(value) {
 }
 
 async function forceLogin(message = '') {
+  clearTabs();
   renderLoginScreen({
     errorMessage: message,
     onSuccess: openAuthenticatedWorkspace,
@@ -3717,6 +3794,7 @@ function authFailureMessage(response) {
 }
 
 async function openAuthenticatedWorkspace() {
+  clearTabs();
   const me = await apiFetch('/api/auth/me', { tenant: false });
   if (me.status === 401 || me.status === 403) throw new Error(authFailureMessage(me));
   if (!me.ok) throw new Error('The CRM service is temporarily unavailable. Try again shortly.');
@@ -3737,6 +3815,7 @@ async function openAuthenticatedWorkspace() {
     installDemoActionGuard();
   }
   await load();
+  syncViewUrl();
   if (!runtimeConfig.previewReadOnly && !document.getElementById('crm-app').hidden && state.tenant && state.tenant.smsRead!==false) connectLive();
 }
 

@@ -12,7 +12,7 @@
     <link rel="icon" href="/e2-icon.svg" type="image/svg+xml" />
     <link rel="stylesheet" href="/styles.css?v=20260924-e2-crm" />
     <link rel="stylesheet" href="/e2-theme.css?v=20260930-login-options" />
-    <link rel="stylesheet" href="/dashboard-theme.css?v=20261002-tabs" />
+    <link rel="stylesheet" href="/dashboard-theme.css?v=20261002-workspace" />
   </head>
   <body>
     <a class="skip-link" href="#view-root">Skip to main content</a>
@@ -22,6 +22,7 @@
         <a class="dashboard-brand" href="https://www.e2local.com/" aria-label="E2 Local home">
           <img src="/e2-dashboard-logo.svg" alt="E2 Local" width="152" height="55" />
         </a>
+        <span class="brand-divider" aria-hidden="true"></span><span class="product-name">Workspace <small>CRM</small></span>
         <div class="crm-topbar-actions">
           <button type="button" class="sidebar-trigger" id="sidebar-trigger" aria-label="Open navigation" aria-controls="sidebar" aria-expanded="false">
             <span class="sidebar-trigger-icon" aria-hidden="true"><b></b><b></b><b></b></span>
@@ -53,7 +54,7 @@
         <div class="clerk-org-switcher" id="clerk-organization-switcher"></div>
 
         <label class="workspace-switcher" for="tenant-select">
-          <span>Workspace</span>
+          <span>Business workspace</span>
           <select id="tenant-select" aria-label="Business account">
             <option value="opek">Opek Junk Removal</option>
           </select>
@@ -64,10 +65,12 @@
 
         <div class="sidebar-find">
           <svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="11" cy="11" r="7" fill="none" stroke="currentColor" stroke-width="1.8"/><path d="m16.5 16.5 4 4" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/></svg>
-          <input id="nav-find" type="search" placeholder="Find" aria-label="Filter navigation" autocomplete="off" />
+          <input id="nav-find" type="search" placeholder="Find a tool…" aria-label="Filter navigation" autocomplete="off" />
           <kbd title="Press F to focus">F</kbd>
         </div>
 
+        <nav id="section-nav" class="section-nav" aria-label="Workspace areas"></nav>
+        <div class="sidebar-note"><span class="sidebar-note-icon" aria-hidden="true">↗</span><strong>A little less busywork.</strong><p>Your customers, conversations and follow-ups. All together.</p></div>
         <nav class="nav" id="nav" aria-label="CRM sections">
           <section data-nav-section="platform" data-platform-nav hidden>
             <p class="nav-label">Platform</p>
@@ -177,6 +180,8 @@
         <aside id="demo-banner" class="demo-banner" role="status" hidden>Demo preview · Sample data only · Authentication on standby · SMS, calls, and changes disabled</aside>
 
 
+        <div class="workspace-tabbar"><div class="crm-tabs" id="view-tabs" role="tablist" aria-label="Section tabs" hidden></div></div>
+        <div class="workspace-status"><span class="status-dot" aria-hidden="true"></span><span id="tab-status" role="status">Your workspace, in one place</span></div>
         <section class="page-heading">
           <div class="page-heading-copy">
             <div class="toolbar-crumb">
@@ -213,12 +218,12 @@
           </div>
         </section>
 
-        <div class="crm-tabs" id="view-tabs" role="tablist" aria-label="Section tabs" hidden></div>
+
 
         <section id="kpi" class="kpi-row" aria-live="polite"></section>
 
         <main class="main-panel" id="main-content">
-          <div id="view-root" tabindex="-1"></div>
+          <div id="view-root" role="tabpanel" tabindex="0"></div>
           <div class="pager" id="pager" hidden>
             <button type="button" id="prev-page" class="btn ghost">Previous</button>
             <span id="page-info" class="muted"></span>
@@ -251,6 +256,6 @@
 
     <script type="importmap">{"imports":{"fflate":"/vendor/fflate.js"}}</script>
     <script src="/config.js"></script>
-    <script src="/app.js?v=20261002-tabs" type="module"></script>
+    <script src="/app.js?v=20261002-workspace" type="module"></script>
   </body>
 </html>
