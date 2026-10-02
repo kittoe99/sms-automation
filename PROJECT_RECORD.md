@@ -82,6 +82,13 @@ Applied this repository’s `20261001235349_business_service_prerequisites.sql` 
 
 ## Change record
 
+### October 2, 2026 — CRM logo returns to its dashboard
+
+The header logo now points to the CRM overview instead of the public E2 homepage.
+Normal clicks use retained tab navigation; opening a new tab uses the CRM URL.
+Forms-only accounts retain their existing workspace restrictions. Frontend-only
+change with no migration or E2 application change. Release verification follows.
+
 ### October 2, 2026 — Visible automation setup entry point
 
 An empty Automations view now explains how the four preset groups are initialized

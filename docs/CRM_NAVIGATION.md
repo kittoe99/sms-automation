@@ -21,5 +21,9 @@ Find a tool searches permitted menu options across all sections. Clearing search
 returns to the selected section. On mobile, open Menu to reach the same controls.
 Permissions continue to determine which tools a user can open.
 
+The CRM header logo opens the CRM dashboard using retained tab navigation.
+Opening the logo in a new tab also stays on the CRM. Forms-only accounts return
+to their permitted forms workspace.
+
 The October 2 navigation repair changes frontend visibility only. It does not
 create groups, add services, change access, activate messaging or apply migrations.

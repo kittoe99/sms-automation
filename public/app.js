@@ -1282,6 +1282,13 @@ function contactTypeLabel(source) {
   return labels[source] || String(source).replaceAll('_', ' ');
 }
 
+document.querySelector('.dashboard-brand').addEventListener('click', (event) => {
+  if (event.button !== 0 || event.metaKey || event.ctrlKey || event.shiftKey || event.altKey) return;
+  event.preventDefault();
+  const view = canOpenWorkspace('overview', state.platformStaff, state.tenant) ? 'overview' : 'web-forms';
+  switchView(view);
+});
+
 document.getElementById('nav').addEventListener('click', (e) => {
   const btn = e.target.closest('[data-view]');
   if (!btn) return;
