@@ -1,8 +1,8 @@
 # CRM navigation
 
 Choose Workspace, Reports, Setup or Platform in the sidebar. The selected
-section's individual menu options remain visible below those section controls;
-the same views can be opened from the tabs above the workspace. Navigation stays
+section's individual menu options remain visible below those section controls.
+The duplicate horizontal workspace tab row has been removed. Navigation stays
 inside the current page and retains visited panels and unsaved drafts.
 
 Open Automations to see the selected business's configured groups in its sidebar

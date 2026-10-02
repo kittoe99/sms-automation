@@ -90,7 +90,6 @@ const el = {
   tenantSelect: document.getElementById('tenant-select'),
   toolbarTenant: document.getElementById('toolbar-tenant'),
   tenantAvatar: document.getElementById('tenant-avatar'),
-  viewTabs: document.getElementById('view-tabs'),
 };
 
 const formBuilder = createFormBuilder({ root: el.root, apiFetch, config: runtimeConfig, canReadSubmissions:()=>state.tenant?.smsRead!==false });
@@ -1409,7 +1408,7 @@ function setActiveNav() {
     parent.classList.toggle('expanded', onAutomations);
     parent.setAttribute('aria-expanded', String(onAutomations));
   }
-  renderViewTabs();
+  syncWorkspaceNavigation();
 
 }
 
@@ -1465,49 +1464,12 @@ function tabGroupForView(view) {
   return TAB_GROUPS.find(group => group.views.some(tab => tab.view === view)) || null;
 }
 
-function renderViewTabs() {
-  const host = el.viewTabs;
-  if (!host) return;
+function syncWorkspaceNavigation() {
   const group = tabGroupForView(state.view);
-  const permitted = (view) => {
-    if (state.platformStaff) return true;
-    if (group?.id === 'platform') return false;
-    return canOpenWorkspace(view, state.platformStaff, state.tenant);
-  };
-  if (!group || !group.views.filter(tab => permitted(tab.view)).length) {
-    host.hidden = true;
-    host.innerHTML = '';
-    return;
-  }
-  host.hidden = false;
-  el.root.setAttribute('role', 'tabpanel');
-  el.root.setAttribute('aria-labelledby', `tab-${state.view}`);
-  renderSectionNavigation(group);
-  host.setAttribute('aria-label', `${group.label} tabs`);
-  host.innerHTML = group.views
-    .filter(tab => permitted(tab.view))
-    .map(tab => `<button type="button" role="tab" id="tab-${esc(tab.view)}" aria-controls="view-root" class="crm-tab" data-tab-view="${esc(tab.view)}" aria-selected="${String(tab.view === state.view)}" tabindex="${tab.view === state.view ? '0' : '-1'}">${esc(tab.label)}</button>`)
-    .join('');
+  el.root.setAttribute('role', 'region');
+  el.root.setAttribute('aria-labelledby', 'page-title');
+  if (group) renderSectionNavigation(group);
 }
-
-el.viewTabs?.addEventListener('click', (event) => {
-  const tab = event.target.closest?.('[data-tab-view]');
-  if (!tab || tab.getAttribute('aria-selected') === 'true') return;
-  switchView(tab.dataset.tabView);
-});
-
-el.viewTabs?.addEventListener('keydown', (event) => {
-  if (!['ArrowRight', 'ArrowLeft', 'Home', 'End'].includes(event.key)) return;
-  const tabs = [...el.viewTabs.querySelectorAll('[data-tab-view]')];
-  if (!tabs.length) return;
-  event.preventDefault();
-  const current = tabs.indexOf(document.activeElement);
-  const next = event.key === 'Home' ? tabs[0] : event.key === 'End' ? tabs.at(-1) : event.key === 'ArrowRight'
-    ? tabs[(current + 1 + tabs.length) % tabs.length]
-    : tabs[(current - 1 + tabs.length) % tabs.length];
-  const nextView = next.dataset.tabView;
-  switchView(nextView).then(() => document.getElementById(`tab-${nextView}`)?.focus({preventScroll:true}));
-});
 
 function syncViewUrl() {
   try {
@@ -1785,7 +1747,7 @@ async function renderWorkspace(options = {}) {
   } finally {
     refresh.disabled = false;
     document.title = `${el.title.textContent} · E2.Local CRM`;
-    renderViewTabs();
+    syncWorkspaceNavigation();
     applyWorkspacePermissions();
     el.root.querySelector('[data-open-registered-business]')?.addEventListener('click',()=>{const id=state.tenant.id;switchView('platform-businesses').then(()=>platform.openBusiness(id));});
     el.root.setAttribute('aria-busy', 'false');

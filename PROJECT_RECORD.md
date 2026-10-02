@@ -82,6 +82,14 @@ Applied this repository’s `20261001235349_business_service_prerequisites.sql` 
 
 ## Change record
 
+### October 2, 2026 — Remove duplicate inner CRM tabs
+
+Removed the horizontal Overview/Contacts/Inbox/Bookings/Automations/Email tab
+row that duplicated the sidebar. Sidebar menus still use retained in-page views,
+preserving drafts and avoiding full reloads. The content region is labelled by
+its page heading instead of a removed tab. Frontend-only change; release checks
+are recorded after deployment. No shared database or E2 application changes.
+
 ### October 2, 2026 — CRM logo returns to its dashboard
 
 The header logo now points to the CRM overview instead of the public E2 homepage.
