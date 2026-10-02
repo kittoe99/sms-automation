@@ -279,3 +279,19 @@ and 390px mobile layout, retained search and profile drafts, website sub-tab dra
 browser Back and zero extra API reads when revisiting tabs. No provider actions or
 live data edits were used. At this checkpoint implementation is local; deployment
 verification is recorded separately after release.
+
+### October 1, 2026 (America/Denver) — CRM workspace release verified
+
+Published application commit `59d0615` on `deploy-crm`. Render deployment
+`dep-davjvshsrm7s73ca7lk0` succeeded and is Live (started 11:24 PM MDT).
+The push did not produce an automatic deployment during observation despite the
+On Commit setting, so this release was triggered manually in the existing static
+site. Webhook diagnosis remains separate from the verified frontend release.
+
+All five changed frontend assets fetched from `crm.e2local.com` match the release
+commit after newline normalization. Authenticated production browser verification
+showed the redesigned area navigation, Workspace tabs, healthy Live connection,
+Contacts loading, and instant return to the retained Overview; no console warnings
+or errors. The final 205-test CRM run passed. Both project records were updated.
+No API/database migration, provider action, customer data edit or E2 app deployment
+was performed. Unrelated local auth/preview/documentation changes remain preserved.
