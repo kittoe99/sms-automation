@@ -12,7 +12,9 @@ October 2 guided business setup: the Businesses profile editor has numbered
 sections, editable entry cards, time-zone/hours choices, a pricing builder and
 explicitly selected guidance presets. Existing shared draft/review contracts
 remain unchanged. See [form workflow](docs/BUSINESS_PROFILE_FORM.md); implementation
-and local verification are recorded below, with release verification separately.
+and local verification are recorded below. Application `558ab41` is Live on
+Render `dep-db01d3qd0e5s739nulm0`; authenticated production UI and six assets
+were verified.
 
 
 Paired customer dashboard: E2 now has the matching workspace refinement and
@@ -111,6 +113,15 @@ on draft save, saved value round trips, review enabling service addition, deskto
 and 390px mobile layout with no horizontal overflow. Screenshot saved in task.
 Local implementation at this checkpoint; release verification follows separately.
 Unrelated local documentation/auth/preview changes remain excluded.
+
+Release verified: CRM application `558ab41` is Live on Render deployment
+`dep-db01d3qd0e5s739nulm0` (October 2, 2026, 2:39 PM MDT). All six
+changed production assets matched the release after newline normalization.
+Authenticated production inspection confirmed the five guided sections, hours
+presets, FAQ cards and pricing methods with no browser warnings/errors. Live
+screenshot saved in this task. No production profile/data save, provider action,
+API deployment or migration was performed during verification.
+
 
 
 ### October 2, 2026 — Remove stock workspace names
