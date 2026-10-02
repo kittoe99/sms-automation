@@ -175,3 +175,44 @@ Compared 22 affected/dependent live functions with the combined local baseline:
 all matched. The guarded live rehearsal rolled back successfully, preserving
 services, providers/jobs, memberships, staff grants and compatibility settings.
 At this entry these new migrations and application changes are local, not released.
+
+
+### October 2, 2026 — CRM linking release and authenticated verification
+
+Released CRM application `4dd63fc` and E2 `4511485`. Applied CRM migration
+`20261002024327`, then E2 `20261002024330` to shared project
+`wxamwhfmelxqahkdtcci` after exact-definition comparison and a successful rollback
+rehearsal. Deployed crm-api v38 (ACTIVE), Render
+`dep-davi1apsrm7s73c39bn0` (live), and Vercel
+`dpl_96JdqGU8teqE1SuQnZ4dR39yJySt` (READY production). All five changed CRM assets
+were fetched from crm.e2local.com and matched the application commit. The API
+reports the CRM login realm and rejects unauthenticated /auth/me with 401.
+
+Final inspection found that legacy phone-based conversation lookup could create
+an empty conversation for SMS readers. Applied the additional forward-only CRM
+migration `20261002031422_read_only_conversation_lookup.sql` after its own live
+comparison and rollback rehearsal. Readers now resolve existing conversations;
+only administrators initialize a missing one. The deployed definition hash
+matches the rehearsed definition. Full suites re-run after this change: CRM
+202/202 and E2 132/132 passed. No API/frontend redeploy is required for this SQL
+follow-up; application assets are unchanged.
+
+Browser verification completed with the existing production CRM staff login and
+the separate E2 customer login. Staff startup and Realtime were healthy, the
+no-SMS notice opened the correct owner-linked business, and both profile editors
+showed the same prefilled business name/time zone. The customer dashboard showed
+Opek Junk Removal with “We’re setting up your services”; only Overview/Account
+navigation was present, and Refresh preserved that result. Neither browser
+reported console errors. Synthetic local browser checks using real CRM handlers
+and the paired PGlite database verified shared draft/review synchronization,
+stale-save conflicts retaining unsaved text, SMS-reader navigation without write
+controls, and forms-only saving without SMS submission access. Live operator
+identity and real provider sending were not exercised.
+
+Final production counts: one business, one enabled owner link, zero services,
+zero assigned websites, zero providers and zero jobs. Both compatibility flags
+remain false. No retained website was assigned, no service was set live, and no
+messaging was activated. Security Advisor after rerun remains 0 errors, 5 existing
+warnings and 36 informational suggestions; no new findings. The pre-existing
+Render npm audit high-severity warning remains; dependencies were not changed.
+Unrelated local documentation and preview work were preserved.

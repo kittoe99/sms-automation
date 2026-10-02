@@ -79,8 +79,8 @@ provider jobs. Historical unassigned websites stay unassigned until linked.
    extended profile and explicitly release intended services. Do not activate
    sending or publish websites merely to test customer visibility.
 5. Run a controlled authenticated pilot for onboarding, staff review, individual
-   service release/hide, ownership transfer and customer refresh. Cloud rollout
-   is complete; the authenticated browser pilot remains pending.
+   service release/hide, ownership transfer and customer refresh. The October 2 staff/customer walkthrough is complete; changing real services,
+   ownership or provider activation remains a separate operational action.
 
 E2 browser snapshots use schema version 2. Registration, profile, provider,
 ownership and service changes invalidate applicable cache revisions; navigation,
@@ -137,3 +137,13 @@ migration histories; CRM profile-client tests verify revision/error behavior and
 read-only capabilities. See both project records for actual release and browser
 verification evidence. These changes do not assign retained websites, release
 services or activate messaging.
+
+
+The October 2 release is applied and verified (see both project records). The
+additional CRM migration `20261002031422_read_only_conversation_lookup.sql`
+requires the CRM access guards and prevents phone-based GET lookups from creating
+conversations for read-only operators. It was separately compared, rehearsed and
+applied after the paired authorization release. Existing conversations remain
+readable within the permitted business. Full combined suites passed afterward.
+The production staff/customer walkthrough confirmed owner linking and hidden
+unreleased services without adding or activating any real services.
