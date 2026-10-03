@@ -7,8 +7,10 @@ selected business. Staff browse linked/unlinked accounts, approved senders and
 attention reasons, and open linked businesses. The existing profiles API now maps
 an omitted business scope to SQL null; staff authorization still precedes inventory.
 No schema/permission changes, connections, activations or sends. Twenty CRM and five
-paired E2 UI tests passed, plus frontend build. API/frontend release verification
-pending; E2 runtime remains unchanged.
+paired E2 UI tests passed, plus frontend build. CRM API v43 is ACTIVE; frontend
+d882220 is live in Render dep-db0ol0ugekts73aks420. Five changed public assets match
+source, and authenticated production navigation/account listing is verified.
+E2 runtime remains unchanged.
 
 ### October 3 — visible staff SMS connection and activation actions
 
