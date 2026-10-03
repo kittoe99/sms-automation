@@ -63,6 +63,7 @@ export function createCrmHandler(db,verify=authenticate,{platform=false,provisio
    }
    if(!tenant) return json({error:'Select a business'},400,headers);
    if(method==='GET') {
+    if(path==='/sms/connection') return json(await db.call('read_sms_connection',user,tenant),200,headers);
     if(path==='/email') return json(await emailOverview(db,user,tenant),200,headers);
     if(path==='/web-forms') return json(await db.call('list_web_forms',user,tenant),200,headers);
     const webFormSubmissions=path.match(/^\/web-forms\/(contacts|quote_requests|bookings)\/submissions$/);

@@ -3,6 +3,7 @@ import {readBusinessProfile,writeBusinessProfile} from './profileClient.js?v=202
 import {canOpenWorkspace,canWriteWorkspace,staffActionSelector} from './workspacePermissions.js?v=20261002-access';
 import { createPlatform } from './platform.js?v=20261002-twilio-connect';
 import {mountTwilioActivation} from './twilioActivation.js?v=20261002-twilio-connect';
+import {smsConnectionSummary} from './smsConnectionSummary.js?v=20261002-sms-summary';
 import { connectSupabaseLive } from './live.js?v=20261001-business-services';
 import { createFormBuilder } from './formBuilder.js';
 import { shouldRefreshFromBackground } from './refreshGuard.js';
@@ -1823,6 +1824,7 @@ async function renderOverview() {
 
   let data = {};
   let provisioning = null;
+  let smsConnection = null;
   let totalsAvailable = false;
   try {
     const res = await apiFetch('/api/overview');
@@ -1841,6 +1843,10 @@ async function renderOverview() {
     if (response?.ok) provisioning = await response.json();
   } catch (error) { console.error(error); }
   state.setupProvisioning = provisioning;
+  try {
+    const response = await apiFetch('/api/sms/connection');
+    if (response.ok) smsConnection = await response.json();
+  } catch (error) { console.error(error); }
   let onboardingComplete = state.setupOnboarding?.onboardingComplete;
   if (state.platformStaff && onboardingComplete == null) {
     try {
@@ -1858,6 +1864,7 @@ async function renderOverview() {
 
   el.root.innerHTML = `
     ${totalsAvailable ? '' : '<p class="muted" role="status">Message totals are unavailable. Select Refresh to try again.</p>'}
+    ${smsConnection ? smsConnectionSummary(smsConnection) : '<p class="muted" role="status">SMS connection details are unavailable. Select Refresh to try again.</p>'}
     ${provisioning?.serviceAdded === false ? '<section class="card"><h2>SMS has not been added</h2><p>Review the profile and add SMS in Businesses.</p><button type="button" class="btn" data-open-registered-business>Open business setup</button></section>' : ''}
     ${provisioning && provisioning.serviceAdded !== false && !provisioning.sendingEnabled ? `
       <details class="card dashboard-details" open>

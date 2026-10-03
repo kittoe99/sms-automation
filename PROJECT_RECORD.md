@@ -1,5 +1,12 @@
 # Opek SMS project record
 
+October 2 read-only SMS summaries: the CRM dashboard and E2 customer SMS tab share
+a seven-field server projection, with approval separate from sending. Canonical
+access and customer service-release rules remain unchanged. Detailed registration
+reads are staff-only in both the API and direct table policy. See
+[summary workflow](docs/SMS_CONNECTION_SUMMARY.md). Both forward migrations and
+CRM API are applied; frontend releases await verification in the latest entry.
+
 Current verified release — **October 1, 2026 (America/Denver)**: owner-linked registration, canonical CRM permissions, shared profile drafts/reviews, explicit SMS addition and individual customer service release are deployed. CRM API **v38** is active; all three linking/access follow-up migrations are applied. See the consolidated [implementation and release document](docs/CRM_LINKING_RELEASE.md) for current versions, migration order, 334 passing tests, authenticated verification and limits. Earlier local-only and v35/v37 entries below are historical checkpoints.
 
 Last documentation reconciliation: **October 1, 2026 (America/Denver)**.
@@ -599,3 +606,30 @@ was performed. A final dashboard-label follow-up shows the connected profile and
 **Finish SMS activation**, with a fresh application cache key; syntax/build and
 browser checks passed. No E2 migration or application change; paired
 workflow/records are updated. Unrelated local changes remain outside this release.
+### October 2, 2026 — Read-only SMS connection summaries
+
+Implemented the shared private summary, guarded CRM GET `/api/sms/connection`,
+compact CRM/E2 cards and optional customer `services[].smsConnection`. There are
+no credentials, Twilio IDs, internal errors or canary recipients in the summary.
+Owners retain only released-service visibility; SMS readers retain their canonical
+business grants. No new CRM access for customers. Staff provisioning/activation
+screens and existing operational permissions remain unchanged. Detailed raw
+registration GET and authenticated table SELECT now require staff access.
+Registration changes invalidate dashboard cache revisions; older browser snapshots
+without the new field remain compatible.
+
+Validation: all 224 CRM tests and 31 relevant E2 service/access/cache/UI tests
+passed, as did CRM syntax/build and E2 production build. Combined database tests
+cover approved toll-free/A2P, pending/rejected/uncertain registration, missing
+provider, activation separation, tenant isolation/revocation, direct SELECT denial,
+private grants, identical customer/CRM projection and read-without-job creation.
+Synthetic desktop and 390px checks show read-only cards without horizontal overflow.
+
+Live: five affected function definitions matched their paired baseline before
+applying only CRM `20261003032940_sms_connection_summary` followed by E2
+`20261003032943_customer_sms_connection_summary` in one guarded transaction.
+Verified the staff-only registration policy, private/scoped function grants and
+registration cache trigger. The released customer service returns the same live
+connected summary, and sending remains disabled. CRM API v41 is ACTIVE; frontend
+release verification is pending. Security advisors retain the five existing
+warnings with no new finding. No Twilio calls, paid actions or activation SMS.

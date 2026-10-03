@@ -22,6 +22,10 @@ successful delivery canary is still required for activation.
 
 ## Connection and activation
 
+Customers receive only the [read-only connection summary](SMS_CONNECTION_SUMMARY.md)
+in E2 Local's SMS tab after service release. Existing SMS-read operators see the
+same essentials on the CRM dashboard. Full setup and activation remain staff-only.
+
 Connecting rechecks approval, account ownership and the owned SMS number. The
 Messaging Service must have exactly one phone number, because sends use that
 service's sender pool. The connection sets and verifies the existing CRM inbound
