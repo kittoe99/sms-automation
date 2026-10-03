@@ -1870,8 +1870,8 @@ async function renderOverview() {
           : provisioning.state === 'submission_unknown'
             ? 'Twilio may have created a resource before the response was interrupted. Review the parent Twilio account and reconcile it before retrying.'
             : 'Setup runs in the background. Sending stays disabled until a phone number and the applicable registration are complete.'}</p>
-        <p class="muted">Twilio details: ${provisioning.detailsComplete ? 'saved · registration submission is next' : 'required'}</p>
-        <button type="button" class="btn" data-complete-business-setup>${provisioning.detailsComplete ? 'Review setup details' : 'Complete business setup'}</button>
+        <p class="muted">${provisioning.existingConnection ? 'Twilio profile: '+esc(provisioning.connectionDetails?.profileName||'connected') : 'Twilio details: '+(provisioning.detailsComplete ? 'saved · registration submission is next' : 'required')}</p>
+        <button type="button" class="btn" data-complete-business-setup>${provisioning.existingConnection ? 'Finish SMS activation' : provisioning.detailsComplete ? 'Review setup details' : 'Complete business setup'}</button>
         <p class="muted" style="margin-top:12px">Business context for SMS + AI: ${onboardingComplete ? 'saved' : 'required'}</p>
         <button type="button" class="btn ghost" data-open-business-context>${onboardingComplete ? 'Review business context' : 'Add business context'}</button>
       </details>` : ''}

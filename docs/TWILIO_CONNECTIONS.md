@@ -34,9 +34,10 @@ separate child accounts; an assigned account cannot be selected for another
 business. Replacing an already connected account requires a separately reviewed
 transfer and is deliberately unavailable in this initial connection workflow.
 
-Connecting adds the SMS service in draft visibility, initializes the established
-SMS forms and automation groups, stores provider details, and leaves sending
-disabled. In **Configure SMS**, request the separately confirmed activation
+Connecting initializes the established SMS forms and automation groups, stores
+provider details, and leaves sending disabled. New SMS services start with draft
+visibility; an existing service keeps its visibility. In **Configure SMS**,
+request the separately confirmed activation
 canary, check delivery, and then enable sending. **Set live** controls customer
 dashboard visibility separately. Existing **Add SMS** continues to create a new,
 isolated Twilio child account; use the connection card to reuse an approved one.

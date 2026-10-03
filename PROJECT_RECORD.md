@@ -14,8 +14,9 @@ The connection reserves account ownership, verifies the owned number and SMS
 webhooks, stores credentials in Vault, and keeps visibility/sending separate.
 One Twilio account remains bound to one CRM business. See
 [connection workflow](docs/TWILIO_CONNECTIONS.md). The forward migration and Edge
-release are applied; frontend release and live connection verification are pending
-in the latest change entry below.
+release are applied. Application `14fa6ec` is live and an authenticated business
+connection was saved and verified; sending awaits its separate activation test.
+See the latest change entry below.
 
 October 2 profile summary: a detailed, live preview now closes the guided business
 form, with per-section Edit links and explicit missing/pending details. It uses
@@ -581,6 +582,20 @@ prerequisites were already present. New table RLS and scoped RPC grants were
 verified; the security advisor returned the same five existing warnings and no
 new finding. Deployed ACTIVE `crm-api` v40, `provisioning-worker` v19 and
 `compliance-worker` v10. The compliance worker now recognizes `TWILIO_APPROVED`
-and the A2P compliance-list envelope when polling. Frontend release and actual
-business connection are pending. No paid resource purchase or SMS was performed.
-No E2 migration or application change; paired workflow/records are updated.
+and the A2P compliance-list envelope when polling. Application `14fa6ec` is Live
+on Render `dep-db0752lg1s2s73crpt0g`, finished October 2 at 9:12 PM MDT. All eight
+production assets matched the committed release. Automatic deployment did not
+start after the GitHub push; an explicit fresh-cache build completed successfully.
+
+Authenticated production verification connected the approved toll-free profile,
+owned number and Messaging Service to the matching reviewed business. One account
+mapping and Vault credential were verified, the interrupted bootstrap was
+cancelled, and the existing live SMS service visibility was preserved. The E2
+customer reader returns the connected phone. New SMS services still start in
+draft visibility. Provider configuration and webhook verification are complete;
+no activation canary was sent and sending remains disabled. Existing webhooks
+already matched and needed no provider update. No paid resource purchase or SMS
+was performed. A final dashboard-label follow-up shows the connected profile and
+**Finish SMS activation**, with a fresh application cache key; syntax/build and
+browser checks passed. No E2 migration or application change; paired
+workflow/records are updated. Unrelated local changes remain outside this release.
