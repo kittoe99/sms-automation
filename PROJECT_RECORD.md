@@ -14,7 +14,11 @@ required, so there is no new migration order to apply.
 Validation: 21 CRM activation/connection/API/access tests and 12 paired E2
 service/cache tests passed; frontend build and desktop/mobile layout checks passed.
 No real test SMS was sent and no business sending setting was changed.
-Local implementation complete; frontend release verification pending.
+Live verification: CRM application `22a2bc9` is deployed on Render
+`dep-db0i755g1s2s73e6uo3g`. All seven changed public assets match source. The
+authenticated business activation page shows the approved sender, three steps,
+and one test-number input. E2 documentation is committed as `c43667a`; its runtime
+is unchanged. No new migrations or Edge releases were needed.
 
 
 ### October 3, 2026 — form-first SMS production release
