@@ -8,7 +8,10 @@ also links to the account dropdown after a sender is connected, and ready is lab
 Awaiting activation. Explicit setup navigation fetches current state instead of
 restoring a stale tab. No automatic connection, sending activation or test sends.
 Seventeen CRM tests and 13 paired E2 UI/cache tests passed; frontend build passed.
-Frontend release verification pending. No migrations/API/worker or E2 runtime changes.
+CRM 078078c is live in Render dep-db0ohnpsrm7s738gptp0; all six changed public assets
+match source. Authenticated live checks opened the account dropdown and approved
+sender list directly from the dashboard, then reached Enable SMS. E2's read-only
+Awaiting activation view is also live. No migrations/API/worker or E2 runtime changes.
 
 ### October 3 — E2 owner activation summary
 
