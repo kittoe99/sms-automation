@@ -1,3 +1,5 @@
+import {normalizePhoneInput,installPhoneFormatting} from './phoneInput.js?v=20261003-phone';
+installPhoneFormatting();
 const root = document.getElementById('form-root');
 const formId = new URLSearchParams(location.search).get('form') || '';
 const connectionId = new URLSearchParams(location.search).get('connection');
@@ -20,18 +22,11 @@ function field(label, type, name, required = false) {
   input.required = required;
   if (type === 'text') input.maxLength = 300;
   if (type === 'email') input.maxLength = 320;
-  if (type === 'tel') { input.placeholder = '+13035550123'; input.autocomplete = 'tel'; }
+  if (type === 'tel') { input.placeholder = '(303) 555-0123'; input.title = 'US/Canada: +1 is added automatically. Other countries: include +country code.'; input.autocomplete = 'tel'; }
   wrapper.append(input);
   return { wrapper, input };
 }
 
-function normalizePhone(value) {
-  const raw = value.trim();
-  const digits = raw.replace(/\D/g, '');
-  if (raw.startsWith('+')) return `+${digits}`;
-  if (digits.length === 10) return `+1${digits}`;
-  return raw;
-}
 
 function brandElement(businessName) {
   const brand = document.createElement('div'); brand.className = 'form-brand';
@@ -128,7 +123,7 @@ async function start() {
       if (value !== '') details[key] = value;
     }
     const payload = {
-      name: name.input.value.trim(), phone: normalizePhone(phone.input.value),
+      name: name.input.value.trim(), phone: normalizePhoneInput(phone.input.value),
       email: email.input.value.trim(), details, smsOptIn: consentInput.checked,
       emailOptIn: Boolean(emailConsentInput?.checked),
       website: honeypot.input.value,

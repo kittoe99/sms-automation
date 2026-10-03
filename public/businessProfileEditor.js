@@ -1,3 +1,4 @@
+import {normalizePhoneInput,installPhoneFormatting} from './phoneInput.js?v=20261003-phone';
 const esc=value=>String(value??'').replaceAll('&','&amp;').replaceAll('<','&lt;').replaceAll('>','&gt;').replaceAll('"','&quot;').replaceAll("'",'&#39;');
 const listFields=['services','locations','faqs','pricing','policies'];
 const textFields=['businessName','timeZone','contactEmail','contactPhone','websiteUrl','summary','hours','bookingRules','handoff'];
@@ -18,6 +19,7 @@ export function profileFromForm(form,previous={}) {
    ? form.getAll('faqQuestion').map((value,i)=>{const q=String(value).trim(),a=String(form.getAll('faqAnswer')[i]||'').trim();return q&&a?`${q}${/[?？]$/.test(q)?' ':' — '}${a}`:q||a;}).filter(Boolean)
    : form.getAll(`${name}Entry`).map(value=>String(value).trim()).filter(Boolean)
   : String(form.get(name)||'').split(/\r?\n/).map(value=>value.trim()).filter(Boolean);
+ profile.contactPhone=normalizePhoneInput(profile.contactPhone);
  profile.tone=String(form.get('tone')||'').trim();return profile;
 }
 export function priceEntry({service,method,amount,details}) {
@@ -83,7 +85,7 @@ export function profileEditorHtml(profile) {
  ${field(profile,'businessName','Business name','Your real business or trading name.',{max:160,required:true})}
  <label class="profile-field"><span>Business time zone <small>Required</small></span><select name="timeZone" required><option value="">Choose a time zone…</option>${zones.map(zone=>`<option value="${esc(zone)}" ${profile.timeZone===zone?'selected':''}>${esc(zone.replaceAll('_',' ').replaceAll('/',' / '))}</option>`).join('')}</select><small>Used to interpret local appointment times.</small></label>
  ${field(profile,'contactEmail','Business email','An email customers can use to contact you.',{max:254,type:'email'})}
- ${field(profile,'contactPhone','Business phone','Include the country code, for example +1.',{max:32,type:'tel'})}
+ ${field(profile,'contactPhone','Business phone','US/Canada: +1 is added automatically. Other countries: include +country code.',{max:32,type:'tel'})}
  <div class="profile-wide">${field(profile,'websiteUrl','Website','Your public website, starting with https://.',{max:500,type:'url'})}</div>
  <div class="profile-wide">${field(profile,'summary','What does your business do?','Describe what you offer and who you help in two or three sentences.',{max:2000,multi:true})}</div></div>`)}
  ${section('02','Services & availability','Tell customers what you offer, where you work, and when you are open.',`<div class="profile-grid">${list(profile,'services','Services','Add each service separately. At least one is needed for review.')}${list(profile,'locations','Service areas','Add each city, neighborhood, or ZIP code separately. At least one is needed for review.')}</div>
@@ -101,6 +103,7 @@ export function profileEditorHtml(profile) {
  <p class="profile-note">This profile supports general business conversations. Each automation group uses its own AI instructions and business details.</p><p data-editor-notice role="status" class="profile-editor-notice"></p>`;
 }
 export function bindProfileEditor(form) {
+ installPhoneFormatting(form);
  const notice=form.querySelector('[data-editor-notice]');
  const announce=message=>{notice.textContent=message;};
  const entries=name=>form.querySelector(`[data-entries="${name}"]`);

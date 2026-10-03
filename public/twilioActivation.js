@@ -1,3 +1,4 @@
+import {normalizePhoneInput,installPhoneFormatting} from './phoneInput.js?v=20261003-phone';
 const esc=value=>String(value??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
 const approvedStates=['approved','webhook_verified','canary_pending','ready','active'];
 export function activationView(provider={},registration={}) {
@@ -13,7 +14,7 @@ export function activationHtml({provider={},registration={},businessName=''}) {
  <p class="twilio-connected-number">${esc(provider.phoneNumber||'No number connected')}</p>
  <p>${esc(p.profileName||p.legalBusinessName||businessName||'Connected business')} · ${sender==='toll_free'?'Toll-free':sender==='local_a2p'?'A2P 10DLC':'Sender type unavailable'}</p>
  <ol class="sms-activation-steps" aria-label="SMS activation progress"><li class="${v.approved?'done':''}"><span>1</span>Approved sender</li><li class="${v.enable||v.active?'done':''}"><span>2</span>Delivery test</li><li class="${v.active?'done':''}"><span>3</span>Enable SMS</li></ol>
- ${v.test?`<form data-test><p>Your saved business details and Twilio approval are already in place. Enter a mobile number you control for one delivery test.</p><label>Test mobile number<input name="phone" type="tel" required autocomplete="tel" placeholder="+1 303 555 0123" value="${esc(registration.canary_phone||'')}" /></label><p class="profile-note">One test SMS will be sent. Standard Twilio charges apply.</p><button class="btn" type="submit">Send test SMS</button></form>`:''}
+ ${v.test?`<form data-test><p>Your saved business details and Twilio approval are already in place. Enter a mobile number you control for one delivery test.</p><label>Test mobile number<input name="phone" type="tel" required autocomplete="tel" placeholder="(303) 555-0123" value="${esc(registration.canary_phone||'')}" /></label><p class="profile-note">US/Canada: +1 is added automatically. For other countries, include +country code.</p><p class="profile-note">One test SMS will be sent. Standard Twilio charges apply.</p><button class="btn" type="submit">Send test SMS</button></form>`:''}
  ${v.pending?'<p role="status">Your test SMS is on its way. Check delivery status to continue.</p>':''}
  ${v.enable?'<p>The test was delivered successfully. Enable SMS for this business when you are ready.</p><button class="btn" type="button" data-enable>Enable SMS</button>':''}
  ${v.active?'<p>This business can send SMS. Manage your messages and schedules in Forms.</p><button class="btn" type="button" data-forms>Open Forms</button>':''}
@@ -23,6 +24,7 @@ export function activationHtml({provider={},registration={},businessName=''}) {
  </section><details class="card sms-activation-details"><summary>Connection details & troubleshooting</summary><dl class="twilio-details"><div><dt>Profile</dt><dd>${esc(p.profileName||p.legalBusinessName||'Not available')}</dd></div><div><dt>Registration status</dt><dd>${esc(v.state.replaceAll('_',' '))}</dd></div><div><dt>Twilio account</dt><dd>${esc(p.accountName||'Not available')}<small>${esc(p.accountSid)}</small></dd></div><div><dt>Messaging service</dt><dd>${esc(p.serviceName||'Not available')}<small>${esc(p.messagingServiceSid)}</small></dd></div></dl>${registration.rejection_reason?`<p class="login-error">${esc(registration.rejection_reason)}</p>`:''}<p>Customer dashboard visibility is managed separately in Businesses.</p></details></div>`;
 }
 export function mountTwilioActivation(container,{provider,registration,apiFetch,onRefresh,onBack,onBusiness,onForms,businessName}) {
+ installPhoneFormatting(container);
  container.innerHTML=activationHtml({provider,registration,businessName});
  container.querySelector('[data-back]').onclick=onBack;
  container.querySelector('[data-business]')?.addEventListener('click',onBusiness);
@@ -39,8 +41,8 @@ export function mountTwilioActivation(container,{provider,registration,apiFetch,
   }catch(e){error.textContent=e.message;button.disabled=false;}
  }
  container.querySelector('[data-test]')?.addEventListener('submit',event=>{
-  event.preventDefault();const phone=event.currentTarget.elements.phone.value.replace(/[\s().-]/g,'');
-  if(!/^\+[1-9]\d{7,14}$/.test(phone)){error.textContent='Include the country code, for example +1 303 555 0123.';return;}
+  event.preventDefault();const phone=normalizePhoneInput(event.currentTarget.elements.phone.value);
+  if(!/^\+[1-9]\d{7,14}$/.test(phone)){error.textContent='Enter a 10-digit US/Canada number, or an international number with +country code.';return;}
   if(!confirm(`Send one test SMS to ${phone}? Standard Twilio charges apply.`))return;
   void perform(event.currentTarget.querySelector('button'),'canary',{phone,confirmed:true});
  });

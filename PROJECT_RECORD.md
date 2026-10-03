@@ -1,5 +1,19 @@
 # Opek SMS project record
 
+### October 3 — automatic phone country codes
+
+CRM activation, business profile/contact inputs and public embedded forms share
+phone normalization: 10-digit US/Canada entry gains +1 on blur and before submit,
+while explicit international codes are preserved. Optional empty fields remain
+empty and incomplete/ambiguous input is not guessed. Business profile serialization
+uses the same helper. See CRM docs/PHONE_FIELDS.md. No database/API/worker or E2
+runtime changes; no migrations to apply.
+
+Validation: 22 targeted CRM tests, seven paired E2 business-service tests and the
+frontend build passed. Local browser verification showed a 10-digit entry gaining
++1 on blur. No SMS was sent. Frontend release verification pending.
+
+
 ### October 3 — activation sender verification hotfix
 
 The activation test failed before message creation because the compliance worker

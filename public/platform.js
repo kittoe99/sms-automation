@@ -1,5 +1,5 @@
 import {createRenderQueue} from './tabWorkspace.js?v=20261002-workspace';
-import {mountBusinessSetup} from './businessSetup.js?v=20261003-activation';
+import {mountBusinessSetup} from './businessSetup.js?v=20261003-phone';
 import {apiFetch,getAccessToken,runtimeConfig} from './auth.js?v=20261001-business-services';
 const esc=value=>String(value??'').replaceAll('&','&amp;').replaceAll('<','&lt;').replaceAll('>','&gt;').replaceAll('"','&quot;').replaceAll("'",'&#39;');
 const date=value=>value?new Date(value).toLocaleString():'—';
@@ -199,7 +199,7 @@ export function createPlatform({root,title,subtitle,pager,onNavigate,onWorkspace
   }else if(tab==='domain')panel.innerHTML=`<h3>E2 Local address</h3><p>https://${esc(row.slug)}.e2local.com/</p><p>Customer-owned domains are not configured in this release.</p>`;
   else if(tab==='business-info'){
     const d=row.details||{};panel.innerHTML=`<form data-details class="compose">${field('Website name','name',row.name,'required maxlength="100"')}${field('Business name','businessName',d.businessName,'maxlength="160"')}
-      <label>Description<textarea name="description" maxlength="1500">${esc(d.description)}</textarea></label>${field('Contact email','contactEmail',d.contactEmail,'type="email"')}${field('Contact phone','contactPhone',d.contactPhone)}
+      <label>Description<textarea name="description" maxlength="1500">${esc(d.description)}</textarea></label>${field('Contact email','contactEmail',d.contactEmail,'type="email"')}${field('Contact phone','contactPhone',d.contactPhone,'type="tel" autocomplete="tel" placeholder="(303) 555-0123"')}
       <label>Services (one per line)<textarea name="services">${esc((d.services||[]).join('\n'))}</textarea></label><label>Areas served (one per line)<textarea name="serviceAreas">${esc((d.serviceAreas||[]).join('\n'))}</textarea></label><button class="btn">Save website details</button></form>`;
     bind('[data-details]','submit',event=>{event.preventDefault();run(async()=>{const data=Object.fromEntries(new FormData(event.currentTarget));await hostWrite(`/${row.id}`,{name:data.name,details:{businessName:data.businessName,description:data.description,contactEmail:data.contactEmail,contactPhone:data.contactPhone,services:data.services.split('\n').map(x=>x.trim()).filter(Boolean),serviceAreas:data.serviceAreas.split('\n').map(x=>x.trim()).filter(Boolean)}},'PATCH');siteCache=null;await detail();});});
   }else if(tab==='assets')await assets(panel,row);

@@ -1,8 +1,10 @@
+import {installPhoneFormatting,normalizePhoneInput} from './phoneInput.js?v=20261003-phone';
+installPhoneFormatting();
 import {createTabMemory, createRenderQueue} from './tabWorkspace.js?v=20261002-workspace';
 import {readBusinessProfile,writeBusinessProfile} from './profileClient.js?v=20261002-access';
 import {canOpenWorkspace,canWriteWorkspace,staffActionSelector} from './workspacePermissions.js?v=20261002-access';
-import { createPlatform } from './platform.js?v=20261003-activation';
-import {mountTwilioActivation,mountSmsSetupChoice} from './twilioActivation.js?v=20261003-activation';
+import { createPlatform } from './platform.js?v=20261003-phone';
+import {mountTwilioActivation,mountSmsSetupChoice} from './twilioActivation.js?v=20261003-phone';
 import {smsConnectionSummary} from './smsConnectionSummary.js?v=20261002-sms-summary';
 import { connectSupabaseLive } from './live.js?v=20261001-business-services';
 import { createFormWorkspace } from './formWorkspace.js?v=20261003-forms';
@@ -342,7 +344,7 @@ function registrationControlsHtml(registration = {}, detailsComplete = false) {
   else if (registrationState === 'number_pending') action = `<label><span class="compose-label">Area code</span><input id="registration-area-code" inputmode="numeric" maxlength="3" placeholder="720" /></label>${button('search-number', 'Find available numbers')}`;
   else if (registrationState === 'verification_pending') action = registration.sender_type === 'toll_free' ? button('session-toll_free-new', 'Open toll-free verification') : button('refresh', 'Check approval');
   else if (['in_review', 'approved', 'canary_pending'].includes(registrationState)) action = button('refresh', 'Refresh Twilio status');
-  else if (registrationState === 'webhook_verified') action = `<label><span class="compose-label">Canary recipient</span><input id="registration-canary-phone" type="tel" placeholder="+15551234567" /></label>${button('canary', 'Send activation canary')}`;
+  else if (registrationState === 'webhook_verified') action = `<label><span class="compose-label">Canary recipient</span><input id="registration-canary-phone" type="tel" placeholder="(303) 555-0123" /></label>${button('canary', 'Send activation canary')}`;
   else if (registrationState === 'ready') action = button('activate', 'Enable sending');
   else if (registrationState === 'submission_unknown') action = button('reconcile', 'Reconcile uncertain operation');
   else if (registrationState === 'rejected') action = button(`session-${registration.sender_type === 'toll_free' ? 'toll_free' : registration.campaign_inquiry_id ? 'campaign' : 'brand'}-resubmit`, 'Correct and resubmit');
@@ -544,8 +546,8 @@ async function renderBusinessSetup({registrationForm=false}={}) {
         return reloadRegistration();
       }
       if (action === 'canary') {
-        const phone = el.root.querySelector('#registration-canary-phone')?.value.trim();
-        if (!/^\+[1-9]\d{7,14}$/.test(phone || '')) throw new Error('Enter a canary recipient in E.164 format.');
+        const phone = normalizePhoneInput(el.root.querySelector('#registration-canary-phone')?.value);
+        if (!/^\+[1-9]\d{7,14}$/.test(phone || '')) throw new Error('Enter a 10-digit US/Canada number, or an international number with +country code.');
         if (!confirm('Send one billable activation test SMS to this number?')) return;
         const response = await apiFetch('/api/twilio/canary', { method: 'POST', body: JSON.stringify({ phone, confirmed: true }) });
         const body = await response.json(); if (!response.ok) throw new Error(body.error || 'Could not queue the canary');
@@ -826,7 +828,7 @@ async function renderBusinessContext() {
               </label>
               <label>
                 <span class="compose-label">Main contact phone</span>
-                <input id="ctx-phone" type="tel" maxlength="32" value="${esc(defaults.contactPhone)}" placeholder="+15551234567" autocomplete="tel" />
+                <input id="ctx-phone" type="tel" maxlength="32" value="${esc(defaults.contactPhone)}" placeholder="(303) 555-0123" autocomplete="tel" />
                 <small class="muted">Offered when a customer asks to call.</small>
               </label>
               <label>
@@ -2179,7 +2181,7 @@ function groupAiBuilderHtml(group) {
         </label>
         <label class="field-wide">
           <span class="compose-label">Staff alert phone</span>
-          <input id="group-ai-alert-phone" type="tel" placeholder="+15551234567" value="${esc(group.ai?.alert_phone||group.ai?.alertPhone||'')}" />
+          <input id="group-ai-alert-phone" type="tel" placeholder="(303) 555-0123" value="${esc(group.ai?.alert_phone||group.ai?.alertPhone||'')}" />
           <small class="muted">One deduplicated alert is queued for an unsupported conversation. Use E.164.</small>
         </label>
         <p class="muted field-wide">Replies use the AI instructions and business details in Edit automation.</p>
@@ -2372,7 +2374,7 @@ async function renderAutomations() {
       <form id="automation-intake-form" class="automation-builder" style="padding:16px">
         <div class="automation-form-grid">
           <label><span class="compose-label">Name</span><input id="intake-name" maxlength="200" placeholder="Customer name" /></label>
-          <label><span class="compose-label">Phone</span><input id="intake-phone" type="tel" placeholder="+13035550123" /></label>
+          <label><span class="compose-label">Phone</span><input id="intake-phone" type="tel" placeholder="(303) 555-0123" /></label>
           <label><span class="compose-label">Email</span><input id="intake-email" type="email" maxlength="320" placeholder="customer@example.com" /></label>
           <label class="checkbox-field"><input id="intake-email-opt-in" type="checkbox" /> Customer consented to marketing email</label>
           <label class="field-wide"><span class="compose-label">Email consent evidence</span><textarea id="intake-email-evidence" rows="2" maxlength="1500" placeholder="Where and when the customer agreed to marketing email"></textarea></label>
