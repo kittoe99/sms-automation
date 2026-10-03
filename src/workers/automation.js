@@ -1,5 +1,4 @@
 import { automationDue, calendarDelay } from '../lib/automations/schedule.js';
-import { draftAutomationMessage } from '../lib/automations/aiDraft.js';
 
 export { calendarDelay };
 
@@ -25,32 +24,8 @@ export function evaluateAutomation(context, now = new Date()) {
 }
 
 export async function processAutomation(job, db, options = {}) {
-  const context = await db.call('job_context', job.id, job.lease_token);
-  if (!context?.enrollment || !context.group || context.enrollment.status !== 'active') {
-    return db.call('finish', job.id, job.lease_token, 'cancelled', 'INACTIVE', 0);
-  }
-  const result = evaluateAutomation(context);
-  if (result.action === 'send') {
-    if (!String(context.automationAi?.systemPrompt || '').trim()
-      || !String(context.automationAi?.businessContext || '').trim()) {
-      return db.call('finish', job.id, job.lease_token, 'cancelled', 'AI_CONFIG_REQUIRED', 0);
-    }
-    if (context.enrollment.source_id) {
-      context.source = await db.call('intake_context', job.id, job.lease_token);
-      if (!context.source) throw Object.assign(new Error('Automation source record is missing'), { code: 'SOURCE_MISSING', permanent: true });
-      if (context.enrollment.source_type === 'bookings' && context.source.status !== 'confirmed') {
-        return db.call('finish', job.id, job.lease_token, 'cancelled', 'BOOKING_NOT_CONFIRMED', 0);
-      }
-    }
-    const intent = String(context.intent || '').trim();
-    if (!intent) throw Object.assign(new Error('Automation intent is missing'), { code: 'MISSING_AUTOMATION_INTENT', permanent: true });
-    const draft = await draftAutomationMessage(context, intent, options);
-    result.body = draft.body;
-    result.ai_drafted = draft.aiDrafted;
-    result.thread_generation = context.thread?.generation ?? 0;
-    result.conversation_id = context.conversation?.id;
-    result.scope_generation = context.conversation?.generation;
-  }
-  return db.call('complete_automation', job.id, job.lease_token, result);
+  // All current automation jobs use immutable form sequences. Legacy AI jobs
+  // cannot be resumed by a worker left running during the deployment.
+  return db.call('process_form_automation', job.id, job.lease_token);
 }
 

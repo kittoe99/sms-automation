@@ -26,7 +26,7 @@ test('booking configuration is versioned, validated, and tenant scoped',async()=
  }finally{await db.close();}
 });
 
-test('SMS booking waits for confirmation, books once, enforces capacity, and enrolls a reminder',async()=>{
+test('SMS booking waits for confirmation, books once, enforces capacity, and enrolls a reminder',{skip:'Conversational SMS AI is disabled; form appointment scheduling is covered by formSequences.test.js'},async()=>{
  const db=await testDatabase();try{
   await db.exec(`insert into public.sms_businesses(tenant_id,name,time_zone) values('alpha','Alpha','UTC'); insert into public.sms_contacts(tenant_id,phone,name) values('alpha','+15550000001','Alex'),('alpha','+15550000002','Blair'); insert into public.sms_automation_groups(tenant_id,id,name,kind,rule) values('alpha','reminders','Appointment reminder','reminder','${reminderRule}'::jsonb)`);
   await call(db,'save_booking_settings','admin','alpha',settings);
@@ -61,7 +61,7 @@ test('staff cancellation is idempotent and cancels pending reminders',async()=>{
  }finally{await db.close();}
 });
 
-test('unfinished bookings enqueue bounded deduplicated AI follow-ups',async()=>{
+test('unfinished bookings enqueue bounded deduplicated AI follow-ups', {skip: 'SMS AI intentionally disabled; replacement behavior is covered by formSequences.test.js'}, async()=>{
  const db=await testDatabase();try{
   await db.exec(`insert into public.sms_businesses(tenant_id,name,time_zone,status,sending_enabled) values('alpha','Alpha','UTC','active',true); insert into public.sms_contacts(tenant_id,phone) values('alpha','+15550000001'); insert into public.sms_thread_contacts(tenant_id,phone,generation) values('alpha','+15550000001',7); insert into public.sms_automation_groups(tenant_id,id,name,rule) values('alpha','inbound','Inbound','${inboundRule}'::jsonb); insert into public.sms_ai_settings(tenant_id,group_id,enabled,default_for_inbound) values('alpha','inbound',true,true); insert into public.sms_business_ai_settings(tenant_id,enabled,system_prompt) values('alpha',true,'Follow up on unfinished bookings.'); update sms_private.runtime set scheduler_enabled=true`);
   const saved=await call(db,'save_booking_settings','admin','alpha',{...settings,followUpEnabled:true,followUpDelayHours:1,followUpIntervalHours:2,followUpMaxAttempts:2});

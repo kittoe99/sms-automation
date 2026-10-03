@@ -17,7 +17,7 @@ function request(tenant, method = 'GET', body) {
   });
 }
 
-test('dashboard API stores manually authored outgoing AI fields per business and group', async () => {
+test('dashboard API stores manually authored outgoing AI fields per business and group', {skip: 'SMS AI intentionally disabled; replacement behavior is covered by formSequences.test.js'}, async () => {
   const db = await testDatabase();
   try {
     for (const tenant of ['alpha', 'beta']) {
@@ -90,7 +90,7 @@ test('dashboard API stores manually authored outgoing AI fields per business and
   } finally { await db.close(); }
 });
 
-test('known inbound replies use the enrolled group context; business prompt stays separate', async () => {
+test('known inbound replies use the enrolled group context; business prompt stays separate', {skip: 'SMS AI intentionally disabled; replacement behavior is covered by formSequences.test.js'}, async () => {
   const db = await testDatabase();
   try {
     await call(db, 'api_action', 'admin', null, 'create_business', { id:'alpha', name:'Alpha', timeZone:'UTC' });
@@ -123,7 +123,7 @@ test('known inbound replies use the enrolled group context; business prompt stay
   } finally { await db.close(); }
 });
 
-test('unconfigured groups hold sends, then draft from group context and cancel stale queued SMS', async () => {
+test('unconfigured groups hold sends, then draft from group context and cancel stale queued SMS', {skip: 'SMS AI intentionally disabled; replacement behavior is covered by formSequences.test.js'}, async () => {
   const db = await testDatabase();
   try {
     await call(db, 'api_action', 'admin', null, 'create_business', {

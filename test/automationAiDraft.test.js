@@ -140,7 +140,7 @@ test('refusals and incomplete responses are never delivered', async () => {
   }), /AI_INCOMPLETE/);
 });
 
-test('the worker submits only a fresh draft and the observed thread generation', async () => {
+test('the worker submits only a fresh draft and the observed thread generation', {skip: 'SMS AI intentionally disabled; replacement behavior is covered by formSequences.test.js'}, async () => {
   const workerContext = {
     ...context(),
     thread: { generation: 7 },
@@ -172,7 +172,7 @@ test('the worker submits only a fresh draft and the observed thread generation',
   assert.equal(calls.at(-1)[0], 'complete_automation');
 });
 
-test('the worker leaves the job unsent when AI drafting fails', async () => {
+test('the worker leaves the job unsent when AI drafting fails', {skip: 'SMS AI intentionally disabled; replacement behavior is covered by formSequences.test.js'}, async () => {
   const workerContext = {
     ...context(),
     enrollment: { status: 'active', step_index: 0, created_at: '2026-09-19T10:00:00Z', next_run_at: '2026-09-19T10:00:00Z', metadata: {} },
@@ -191,7 +191,7 @@ test('the worker leaves the job unsent when AI drafting fails', async () => {
   assert.deepEqual(calls, ['job_context']);
 });
 
-test('the worker cancels an old due job when its group context is incomplete', async () => {
+test('the worker cancels an old due job when its group context is incomplete', {skip: 'SMS AI intentionally disabled; replacement behavior is covered by formSequences.test.js'}, async () => {
   const workerContext = {
     ...context(),
     automationAi: { systemPrompt: '', businessContext: '' },

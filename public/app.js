@@ -5,7 +5,7 @@ import { createPlatform } from './platform.js?v=20261002-twilio-connect';
 import {mountTwilioActivation} from './twilioActivation.js?v=20261002-twilio-connect';
 import {smsConnectionSummary} from './smsConnectionSummary.js?v=20261002-sms-summary';
 import { connectSupabaseLive } from './live.js?v=20261001-business-services';
-import { createFormBuilder } from './formBuilder.js';
+import { createFormWorkspace } from './formWorkspace.js?v=20261003-forms';
 import { shouldRefreshFromBackground } from './refreshGuard.js';
 import {
   apiFetch as authenticatedFetch,
@@ -34,6 +34,7 @@ async function apiFetch(path, options = {}) {
 const KNOWN_VIEWS = ['overview','contacts','messaging','bookings','automations','email','call','messages','deliverability','optouts','ai-instructions','business-setup','business-context','booking-setup','web-forms','knowledge','platform-accounts','platform-businesses','platform-websites'];
 function initialViewFromUrl() {
   const view = new URLSearchParams(location.search).get('view');
+  if (['automations','ai-instructions'].includes(view)) return 'web-forms';
   return view === 'knowledge' ? 'business-context' : KNOWN_VIEWS.includes(view) ? view : 'overview';
 }
 const state = {
@@ -94,7 +95,7 @@ const el = {
   tenantAvatar: document.getElementById('tenant-avatar'),
 };
 
-const formBuilder = createFormBuilder({ root: el.root, apiFetch, config: runtimeConfig, canReadSubmissions:()=>state.tenant?.smsRead!==false });
+const formBuilder = createFormWorkspace({ root: el.root, apiFetch, config: runtimeConfig, canReadSubmissions:()=>state.tenant?.smsRead!==false });
 const platformInstances = new Map();
 function currentPlatform() {
   const key = state.view.startsWith('platform-') ? state.view : 'platform-businesses';
@@ -902,7 +903,7 @@ async function renderBusinessContext() {
       </form>
       <section class="card setup-card" style="margin-top:16px">
         <div class="card-head"><div><span class="eyebrow">AI setup</span><h2>Prompts and automation context</h2></div></div>
-        <div class="setup-body"><p class="muted">Set the business-wide prompt for new texters and the instructions and facts for each automation group on the AI instructions page.</p><button type="button" class="btn" id="open-ai-instructions">Open AI instructions</button></div>
+        <div class="setup-body"><p class="muted">SMS uses the messages saved on each form. Open Forms to configure follow-ups.</p><button type="button" class="btn" id="open-ai-instructions">Open Forms</button></div>
       </section>
       <section id="business-knowledge" class="business-knowledge" aria-label="AI knowledge">
         <div class="card"><div class="empty">Loading AI knowledge…</div></div>
@@ -1426,7 +1427,7 @@ const TAB_GROUPS = [
   { id: 'work', label: 'Workspace', views: [
     {view:'overview',label:'Overview'}, {view:'contacts',label:'Contacts'},
     {view:'messaging',label:'Inbox'}, {view:'bookings',label:'Bookings'},
-    {view:'automations',label:'Automations'}, {view:'email',label:'Email'},
+    {view:'web-forms',label:'Forms'}, {view:'email',label:'Email'},
   ]},
   { id: 'reports', label: 'Reports', views: [
     { view: 'call', label: 'Inbound calls' },
@@ -1438,8 +1439,7 @@ const TAB_GROUPS = [
     { view: 'business-setup', label: 'Business setup' },
     { view: 'business-context', label: 'Business context' },
     { view: 'booking-setup', label: 'Booking setup' },
-    { view: 'web-forms', label: 'Forms' },
-    { view: 'ai-instructions', label: 'AI instructions' },
+
   ]},
   { id: 'platform', label: 'Platform', views: [
     { view: 'platform-accounts', label: 'Users' },
@@ -1501,6 +1501,7 @@ window.addEventListener('popstate', (event) => {
 // realtime connection stay mounted while only the view re-renders.
 let navigationTicket = 0;
 function switchView(view, options = {}) {
+  if (['automations','ai-instructions'].includes(view)) view = 'web-forms';
   if (view === 'knowledge') view = 'business-context';
   const ticket = ++navigationTicket;
   return renderQueue.run(async () => {
@@ -1731,7 +1732,7 @@ async function renderWorkspace(options = {}) {
     else if (state.view === 'contacts') await renderContacts();
     else if (state.view === 'optouts') await renderOptOuts();
     else if (state.view === 'deliverability') await renderDeliverability();
-    else if (state.view === 'automations') await renderAutomations();
+    else if (state.view === 'automations') { state.view='web-forms'; setTitle('Forms','Create forms and configure their messages.'); await formBuilder.render(); }
     else if (state.view === 'email') await renderEmailGroups();
     else if (state.view === 'ai-instructions') await renderAiInstructions();
     else if (state.view === 'business-setup') await renderBusinessSetup();
@@ -1763,25 +1764,10 @@ async function renderWorkspace(options = {}) {
 }
 
 function renderNavAutomations() {
-  if (!el.navAutomations) return;
-  el.navAutomations.innerHTML = state.categories
-    .map(
-      (c) => `
-      <button type="button" class="nav-item nav-subitem" data-view="automations" data-category="${esc(
-        c.id
-      )}" data-find="${esc(`${c.name} ${c.description || ''}`.toLowerCase())}">
-        ${esc(c.name)}
-      </button>`
-    )
-    .join('');
+  if (el.navAutomations) { el.navAutomations.innerHTML = ''; el.navAutomations.hidden = true; }
   const count = document.getElementById('nav-automations-count');
-  if (count) {
-    const n = state.categories.length;
-    count.hidden = !n;
-    count.textContent = String(n);
-  }
+  if (count) count.hidden = true;
   setActiveNav();
-  initNavFind();
 }
 
 function openAutomationGroup(categoryId = null) {
@@ -1903,7 +1889,7 @@ async function renderOverview() {
           <h2 id="dashboard-followups-title">Follow-ups</h2>
           <p>Monitor the sequences that keep customer conversations moving.</p>
         </div>
-        <button type="button" class="btn ghost" data-dashboard-view="automations">Manage automations</button>
+        <button type="button" class="btn ghost" data-dashboard-view="automations">Manage form messages</button>
       </div>
       <div class="followup-grid">
         ${state.categories
@@ -2737,11 +2723,11 @@ async function renderMessaging() {
               <button type="button" class="btn ghost thread-back" id="thread-back" aria-label="Back to inbox">← Inbox</button>
               <h2>${esc(thread.name || thread.phone)}</h2>
               <p class="muted">${esc(thread.phone)} · ${esc(thread.groupName || 'General')} · ${fmt(thread.messageCount)} messages${
-                thread.aiPausedAt ? ' · AI paused' : ''
+                ' · Manual replies'
               }</p>
             </div>
             <div class="thread-actions">
-              <button type="button" class="btn btn-ghost" id="ai-pause-btn">
+              <button type="button" class="btn btn-ghost" id="ai-pause-btn" hidden>
                 ${thread.aiPausedAt ? 'Resume AI' : 'Pause AI'}
               </button>
             </div>

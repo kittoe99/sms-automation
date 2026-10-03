@@ -237,31 +237,6 @@ function liveReply(db,job,started,reason,profileId=null,model=DEFAULT_AI_MODEL) 
 }
 
 export async function processAi(job,db,{fetchImpl=fetch,apiKey=env('OPENAI_API_KEY'),model=env('AI_MODEL') || DEFAULT_AI_MODEL,embeddingModel=env('EMBEDDING_MODEL') || DEFAULT_EMBEDDING_MODEL,inputCostPerMillion=rate(env('AI_INPUT_USD_PER_MILLION')),outputCostPerMillion=rate(env('AI_OUTPUT_USD_PER_MILLION')),embeddingCostPerMillion=rate(env('EMBEDDING_USD_PER_MILLION'))}={}) {
- const started=Date.now();
- const ctx=await db.call('job_context',job.id,job.lease_token);
- if(!eligible(ctx,job)) return db.call('finish',job.id,job.lease_token,'cancelled','STALE_REPLY',0);
- const hasApprovedProfile=Boolean(ctx.profile?.id || (ctx.inboundAi?.scope==='group' && ctx.inboundAi?.businessContext));
- // Simple mode: approved Business Context is enough. The separate grounded toggle
- // is only required when no approved profile exists yet.
- if(!ctx.settings?.grounded_enabled && !hasApprovedProfile) {
-  return liveReply(db,job,started,'Approved Business Context is required before AI can answer directly.');
- }
- if(!apiKey) {
-  return liveReply(db,job,started,'AI is not configured yet. Keep the conversation going directly.',ctx.profile?.id || null);
- }
- const options={fetchImpl,apiKey,model,embeddingModel,inputCostPerMillion:rate(inputCostPerMillion),outputCostPerMillion:rate(outputCostPerMillion),embeddingCostPerMillion:rate(embeddingCostPerMillion),started,deadline:started+39000};
- try {
-  return await processGrounded(job,db,ctx,options);
- } catch(error) {
-   // Never go silent for a live customer: OpenAI/embedding/retrieval failures
-   // still produce a direct reply. Lease/DB errors rethrow.
-  const code=String(error?.code || '');
-  if(code==='40001' || /lease|worker_access|Wrong queue|Stale reply/i.test(error?.message || '')) throw error;
-  try {
-    return await liveReply(db,job,started,'AI had trouble answering just now. Keep the conversation going directly.',ctx.profile?.id || null);
-  } catch {
-   throw error;
-  }
- }
+ return db.call('finish',job.id,job.lease_token,'cancelled','SMS_AI_DISABLED',0);
 }
 

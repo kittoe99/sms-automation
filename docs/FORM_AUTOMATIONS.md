@@ -1,0 +1,86 @@
+# Form-first SMS automation
+
+Forms own SMS follow-ups. Fixed SMS groups and AI-written replies are retired.
+The legacy groups, messages, intake records and AI settings remain available as
+historical data and for the separate email integration; they cannot dispatch SMS.
+
+## Workflow
+
+1. Open **Forms**, create a named contact, quote or appointment form, and edit its fields.
+2. Save and enable the form when it is ready to collect submissions. Existing embeds
+   retain their public IDs; multiple forms may share the same field starter.
+3. Open **Automation**. Copy a preset or add messages, choose a trigger and reply policy,
+   and configure each message's delay, total sends and repeat interval.
+4. Review the message previews and sequence summary. Save a draft, publish a version,
+   then enable that published version for future submissions.
+5. Use **Submissions** to inspect answers and pause, resume or stop individual runs.
+   Staff can explicitly start the published sequence for an eligible historical
+   submission. Publishing alone never replays history.
+
+Each message completes all its repeats before the next begins: A twice, B once,
+then C 100 times is 103 total sends. Each message supports 1–1,000 total sends;
+sequences support 1–50 messages. Repeat intervals are positive and finite.
+Minutes/hours are elapsed time; days/weeks/months follow the business timezone.
+Sending windows defer messages to the next eligible local hour. A paused or late
+run resumes its next unsent occurrence without catching up in a burst.
+
+The submission trigger starts after submission. Appointment sequences start before
+a confirmed appointment and stop at the appointment or cancellation. Rescheduling
+preserves accepted-send progress. Repeated submissions for the same form and phone
+do not overlap an active/paused run; distinct appointments may have separate runs.
+
+Ordinary replies pause by default; staff may choose Continue per form. STOP and
+other provider opt-outs always suppress sending. Incoming texts stay in the inbox
+for manual replies. Missing template fields pause a run instead of sending blank
+or unresolved text. An uncertain provider submission must be reconciled before
+resuming; acceptance advances the cursor exactly once.
+
+Publishing creates an immutable version for future runs. Existing runs keep their
+saved version. Presets are copied, so editing a form never edits other forms.
+Archiving stops its runs and disables collection; restoring returns the form as a
+disabled draft. New forms do not inherit the old category's email automation.
+
+## Permissions and APIs
+
+- CRM staff configure/publish/enable rules, save presets and control runs.
+- Existing form editors create/edit/duplicate/archive forms without acquiring SMS
+  read or automation-management access. SMS-read accounts can inspect sequences.
+- E2 owners retain existing dashboard/service-release access; no new CRM login or
+  email-based identity association is added.
+- `GET/POST /api/web-forms` list/create forms; `PUT /api/web-forms/:id` saves fields.
+- `POST /api/web-forms/:id/{duplicate,archive,restore}` manages form lifecycle.
+- `GET /api/web-forms/:id/{automation,submissions}` reads tenant-scoped data.
+- `PUT /api/web-forms/:id/automation/{draft,publish,state,preset-save,pause,resume,stop,enroll}`
+  performs staff actions. Publish/draft require the observed revision.
+- `GET /api/automation-presets` returns business presets; built-in starters ship
+  with the editor. Legacy type-based form routes resolve only their original form.
+- Legacy SMS AI mutation endpoints return 410. The AI worker makes no model calls,
+  AI enqueue is disabled, and the send boundary rejects legacy AI outbox requests.
+
+## Migration and release
+
+Apply only these forward migrations, in this order:
+
+1. CRM `20261003143731_form_first_sms_automation.sql`.
+2. E2 `20261003145302_form_sequence_enquiries.sql`.
+
+Prerequisites include E2 canonical access `20261002024330` and the paired SMS
+summary migrations `20261003032940` / `20261003032943`. Verify live function
+definitions against the paired baseline, pause the SMS/automation/AI dispatch
+queues, and wait for in-flight provider calls to finish before applying changes.
+Never replay either repository's history over the shared production database.
+
+Deploy `crm-api`, `automation-worker`, `ai-worker` and both frontends. Restore the
+previous SMS/automation dispatch settings after worker deployment; keep AI dispatch
+off. Preserve business/provider sending settings. Existing active legacy runs are
+paused for template review. A rollback should pause form dispatch and preserve the
+new schema/data; do not restore an AI worker or reactivate legacy jobs.
+
+Local validation covers 103-send ordering, immutable versions, deduplication,
+consent/reply fencing, uncertainty, appointment changes, missing fields, calendar
+boundaries, tenant permissions, legacy email compatibility and paired E2 access/cache
+behavior. Historical tests that require SMS AI to be enabled are explicitly skipped
+and retained for reference; replacement behavior lives in `test/formSequences.test.js`.
+
+Release state: local implementation and validation complete; production deployment
+and verification are recorded separately in both project records.

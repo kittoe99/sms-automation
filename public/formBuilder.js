@@ -12,7 +12,7 @@ export function embedSnippet(form, config = globalThis.SMS_CONFIG || {}) {
   return `<iframe data-sms-web-form title="${escapeHtml(form.title)}" src="${source}" style="width:100%;height:720px;border:0" loading="lazy"></iframe>\n<script async src="${base}/embed-resize.js"></script>`;
 }
 
-export function createFormBuilder({ root, apiFetch, config, canReadSubmissions = () => true }) {
+export function createFormBuilder({ root, apiFetch, config, canReadSubmissions = () => true, formId = null, hideSubmissions = false }) {
   let preset = 'contacts';
   let page = 1;
   let draft = null;
@@ -56,7 +56,7 @@ export function createFormBuilder({ root, apiFetch, config, canReadSubmissions =
       options: row.querySelector('[data-field-options]')?.value.split('\n').map(option => option.trim()).filter(Boolean) || [],
     }));
     const fixed = [['Name', 'text'], ['Phone', 'tel'], ['Email', 'email'],
-      ...(preset === 'bookings' ? [[`Appointment date and time (${timeZone || 'business time zone'})`, 'datetime-local']] : [])];
+      ...(draft?.preset === 'bookings' ? [[`Appointment date and time (${timeZone || 'business time zone'})`, 'datetime-local']] : [])];
     host.innerHTML = `<h3>${escapeHtml(root.querySelector('#web-form-title')?.value || 'Form preview')}</h3>
       <p>${escapeHtml(root.querySelector('#web-form-description')?.value || '')}</p>
       ${fixed.map(([label, type]) => `<label>${escapeHtml(label)} <input type="${type}" disabled placeholder="${escapeHtml(label)}" /></label>`).join('')}
@@ -126,20 +126,21 @@ export function createFormBuilder({ root, apiFetch, config, canReadSubmissions =
     canEdit = Boolean(data.canEdit);
     consentText = data.consentText || '';
     timeZone = data.timeZone || '';
-    const form = data.forms?.find(item => item.preset === preset);
+    const form = data.forms?.find(item => formId ? item.public_id === formId : item.preset === preset);
     if (!form) throw new Error('This business has no Web Forms definition');
     draft = structuredClone(form);
+    canEdit = canEdit && !form.archived;
+    preset = form.public_id;
     const snippet = embedSnippet(form, config);
-    root.innerHTML = `<div class="web-builder-tabs" role="tablist" aria-label="Form type">${PRESETS.map(([type, label]) => `<button type="button" role="tab" aria-selected="${type === preset}" aria-controls="web-builder-panel" tabindex="${type === preset ? '0' : '-1'}" class="btn ${type === preset ? '' : 'ghost'}" data-web-preset="${type}">${label}</button>`).join('')}</div>
-      <div id="web-builder-panel" role="tabpanel" aria-label="${escapeHtml(PRESETS.find(([type]) => type === preset)?.[1])} form settings">
-      <div class="web-builder-layout"><section class="card"><div class="card-head"><div><h2>${escapeHtml(PRESETS.find(([type]) => type === preset)?.[1])} form</h2>
+    root.innerHTML = `<div id="web-builder-panel" role="tabpanel" aria-label="${escapeHtml(form.title)} form settings">
+      <div class="web-builder-layout"><section class="card"><div class="card-head"><div><h2>${escapeHtml(form.title)} form</h2>
       <span class="muted">Edit the form your customers will see.</span></div></div>
       <div class="web-builder-body"><label>Form title<input id="web-form-title" maxlength="120" value="${escapeHtml(form.title)}" ${canEdit ? '' : 'disabled'} /></label>
       <label>Description<textarea id="web-form-description" maxlength="500" rows="2" ${canEdit ? '' : 'disabled'}>${escapeHtml(form.description)}</textarea></label>
       <label>Button label<input id="web-form-button" maxlength="80" value="${escapeHtml(form.button_label)}" ${canEdit ? '' : 'disabled'} /></label>
       <label class="checkbox-field"><input id="web-form-enabled" type="checkbox" ${form.enabled ? 'checked' : ''} ${canEdit ? '' : 'disabled'} /> Form enabled</label>
-      <label class="checkbox-field"><input id="web-form-email-enabled" type="checkbox" ${form.email_enabled ? 'checked' : ''} ${canEdit ? '' : 'disabled'} /> Offer separate email marketing consent on this form</label>
-      <h3>Fixed fields</h3><p class="muted">Name, Phone, Email${preset === 'bookings' ? ', Appointment date and time' : ''}, and optional SMS consent stay on this form. Email marketing has its own unchecked consent choice when enabled.</p>
+      <label class="checkbox-field"><input id="web-form-email-enabled" type="checkbox" ${form.email_enabled ? 'checked' : ''} ${canEdit && form.legacy_form ? '' : 'disabled'} /> Offer separate email marketing consent on this form</label>
+      <h3>Fixed fields</h3><p class="muted">Name, Phone, Email${draft?.preset === 'bookings' ? ', Appointment date and time' : ''}, and optional SMS consent stay on this form. Email marketing has its own unchecked consent choice when enabled.</p>
       <h3>Custom fields</h3><div id="web-builder-fields"></div>
       ${canEdit ? '<button type="button" class="btn ghost" id="web-add-field">Add custom field</button><div class="web-builder-actions"><span id="web-save-status" role="status"></span><button type="button" class="btn" id="web-save-form">Save form</button></div>' : '<p class="muted">An administrator can edit this form.</p>'}
       </div></section><aside class="card"><div class="card-head"><div><h2>Preview</h2><span class="muted">Customer view · fields are disabled here</span></div></div><div id="web-builder-preview" class="web-builder-preview"></div></aside></div>
@@ -183,7 +184,7 @@ export function createFormBuilder({ root, apiFetch, config, canReadSubmissions =
           const body = await saved.json();
           if (!saved.ok) throw new Error(body.error || 'Could not save form');
           await render();
-          root.querySelector('#web-save-status').textContent = 'Saved and live';
+          root.querySelector('#web-save-status').textContent = payload.enabled ? 'Saved and live' : 'Draft saved';
         } catch (error) { status.textContent = error.message; event.currentTarget.disabled = false; }
       });
       root.querySelector('#web-copy-embed').addEventListener('click', async event => {
@@ -194,7 +195,7 @@ export function createFormBuilder({ root, apiFetch, config, canReadSubmissions =
     root.querySelectorAll('#web-form-title,#web-form-description,#web-form-button,#web-form-email-enabled').forEach(input => input.addEventListener('input', preview));
     bindFields();
     if (!canEdit) root.querySelectorAll('#web-builder-fields input,#web-builder-fields select,#web-builder-fields textarea,#web-builder-fields button').forEach(input => input.disabled = true);
-    await submissions();
+    if (!hideSubmissions) await submissions(); else root.querySelector('#web-form-submissions')?.closest('section')?.remove();
   }
 
   return { render };

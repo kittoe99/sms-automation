@@ -62,10 +62,22 @@ export function createCrmHandler(db,verify=authenticate,{platform=false,provisio
     return json({business:await db.call('platform_action',user,'business_register',p)},200,headers);
    }
    if(!tenant) return json({error:'Select a business'},400,headers);
+   const formRoute=path.match(/^\/web-forms\/([0-9a-f-]{36})(?:\/(automation|submissions|duplicate|archive|restore)(?:\/(draft|publish|state|preset-save|pause|resume|stop|enroll))?)?$/i);
+   if(path==='/automation-presets'&&method==='GET') return json(await db.call('form_workspace',user,tenant,'presets',null,{}),200,headers);
+   if(path==='/web-forms'&&method==='POST') return json(await db.call('form_workspace',user,tenant,'create',null,await readJson(request)),201,headers);
+   if(formRoute) {
+    const [,fid,section,operation]=formRoute;
+    const action=method==='GET'?(section==='submissions'?'submissions':section==='automation'?'read':null)
+      :method==='PUT'&&!section?'save':method==='POST'&&['duplicate','archive','restore'].includes(section)?section
+      :method==='PUT'&&section==='automation'&&['draft','publish','state','preset-save','pause','resume','stop','enroll'].includes(operation)?operation:null;
+    if(!action)return json({error:'Method not supported'},405,headers);
+    return json(await db.call('form_workspace',user,tenant,action,fid,method==='GET'?params:await readJson(request)),200,headers);
+   }
+   if(method!=='GET'&&(path==='/business-ai'||/\/ai\/(pause|resume)$/.test(path)||/^\/automation-groups/.test(path))) return json({error:'SMS AI is disabled. Configure messages in Forms.'},410,headers);
    if(method==='GET') {
     if(path==='/sms/connection') return json(await db.call('read_sms_connection',user,tenant),200,headers);
     if(path==='/email') return json(await emailOverview(db,user,tenant),200,headers);
-    if(path==='/web-forms') return json(await db.call('list_web_forms',user,tenant),200,headers);
+    if(path==='/web-forms') return json(await db.call('list_form_workspace',user,tenant),200,headers);
     const webFormSubmissions=path.match(/^\/web-forms\/(contacts|quote_requests|bookings)\/submissions$/);
     if(webFormSubmissions) return json(await db.call('list_web_form_submissions',user,tenant,
       webFormSubmissions[1],Number(params.page||1),Number(params.pageSize||50)),200,headers);

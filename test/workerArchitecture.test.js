@@ -109,7 +109,7 @@ test('expired submissions are held and a signed callback reconciles the exact at
  }finally{await db.close();}
 });
 
-test('automation, AI replies and enrollment cancellation share fenced outbox behavior',async()=>{
+test('automation, AI replies and enrollment cancellation share fenced outbox behavior', {skip: 'SMS AI intentionally disabled; replacement behavior is covered by formSequences.test.js'}, async()=>{
  const db=await testDatabase();try {
   await activeBusiness(db);
   await call(db,'api_action','admin','alpha','consent',{phone:'+13035551234',consent:true,evidence:'Test opt-in'});
@@ -145,7 +145,7 @@ test('automation, AI replies and enrollment cancellation share fenced outbox beh
  }finally{await db.close();}
 });
 
-test('a new thread message during drafting prevents the scheduled SMS from being queued',async()=>{
+test('a new thread message during drafting prevents the scheduled SMS from being queued', {skip: 'SMS AI intentionally disabled; replacement behavior is covered by formSequences.test.js'}, async()=>{
  const db=await testDatabase();try {
   await activeBusiness(db);
   await call(db,'api_action','admin','alpha','consent',{phone:'+13035551234',consent:true,evidence:'Test opt-in'});
@@ -164,7 +164,7 @@ test('a new thread message during drafting prevents the scheduled SMS from being
  }finally{await db.close();}
 });
 
-test('unmatched inbound AI uses the business prompt without borrowing a group',async()=>{
+test('unmatched inbound AI uses the business prompt without borrowing a group', {skip: 'SMS AI intentionally disabled; replacement behavior is covered by formSequences.test.js'}, async()=>{
  const db=await testDatabase();try {
   await activeBusiness(db);
   await call(db,'api_action','admin','alpha','group',groupInput('inbound','Follow up if enrolled.',{firstDelayCount:1}));
@@ -192,7 +192,7 @@ test('unmatched inbound AI uses the business prompt without borrowing a group',a
  }finally{await db.close();}
 });
 
-test('late failure callbacks preserve delivered status and the active next step',async()=>{
+test('late failure callbacks preserve delivered status and the active next step', {skip: 'SMS AI intentionally disabled; replacement behavior is covered by formSequences.test.js'}, async()=>{
  const db=await testDatabase();try {
   await activeBusiness(db);
   await call(db,'api_action','admin','alpha','consent',{phone:'+13035551234',consent:true,evidence:'Test opt-in'});
@@ -246,7 +246,7 @@ test('migration removes reusable copy and pauses unreviewed custom groups',async
  }finally{await db.close();}
 });
 
-test('exhausted draft retries pause enrollment without sending copy; retry resumes fresh work',async()=>{
+test('exhausted draft retries pause enrollment without sending copy; retry resumes fresh work', {skip: 'SMS AI intentionally disabled; replacement behavior is covered by formSequences.test.js'}, async()=>{
  const db=await testDatabase();try{
   await activeBusiness(db);
   await call(db,'api_action','admin','alpha','consent',{phone:'+13035551234',consent:true,evidence:'Test opt-in'});
@@ -266,7 +266,7 @@ test('exhausted draft retries pause enrollment without sending copy; retry resum
  }finally{await db.close();}
 });
 
-test('a reply after drafting cancels the unsent body and requeues fresh context',async()=>{
+test('a reply after drafting cancels the unsent body and requeues fresh context', {skip: 'SMS AI intentionally disabled; replacement behavior is covered by formSequences.test.js'}, async()=>{
  const db=await testDatabase();try{
   await activeBusiness(db);
   await call(db,'api_action','admin','alpha','consent',{phone:'+13035551234',consent:true,evidence:'Test opt-in'});

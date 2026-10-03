@@ -1,6 +1,6 @@
 import { PGlite } from '@electric-sql/pglite';
 import { readFile,readdir } from 'node:fs/promises';
-export async function testDatabase({beforeMigration}={}) {
+export async function testDatabase({beforeMigration,legacyFormFixtures=false}={}) {
  const db=new PGlite();
  await db.exec(`create role anon; create role authenticated; create role service_role;
  create schema auth; create function auth.jwt() returns jsonb language sql as $$ select coalesce(nullif(current_setting('request.jwt.claims',true),''),'{}')::jsonb $$;
@@ -31,6 +31,14 @@ export async function testDatabase({beforeMigration}={}) {
    await db.exec(migration);
  }
  await db.exec(`grant sms_sender,sms_automation,sms_ai to postgres; insert into sms_private.admins values('admin') on conflict do nothing;`);
+ // Upgrade/compatibility tests explicitly request the three pre-existing forms.
+ // Production no longer seeds these; new form-first tests use the default.
+ if(legacyFormFixtures) await db.exec(`create or replace function sms_private.seed_web_forms(t text) returns void
+ language plpgsql security definer set search_path='' as $$ begin
+ insert into public.sms_web_form_definitions(tenant_id,preset,title,description,button_label,legacy_form)
+ values(t,'contacts','Contact us','','Send',true),(t,'quote_requests','Request a quote','','Request quote',true),
+ (t,'bookings','Book an appointment','','Book',true) on conflict(tenant_id,preset) where legacy_form do nothing;
+ end $$;`);
  return db;
 }
 export async function call(db,name,...args) {

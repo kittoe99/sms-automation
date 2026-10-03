@@ -1,5 +1,14 @@
 # Opek SMS project record
 
+October 3 form-first SMS: named forms now own versioned template sequences with
+per-message delays and repeats, reusable presets, reply policies and staff controls.
+SMS AI is disabled at enqueue, worker and final-send boundaries. Legacy embeds and
+history are preserved; legacy runs require template review. See
+[form workflow and migration order](docs/FORM_AUTOMATIONS.md). Local implementation
+and paired validation are complete. Both forward migrations are applied; CRM API v42,
+automation-worker v26 and ai-worker v31 are active. Frontend release verification
+is pending. SMS/automation dispatch is restored and AI dispatch stays disabled.
+
 October 2 read-only SMS summaries: the CRM dashboard and E2 customer SMS tab share
 a seven-field server projection, with approval separate from sending. Canonical
 access and customer service-release rules remain unchanged. Detailed registration

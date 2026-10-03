@@ -3,7 +3,7 @@ import assert from 'node:assert/strict';
 import { testDatabase, call } from './helpers/database.js';
 
 test('existing businesses receive separate disabled email groups and shared provider bounces suppress both', async () => {
-  const db = await testDatabase();
+  const db = await testDatabase({legacyFormFixtures:true});
   try {
     for (const [id, name] of [['opek', 'Opek'], ['bello-moving', 'Bello Moving']]) {
       await call(db, 'api_action', 'admin', null, 'create_business',
@@ -56,7 +56,7 @@ async function setup(db) {
 }
 
 test('email group activation is separate from SMS and requires recorded staff consent', async () => {
-  const db = await testDatabase();
+  const db = await testDatabase({legacyFormFixtures:true});
   try {
     const settings = await setup(db);
     const original = (await db.query('select rule from public.sms_automation_groups where tenant_id=$1 and id=$2',
@@ -82,7 +82,7 @@ test('email group activation is separate from SMS and requires recorded staff co
 });
 
 test('public form requires its own switch and separate unchecked email consent', async () => {
-  const db = await testDatabase();
+  const db = await testDatabase({legacyFormFixtures:true});
   try {
     await setup(db);
     const form = (await call(db, 'list_web_forms', 'admin', 'e2-local')).forms.find(f => f.preset === 'contacts');
@@ -103,7 +103,7 @@ test('public form requires its own switch and separate unchecked email consent',
 });
 
 test('unsubscribe after drafting cancels the job at the final database guard', async () => {
-  const db = await testDatabase();
+  const db = await testDatabase({legacyFormFixtures:true});
   try {
     await setup(db);
     const intake = await call(db, 'create_intake', 'admin', 'e2-local', 'contacts', {
@@ -129,7 +129,7 @@ test('unsubscribe after drafting cancels the job at the final database guard', a
 });
 
 test('confirmed bookings enroll and cancellation stops their email sequence', async () => {
-  const db = await testDatabase();
+  const db = await testDatabase({legacyFormFixtures:true});
   try {
     await setup(db);
     const bookingGroup = (await call(db, 'email_overview', 'admin', 'e2-local')).groups.find(g => g.fixedType === 'bookings');
@@ -155,7 +155,7 @@ test('confirmed bookings enroll and cancellation stops their email sequence', as
 });
 
 test('booking form consent remains tied to its form switch after an appointment change', async () => {
-  const db = await testDatabase();
+  const db = await testDatabase({legacyFormFixtures:true});
   try {
     await setup(db);
     const group = (await call(db, 'email_overview', 'admin', 'e2-local')).groups.find(g => g.fixedType === 'bookings');

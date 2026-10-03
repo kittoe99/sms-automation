@@ -6,8 +6,9 @@ export function canOpenWorkspace(view, staff, tenant) {
 }
 export function canWriteWorkspace(path, method, staff, tenant) {
   if (staff || ['GET','HEAD','OPTIONS'].includes(method.toUpperCase())) return true;
-  return tenant?.formsManage === true && method.toUpperCase() === 'PUT'
-    && /^\/api\/web-forms\/(contacts|quote_requests|bookings)$/.test(path);
+  return tenant?.formsManage === true && (
+    method.toUpperCase() === 'POST' && (/^\/api\/web-forms$/.test(path) || /^\/api\/web-forms\/[0-9a-f-]{36}\/(duplicate|archive|restore)$/.test(path))
+    || method.toUpperCase() === 'PUT' && /^\/api\/web-forms\/(contacts|quote_requests|bookings|[0-9a-f-]{36})$/.test(path));
 }
 export const staffActionSelector = [
   '#reply-form','#automation-intake-form','#ai-pause-btn','#compose-send','#call-place',

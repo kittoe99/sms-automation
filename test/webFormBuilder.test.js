@@ -9,8 +9,8 @@ async function addBusiness(db, id) {
   await call(db, 'api_action', 'admin', null, 'create_business', { id, name: id, timeZone: 'America/Denver' });
 }
 
-test('Web Form presets seed for every business and editor permissions stay tenant scoped', async () => {
-  const db = await testDatabase();
+test('Existing form fixtures retain stable IDs and tenant-scoped editor permissions', async () => {
+  const db = await testDatabase({legacyFormFixtures:true});
   try {
     await addBusiness(db, 'alpha'); await addBusiness(db, 'beta');
     const alpha = await call(db, 'list_web_forms', 'admin', 'alpha');
@@ -44,7 +44,7 @@ test('Web Form presets seed for every business and editor permissions stay tenan
 });
 
 test('public submissions validate custom answers and preserve their schema snapshot', async () => {
-  const db = await testDatabase();
+  const db = await testDatabase({legacyFormFixtures:true});
   try {
     await addBusiness(db, 'alpha');
     const original = (await call(db, 'list_web_forms', 'admin', 'alpha')).forms.find(f => f.preset === 'contacts');
@@ -108,7 +108,7 @@ test('public endpoint allows arbitrary origins, handles honeypots, and converts 
 });
 
 test('rate buckets count failed attempts but allow a saved submission to retry', async () => {
-  const db = await testDatabase();
+  const db = await testDatabase({legacyFormFixtures:true});
   try {
     await addBusiness(db, 'alpha');
     const form = (await call(db, 'list_web_forms', 'admin', 'alpha')).forms.find(f => f.preset === 'contacts');
@@ -130,7 +130,7 @@ test('rate buckets count failed attempts but allow a saved submission to retry',
 });
 
 test('CRM Web Forms routes allow business admins to edit and viewers to list submissions', async () => {
-  const db = await testDatabase();
+  const db = await testDatabase({legacyFormFixtures:true});
   const previousOrigins = process.env.CRM_ALLOWED_ORIGINS;
   process.env.CRM_ALLOWED_ORIGINS = 'https://crm.example.com';
   try {
@@ -160,7 +160,7 @@ test('CRM Web Forms routes allow business admins to edit and viewers to list sub
 });
 
 test('public role can use only the public form RPCs and booking submits without SMS opt-in', async () => {
-  const db = await testDatabase();
+  const db = await testDatabase({legacyFormFixtures:true});
   try {
     await addBusiness(db, 'alpha');
     const booking = (await call(db, 'list_web_forms', 'admin', 'alpha')).forms.find(f => f.preset === 'bookings');

@@ -42,8 +42,7 @@ test('a phone has separate general and group histories; only accepted outbound c
     const groupB=(await db.query("select id from public.sms_conversations where tenant_id='alpha' and group_id='group-b'")).rows[0].id;
     assert.equal(first.conversation_id,groupB);
     const firstJob=(await db.query("select payload from sms_private.jobs where tenant_id='alpha' and queue='ai_reply_jobs' and dedupe_key='SM_scope_1'")).rows[0];
-    assert.equal(firstJob.payload.conversation_id,groupB);
-    assert.equal(firstJob.payload.group_id,'group-b');
+    assert.equal(firstJob,undefined,'Inbound messages must not enqueue AI');
     await db.exec("update public.sms_messages set status='accepted' where tenant_id='alpha' and body='A is queued'");
     const second=await incoming(db,'SM_scope_2');
     const groupA=(await db.query("select id from public.sms_conversations where tenant_id='alpha' and group_id='group-a'")).rows[0].id;
@@ -53,8 +52,7 @@ test('a phone has separate general and group histories; only accepted outbound c
     const third=await incoming(db,'SM_scope_3');
     const general=(await db.query("select id from public.sms_conversations where tenant_id='alpha' and group_id is null")).rows[0].id;
     assert.equal(third.conversation_id,general);
-    const groupContextJob=(await call(db,'claim','ai_reply_jobs','ai')).id;
-    assert.ok(groupContextJob);
+    assert.equal(await call(db,'claim','ai_reply_jobs','ai'),null);
     const list=await call(db,'list_conversation_threads','admin','alpha',{page:1,pageSize:50});
     assert.equal(list.total,3);
     assert.equal(list.unreadTotal,3);
@@ -77,7 +75,7 @@ test('staff can reassign inbound text and reply in the chosen conversation',asyn
     const moved=await call(db,'reassign_inbound_message','admin','alpha',message.id,'group-b');
     assert.equal(moved.changed,true);
     const job=(await db.query("select status from sms_private.jobs where tenant_id='alpha' and queue='ai_reply_jobs' and dedupe_key='SM_move_1'")).rows[0];
-    assert.equal(job.status,'cancelled');
+    assert.equal(job,undefined,'Reassignment must not enqueue AI');
     assert.equal((await incoming(db,'SM_move_2')).conversation_id,moved.conversationId);
     const reply=await call(db,'conversation_action','admin','alpha',moved.conversationId,'reply',{
       body:'A staff reply for B.',idempotencyKey:'manual-b-1',
@@ -92,7 +90,7 @@ test('staff can reassign inbound text and reply in the chosen conversation',asyn
   }finally{await db.close();}
 });
 
-test('group AI reads only its conversation and can answer after enrollment has completed',async()=>{
+test('group AI reads only its conversation and can answer after enrollment has completed', {skip: 'SMS AI intentionally disabled; replacement behavior is covered by formSequences.test.js'}, async()=>{
   const db=await testDatabase();try {
     await setup(db);
     await db.exec(`

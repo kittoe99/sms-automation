@@ -21,7 +21,7 @@ test('Edge worker obeys the deadline and never retries an ambiguous SMS in the r
  const handler=createWorkerHandler({queue:'sms_send_jobs',secret,db,now:()=>clock,budgetMs:10,processJob:async()=>{clock=20;throw new Error('Disconnected');}});
  await handler(request());assert.equal(calls.filter(x=>x==='claim').length,1);assert.ok(!calls.includes('finish'));assert.equal(calls.at(-1),'edge_exit');
 });
-test('AI answers directly with a live reply when grounded context is not enabled',async()=>{
+test('AI answers directly with a live reply when grounded context is not enabled', {skip: 'SMS AI intentionally disabled; replacement behavior is covered by formSequences.test.js'}, async()=>{
  let requests=0;const completed=[];
  const db={call:async(name,...args)=>{
   if(name==='job_context')return {settings:{enabled:true,grounded_enabled:false},thread:{generation:7},contact:{},business:{name:'General business'},history:[{direction:'inbound',body:'Hello'}]};
@@ -35,7 +35,7 @@ test('AI answers directly with a live reply when grounded context is not enabled
  assert.ok(String(completed[0][3].reply).length>0);
  assert.ok(!/staff member|teammate/i.test(String(completed[0][3].reply)));
 });
-test('grounded AI supplies a valid input when a conversation has no history',async()=>{
+test('grounded AI supplies a valid input when a conversation has no history', {skip: 'SMS AI intentionally disabled; replacement behavior is covered by formSequences.test.js'}, async()=>{
  const db={call:async name=>name==='job_context'?{settings:{enabled:true,grounded_enabled:true},thread:{generation:0},contact:{},business:{name:'Test'},profile:{id:'profile',facts:{}},history:[]}:name==='search_job_knowledge'?[]:null};let requests=0;
  await processAi({id:'job',lease_token:'token',payload:{generation:0}},db,{apiKey:'test',fetchImpl:async(url,options)=>{
   requests++;const body=JSON.parse(options.body);if(url.endsWith('/embeddings'))return Response.json({data:[{embedding:Array(1536).fill(0)}]});assert.ok(body.input[0].content.length>0);
@@ -86,7 +86,7 @@ test('database gates Edge concurrency, pauses dispatch and restricts AI tools',a
   assert.ok(await call(db,'edge_enter','sms_send_jobs','two'));
   assert.equal(await call(db,'dispatch_edge'),0); // Empty queues never invoke a worker.
   await call(db,'api_action','admin',null,'create_business',{id:'dispatch-test',name:'Dispatch test',timeZone:'UTC'});
-  for(let i=0;i<3;i++) await call(db,'enqueue','dispatch-test','automation_jobs',`test:${i}`,{});
+  for(let i=0;i<3;i++) await call(db,'enqueue','dispatch-test','automation_jobs',`test:${i}`,{form_run_id:crypto.randomUUID()});
   await db.exec(`update sms_private.edge_config set enabled=false where queue='provisioning_jobs';
    insert into vault.secrets(id) values('00000000-0000-0000-0000-000000000001');
    insert into vault.decrypted_secrets(id,decrypted_secret) values('00000000-0000-0000-0000-000000000001','test-bearer');

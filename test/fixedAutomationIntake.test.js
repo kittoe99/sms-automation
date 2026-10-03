@@ -78,7 +78,7 @@ test('fixed intake tables enroll only eligible rows and progress through lifecyc
 
     const booking = (await db.query("insert into public.sms_automation_bookings(tenant_id,name,phone,status,appointment_at,source_record_id) values('alpha','Alex',$1,'requested',now()+interval '3 days','booking-1') returning *", [phone])).rows[0];
     assert.equal(booking.intake_state, 'waiting_confirmation');
-    assert.equal((await db.query('select status from public.sms_automation_enrollments where id=$1', [quote2.enrollment_id])).rows[0].status, 'active');
+    assert.equal((await db.query('select status from public.sms_automation_enrollments where id=$1', [quote2.enrollment_id])).rows[0].status, 'paused');
     const confirmed = (await db.query("update public.sms_automation_bookings set status='confirmed' where id=$1 returning *", [booking.id])).rows[0];
     assert.equal(confirmed.intake_state, 'enrolled');
     assert.equal((await db.query('select status from public.sms_automation_enrollments where id=$1', [quote2.enrollment_id])).rows[0].status, 'cancelled');
@@ -140,9 +140,8 @@ test('tenant-scoped intake functions preserve idempotency and exact source conte
     await db.query("update public.sms_automation_enrollments set created_at=now()-interval '2 days',next_run_at=now()-interval '1 minute' where source_id=$1", [first.id]);
     await call(db, 'tick');
     const job = await call(db, 'claim', 'automation_jobs', 'test-worker');
-    assert.ok(job, JSON.stringify({ enrollment: (await db.query('select status,next_run_at,created_at from public.sms_automation_enrollments where source_id=$1', [first.id])).rows,
-      jobs: (await db.query("select status,dedupe_key from sms_private.jobs where queue='automation_jobs'")).rows }));
-    const source = await call(db, 'intake_context', job.id, job.lease_token);
+    assert.equal(job,null,'Legacy intake cannot dispatch SMS AI');
+    const source = (await call(db,'list_intake','admin','alpha','quote_requests',1,50)).rows[0];
     assert.equal(source.id, first.id);
     assert.equal(source.details.service, 'painting');
   } finally { await db.close(); }
@@ -166,7 +165,7 @@ test('staff API lists and creates intake rows but refuses arbitrary automation g
     const rejected = await handler(new Request('https://example.com/functions/v1/crm-api/automation-groups', {
       method: 'POST', headers, body: JSON.stringify({ name: 'Custom' }),
     }));
-    assert.equal(rejected.status, 405);
+    assert.equal(rejected.status, 410);
     const oldEnroll = await handler(new Request('https://example.com/functions/v1/crm-api/directory/enroll', {
       method: 'POST', headers, body: JSON.stringify({ phone: '+13035550126', categoryId: 'sms-contact' }),
     }));
@@ -193,7 +192,8 @@ test('signed business events mirror quote and booking records into intake exactl
     await call(db, 'ingest_event', 'alpha', { eventId: 'event-booking', id: 'booking-1', type: 'booking.created', phone, appointment_at, metadata: { service: 'painting' } });
     const first = (await db.query("select * from public.sms_automation_bookings where tenant_id='alpha'")).rows[0];
     assert.equal(first.intake_state, 'enrolled');
-    assert.equal((await db.query("select count(*) from public.sms_automation_enrollments where tenant_id='alpha' and status='active'")).rows[0].count, 1);
+    assert.equal((await db.query("select count(*) from public.sms_automation_enrollments where tenant_id='alpha' and status='active'")).rows[0].count, 0);
+    assert.equal((await db.query("select count(*) from public.sms_automation_enrollments where tenant_id='alpha' and status='paused'")).rows[0].count, 1);
     await call(db, 'ingest_event', 'alpha', { eventId: 'event-booking-replayed', id: 'booking-1', type: 'booking.created', phone, appointment_at, metadata: { service: 'painting' } });
     assert.equal((await db.query("select enrollment_id from public.sms_automation_bookings where tenant_id='alpha'")).rows[0].enrollment_id, first.enrollment_id);
     await call(db, 'ingest_event', 'alpha', { eventId: 'event-reschedule', id: 'booking-1', type: 'booking.rescheduled', phone, appointment_at: new Date(Date.now() + 4 * 86400000).toISOString(), metadata: { service: 'painting' } });
