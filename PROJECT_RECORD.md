@@ -11,7 +11,10 @@ runtime changes; no migrations to apply.
 
 Validation: 22 targeted CRM tests, seven paired E2 business-service tests and the
 frontend build passed. Local browser verification showed a 10-digit entry gaining
-+1 on blur. No SMS was sent. Frontend release verification pending.
++1 on blur. CRM application commit 0725da1 is live in Render deployment
+dep-db0n4s49v7es73c64jc0; all nine changed public assets match local hashes.
+The live embedded form also converted a synthetic 10-digit number to +1 on blur.
+No form was submitted and no SMS was sent during this verification.
 
 
 ### October 3 — activation sender verification hotfix
