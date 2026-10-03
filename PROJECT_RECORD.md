@@ -5,7 +5,8 @@ a seven-field server projection, with approval separate from sending. Canonical
 access and customer service-release rules remain unchanged. Detailed registration
 reads are staff-only in both the API and direct table policy. See
 [summary workflow](docs/SMS_CONNECTION_SUMMARY.md). Both forward migrations and
-CRM API are applied; frontend releases await verification in the latest entry.
+CRM API v41 are applied; both frontends are live and authenticated views were
+verified. Release evidence is in the latest entry.
 
 Current verified release — **October 1, 2026 (America/Denver)**: owner-linked registration, canonical CRM permissions, shared profile drafts/reviews, explicit SMS addition and individual customer service release are deployed. CRM API **v38** is active; all three linking/access follow-up migrations are applied. See the consolidated [implementation and release document](docs/CRM_LINKING_RELEASE.md) for current versions, migration order, 334 passing tests, authenticated verification and limits. Earlier local-only and v35/v37 entries below are historical checkpoints.
 
@@ -630,6 +631,14 @@ applying only CRM `20261003032940_sms_connection_summary` followed by E2
 `20261003032943_customer_sms_connection_summary` in one guarded transaction.
 Verified the staff-only registration policy, private/scoped function grants and
 registration cache trigger. The released customer service returns the same live
-connected summary, and sending remains disabled. CRM API v41 is ACTIVE; frontend
-release verification is pending. Security advisors retain the five existing
+connected summary, and sending remains disabled. CRM API v41 is ACTIVE. CRM
+application `d7842c2` is Live on Render `dep-db07lp2d0e5s73aehoo0` (October 2,
+9:48 PM MDT); all nine production assets match the committed application. Render
+again required an explicit fresh-cache build after automatic deployment failed
+to start. E2 application `0fe8dde` is Ready/Current in production on Vercel
+`dpl_9o1wM511yGwU2bH5CVECpCvSCNtH`, assigned to www.e2local.com.
+Authenticated production owner and CRM staff views show identical core details;
+both summary cards contain zero form/input/button controls. Staff activation
+setup remains available separately. Security advisors retain the five existing
 warnings with no new finding. No Twilio calls, paid actions or activation SMS.
+Subsequent record-only commits do not change the verified application behavior.
