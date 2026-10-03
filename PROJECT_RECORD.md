@@ -1,5 +1,30 @@
 # Opek SMS project record
 
+### October 3 - unified customer Leads and visible SMS numbers
+
+E2 now exposes one Leads tab for released SMS or enquiries services, combining
+existing SMS form submissions and authorized website enquiries without creating
+copies. Business/form filters, automatic tags, inline answers, nullable website
+attribution, safe run statuses and stable pagination preserve tenant isolation.
+SMS release includes SMS leads even when sending is disabled; website metadata
+and ownership-history cutoffs remain protected. Overview displays connected SMS
+numbers per business; SMS details remain read-only. Browser cache schema 4 drops
+pre-unification snapshots, with existing scoped triggers refreshing new changes.
+
+Validated 58 relevant E2 tests (including five new customer-reader scenarios),
+16 paired CRM tests, changed-source lint and E2 production build. Synthetic desktop
+and 390px mobile checks verified filters, inline answers and pagination; mobile
+filters were corrected to stack without horizontal overflow. Live migration
+20261003231755_customer_unified_leads was applied only after matching five shared
+function baselines and paired history prerequisites. Security advisors retain
+five existing findings with no new finding. Application `a4e84e1` is Ready on
+Vercel `dpl_J9da1mqBGTC4yEwt6xZoB2BsmsFS`, assigned to www.e2local.com.
+Authenticated production verification confirmed the overview phone/status, Leads
+navigation, all current form choices, filters, empty-state counts and mobile
+layout without horizontal overflow or console errors. The live RPC grants execution
+only to service_role among customer/CRM roles tested. CRM runtime is unchanged.
+No Twilio changes, sends, jobs or copied submissions were created by these reads.
+
 ### October 3 — standalone Twilio accounts section
 
 Added a dedicated Twilio navigation area and account directory independent of the

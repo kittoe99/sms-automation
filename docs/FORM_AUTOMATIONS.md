@@ -88,3 +88,18 @@ dashboard views were verified. CRM application `0f1d6ea` and E2 `3ca64ba` are
 the released application revisions; detailed validation and deployment evidence
 is recorded in both project records. Existing forms have no automation enabled
 until staff configures, publishes and enables a template sequence.
+
+## Customer dashboard visibility
+
+Released SMS businesses also expose their existing form submissions in E2 Local's
+single **Leads** tab. Sending activation is independent of lead visibility. Owners
+can filter by business or named form and expand answers; no copied submissions,
+per-form tabs or automation controls are added to the customer dashboard.
+Website attribution still requires website access and preserves ownership-history
+cutoffs. Overview and SMS display the existing connected business numbers.
+
+The customer-only reader and migration are E2-owned:
+`20261003231755_customer_unified_leads`, after the paired CRM form-first and E2
+service/form migrations. CRM submission, staff reads and messaging permissions
+stay unchanged. See `../E2local-main/docs/business-services.md` for the release
+contract. Apply only the forward migration; do not replay shared histories.
