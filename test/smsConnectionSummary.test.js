@@ -45,7 +45,7 @@ test('paired readers share a private, read-only projection with isolation, appro
   await action('service_visibility',{tenantId:tenant,serviceId:service.id,revision:service.revision,visibility:'live'});
   const count=async()=>(await db.query('select count(*) n from sms_private.jobs')).rows[0].n,before=await count();
   const summary=await call(db,'read_sms_connection','reader',tenant);
-  assert.deepEqual(Object.keys(summary).sort(),['businessName','profileName','phoneNumber','senderType','connectionStatus','approvalStatus','messagingStatus'].sort());
+  assert.deepEqual(Object.keys(summary).sort(),['businessName','profileName','phoneNumber','senderType','connectionStatus','approvalStatus','messagingStatus','activationStatus'].sort());
   assert.equal(summary.approvalStatus,'approved');assert.equal(summary.messagingStatus,'disabled');assert.equal(summary.connectionStatus,'connected');
   assert.deepEqual((await customerRead()).services[0].smsConnection,summary);assert.equal(await count(),before);
   assert.doesNotMatch(JSON.stringify(await customerRead()),/hidden-|13035550999|accountSid|authToken|verification_sid|rejection_reason/);
@@ -66,8 +66,13 @@ test('paired readers share a private, read-only projection with isolation, appro
    assert.deepEqual((await customerRead()).services[0].smsConnection,result);
   }
   assert.ok(await rev()>initial);
+  assert.equal((await customerRead()).services[0].smsConnection.activationStatus,'ready');
+  assert.equal((await customerRead()).services[0].smsConnection.messagingStatus,'disabled');
+  const readyRevision=await rev();
   await db.query("update public.sms_businesses set sending_enabled=true,status='active' where tenant_id=$1",[tenant]);assert.equal((await call(db,'read_sms_connection','reader',tenant)).messagingStatus,'active');
+  assert.equal((await customerRead()).services[0].smsConnection.activationStatus,'active');assert.ok(await rev()>readyRevision);
   await db.query("update public.sms_twilio_registrations set state='paused' where tenant_id=$1",[tenant]);assert.equal((await call(db,'read_sms_connection','reader',tenant)).messagingStatus,'paused');
+  assert.equal((await customerRead()).services[0].smsConnection.activationStatus,'paused');
   await action('membership',{tenantId:tenant,accountId:reader,role:'operator',revision:0,enabled:false,smsRead:false,formsManage:false});
   await assert.rejects(()=>call(db,'read_sms_connection','reader',tenant),/access/);
   await db.query("update public.dashboard_accounts set status='suspended' where id=$1",[owner]);await assert.rejects(()=>customerRead(),/active/);

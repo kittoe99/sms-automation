@@ -1,5 +1,16 @@
 # Opek SMS project record
 
+### October 3 — E2 owner activation summary
+
+The shared summary adds an allowlisted activationStatus without exposing test or
+provider internals. E2 now explains Awaiting activation separately from sending,
+with read-only active/paused status and compatible handling of older cached payloads.
+Applied only CRM 20261003213902 then E2 20261003213905 after guarded prerequisite
+checks. Existing access rules and cache triggers are unchanged. Security advisors
+remain at five pre-existing findings, with no additions. Eleven CRM and 25 E2 tests
+passed; E2 production build and desktop/mobile previews passed. E2 frontend release
+verification is pending; CRM frontend/API/worker releases are unnecessary.
+
 ### October 3 — retain delivered activation tests on refresh
 
 A status refresh overwrote ready with webhook_verified even after the activation

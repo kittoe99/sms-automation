@@ -16,6 +16,12 @@ current account, service, sender and test recipient. Pending/failed tests and lo
 approval do not pass. Refresh never enables sending or sends another test.
 The dashboard remains Sending disabled until the separate Enable SMS action succeeds.
 
+The shared read-only summary includes activationStatus, exposing only a stage label.
+E2 displays Awaiting activation for a ready sender with sending disabled, with a
+separate Messaging value. Its owner view has no activation controls. Older summaries
+without the new field remain supported. Apply CRM 20261003213902 first, then E2
+20261003213905 to invalidate previous customer snapshots; never replay either history.
+
 Account references and troubleshooting are collapsed. **Need a new number or
 registration?** opens the existing registration flow; required Twilio answers and
 paid-action confirmations are preserved. Loading failures show a retry instead of
