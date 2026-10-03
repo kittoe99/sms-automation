@@ -1,8 +1,8 @@
 import {createTabMemory, createRenderQueue} from './tabWorkspace.js?v=20261002-workspace';
 import {readBusinessProfile,writeBusinessProfile} from './profileClient.js?v=20261002-access';
 import {canOpenWorkspace,canWriteWorkspace,staffActionSelector} from './workspacePermissions.js?v=20261002-access';
-import { createPlatform } from './platform.js?v=20261002-twilio-connect';
-import {mountTwilioActivation} from './twilioActivation.js?v=20261002-twilio-connect';
+import { createPlatform } from './platform.js?v=20261003-activation';
+import {mountTwilioActivation,mountSmsSetupChoice} from './twilioActivation.js?v=20261003-activation';
 import {smsConnectionSummary} from './smsConnectionSummary.js?v=20261002-sms-summary';
 import { connectSupabaseLive } from './live.js?v=20261001-business-services';
 import { createFormWorkspace } from './formWorkspace.js?v=20261003-forms';
@@ -349,42 +349,31 @@ function registrationControlsHtml(registration = {}, detailsComplete = false) {
   return `<div class="card setup-card"><div class="card-head"><div><span class="eyebrow">Live registration</span><h2>${esc(registrationState.replaceAll('_', ' '))}</h2></div></div><div class="setup-body"><p class="muted">Paid submissions and number purchases always ask for confirmation. Legal answers stay in Twilio's secure form.</p><div class="compose-actions" style="align-items:stretch;flex-direction:column">${action}<span id="registration-action-error" class="login-error"></span></div>${registration.rejection_reason ? `<p class="login-error">${esc(registration.rejection_reason)}</p>` : ''}</div></div>`;
 }
 
-async function renderBusinessSetup() {
+async function renderBusinessSetup({registrationForm=false}={}) {
   setTitle(...titles['business-setup']);
   el.kpi.innerHTML = '';
   el.pager.hidden = true;
   el.storeMeta.textContent = state.tenant?.name || 'Your workspace';
 
-  let provisioning = state.setupProvisioning || null;
-  let onboardingState = state.setupOnboarding || null;
-  let registration = state.setupRegistration || null;
-  if (!provisioning || !onboardingState || !registration) {
-    el.root.innerHTML = '<div class="card"><div class="empty">Loading business setup…</div></div>';
-    try {
-      const [provRes, onb, regRes] = await Promise.all([
-        provisioning ? null : apiFetch('/api/provisioning'),
-        onboardingState ? null : fetchOnboarding(),
-        registration ? null : apiFetch('/api/twilio/registration'),
-      ]);
-      if (provRes && provRes.ok) provisioning = await provRes.json();
-      if (onb) onboardingState = onb;
-      if (regRes && regRes.ok) registration = await regRes.json();
-    } catch (error) {
-      console.error(error);
-    }
+  let provisioning=state.setupProvisioning,registration=state.setupRegistration;
+  el.root.innerHTML='<div class="card"><p role="status">Loading SMS setup…</p></div>';
+  try {
+    const read=async path=>{const res=await apiFetch(path),body=await res.json();if(!res.ok)throw new Error(body.error||'Could not load SMS setup.');return body;};
+    [provisioning,registration]=await Promise.all([provisioning||read('/api/provisioning'),registration||read('/api/twilio/registration')]);
+  } catch(error) {
+    el.root.innerHTML='<section class="card"><h2>SMS setup is unavailable</h2><p data-setup-error role="alert"></p><button class="btn" data-retry-setup>Try again</button></section>';
+    el.root.querySelector('[data-setup-error]').textContent=error.message;
+    el.root.querySelector('[data-retry-setup]').onclick=()=>renderBusinessSetup({registrationForm});return;
   }
-  state.setupProvisioning = provisioning;
-  state.setupOnboarding = onboardingState || { onboarding: {}, onboardingComplete: false };
-  state.setupRegistration = registration || { state: 'draft' };
-  if(provisioning?.existingConnection) {
-    mountTwilioActivation(el.root,{provider:provisioning,registration:state.setupRegistration,apiFetch,
-      onRefresh:async()=>{state.setupProvisioning=null;state.setupRegistration=null;await renderBusinessSetup();},
-      onBack:()=>switchView('overview')});
-    return;
+  state.setupProvisioning=provisioning;state.setupRegistration=registration;
+  const onBusiness=async()=>{const id=state.tenant.id;await switchView('platform-businesses');await platform.openBusiness(id);el.root.querySelector('[data-twilio-connection]')?.scrollIntoView({block:'start'});};
+  const onBack=()=>switchView('overview');
+  if(provisioning.existingConnection||(provisioning.phoneNumber&&['approved','webhook_verified','canary_pending','ready','active','paused'].includes(registration.state))) {
+    mountTwilioActivation(el.root,{provider:provisioning,registration,apiFetch,businessName:state.tenant?.name,onBusiness,onBack,onForms:()=>switchView('web-forms'),
+      onRefresh:async()=>{state.setupProvisioning=null;state.setupRegistration=null;await renderBusinessSetup();}});return;
   }
-  if (provisioning?.serviceAdded === false) {
-    el.root.innerHTML='<section class="card"><h2>SMS has not been added</h2><p>Review the business profile and add SMS from Businesses.</p><button type="button" class="btn" data-open-registered-business>Open business setup</button></section>';
-    return;
+  if(!registrationForm||provisioning.serviceAdded===false) {
+    mountSmsSetupChoice(el.root,{businessName:state.tenant?.name,serviceAdded:provisioning.serviceAdded!==false,onBusiness,onBack,onRegister:()=>renderBusinessSetup({registrationForm:true})});return;
   }
   const details = provisioning?.details || {};
   const senderType = details.senderType || 'local_a2p';
@@ -405,7 +394,7 @@ async function renderBusinessSetup() {
         <div>
           <span class="eyebrow">Twilio registration · ${esc(state.tenant?.name || 'Business account')}</span>
           <h2>Complete business setup</h2>
-          <p class="muted">Provide the information needed to choose a phone number and prepare the applicable Twilio registration. Legal identity and tax information are entered later in Twilio's secure form — this CRM does not store that here. Business context for SMS and AI lives on its own page under Setup → Business context.</p>
+          <p class="muted">Provide the information needed to choose a phone number and prepare the applicable Twilio registration. Legal identity and tax information are entered later in Twilio's secure form — this CRM does not store that here. Your saved business profile is managed in Businesses.</p>
           ${setupStepsHtml(provisioning?.detailsComplete ? 2 : 1)}
         </div>
         <dl class="setup-facts">
@@ -496,7 +485,7 @@ async function renderBusinessSetup() {
             <ol class="setup-help-list">
               <li>We save this draft and pick a phone number for the subaccount.</li>
               <li>You complete Twilio's secure brand + campaign registration.</li>
-              <li>Sending unlocks automatically after Twilio approval.</li>
+              <li>After approval, test delivery and enable SMS.</li>
             </ol>
             <div class="card-head" style="border-top:1px solid var(--border)"><h2>Required for approval</h2></div>
             <ul class="setup-help-list">
@@ -531,7 +520,7 @@ async function renderBusinessSetup() {
 
   const reloadRegistration = async () => {
     state.setupRegistration = null;
-    await renderBusinessSetup();
+    await renderBusinessSetup({registrationForm:true});
   };
   el.root.querySelectorAll('[data-registration-action]').forEach((button) => button.addEventListener('click', async () => {
     const action = button.dataset.registrationAction;
@@ -1237,7 +1226,7 @@ const titles = {
   automations: ['Automations', 'Lifecycle-driven SMS sequences and enrollment rules'],
   email: ['Email', 'Manage opted-in email follow-ups through Resend.'],
   'ai-instructions': ['AI instructions', 'Set a separate prompt and context for each automation group, plus a business-wide prompt for general texts.'],
-  'business-setup': ['Business setup', 'Phone number and Twilio registration for this business.'],
+  'business-setup': ['SMS activation', 'Connect a sender, test delivery and enable SMS.'],
   'business-context': ['Business context', 'Business profile and approved knowledge for this business.'],
   knowledge: ['AI knowledge', 'Approve evidence, review leads, and resolve human handoffs.'],
   bookings: ['Bookings', 'Confirmed appointments created securely for this business.'],
@@ -1436,7 +1425,7 @@ const TAB_GROUPS = [
     { view: 'optouts', label: 'Opt-Outs' },
   ]},
   { id: 'setup', label: 'Setup', views: [
-    { view: 'business-setup', label: 'Business setup' },
+    { view: 'business-setup', label: 'SMS activation' },
     { view: 'business-context', label: 'Business context' },
     { view: 'booking-setup', label: 'Booking setup' },
 
@@ -1833,14 +1822,6 @@ async function renderOverview() {
     const response = await apiFetch('/api/sms/connection');
     if (response.ok) smsConnection = await response.json();
   } catch (error) { console.error(error); }
-  let onboardingComplete = state.setupOnboarding?.onboardingComplete;
-  if (state.platformStaff && onboardingComplete == null) {
-    try {
-      const onb = await fetchOnboarding();
-      state.setupOnboarding = onb;
-      onboardingComplete = onb.onboardingComplete;
-    } catch (error) { console.error(error); onboardingComplete = false; }
-  }
   el.kpi.innerHTML = [
     kpiCard('Conversations', totalsAvailable ? data.conversationCount ?? data.contactCount ?? 0 : '—'),
     kpiCard('Total SMS', totalsAvailable ? data.total ?? 0 : '—'),
@@ -1854,19 +1835,9 @@ async function renderOverview() {
     ${provisioning?.serviceAdded === false ? '<section class="card"><h2>SMS has not been added</h2><p>Review the profile and add SMS in Businesses.</p><button type="button" class="btn" data-open-registered-business>Open business setup</button></section>' : ''}
     ${provisioning && provisioning.serviceAdded !== false && !provisioning.sendingEnabled ? `
       <details class="card dashboard-details" open>
-        <summary>Business messaging setup</summary>
-        <p><strong>${esc({pending:'Preparing Twilio account',creating_account:'Creating Twilio subaccount',account_created:'Twilio subaccount created',creating_service:'Creating Messaging Service',awaiting_number:'Ready for phone number and registration',submission_unknown:'Twilio setup needs review',ready:'Messaging setup complete'}[provisioning.state] || String(provisioning.state || 'Setup pending').replaceAll('_',' '))}</strong></p>
-        <p class="muted">${provisioning.existingConnection
-          ? 'Your approved Twilio profile and phone number are connected. Open SMS setup to complete test delivery and activation.'
-          : provisioning.state === 'awaiting_number'
-          ? 'This business now has a separate Twilio subaccount under the parent billing account. Select and purchase its phone number, then complete the applicable campaign registration before enabling sending.'
-          : provisioning.state === 'submission_unknown'
-            ? 'Twilio may have created a resource before the response was interrupted. Review the parent Twilio account and reconcile it before retrying.'
-            : 'Setup runs in the background. Sending stays disabled until a phone number and the applicable registration are complete.'}</p>
-        <p class="muted">${provisioning.existingConnection ? 'Twilio profile: '+esc(provisioning.connectionDetails?.profileName||'connected') : 'Twilio details: '+(provisioning.detailsComplete ? 'saved · registration submission is next' : 'required')}</p>
-        <button type="button" class="btn" data-complete-business-setup>${provisioning.existingConnection ? 'Finish SMS activation' : provisioning.detailsComplete ? 'Review setup details' : 'Complete business setup'}</button>
-        <p class="muted" style="margin-top:12px">Business context for SMS + AI: ${onboardingComplete ? 'saved' : 'required'}</p>
-        <button type="button" class="btn ghost" data-open-business-context>${onboardingComplete ? 'Review business context' : 'Add business context'}</button>
+        <summary>Finish SMS activation</summary>
+        <p>${provisioning.existingConnection?'Your sender is connected. Test delivery, then enable SMS.':'Choose an approved sender, test delivery, then enable SMS.'}</p>
+        <button type="button" class="btn" data-complete-business-setup>Continue SMS setup</button>
       </details>` : ''}
     <div class="dashboard-actions" aria-label="Quick actions">
       <button type="button" class="dashboard-action" data-dashboard-view="messaging"><strong>Open inbox <span aria-hidden="true">→</span></strong><span>${state.platformStaff ? 'Read and reply to customers' : 'Read customer conversations'}</span></button>

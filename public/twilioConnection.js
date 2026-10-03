@@ -3,13 +3,14 @@ const esc=value=>String(value??'').replaceAll('&','&amp;').replaceAll('<','&lt;'
 export function mountTwilioConnection(container,business,{read,write,reload,onWorkspace}) {
  const reviewed=Boolean(business.setup?.reviewed_profile_id);
  const service=business.services?.find(s=>s.kind==='sms');
- container.innerHTML=`<section class="card twilio-connect-card"><div class="twilio-connect-heading"><div><span class="twilio-eyebrow">SMS CONNECTION</span><h3>Use an approved Twilio profile</h3>
+ container.innerHTML=`<section class="card twilio-connect-card"><div class="twilio-connect-heading"><div><span class="twilio-eyebrow">SMS CONNECTION</span><h3>Connect SMS</h3>
   <p>Connect an existing business profile and phone number from our Twilio account.</p></div><span class="twilio-status">${service?.phoneNumber?'Number connected':'Choose an existing sender'}</span></div>
   ${service?.phoneNumber?`<p class="twilio-connected-number">${esc(service.phoneNumber)}</p>`:''}
   <p>Each Twilio account is assigned to one CRM business. Connect the profile registered for <strong>${esc(business.name)}</strong>.</p>
   ${!reviewed?'<p class="profile-note">Save a reviewed business profile to connect Twilio.</p>':''}
-  <button class="btn ghost" type="button" data-open-twilio ${!reviewed?'disabled':''}>${service?.phoneNumber?'View Twilio connection':'Choose approved profile'}</button>
-  <div data-twilio-editor></div></section>`;
+  <button class="btn ghost" type="button" data-open-twilio ${!reviewed?'disabled':''}>${service?.phoneNumber?'Connection options':'Choose approved sender'}</button>
+  ${service?.phoneNumber?'<button class="btn" type="button" data-activate-sms>Finish SMS activation</button>':''}<div data-twilio-editor></div></section>`;
+ container.querySelector('[data-activate-sms]')?.addEventListener('click',()=>onWorkspace(business.tenant_id,'sms'));
  const open=container.querySelector('[data-open-twilio]'),editor=container.querySelector('[data-twilio-editor]');
  open.addEventListener('click',async()=>{
   open.disabled=true;editor.innerHTML='<p role="status">Loading connected Twilio accounts…</p>';
@@ -45,9 +46,9 @@ export function mountTwilioConnection(container,business,{read,write,reload,onWo
       const p=options[Number(radio.value)],already=connection?.accountSid===p.accountSid&&connection?.phoneNumber===p.phoneNumber;
       target.querySelector('[data-twilio-review]').innerHTML=`<div class="twilio-review"><h4>${already?'Current connection':'Review connection'}</h4><dl class="twilio-details">
        <div><dt>CRM business</dt><dd>${esc(business.name)}</dd></div><div><dt>Twilio business profile</dt><dd>${esc(p.profileName||p.legalBusinessName)}</dd></div>
-       <div><dt>Phone number</dt><dd>${esc(p.phoneNumber)}</dd></div><div><dt>Twilio account</dt><dd>${esc(p.accountName)}<small>${esc(p.accountSid)}</small></dd></div>
+       <div><dt>Phone number</dt><dd>${esc(p.phoneNumber)}</dd></div></dl><details><summary>Technical connection details</summary><dl class="twilio-details"><div><dt>Twilio account</dt><dd>${esc(p.accountName)}<small>${esc(p.accountSid)}</small></dd></div>
        <div><dt>Messaging Service</dt><dd>${esc(p.serviceName)}<small>${esc(p.messagingServiceSid)}</small></dd></div>
-       ${p.profileSid?`<div><dt>Profile reference</dt><dd>${esc(p.profileSid)}</dd></div>`:''}</dl>
+       ${p.profileSid?`<div><dt>Profile reference</dt><dd>${esc(p.profileSid)}</dd></div>`:''}</dl></details>
        <p>Account credentials stay private. Connecting configures the CRM SMS webhooks and adds the SMS service. Customer visibility and SMS activation are separate.</p>
        ${already?'<p class="twilio-status">This number is already connected.</p>':`<label class="twilio-identity-confirm"><input type="checkbox" name="confirmedBusinessIdentity" required><span>I confirm this Twilio profile is registered for ${esc(business.name)}.</span></label>`}
        <button class="btn" type="${already?'button':'submit'}" ${already?'data-open-setup':''}>${already?'Open SMS setup':'Connect this profile and number'}</button></div>`;

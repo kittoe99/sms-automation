@@ -1,10 +1,25 @@
 # Connect approved Twilio senders
 
+## Simplified activation
+
+Open **SMS activation** from Setup, or **Finish SMS activation** in the business
+connection card. The standard flow is **Choose approved sender → Test delivery →
+Enable SMS**. An approved connected sender only needs a test mobile number; its
+profile and registration are reused. Phone formatting spaces/dashes are accepted.
+A charge confirmation precedes the test. Delivery must succeed before the explicit
+Enable SMS action. An active business links straight to Forms.
+
+Account references and troubleshooting are collapsed. **Need a new number or
+registration?** opens the existing registration flow; required Twilio answers and
+paid-action confirmations are preserved. Loading failures show a retry instead of
+assuming an approved state. This is a frontend refinement: no migrations or API
+permission changes, and the E2 owner summary remains read-only.
+
 ## Staff workflow
 
 Open **Businesses**, select the registered business, and use **Twilio connection**
 to jump to its connection card. Save a reviewed business profile first. Choose
-**Choose approved profile**, select an active account, select its approved sender,
+**Choose approved sender**, select an active account, select its approved sender,
 and review the CRM business, Twilio profile, phone number, account and Messaging
 Service. Confirm the profile belongs to that business and connect it.
 
@@ -38,7 +53,7 @@ separate child accounts; an assigned account cannot be selected for another
 business. Replacing an already connected account requires a separately reviewed
 transfer and is deliberately unavailable in this initial connection workflow.
 
-Connecting initializes the established SMS forms and automation groups, stores
+Connecting stores
 provider details, and leaves sending disabled. New SMS services start with draft
 visibility; an existing service keeps its visibility. In **Configure SMS**,
 request the separately confirmed activation

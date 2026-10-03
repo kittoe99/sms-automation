@@ -1,5 +1,5 @@
 import {createRenderQueue} from './tabWorkspace.js?v=20261002-workspace';
-import {mountBusinessSetup} from './businessSetup.js?v=20261002-twilio-connect';
+import {mountBusinessSetup} from './businessSetup.js?v=20261003-activation';
 import {apiFetch,getAccessToken,runtimeConfig} from './auth.js?v=20261001-business-services';
 const esc=value=>String(value??'').replaceAll('&','&amp;').replaceAll('<','&lt;').replaceAll('>','&gt;').replaceAll('"','&quot;').replaceAll("'",'&#39;');
 const date=value=>value?new Date(value).toLocaleString():'—';
@@ -132,7 +132,7 @@ export function createPlatform({root,title,subtitle,pager,onNavigate,onWorkspace
   if(row.status==='active')await membershipEditor(body.querySelector('[data-editor]'),{accountId:row.id});
  }
  async function business(body,row){
-  body.innerHTML=`<h2>${esc(row.name)}</h2><p>Business ID: <code>${esc(row.tenant_id)}</code> · ${esc(row.time_zone)}</p>${button('Twilio connection','data-jump-twilio')}
+  body.innerHTML=`<h2>${esc(row.name)}</h2><p>Business ID: <code>${esc(row.tenant_id)}</code> · ${esc(row.time_zone)}</p>${button('SMS connection','data-jump-twilio')}
     <div data-business-setup></div><h3>People</h3>${row.memberships.map(m=>`<div class="card"><strong>${esc(m.name||m.email||m.account_id)}</strong><p>${esc(m.role)} · ${m.enabled?'Enabled':'Disabled'}</p>${button('Open user',`data-user="${esc(m.account_id)}"`)} ${button('Edit access',`data-edit="${esc(m.account_id)}"`)}</div>`).join('')||'<p>No owner or customer access assigned.</p>'}
     <h3>Websites</h3>${row.sites.map(s=>button(s.name,`data-website="${esc(s.id)}"`)).join('')||'<p>No websites assigned.</p>'}<div data-editor></div>`;
   bind('[data-user]','click',event=>{openRecord('accounts',event.currentTarget.dataset.user);});

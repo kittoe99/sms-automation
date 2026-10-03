@@ -1,5 +1,22 @@
 # Opek SMS project record
 
+### October 3 — simplified business SMS activation
+
+The CRM now defaults to choosing an approved sender, testing delivery and enabling
+SMS. Approved connections ask only for a test mobile number; technical details
+and new-sender registration are secondary disclosures. Businesses places the SMS
+connection first and links directly to activation. Existing business/profile facts
+are reused; the dashboard no longer asks for SMS AI context. Staff authorization,
+Twilio approval/delivery checks, explicit test-charge confirmation and customer
+service visibility remain unchanged. No schema, API, worker or E2 UI changes are
+required, so there is no new migration order to apply.
+
+Validation: 21 CRM activation/connection/API/access tests and 12 paired E2
+service/cache tests passed; frontend build and desktop/mobile layout checks passed.
+No real test SMS was sent and no business sending setting was changed.
+Local implementation complete; frontend release verification pending.
+
+
 ### October 3, 2026 — form-first SMS production release
 
 - Application revisions: CRM `0f1d6ea`, E2 `3ca64ba`, both pushed to GitHub.

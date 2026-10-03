@@ -1,11 +1,11 @@
 const esc=value=>String(value??'').replaceAll('&','&amp;').replaceAll('<','&lt;').replaceAll('>','&gt;').replaceAll('"','&quot;').replaceAll("'",'&#39;');
 import {profileFromForm,profileEditorHtml,bindProfileEditor} from './businessProfileEditor.js?v=20261002-profile-summary';
-import {mountTwilioConnection} from './twilioConnection.js?v=20261002-twilio-connect';
+import {mountTwilioConnection} from './twilioConnection.js?v=20261003-activation';
 export {profileFromForm};
 export function mountBusinessSetup(container,row,{read,write,reload,onCreateWebsite,onWebsite,onWorkspace,lookup}) {
  const setup=row.setup||{revision:0,draft:{}},profile={...row.registration?.profile,...setup.draft};
  const services=row.services||[],reviewed=Boolean(setup.reviewed_profile_id);
- container.innerHTML=`<section class="card business-profile-card">
+ container.innerHTML=`<div data-twilio-connection></div><section class="card business-profile-card">
    <form class="compose business-profile-form" data-profile><p data-profile-error class="login-error" role="alert"></p>
    ${profileEditorHtml(profile)}
    <div class="profile-savebar"><div><strong>${reviewed?'Reviewed profile':'Ready when you are'}</strong><p>${reviewed?'Reviewed '+esc(new Date(setup.reviewed_at).toLocaleString())+'. Draft edits take effect after review.':'Save your progress, or review the facts to continue with service setup.'}</p></div>
@@ -22,7 +22,7 @@ export function mountBusinessSetup(container,row,{read,write,reload,onCreateWebs
     ${s.kind==='website'?`<button type="button" class="btn ghost" data-site="${esc(s.site_id)}">Manage website</button>`:`<button type="button" class="btn ghost" data-configure="${s.kind}">Configure ${s.kind==='sms'?'SMS':s.kind}</button>`}</article>`).join('')||'<p>No services added.</p>'}
    <div class="compose-actions">${['sms','enquiries','bookings'].filter(kind=>!services.some(s=>s.kind===kind)).map(kind=>`<button type="button" class="btn ghost" data-add="${kind}" ${!reviewed?'disabled':''}>Add ${kind==='sms'?'SMS':kind}</button>`).join('')}
    <button type="button" class="btn ghost" data-new-site ${!reviewed?'disabled':''}>Create website</button>
-   <button type="button" class="btn ghost" data-link-site ${!reviewed?'disabled':''}>Link existing website</button></div><div data-site-link></div></section><div data-twilio-connection></div>`;
+   <button type="button" class="btn ghost" data-link-site ${!reviewed?'disabled':''}>Link existing website</button></div><div data-site-link></div></section>`;
  mountTwilioConnection(container.querySelector('[data-twilio-connection]'),row,{read,write,reload,onWorkspace});
  async function perform(button,error,action){if(button)button.disabled=true;error.textContent='';try{await action();await reload();}catch(e){error.textContent=e.message;if(button)button.disabled=false;}}
  const editor=bindProfileEditor(container.querySelector('[data-profile]'));
