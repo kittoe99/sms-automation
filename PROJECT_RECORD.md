@@ -1,5 +1,22 @@
 # Opek SMS project record
 
+### October 3 — activation sender verification hotfix
+
+The activation test failed before message creation because the compliance worker
+read Messaging Service phone resources as phoneNumberSid instead of the Twilio
+SDK's sid. The same field mismatch affected approval refresh and purchase
+reconciliation. Corrected all three checks and their fixtures, with an additional
+regression test proving attached senders pass and unrelated senders remain blocked.
+
+Compliance-worker **v11** is deployed and ACTIVE. A non-sending production status
+check completed successfully and restored webhook_verified. The earlier failed
+test remains in history; no SMS was sent or retried, and sending remains disabled
+until successful delivery and explicit activation. Nineteen targeted CRM tests
+passed, as did 12 paired E2 service/cache tests. No schema, API, frontend or E2
+runtime change is required; no migrations
+were applied.
+
+
 ### October 3 — simplified business SMS activation
 
 The CRM now defaults to choosing an approved sender, testing delivery and enabling

@@ -94,3 +94,13 @@ from the private provider and respect per-service visibility. No E2 application
 change or additional E2 migration is required. Release evidence belongs in both
 project records and must distinguish local tests, applied migration and live
 connection/activation status.
+
+
+### Activation verification troubleshooting
+
+An activation test stopped with ACTIVATION_VERIFICATION_FAILED before any message
+was created in compliance-worker v10. Version 11 fixes the Messaging Service
+PhoneNumber response check to use `sid` (the create request uses `phoneNumberSid`).
+After deployment, Check status verifies the sender again. The user may then submit
+a new test; failed tests are not automatically replayed and activation still waits
+for delivered status.

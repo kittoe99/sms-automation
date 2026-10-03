@@ -36,7 +36,7 @@ test('uncertain number reconciliation is read-only and adopts only an owned atta
  const uncertainId='00000000-0000-4000-8000-000000000001',calls=[],ctx={operation:{state:'pending',operation:'refresh_status',request:{reconcile:true}},uncertain_operation:{id:uncertainId,state:'submission_unknown',operation:'purchase_number',request:{selection:{phoneNumber:'+17205550123'}}},registration:{sender_type:'local_a2p',state:'submission_unknown'},provider:{account_sid:account,auth_token:'secret',messaging_service_sid:service}};
  const db={call:async(name,...args)=>{calls.push([name,...args]);if(name==='compliance_job_context')return ctx;}};
  const numbers=()=>({});numbers.list=async()=>[{sid:phoneSid,accountSid:account,phoneNumber:'+17205550123'}];
- const services=()=>({phoneNumbers:{list:async()=>[{phoneNumberSid:phoneSid}]}});
+ const services=()=>({phoneNumbers:{list:async()=>[{sid:phoneSid}]}});
  await processCompliance({id:'job',lease_token:'lease'},db,{clientFactory:()=>({incomingPhoneNumbers:numbers,messaging:{v1:{services}}})});
  const checkpoint=calls.find(x=>x[0]==='compliance_checkpoint');assert.equal(checkpoint[4].registrationState,'in_review');assert.equal(checkpoint[4].phoneNumberSid,phoneSid);assert.equal(checkpoint[4].reconciledOperationId,uncertainId);
  assert.equal(calls.some(x=>x[0]==='compliance_checkpoint'&&x[3]==='submitting'),false);
@@ -48,9 +48,21 @@ test('status refresh recognizes approved toll-free records and the A2P complianc
   const ctx={operation:{state:'pending',operation:'refresh_status',request:{}},registration:{sender_type:senderType,state:'webhook_verified',verification_sid:senderType==='toll_free'?registrationSid:null,campaign_sid:senderType==='local_a2p'?registrationSid:null},provider:{account_sid:account,auth_token:'secret',messaging_service_sid:service,phone_number_sid:phoneSid}};
   const db={call:async(name,...args)=>{calls.push([name,...args]);if(name==='compliance_job_context')return ctx;}};
   const numbers=()=>({fetch:async()=>({accountSid:account})});
-  const services=()=>({fetch:async()=>({inboundRequestUrl:'https://example.test/inbound',statusCallback:'https://example.test/status'}),phoneNumbers:{list:async()=>[{phoneNumberSid:phoneSid}]}});
+  const services=()=>({fetch:async()=>({inboundRequestUrl:'https://example.test/inbound',statusCallback:'https://example.test/status'}),phoneNumbers:{list:async()=>[{sid:phoneSid}]}});
   const payload=senderType==='toll_free'?{sid:registrationSid,status:'TWILIO_APPROVED'}:{compliance:[{sid:registrationSid,campaign_status:'VERIFIED'}]};
   await processCompliance({id:'job',lease_token:'lease'},db,{clientFactory:()=>({incomingPhoneNumbers:numbers,messaging:{v1:{services}}}),fetchImpl:async()=>new Response(JSON.stringify(payload))});
   const checkpoint=calls.find(x=>x[0]==='compliance_checkpoint')[4];assert.equal(checkpoint.registrationState,'webhook_verified');assert.equal(senderType==='toll_free'?checkpoint.verificationSid:checkpoint.campaignSid,registrationSid);
+ }
+});
+
+test('activation accepts the SDK sender sid and rejects a number outside its service',async()=>{
+ for(const attached of [true,false]){
+  const calls=[],ctx={operation:{state:'pending',operation:'activation_canary'},registration:{state:'webhook_verified'},provider:{account_sid:account,auth_token:'secret',messaging_service_sid:service,phone_number_sid:phoneSid}};
+  const db={call:async(name,...args)=>{calls.push([name,...args]);if(name==='compliance_job_context')return ctx;}};
+  const numbers=()=>({fetch:async()=>({accountSid:account})});
+  const services=()=>({fetch:async()=>({inboundRequestUrl:'https://example.test/inbound',statusCallback:'https://example.test/status'}),phoneNumbers:{list:async()=>[{sid:attached?phoneSid:'PN'+'9'.repeat(32),accountSid:account,serviceSid:service}]}});
+  const run=()=>processCompliance({id:'job',lease_token:'lease'},db,{clientFactory:()=>({incomingPhoneNumbers:numbers,messaging:{v1:{services}}})});
+  if(attached){await run();assert.equal(calls.filter(x=>x[0]==='queue_activation_canary').length,1);}
+  else {await assert.rejects(run,{code:'ACTIVATION_VERIFICATION_FAILED'});assert.equal(calls.some(x=>x[0]==='queue_activation_canary'),false);}
  }
 });
