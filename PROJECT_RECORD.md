@@ -8,8 +8,10 @@ with read-only active/paused status and compatible handling of older cached payl
 Applied only CRM 20261003213902 then E2 20261003213905 after guarded prerequisite
 checks. Existing access rules and cache triggers are unchanged. Security advisors
 remain at five pre-existing findings, with no additions. Eleven CRM and 25 E2 tests
-passed; E2 production build and desktop/mobile previews passed. E2 frontend release
-verification is pending; CRM frontend/API/worker releases are unnecessary.
+passed; E2 production build and desktop/mobile previews passed. E2 application
+7916e1d is published: the authenticated production owner SMS tab shows Awaiting
+activation, Ready to enable SMS and separate Sending disabled details. CRM
+frontend/API/worker releases are unnecessary. No messages or sending settings changed.
 
 ### October 3 — retain delivered activation tests on refresh
 
