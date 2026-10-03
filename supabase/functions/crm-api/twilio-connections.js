@@ -83,7 +83,7 @@ export function createTwilioConnections({clientFactory=twilio,environment=env}={
    return {accounts,truncated:rows.length===LIMIT};
   },
   async profiles(db,user,selected,tenant) {
-   const access=await db.call('twilio_connection_access',user,tenant);
+   const access=await db.call('twilio_connection_access',user,tenant??null);
    const data=await inventory(selected);
    const binding=access.bindings?.find(b=>b.accountSid===selected);
    return {options:data.options.map(p=>({...p,assignedBusiness:binding||null})),unavailable:data.unavailable,truncated:data.truncated,

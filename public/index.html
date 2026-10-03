@@ -10,9 +10,9 @@
     />
     <title>E2.Local CRM</title>
     <link rel="icon" href="/e2-icon.svg" type="image/svg+xml" />
-    <link rel="stylesheet" href="/styles.css?v=20261003-sms-nav" />
+    <link rel="stylesheet" href="/styles.css?v=20261003-directory" />
     <link rel="stylesheet" href="/e2-theme.css?v=20260930-login-options" />
-    <link rel="stylesheet" href="/dashboard-theme.css?v=20261002-automation-setup" />
+    <link rel="stylesheet" href="/dashboard-theme.css?v=20261003-directory" />
   </head>
   <body>
     <a class="skip-link" href="#view-root">Skip to main content</a>
@@ -72,6 +72,12 @@
         <nav id="section-nav" class="section-nav" aria-label="Workspace areas"></nav>
         <div class="sidebar-note"><span class="sidebar-note-icon" aria-hidden="true">↗</span><strong>A little less busywork.</strong><p>Your customers, conversations and follow-ups. All together.</p></div>
         <nav class="nav" id="nav" aria-label="CRM sections">
+          <section data-nav-section="twilio" data-platform-nav hidden>
+            <p class="nav-label">Twilio</p>
+            <button type="button" class="nav-item" data-view="platform-twilio" data-find="twilio accounts approved profiles senders phone linking">
+              <svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="9"/><path d="M8 8h2v2H8zM14 8h2v2h-2zM8 14h2v2H8zM14 14h2v2h-2z"/></svg><span>Twilio accounts</span>
+            </button>
+          </section>
           <section data-nav-section="platform" data-platform-nav hidden>
             <p class="nav-label">Platform</p>
             <button type="button" class="nav-item" data-view="platform-accounts" data-find="platform users accounts ownership">
@@ -249,6 +255,6 @@
 
     <script type="importmap">{"imports":{"fflate":"/vendor/fflate.js"}}</script>
     <script src="/config.js"></script>
-    <script src="/app.js?v=20261003-sms-nav" type="module"></script>
+    <script src="/app.js?v=20261003-directory" type="module"></script>
   </body>
 </html>

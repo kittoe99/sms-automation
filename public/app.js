@@ -3,7 +3,7 @@ installPhoneFormatting();
 import {createTabMemory, createRenderQueue} from './tabWorkspace.js?v=20261002-workspace';
 import {readBusinessProfile,writeBusinessProfile} from './profileClient.js?v=20261002-access';
 import {canOpenWorkspace,canWriteWorkspace,staffActionSelector} from './workspacePermissions.js?v=20261002-access';
-import { createPlatform } from './platform.js?v=20261003-sms-nav';
+import { createPlatform } from './platform.js?v=20261003-directory';
 import {mountTwilioActivation,mountSmsSetupChoice,smsSetupActionsHtml} from './twilioActivation.js?v=20261003-sms-nav';
 import {smsConnectionSummary} from './smsConnectionSummary.js?v=20261002-sms-summary';
 import { connectSupabaseLive } from './live.js?v=20261001-business-services';
@@ -33,7 +33,7 @@ async function apiFetch(path, options = {}) {
   return response;
 }
 
-const KNOWN_VIEWS = ['overview','contacts','messaging','bookings','automations','email','call','messages','deliverability','optouts','ai-instructions','business-setup','business-context','booking-setup','web-forms','knowledge','platform-accounts','platform-businesses','platform-websites'];
+const KNOWN_VIEWS = ['overview','contacts','messaging','bookings','automations','email','call','messages','deliverability','optouts','ai-instructions','business-setup','business-context','booking-setup','web-forms','knowledge','platform-accounts','platform-businesses','platform-websites','platform-twilio'];
 function initialViewFromUrl() {
   const view = new URLSearchParams(location.search).get('view');
   if (['automations','ai-instructions'].includes(view)) return 'web-forms';
@@ -113,7 +113,7 @@ function currentPlatform() {
           lastRenderedView = view;
         }
         state.view=view;el.toolbarTenant.textContent='CRM';
-        el.toolbarSection.textContent={'platform-accounts':'Users','platform-businesses':'Businesses','platform-websites':'Websites'}[view];
+        el.toolbarSection.textContent={'platform-accounts':'Users','platform-businesses':'Businesses','platform-websites':'Websites','platform-twilio':'Twilio accounts'}[view];
         setActiveNav();
       },
     });
@@ -1442,6 +1442,7 @@ const TAB_GROUPS = [
     { view: 'booking-setup', label: 'Booking setup' },
 
   ]},
+  { id: 'twilio', label: 'Twilio', views: [{view:'platform-twilio',label:'Twilio accounts'}]},
   { id: 'platform', label: 'Platform', views: [
     { view: 'platform-accounts', label: 'Users' },
     { view: 'platform-businesses', label: 'Businesses' },
@@ -1457,7 +1458,7 @@ function renderSectionNavigation(activeGroup) {
   nav.innerHTML = TAB_GROUPS.map(group => {
     const allowed = group.views.filter(tab => canOpenWorkspace(tab.view, state.platformStaff, state.tenant));
     if (!allowed.length) return '';
-    const icons = {work:'▦', reports:'↗', setup:'⚙', platform:'◈'};
+    const icons = {work:'▦', reports:'↗', setup:'⚙', platform:'◈', twilio:'◎'};
     return `<button type="button" class="section-link ${group.id === activeGroup.id ? 'active' : ''}" data-section="${group.id}" ${group.id === activeGroup.id ? 'aria-current="true"' : ''}><span aria-hidden="true">${icons[group.id]}</span><span>${group.label}</span><small>${allowed.length}</small></button>`;
   }).join('');
 }
@@ -1706,7 +1707,7 @@ async function renderWorkspace(options = {}) {
     if (state.view.startsWith('platform-')) {
       el.search.closest('.search-wrap').hidden = true; el.status.hidden = true; el.kpi.innerHTML = '';
       el.toolbarTenant.textContent='CRM';
-      el.toolbarSection.textContent={ 'platform-accounts':'Users','platform-businesses':'Businesses','platform-websites':'Websites' }[state.view];
+      el.toolbarSection.textContent={ 'platform-accounts':'Users','platform-businesses':'Businesses','platform-websites':'Websites','platform-twilio':'Twilio accounts' }[state.view];
       await platform.render(state.view); lastRenderedView = state.view; tabStatus(); return;
     }
     el.root.classList.remove('platform-root');
@@ -3762,7 +3763,7 @@ async function openAuthenticatedWorkspace() {
   state.platformStaff = Boolean(session.capabilities?.platformStaff);
   document.getElementById('add-business').hidden = !state.platformStaff;
   await loadTenantContext();
-  if (!state.tenant && state.platformStaff) { state.view = 'platform-accounts'; setActiveNav(); }
+  if (!state.tenant && state.platformStaff && !state.view.startsWith('platform-')) { state.view = 'platform-accounts'; setActiveNav(); }
   showCrmApp();
   updateAuthChrome();
   if (runtimeConfig.previewReadOnly) {

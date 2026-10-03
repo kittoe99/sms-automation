@@ -1,4 +1,5 @@
 import {createRenderQueue} from './tabWorkspace.js?v=20261002-workspace';
+import {mountTwilioAccounts} from './twilioAccounts.js?v=20261003-directory';
 import {mountBusinessSetup} from './businessSetup.js?v=20261003-sms-nav';
 import {apiFetch,getAccessToken,runtimeConfig} from './auth.js?v=20261001-business-services';
 const esc=value=>String(value??'').replaceAll('&','&amp;').replaceAll('<','&lt;').replaceAll('>','&gt;').replaceAll('"','&quot;').replaceAll("'",'&#39;');
@@ -34,6 +35,7 @@ export function createPlatform({root,title,subtitle,pager,onNavigate,onWorkspace
  }
  function error(){return '<p data-error class="login-error" role="alert"></p>';}
  async function directory(){
+  if(view==='twilio'){title.textContent='Twilio accounts';subtitle.textContent='Approved senders and business connections';pager.hidden=true;await mountTwilioAccounts(root,{read,onBusiness:id=>openRecord('businesses',id)});return;}
   title.textContent={accounts:'Users',businesses:'Businesses',websites:'Websites'}[view];subtitle.textContent='Platform management';pager.hidden=true;
   const result=await read(view,{page,pageSize:25,q});
   root.innerHTML=`<section class="card"><form data-search class="compose"><label>Search ${esc(title.textContent.toLowerCase())}<input name="q" value="${esc(q)}" maxlength="120"/></label><button class="btn">Search</button></form>${error()}

@@ -1,5 +1,15 @@
 # Opek SMS project record
 
+### October 3 — standalone Twilio accounts section
+
+Added a dedicated Twilio navigation area and account directory independent of the
+selected business. Staff browse linked/unlinked accounts, approved senders and
+attention reasons, and open linked businesses. The existing profiles API now maps
+an omitted business scope to SQL null; staff authorization still precedes inventory.
+No schema/permission changes, connections, activations or sends. Twenty CRM and five
+paired E2 UI tests passed, plus frontend build. API/frontend release verification
+pending; E2 runtime remains unchanged.
+
 ### October 3 — visible staff SMS connection and activation actions
 
 The CRM dashboard now has a persistent staff-only SMS setup card with Approved

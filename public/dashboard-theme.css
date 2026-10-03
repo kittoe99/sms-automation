@@ -270,7 +270,8 @@ body { font-family: "Plus Jakarta Sans", Arial, sans-serif; font-size: 14px; }
 .crm #nav[data-section="work"] > [data-nav-section="work"],
 .crm #nav[data-section="reports"] > [data-nav-section="reports"],
 .crm #nav[data-section="settings"] > [data-nav-section="settings"],
-.crm #nav[data-section="platform"] > [data-nav-section="platform"] { display:block; }
+.crm #nav[data-section="platform"] > [data-nav-section="platform"],
+.crm #nav[data-section="twilio"] > [data-nav-section="twilio"] { display:block; }
 .crm #nav.is-searching > section { display:block; }
 .crm .sidebar-note { order:1; margin-top:20px; }
 .crm .dashboard-support-link { order:2; }

@@ -1,5 +1,15 @@
 # Connect approved Twilio senders
 
+## Standalone account directory
+
+Staff always have a dedicated Twilio area in the CRM navigation. Twilio accounts
+lists active parent/subaccounts and linked businesses without requiring a selected
+business. View approved senders loads verified toll-free and A2P options, with a
+separate disclosure for senders needing attention. Open linked business continues
+to the existing connection/activation flow. Directory reads neither connect numbers
+nor send messages. The direct route is ?view=platform-twilio. Customer and operator
+permissions are unchanged; this inventory is staff-only.
+
 ## Simplified activation
 
 Staff can start directly from the CRM Dashboard's SMS setup & activation card:

@@ -28,6 +28,11 @@ test('inventory exposes only approved associated senders and never credentials',
  assert.equal(a.accounts[0].sid,account);assert.equal(p.options.length,1);assert.equal(p.options[0].profileName,'Example Services LLC');assert.equal(p.options[0].phoneNumber,'+18775550180');
  assert.equal(JSON.stringify([a,p]).includes('private-token'),false);assert.deepEqual(x.calls[0],['twilio_connection_access','admin',null]);
 });
+
+test('standalone sender inventory uses a null business scope with staff authorization and no mutations',async()=>{
+ const x=fixture();const result=await x.api.profiles(x.db,'admin',account);
+ assert.deepEqual(x.calls[0],['twilio_connection_access','admin',null]);assert.equal(result.options.length,1);assert.deepEqual(x.mutations,[]);
+});
 test('rejected or pending verification, unapproved profiles and ambiguous sender pools are unavailable',async()=>{
  for(const status of ['IN_REVIEW','TWILIO_REJECTED']){const x=fixture();x.data.verifications[0].status=status;assert.equal((await x.api.profiles(x.db,'admin',account,'business')).options.length,0);}
  const x=fixture();x.data.profiles[0].status='pending-review';assert.match((await x.api.profiles(x.db,'admin',account,'business')).unavailable[0].reason,/profile/);
