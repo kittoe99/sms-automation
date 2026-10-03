@@ -1,5 +1,20 @@
 # Opek SMS project record
 
+### October 3 — retain delivered activation tests on refresh
+
+A status refresh overwrote ready with webhook_verified even after the activation
+test was delivered, hiding Enable SMS. The compliance worker now checks the saved
+receipt after current approval and sender/webhook verification. A matching delivered
+receipt restores ready; pending/failed receipts remain gated. Account, service,
+sender and recipient must match. Refresh does not enable sending or send messages.
+
+Compliance-worker v12 is deployed and ACTIVE. A production Check status completed
+and restored ready with the existing delivered test; sending_enabled remains false
+pending the user's explicit Enable SMS action. Twenty-four relevant CRM tests passed
+(two historical AI tests skipped), plus 20 paired E2 service/cache tests. No database,
+API or frontend changes/migrations are needed; paired customer projection and cache
+contracts are unchanged. See docs/TWILIO_CONNECTIONS.md.
+
 ### October 3 — automatic phone country codes
 
 CRM activation, business profile/contact inputs and public embedded forms share

@@ -24,7 +24,6 @@ export async function processCompliance(job,db,{clientFactory=twilio,fetchImpl=f
    if(!senders.some(x=>x.sid===owned.sid)){await db.call('compliance_checkpoint',job.id,job.lease_token,'completed',{registrationState:'submission_unknown',rejectionCode:'SENDER_ATTACHMENT_UNCONFIRMED',rejectionReason:'The number exists in the child account but is not attached to the Messaging Service. Staff action is required.'});return db.call('finish',job.id,job.lease_token,'completed',null,0);}
    await db.call('compliance_checkpoint',job.id,job.lease_token,'completed',{registrationState:ctx.registration.sender_type==='toll_free'?'verification_pending':'in_review',phoneNumberSid:owned.sid,phoneNumber:owned.phoneNumber,reconciledOperationId:ctx.uncertain_operation.id,rejectionReason:null,rejectionCode:null});return db.call('finish',job.id,job.lease_token,'completed',null,0);
   }
-  if(ctx.registration.state==='canary_pending'&&ctx.registration.canary_message_sid){const message=await child.messages(ctx.registration.canary_message_sid).fetch();const registrationState=message.status==='delivered'?'ready': ['failed','undelivered'].includes(message.status)?'webhook_verified':'canary_pending';await db.call('compliance_checkpoint',job.id,job.lease_token,'completed',{registrationState,canaryMessageSid:message.sid,rejectionReason:message.errorMessage||null,rejectionCode:message.errorCode?String(message.errorCode):null});return db.call('finish',job.id,job.lease_token,'completed',null,0);}
   const auth=`Basic ${btoa(`${ctx.provider.account_sid}:${ctx.provider.auth_token}`)}`;let url;
   const checkingBrand=ctx.registration.sender_type==='local_a2p'&&!ctx.registration.brand_registration_sid&&ctx.registration.bundle_sid;
   if(checkingBrand)url=`https://messaging.twilio.com/v1/a2p/BrandRegistrations?A2PProfileBundleSid=${encodeURIComponent(ctx.registration.bundle_sid)}`;
@@ -41,7 +40,19 @@ export async function processCompliance(job,db,{clientFactory=twilio,fetchImpl=f
   if(checkingBrand&&registrationState==='approved')registrationState='campaign_pending';
   else if(ctx.registration.sender_type==='local_a2p'&&registrationState==='approved'&&!ctx.provider.phone_number_sid)registrationState='number_pending';
   let verifiedState=registrationState;if(registrationState==='approved'&&ctx.provider.phone_number_sid){const [number,service,senders]=await Promise.all([child.incomingPhoneNumbers(ctx.provider.phone_number_sid).fetch(),child.messaging.v1.services(ctx.provider.messaging_service_sid).fetch(),child.messaging.v1.services(ctx.provider.messaging_service_sid).phoneNumbers.list({limit:100})]);if(number.accountSid===ctx.provider.account_sid&&senders.some(x=>x.sid===ctx.provider.phone_number_sid)&&/^https:\/\//.test(service.inboundRequestUrl||'')&&/^https:\/\//.test(service.statusCallback||''))verifiedState='webhook_verified';}
-  await db.call('compliance_checkpoint',job.id,job.lease_token,'completed',{registrationState:verifiedState,brandRegistrationSid:checkingBrand?value.sid:null,campaignSid:!checkingBrand&&!isTollFree?value.sid:null,verificationSid:isTollFree?value.sid:null,rejectionCode:value.failure_code||value.error_code||null,rejectionReason:value.failure_reason||value.rejection_reason||null,providerResourceSid:value.sid||null});
+  // Recheck the saved test after approval and sender verification. A refresh must
+  // not discard a delivered test or use a test from a different connection.
+  let testErrorCode=null,testErrorReason=null;
+  if(verifiedState==='webhook_verified'&&ctx.registration.canary_message_sid){
+   const message=await child.messages(ctx.registration.canary_message_sid).fetch();
+   const matches=message.sid===ctx.registration.canary_message_sid&&message.accountSid===ctx.provider.account_sid&&message.from===ctx.provider.from_number&&message.to===ctx.registration.canary_phone&&message.messagingServiceSid===ctx.provider.messaging_service_sid;
+   if(matches){
+    if(message.status==='delivered')verifiedState='ready';
+    else if(['accepted','scheduled','queued','sending','sent'].includes(message.status))verifiedState='canary_pending';
+    testErrorCode=message.errorCode?String(message.errorCode):null;testErrorReason=message.errorMessage||null;
+   }
+  }
+  await db.call('compliance_checkpoint',job.id,job.lease_token,'completed',{registrationState:verifiedState,brandRegistrationSid:checkingBrand?value.sid:null,campaignSid:!checkingBrand&&!isTollFree?value.sid:null,verificationSid:isTollFree?value.sid:null,rejectionCode:value.failure_code||value.error_code||testErrorCode,rejectionReason:value.failure_reason||value.rejection_reason||testErrorReason,providerResourceSid:value.sid||null});
   return db.call('finish',job.id,job.lease_token,'completed',null,0);
  }
  if(operation.operation!=='purchase_number')throw fail('This compliance operation requires an embedded Twilio session','EMBEDDED_SESSION_REQUIRED',true);

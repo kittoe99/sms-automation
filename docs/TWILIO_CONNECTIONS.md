@@ -9,6 +9,13 @@ profile and registration are reused. Phone formatting spaces/dashes are accepted
 A charge confirmation precedes the test. Delivery must succeed before the explicit
 Enable SMS action. An active business links straight to Forms.
 
+Check status revalidates approval, sender attachment and the saved test receipt.
+A delivered test stays ready across repeated refreshes, including recovery from
+an older refresh that reset it to webhook_verified. The receipt must match the
+current account, service, sender and test recipient. Pending/failed tests and lost
+approval do not pass. Refresh never enables sending or sends another test.
+The dashboard remains Sending disabled until the separate Enable SMS action succeeds.
+
 Account references and troubleshooting are collapsed. **Need a new number or
 registration?** opens the existing registration flow; required Twilio answers and
 paid-action confirmations are preserved. Loading failures show a retry instead of
