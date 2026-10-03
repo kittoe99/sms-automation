@@ -1,6 +1,11 @@
 import {normalizePhoneInput,installPhoneFormatting} from './phoneInput.js?v=20261003-phone';
 const esc=value=>String(value??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
 const approvedStates=['approved','webhook_verified','canary_pending','ready','active'];
+export function smsSetupActionsHtml({staff=false,summary=null}={}) {
+ if(!staff)return '';
+ const active=summary?.messagingStatus==='active',ready=!active&&summary?.activationStatus==='ready';
+ return `<section class="card"><h2>SMS setup & activation</h2><p>${active?'SMS is enabled. View your connected account and approved senders.':ready?'Your sender is approved and the delivery test has passed. One step remains: enable SMS.':'Choose an approved Twilio account and sender, then complete the delivery test and enable SMS.'}</p><div class="compose-actions"><button type="button" class="btn ghost" data-dashboard-twilio>Approved Twilio accounts</button><button type="button" class="btn" data-complete-business-setup>${active?'View SMS activation':ready?'Review and enable SMS':'Continue SMS activation'}</button></div></section>`;
+}
 export function activationView(provider={},registration={}) {
  const state=registration.state||'unknown',active=provider.sendingEnabled===true;
  return {state,active,approved:approvedStates.includes(state),test:!active&&state==='webhook_verified',pending:!active&&state==='canary_pending',enable:!active&&state==='ready',
@@ -9,7 +14,7 @@ export function activationView(provider={},registration={}) {
 export function activationHtml({provider={},registration={},businessName=''}) {
  const p=provider.connectionDetails||{},v=activationView(provider,registration);
  const sender=p.senderType||registration.sender_type;
- return `<div class="setup-page sms-activation"><div class="setup-topbar"><button type="button" class="btn ghost" data-back>← Dashboard</button><span class="setup-status ${v.active?'ok':''}">${v.active?'SMS active':'Sending disabled'}</span></div>
+ return `<div class="setup-page sms-activation"><div class="setup-topbar"><button type="button" class="btn ghost" data-back>← Dashboard</button><span class="setup-status ${v.active?'ok':''}">${v.active?'SMS active':v.enable?'Awaiting activation':'Sending disabled'}</span></div>
  <section class="card twilio-connect-card"><span class="twilio-eyebrow">SMS FOR ${esc(businessName||'THIS BUSINESS')}</span><h2>${esc(v.title)}</h2>
  <p class="twilio-connected-number">${esc(provider.phoneNumber||'No number connected')}</p>
  <p>${esc(p.profileName||p.legalBusinessName||businessName||'Connected business')} · ${sender==='toll_free'?'Toll-free':sender==='local_a2p'?'A2P 10DLC':'Sender type unavailable'}</p>
@@ -18,8 +23,9 @@ export function activationHtml({provider={},registration={},businessName=''}) {
  ${v.pending?'<p role="status">Your test SMS is on its way. Check delivery status to continue.</p>':''}
  ${v.enable?'<p>The test was delivered successfully. Enable SMS for this business when you are ready.</p><button class="btn" type="button" data-enable>Enable SMS</button>':''}
  ${v.active?'<p>This business can send SMS. Manage your messages and schedules in Forms.</p><button class="btn" type="button" data-forms>Open Forms</button>':''}
- ${!v.active&&!v.test&&!v.pending&&!v.enable?'<p>The sender needs an approval or connection check before activation. Check status, or review the connection in Businesses.</p><button class="btn ghost" type="button" data-business>Review connection</button>':''}
+ ${!v.active&&!v.test&&!v.pending&&!v.enable?'<p>The sender needs an approval or connection check before activation. Check status, or review the approved Twilio accounts below.</p>':''}
  ${!v.active?'<button class="btn ghost" type="button" data-refresh>Check status</button>':''}
+ <button class="btn ghost" type="button" data-business>Approved Twilio accounts</button>
  <p data-feedback role="status"></p><p data-error class="login-error" role="alert"></p>
  </section><details class="card sms-activation-details"><summary>Connection details & troubleshooting</summary><dl class="twilio-details"><div><dt>Profile</dt><dd>${esc(p.profileName||p.legalBusinessName||'Not available')}</dd></div><div><dt>Registration status</dt><dd>${esc(v.state.replaceAll('_',' '))}</dd></div><div><dt>Twilio account</dt><dd>${esc(p.accountName||'Not available')}<small>${esc(p.accountSid)}</small></dd></div><div><dt>Messaging service</dt><dd>${esc(p.serviceName||'Not available')}<small>${esc(p.messagingServiceSid)}</small></dd></div></dl>${registration.rejection_reason?`<p class="login-error">${esc(registration.rejection_reason)}</p>`:''}<p>Customer dashboard visibility is managed separately in Businesses.</p></details></div>`;
 }

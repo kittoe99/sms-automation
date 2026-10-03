@@ -3,8 +3,8 @@ installPhoneFormatting();
 import {createTabMemory, createRenderQueue} from './tabWorkspace.js?v=20261002-workspace';
 import {readBusinessProfile,writeBusinessProfile} from './profileClient.js?v=20261002-access';
 import {canOpenWorkspace,canWriteWorkspace,staffActionSelector} from './workspacePermissions.js?v=20261002-access';
-import { createPlatform } from './platform.js?v=20261003-phone';
-import {mountTwilioActivation,mountSmsSetupChoice} from './twilioActivation.js?v=20261003-phone';
+import { createPlatform } from './platform.js?v=20261003-sms-nav';
+import {mountTwilioActivation,mountSmsSetupChoice,smsSetupActionsHtml} from './twilioActivation.js?v=20261003-sms-nav';
 import {smsConnectionSummary} from './smsConnectionSummary.js?v=20261002-sms-summary';
 import { connectSupabaseLive } from './live.js?v=20261001-business-services';
 import { createFormWorkspace } from './formWorkspace.js?v=20261003-forms';
@@ -214,8 +214,18 @@ document.getElementById('add-business')?.addEventListener('click', () => {
 });
 
 function openBusinessSetup(provisioning = null) {
-  if (provisioning) state.setupProvisioning = provisioning;
-  switchView('business-setup');
+  state.setupProvisioning = provisioning;
+  state.setupRegistration = null;
+  return switchView('business-setup',{force:true});
+}
+
+async function openApprovedTwilioAccounts() {
+  if(!state.platformStaff||!state.tenant?.id)return;
+  const id=state.tenant.id;
+  await switchView('platform-businesses');
+  await platform.openBusiness(id);
+  el.root.querySelector('[data-twilio-connection]')?.scrollIntoView({block:'start'});
+  el.root.querySelector('[data-open-twilio]')?.click();
 }
 
 function openBusinessContext() {
@@ -368,7 +378,7 @@ async function renderBusinessSetup({registrationForm=false}={}) {
     el.root.querySelector('[data-retry-setup]').onclick=()=>renderBusinessSetup({registrationForm});return;
   }
   state.setupProvisioning=provisioning;state.setupRegistration=registration;
-  const onBusiness=async()=>{const id=state.tenant.id;await switchView('platform-businesses');await platform.openBusiness(id);el.root.querySelector('[data-twilio-connection]')?.scrollIntoView({block:'start'});};
+  const onBusiness=openApprovedTwilioAccounts;
   const onBack=()=>switchView('overview');
   if(provisioning.existingConnection||(provisioning.phoneNumber&&['approved','webhook_verified','canary_pending','ready','active','paused'].includes(registration.state))) {
     mountTwilioActivation(el.root,{provider:provisioning,registration,apiFetch,businessName:state.tenant?.name,onBusiness,onBack,onForms:()=>switchView('web-forms'),
@@ -1834,13 +1844,7 @@ async function renderOverview() {
   el.root.innerHTML = `
     ${totalsAvailable ? '' : '<p class="muted" role="status">Message totals are unavailable. Select Refresh to try again.</p>'}
     ${smsConnection ? smsConnectionSummary(smsConnection) : '<p class="muted" role="status">SMS connection details are unavailable. Select Refresh to try again.</p>'}
-    ${provisioning?.serviceAdded === false ? '<section class="card"><h2>SMS has not been added</h2><p>Review the profile and add SMS in Businesses.</p><button type="button" class="btn" data-open-registered-business>Open business setup</button></section>' : ''}
-    ${provisioning && provisioning.serviceAdded !== false && !provisioning.sendingEnabled ? `
-      <details class="card dashboard-details" open>
-        <summary>Finish SMS activation</summary>
-        <p>${provisioning.existingConnection?'Your sender is connected. Test delivery, then enable SMS.':'Choose an approved sender, test delivery, then enable SMS.'}</p>
-        <button type="button" class="btn" data-complete-business-setup>Continue SMS setup</button>
-      </details>` : ''}
+    ${smsSetupActionsHtml({staff:state.platformStaff,summary:smsConnection})}
     <div class="dashboard-actions" aria-label="Quick actions">
       <button type="button" class="dashboard-action" data-dashboard-view="messaging"><strong>Open inbox <span aria-hidden="true">→</span></strong><span>${state.platformStaff ? 'Read and reply to customers' : 'Read customer conversations'}</span></button>
       <button type="button" class="dashboard-action" data-dashboard-view="contacts"><strong>View contacts <span aria-hidden="true">→</span></strong><span>Find a customer or lead</span></button>
@@ -1933,6 +1937,7 @@ async function renderOverview() {
   el.root.querySelector('[data-complete-business-setup]')?.addEventListener('click', () => {
     openBusinessSetup();
   });
+  el.root.querySelector('[data-dashboard-twilio]')?.addEventListener('click',openApprovedTwilioAccounts);
   el.root.querySelector('[data-open-business-context]')?.addEventListener('click', () => {
     openBusinessContext();
   });

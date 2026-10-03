@@ -2,6 +2,12 @@
 
 ## Simplified activation
 
+Staff can start directly from the CRM Dashboard's SMS setup & activation card:
+Approved Twilio accounts opens the selected business's account dropdown and sender
+inventory. Review and enable SMS opens activation with fresh status when the test
+has passed. The activation page also always exposes Approved Twilio accounts.
+These shortcuts are staff-only; E2 owners and SMS-read operators keep read-only details.
+
 Open **SMS activation** from Setup, or **Finish SMS activation** in the business
 connection card. The standard flow is **Choose approved sender → Test delivery →
 Enable SMS**. An approved connected sender only needs a test mobile number; its

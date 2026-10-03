@@ -1,6 +1,6 @@
 const esc=value=>String(value??'').replaceAll('&','&amp;').replaceAll('<','&lt;').replaceAll('>','&gt;').replaceAll('"','&quot;').replaceAll("'",'&#39;');
 import {profileFromForm,profileEditorHtml,bindProfileEditor} from './businessProfileEditor.js?v=20261003-phone';
-import {mountTwilioConnection} from './twilioConnection.js?v=20261003-activation';
+import {mountTwilioConnection} from './twilioConnection.js?v=20261003-sms-nav';
 export {profileFromForm};
 export function mountBusinessSetup(container,row,{read,write,reload,onCreateWebsite,onWebsite,onWorkspace,lookup}) {
  const setup=row.setup||{revision:0,draft:{}},profile={...row.registration?.profile,...setup.draft};

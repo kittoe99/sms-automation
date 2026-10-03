@@ -1,5 +1,15 @@
 # Opek SMS project record
 
+### October 3 — visible staff SMS connection and activation actions
+
+The CRM dashboard now has a persistent staff-only SMS setup card with Approved
+Twilio accounts and state-specific activation shortcuts. The activation screen
+also links to the account dropdown after a sender is connected, and ready is labeled
+Awaiting activation. Explicit setup navigation fetches current state instead of
+restoring a stale tab. No automatic connection, sending activation or test sends.
+Seventeen CRM tests and 13 paired E2 UI/cache tests passed; frontend build passed.
+Frontend release verification pending. No migrations/API/worker or E2 runtime changes.
+
 ### October 3 — E2 owner activation summary
 
 The shared summary adds an allowlisted activationStatus without exposing test or

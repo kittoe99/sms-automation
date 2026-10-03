@@ -8,7 +8,7 @@ export function mountTwilioConnection(container,business,{read,write,reload,onWo
   ${service?.phoneNumber?`<p class="twilio-connected-number">${esc(service.phoneNumber)}</p>`:''}
   <p>Each Twilio account is assigned to one CRM business. Connect the profile registered for <strong>${esc(business.name)}</strong>.</p>
   ${!reviewed?'<p class="profile-note">Save a reviewed business profile to connect Twilio.</p>':''}
-  <button class="btn ghost" type="button" data-open-twilio ${!reviewed?'disabled':''}>${service?.phoneNumber?'Connection options':'Choose approved sender'}</button>
+  <button class="btn ghost" type="button" data-open-twilio ${!reviewed?'disabled':''}>Approved Twilio accounts</button>
   ${service?.phoneNumber?'<button class="btn" type="button" data-activate-sms>Finish SMS activation</button>':''}<div data-twilio-editor></div></section>`;
  container.querySelector('[data-activate-sms]')?.addEventListener('click',()=>onWorkspace(business.tenant_id,'sms'));
  const open=container.querySelector('[data-open-twilio]'),editor=container.querySelector('[data-twilio-editor]');
