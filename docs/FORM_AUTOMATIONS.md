@@ -82,5 +82,9 @@ boundaries, tenant permissions, legacy email compatibility and paired E2 access/
 behavior. Historical tests that require SMS AI to be enabled are explicitly skipped
 and retained for reference; replacement behavior lives in `test/formSequences.test.js`.
 
-Release state: local implementation and validation complete; production deployment
-and verification are recorded separately in both project records.
+Release state: both forward migrations, CRM API v42, automation-worker v26,
+ai-worker v31 and both frontends are deployed. Authenticated Forms and owner
+dashboard views were verified. CRM application `0f1d6ea` and E2 `3ca64ba` are
+the released application revisions; detailed validation and deployment evidence
+is recorded in both project records. Existing forms have no automation enabled
+until staff configures, publishes and enables a template sequence.

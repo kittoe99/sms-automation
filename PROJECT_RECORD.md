@@ -1,13 +1,24 @@
 # Opek SMS project record
 
+### October 3, 2026 — form-first SMS production release
+
+- Application revisions: CRM `0f1d6ea`, E2 `3ca64ba`, both pushed to GitHub.
+- Applied only CRM `20261003143731`, then E2 `20261003145302`; all 12 prerequisite function definitions matched the paired baseline. No migration history was replayed.
+- Supabase: CRM API **v42**, automation-worker **v26**, ai-worker **v31** active. SMS/automation dispatch restored; AI dispatch disabled. Business/provider sending settings unchanged.
+- CRM Render deployment `dep-db0hvatg1s2s73e5vgn0` live; all eight changed public assets match local application files. E2 Vercel `53Ng3kzb55vwxszVwnH5EA7XKzvN` ready on www.e2local.com.
+- Authenticated production checks: Forms list, preserved form editor/embed, Automation preset/configuration controls, and owner SMS/website views loaded. The owner's approved sender remains **Sending disabled**, as before. No production messages, AI calls or sample form submissions were made.
+- All three existing forms preserved; zero historical runs re-enrolled. Four new private tables have RLS enabled. Security advisors unchanged (five pre-existing warnings; zero additions).
+- Validation: **203 CRM tests passed**, **29 historical AI-enabled tests explicitly skipped**, zero failures; **41 paired E2 service/enquiry/cache/tab tests passed**. Both frontend builds passed. Desktop/mobile form editing, preset preview, repeated-message summary and draft save were checked locally; mobile layout had no horizontal overflow. The scheduler test accepted 103 simulated sends in A×2 → B×1 → C×100 order.
+- Both records and the form workflow guide updated. Unrelated local documentation/preview changes remain uncommitted. Application deployment evidence above is separate from the following documentation-only commits.
+
+
 October 3 form-first SMS: named forms now own versioned template sequences with
 per-message delays and repeats, reusable presets, reply policies and staff controls.
 SMS AI is disabled at enqueue, worker and final-send boundaries. Legacy embeds and
 history are preserved; legacy runs require template review. See
 [form workflow and migration order](docs/FORM_AUTOMATIONS.md). Local implementation
 and paired validation are complete. Both forward migrations are applied; CRM API v42,
-automation-worker v26 and ai-worker v31 are active. Frontend release verification
-is pending. SMS/automation dispatch is restored and AI dispatch stays disabled.
+automation-worker v26 and ai-worker v31 are active. Both frontends are live and authenticated production views were verified. SMS/automation dispatch is restored and AI dispatch stays disabled.
 
 October 2 read-only SMS summaries: the CRM dashboard and E2 customer SMS tab share
 a seven-field server projection, with approval separate from sending. Canonical
