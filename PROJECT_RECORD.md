@@ -8,6 +8,15 @@ This is the current implementation and release-reference record for `opek-sms`. 
 
 ## Current implementation
 
+October 2 existing Twilio connections: staff can select approved toll-free or A2P
+senders from the configured parent account and active child accounts in Businesses.
+The connection reserves account ownership, verifies the owned number and SMS
+webhooks, stores credentials in Vault, and keeps visibility/sending separate.
+One Twilio account remains bound to one CRM business. See
+[connection workflow](docs/TWILIO_CONNECTIONS.md). The forward migration and Edge
+release are applied; frontend release and live connection verification are pending
+in the latest change entry below.
+
 October 2 profile summary: a detailed, live preview now closes the guided business
 form, with per-section Edit links and explicit missing/pending details. It uses
 current form values and retains existing draft/review persistence. See the latest
@@ -543,3 +552,35 @@ No new application change or test rerun was needed; previously recorded profile
 and paired validation remains applicable. No new migrations, API deployments,
 profile saves, service activation or provider changes. Unrelated CRM local
 auth/preview/documentation work remains preserved and outside this release.
+
+### October 2, 2026 — Approved existing Twilio connections
+
+Implemented a staff account/profile/sender chooser in Businesses, with a header
+shortcut and a detailed connection review. The server discovers the configured
+parent account and active children, filters verified toll-free or A2P resources,
+and checks profile/brand/campaign approval, phone ownership and single-number
+service attachment. Reservations reject cross-business reuse, stale revisions and
+running provider leases. Existing interrupted bootstrap work is held/cancelled
+without replay; completed connections retain Vault credentials and account-based
+webhook isolation. Connecting leaves sending disabled and preserves separate
+customer service visibility. Already connected profiles have a dedicated setup
+summary and activation-test controls rather than another registration form.
+
+Local validation: 222 CRM tests, 31 relevant E2 tests, 29 focused API/worker/tab
+checks, build and syntax checks passed. Combined migration tests cover account
+reservation, private credentials, cross-business denial, bootstrap uncertainty,
+service release/customer reads and activation gating. Synthetic browser checks
+covered selection, review, save, activation summary and 390px layout geometry.
+Read-only provider inventory verified real approved/failed statuses and expected
+webhooks; it identified Twilio's actual 50-item toll-free page-size limit, which
+the SDK inventory now respects.
+
+Live: compared five paired function definitions and existing history before
+applying only CRM `20261003023928_connect_existing_twilio`. E2 registration/access
+prerequisites were already present. New table RLS and scoped RPC grants were
+verified; the security advisor returned the same five existing warnings and no
+new finding. Deployed ACTIVE `crm-api` v40, `provisioning-worker` v19 and
+`compliance-worker` v10. The compliance worker now recognizes `TWILIO_APPROVED`
+and the A2P compliance-list envelope when polling. Frontend release and actual
+business connection are pending. No paid resource purchase or SMS was performed.
+No E2 migration or application change; paired workflow/records are updated.

@@ -38,3 +38,13 @@ test('business setup actions preserve verified actor and reject ownerless creati
    assert.equal(response.status,200);assert.deepEqual(x.calls.at(-1),['platform_action','verified-subject',action,payload]);
  }
 });
+
+test('configured existing senders expose a safe activation summary without requiring registration details',async()=>{
+ const calls=[];const handler=createCrmHandler({call:async(name,...args)=>{calls.push([name,...args]);
+  if(name==='provider_setup')return {state:'configured',detailsComplete:false,phoneNumber:'+18775550180'};
+  if(name==='twilio_connection_access')return {connection:{details:{registrationSid:'HH'+'1'.repeat(32),profileName:'Example Services LLC'}}};
+ }},async()=> 'verified');
+ const response=await handler(new Request('https://api.example.test/crm-api/provisioning',{headers:{'X-Tenant-ID':'business'}})),result=await response.json();
+ assert.equal(response.status,200);assert.equal(result.existingConnection,true);assert.equal(result.connectionDetails.profileName,'Example Services LLC');
+ assert.deepEqual(calls,[['provider_setup','verified','business'],['twilio_connection_access','verified','business']]);
+});

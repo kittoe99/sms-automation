@@ -29,8 +29,15 @@ http.createServer(async(req,res)=>{
   else if(url.pathname==='/api/auth/me'||url.pathname==='/api/tenants')data={user:{id:'preview'},tenants:[{id:'demo',name:'Example Services',timeZone:'America/Denver',smsRead:true}],currentTenant:{id:'demo',name:'Example Services',timeZone:'America/Denver',smsRead:true},capabilities:{platformStaff:true}};
   else if(url.pathname==='/api/categories')data={categories:[],cadences:[],rulePresets:[]};
   else if(url.pathname==='/api/overview')data={conversationCount:12,total:48,deliveryRate:98,counts:{delivered:47},byCategory:[]};
-  else if(url.pathname==='/api/provisioning')data={sendingEnabled:true};
+  else if(url.pathname==='/api/provisioning')data=business.services.some(s=>s.kind==='sms')?{state:'configured',serviceAdded:true,sendingEnabled:false,existingConnection:true,phoneNumber:'+18775550180',connectionDetails:{accountSid:'AC'+'1'.repeat(32),accountName:'Example platform account',profileSid:'BU'+'2'.repeat(32),profileName:'Example Services LLC',phoneNumber:'+18775550180',messagingServiceSid:'MG'+'4'.repeat(32),serviceName:'Example Services · SMS',registrationSid:'HH'+'5'.repeat(32),senderType:'toll_free'}}:{sendingEnabled:true};
+  else if(url.pathname==='/api/twilio/registration')data={state:'webhook_verified',updated_at:'2026-10-02T12:00:00Z'};
   else if(url.pathname==='/api/onboarding')data={onboardingComplete:true,profile:{businessName:'Example Services'}};
+  else if(url.pathname==='/api/platform/twilio/accounts')data={accounts:[{sid:'AC'+'1'.repeat(32),name:'Example platform account',isParent:true}],truncated:false};
+  else if(url.pathname==='/api/platform/twilio/profiles')data={connection:{revision:0},options:[{accountSid:'AC'+'1'.repeat(32),accountName:'Example platform account',profileSid:'BU'+'2'.repeat(32),profileName:'Example Services LLC',legalBusinessName:'Example Services LLC',phoneNumber:'+18775550180',phoneNumberSid:'PN'+'3'.repeat(32),messagingServiceSid:'MG'+'4'.repeat(32),serviceName:'Example Services · SMS',registrationSid:'HH'+'5'.repeat(32),senderType:'toll_free',approvalStatus:'Toll-free verified',webhookReady:true}],unavailable:[{name:'Example legacy service',phoneNumber:'+13035550180',reason:'A2P campaign is not verified'}],truncated:false};
+  else if(url.pathname==='/api/platform/twilio/connect'){
+   let raw='';for await(const chunk of req)raw+=chunk;const input=JSON.parse(raw);if(!input.confirmedBusinessIdentity)throw new Error('Identity confirmation required');
+   business.services=[...business.services.filter(s=>s.kind!=='sms'),{id:'sms',tenant_id:'demo',kind:'sms',visibility:'draft',revision:0,providerState:'configured',phoneNumber:'+18775550180'}];data={connected:true,sendingEnabled:false};
+  }
   else if(url.pathname.startsWith('/api/platform/')){const type=url.pathname.split('/')[3];if(req.method==='GET'){let rows=records[type]||[];const id=url.searchParams.get('id');if(id)rows=rows.filter(x=>(x.id||x.tenant_id)===id);data={rows,total:rows.length,page:1,pageSize:25,totalPages:1};}else {
    let body='';for await(const chunk of req)body+=chunk;const input=JSON.parse(body||'{}');
    if(type==='business-profile'){

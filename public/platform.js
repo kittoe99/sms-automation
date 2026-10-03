@@ -1,5 +1,5 @@
 import {createRenderQueue} from './tabWorkspace.js?v=20261002-workspace';
-import {mountBusinessSetup} from './businessSetup.js?v=20261002-profile-summary';
+import {mountBusinessSetup} from './businessSetup.js?v=20261002-twilio-connect';
 import {apiFetch,getAccessToken,runtimeConfig} from './auth.js?v=20261001-business-services';
 const esc=value=>String(value??'').replaceAll('&','&amp;').replaceAll('<','&lt;').replaceAll('>','&gt;').replaceAll('"','&quot;').replaceAll("'",'&#39;');
 const date=value=>value?new Date(value).toLocaleString():'—';
@@ -132,15 +132,16 @@ export function createPlatform({root,title,subtitle,pager,onNavigate,onWorkspace
   if(row.status==='active')await membershipEditor(body.querySelector('[data-editor]'),{accountId:row.id});
  }
  async function business(body,row){
-  body.innerHTML=`<h2>${esc(row.name)}</h2><p>Business ID: <code>${esc(row.tenant_id)}</code> · ${esc(row.time_zone)}</p>
+  body.innerHTML=`<h2>${esc(row.name)}</h2><p>Business ID: <code>${esc(row.tenant_id)}</code> · ${esc(row.time_zone)}</p>${button('Twilio connection','data-jump-twilio')}
     <div data-business-setup></div><h3>People</h3>${row.memberships.map(m=>`<div class="card"><strong>${esc(m.name||m.email||m.account_id)}</strong><p>${esc(m.role)} · ${m.enabled?'Enabled':'Disabled'}</p>${button('Open user',`data-user="${esc(m.account_id)}"`)} ${button('Edit access',`data-edit="${esc(m.account_id)}"`)}</div>`).join('')||'<p>No owner or customer access assigned.</p>'}
     <h3>Websites</h3>${row.sites.map(s=>button(s.name,`data-website="${esc(s.id)}"`)).join('')||'<p>No websites assigned.</p>'}<div data-editor></div>`;
   bind('[data-user]','click',event=>{openRecord('accounts',event.currentTarget.dataset.user);});
   bind('[data-website]','click',event=>{openRecord('websites',event.currentTarget.dataset.website);});
   bind('[data-edit]','click',event=>run(()=>membershipEditor(body.querySelector('[data-editor]'),{tenantId:row.tenant_id,accountId:event.currentTarget.dataset.edit,membership:row.memberships.find(m=>m.account_id===event.currentTarget.dataset.edit),previousOwnerId:row.owner_account_id})));
-  mountBusinessSetup(body.querySelector('[data-business-setup]'),row,{write,reload:detail,lookup,
+  mountBusinessSetup(body.querySelector('[data-business-setup]'),row,{read,write,reload:detail,lookup,
     onCreateWebsite:tenantId=>run(()=>createSite(tenantId)),
     onWebsite:id=>openRecord('websites',id),onWorkspace});
+  bind('[data-jump-twilio]','click',()=>body.querySelector('[data-twilio-connection]').scrollIntoView({behavior:'auto',block:'start'}));
   await membershipEditor(body.querySelector('[data-editor]'),{tenantId:row.tenant_id});
  }
  async function registration(accountId=null){

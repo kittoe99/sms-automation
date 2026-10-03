@@ -1,7 +1,8 @@
 const esc=value=>String(value??'').replaceAll('&','&amp;').replaceAll('<','&lt;').replaceAll('>','&gt;').replaceAll('"','&quot;').replaceAll("'",'&#39;');
 import {profileFromForm,profileEditorHtml,bindProfileEditor} from './businessProfileEditor.js?v=20261002-profile-summary';
+import {mountTwilioConnection} from './twilioConnection.js?v=20261002-twilio-connect';
 export {profileFromForm};
-export function mountBusinessSetup(container,row,{write,reload,onCreateWebsite,onWebsite,onWorkspace,lookup}) {
+export function mountBusinessSetup(container,row,{read,write,reload,onCreateWebsite,onWebsite,onWorkspace,lookup}) {
  const setup=row.setup||{revision:0,draft:{}},profile={...row.registration?.profile,...setup.draft};
  const services=row.services||[],reviewed=Boolean(setup.reviewed_profile_id);
  container.innerHTML=`<section class="card business-profile-card">
@@ -21,7 +22,8 @@ export function mountBusinessSetup(container,row,{write,reload,onCreateWebsite,o
     ${s.kind==='website'?`<button type="button" class="btn ghost" data-site="${esc(s.site_id)}">Manage website</button>`:`<button type="button" class="btn ghost" data-configure="${s.kind}">Configure ${s.kind==='sms'?'SMS':s.kind}</button>`}</article>`).join('')||'<p>No services added.</p>'}
    <div class="compose-actions">${['sms','enquiries','bookings'].filter(kind=>!services.some(s=>s.kind===kind)).map(kind=>`<button type="button" class="btn ghost" data-add="${kind}" ${!reviewed?'disabled':''}>Add ${kind==='sms'?'SMS':kind}</button>`).join('')}
    <button type="button" class="btn ghost" data-new-site ${!reviewed?'disabled':''}>Create website</button>
-   <button type="button" class="btn ghost" data-link-site ${!reviewed?'disabled':''}>Link existing website</button></div><div data-site-link></div></section>`;
+   <button type="button" class="btn ghost" data-link-site ${!reviewed?'disabled':''}>Link existing website</button></div><div data-site-link></div></section><div data-twilio-connection></div>`;
+ mountTwilioConnection(container.querySelector('[data-twilio-connection]'),row,{read,write,reload,onWorkspace});
  async function perform(button,error,action){if(button)button.disabled=true;error.textContent='';try{await action();await reload();}catch(e){error.textContent=e.message;if(button)button.disabled=false;}}
  const editor=bindProfileEditor(container.querySelector('[data-profile]'));
  container.querySelector('[data-profile]').addEventListener('submit',event=>{

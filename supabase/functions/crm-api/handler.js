@@ -5,6 +5,7 @@ import {CADENCE_PRESETS} from '../../../src/lib/automations/rulePresets.js';
 import {emailOverview,saveEmailGroup} from './email.js';
 import {syncCrmLogin} from '../_shared/crm-account.js';
 import {crmLoginConfig} from '../_shared/http.js';
+import {createTwilioConnections} from './twilio-connections.js';
 const KNOWLEDGE_MIME=new Set(['application/pdf','application/vnd.openxmlformats-officedocument.wordprocessingml.document','text/plain','text/markdown']);
 const INTAKE_TYPES=new Set(['contacts','quote_requests','bookings','reviews']);
 async function signedKnowledgeUpload(tenant,input,fetchImpl=fetch) {
@@ -18,7 +19,7 @@ async function signedKnowledgeUpload(tenant,input,fetchImpl=fetch) {
  const rawUrl=result.url || result.signedURL || result.signedUrl;
  return {path,token:result.token,signedUrl:/^https?:/i.test(rawUrl||'')?rawUrl:`${base}${rawUrl || ''}`,contentType,maxBytes:10*1024*1024};
 }
-export function createCrmHandler(db,verify=authenticate,{platform=false,provision=syncCrmLogin}={}) {
+export function createCrmHandler(db,verify=authenticate,{platform=false,provision=syncCrmLogin,twilioConnections=createTwilioConnections()}={}) {
  return async request=>{
   let headers={};
   try {
@@ -36,6 +37,9 @@ export function createCrmHandler(db,verify=authenticate,{platform=false,provisio
      ? value:db.call('general_conversation',user,tenant,phone(value));
    const params=Object.fromEntries(url.searchParams); const method=request.method;
    if(path.startsWith('/platform/')) {
+    if(method==='GET'&&path==='/platform/twilio/accounts')return json(await twilioConnections.accounts(db,user),200,headers);
+    if(method==='GET'&&path==='/platform/twilio/profiles')return json(await twilioConnections.profiles(db,user,params.accountSid,params.tenantId),200,headers);
+    if(method==='POST'&&path==='/platform/twilio/connect')return json(await twilioConnections.connect(db,user,await readJson(request)),200,headers);
     const directory=path.match(/^\/platform\/(accounts|businesses|websites)(?:\/([^/]+))?$/);
     if(method==='GET' && directory) return json(await db.call('platform_read',user,directory[1],{...params,...(directory[2]?{id:decodeURIComponent(directory[2])}:{})}),200,headers);
     const actions={ '/platform/status':'status','/platform/memberships':'membership','/platform/ownership':'owner',
@@ -69,7 +73,14 @@ export function createCrmHandler(db,verify=authenticate,{platform=false,provisio
      return json({...data,deliveryRate:sent?Math.round(100*(data.counts.delivered||0)/sent):null},200,headers);
     }
    if(path==='/operations') {const [base,grounded]=await Promise.all([read('operations'),db.call('grounded_operations',user,tenant)]);return json({...base,grounded},200,headers);}
-    if(path==='/provisioning') return json(await db.call('provider_setup',user,tenant),200,headers);
+    if(path==='/provisioning') {
+     const setup=await db.call('provider_setup',user,tenant);
+     if(setup?.state==='configured') {
+      const access=await db.call('twilio_connection_access',user,tenant),details=access.connection?.details||{};
+      return json({...setup,existingConnection:Boolean(details.registrationSid),connectionDetails:details},200,headers);
+     }
+     return json(setup,200,headers);
+    }
     if(path==='/onboarding') return json(await db.call('business_profile',user,tenant),200,headers);
     if(path==='/business-ai') return json(await db.call('business_ai_settings',user,tenant),200,headers);
     if(path==='/knowledge'||path==='/crm') return json(await db.call('knowledge_overview',user,tenant),200,headers);

@@ -26,6 +26,7 @@ function masterCredentials(env) {
 export async function processProvisioning(job,db,{clientFactory=twilio,env=runtimeEnv}={}) {
   const state=await db.call('provision_credentials',job.id,job.lease_token);
   if(!state) throw Object.assign(new Error('Provider record unavailable'),{permanent:true,code:'PROVIDER_RECORD_MISSING'});
+  if(['connecting_existing','connection_needs_review'].includes(state.state))return db.call('finish',job.id,job.lease_token,'cancelled','EXISTING_TWILIO_CONNECTION',0);
   if(state?.state==='creating_account' || state?.state==='creating_service') {
     return db.call('finish',job.id,job.lease_token,'submission_unknown','PROVISIONING_RECONCILIATION_REQUIRED',0);
   }

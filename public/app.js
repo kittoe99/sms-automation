@@ -1,7 +1,8 @@
 import {createTabMemory, createRenderQueue} from './tabWorkspace.js?v=20261002-workspace';
 import {readBusinessProfile,writeBusinessProfile} from './profileClient.js?v=20261002-access';
 import {canOpenWorkspace,canWriteWorkspace,staffActionSelector} from './workspacePermissions.js?v=20261002-access';
-import { createPlatform } from './platform.js?v=20261002-profile-summary';
+import { createPlatform } from './platform.js?v=20261002-twilio-connect';
+import {mountTwilioActivation} from './twilioActivation.js?v=20261002-twilio-connect';
 import { connectSupabaseLive } from './live.js?v=20261001-business-services';
 import { createFormBuilder } from './formBuilder.js';
 import { shouldRefreshFromBackground } from './refreshGuard.js';
@@ -373,6 +374,12 @@ async function renderBusinessSetup() {
   state.setupProvisioning = provisioning;
   state.setupOnboarding = onboardingState || { onboarding: {}, onboardingComplete: false };
   state.setupRegistration = registration || { state: 'draft' };
+  if(provisioning?.existingConnection) {
+    mountTwilioActivation(el.root,{provider:provisioning,registration:state.setupRegistration,apiFetch,
+      onRefresh:async()=>{state.setupProvisioning=null;state.setupRegistration=null;await renderBusinessSetup();},
+      onBack:()=>switchView('overview')});
+    return;
+  }
   if (provisioning?.serviceAdded === false) {
     el.root.innerHTML='<section class="card"><h2>SMS has not been added</h2><p>Review the business profile and add SMS from Businesses.</p><button type="button" class="btn" data-open-registered-business>Open business setup</button></section>';
     return;
@@ -1856,7 +1863,9 @@ async function renderOverview() {
       <details class="card dashboard-details" open>
         <summary>Business messaging setup</summary>
         <p><strong>${esc({pending:'Preparing Twilio account',creating_account:'Creating Twilio subaccount',account_created:'Twilio subaccount created',creating_service:'Creating Messaging Service',awaiting_number:'Ready for phone number and registration',submission_unknown:'Twilio setup needs review',ready:'Messaging setup complete'}[provisioning.state] || String(provisioning.state || 'Setup pending').replaceAll('_',' '))}</strong></p>
-        <p class="muted">${provisioning.state === 'awaiting_number'
+        <p class="muted">${provisioning.existingConnection
+          ? 'Your approved Twilio profile and phone number are connected. Open SMS setup to complete test delivery and activation.'
+          : provisioning.state === 'awaiting_number'
           ? 'This business now has a separate Twilio subaccount under the parent billing account. Select and purchase its phone number, then complete the applicable campaign registration before enabling sending.'
           : provisioning.state === 'submission_unknown'
             ? 'Twilio may have created a resource before the response was interrupted. Review the parent Twilio account and reconcile it before retrying.'
