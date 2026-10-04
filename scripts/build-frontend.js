@@ -1,11 +1,36 @@
 import 'dotenv/config';
-import {cp,mkdir,writeFile} from 'node:fs/promises';
+import {cp,mkdir,readFile,writeFile} from 'node:fs/promises';
 import {build} from 'esbuild';
 const {CRM_API_BASE,SUPABASE_URL,SUPABASE_PUBLISHABLE_KEY,PUBLIC_FORM_BASE_URL,HOSTING_API_BASE}=process.env;
 if(!CRM_API_BASE||!SUPABASE_URL||!SUPABASE_PUBLISHABLE_KEY) throw new Error('CRM_API_BASE, SUPABASE_URL and SUPABASE_PUBLISHABLE_KEY are required');
 if(SUPABASE_URL!=='https://wxamwhfmelxqahkdtcci.supabase.co') throw new Error('Deployment must target WPacquisition');
 if(!/^sb_publishable_/.test(SUPABASE_PUBLISHABLE_KEY)) throw new Error('Use a Supabase publishable key, never a secret or service role key');
 await cp('public','dist',{recursive:true});await mkdir('dist/vendor',{recursive:true});
+// Only hashed assets receive immutable caching. Keep public embed URLs and
+// config.js stable, and preserve one shared auth module across lazy chunks.
+const frontend=await build({entryPoints:['public/app.js','public/styles.css','public/e2-theme.css','public/dashboard-theme.css'],
+  bundle:true,splitting:true,format:'esm',platform:'browser',target:'es2022',minify:true,
+  outdir:'dist/assets',entryNames:'[name]-[hash]',chunkNames:'chunk-[hash]',assetNames:'[name]-[hash]',
+  external:['/vendor/*','/fonts/*'],loader:{'.woff2':'file','.svg':'file'},metafile:true});
+let html=await readFile('public/index.html','utf8');
+const preloads=new Set();
+function preloadImports(output) {
+  for(const dependency of frontend.metafile.outputs[output].imports) {
+    if(dependency.external || dependency.kind==='dynamic-import' || preloads.has(dependency.path))continue;
+    preloads.add(dependency.path);preloadImports(dependency.path);
+  }
+}
+for(const [output,meta] of Object.entries(frontend.metafile.outputs)) {
+  if(!meta.entryPoint)continue;
+  const name=meta.entryPoint.split('/').pop();
+  if(!['app.js','styles.css','e2-theme.css','dashboard-theme.css'].includes(name))continue;
+  const pattern=new RegExp(`(["'])/${name.replaceAll('.', '\\.')}\\?[^"']*(["'])`,'g');
+  html=html.replace(pattern,`$1/${output.replace(/^dist\//,'')}$2`);
+  if(name==='app.js')preloadImports(output);
+}
+html=html.replace('</head>',[...preloads].map(file=>`<link rel="modulepreload" href="/${file.replace(/^dist\//,'')}" />`).join('\n')+'\n  </head>');
+await writeFile('dist/index.html',html);
+await writeFile('dist/build-meta.json',JSON.stringify(frontend.metafile));
 await build({stdin:{contents:"export {createClient} from '@supabase/supabase-js'",resolveDir:process.cwd()},bundle:true,format:'esm',platform:'browser',outfile:'dist/vendor/supabase.js',minify:true});
 await build({entryPoints:['src/frontend/complianceEmbed.jsx'],bundle:true,format:'esm',platform:'browser',outfile:'dist/vendor/compliance-embed.js',minify:true});
 await build({stdin:{contents:"export {unzipSync} from 'fflate'",resolveDir:process.cwd()},bundle:true,format:'esm',platform:'browser',outfile:'dist/vendor/fflate.js',minify:true});

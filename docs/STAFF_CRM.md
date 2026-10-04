@@ -1,5 +1,25 @@
 # Shared staff CRM and customer dashboard
 
+## Local page-load improvements (October 3; not deployed)
+
+Startup uses the authorized session's workspace list once. Dashboard readers run
+concurrently, with provisioning deferred to SMS setup. Forms retains its list and
+presets for internal tab switches; Refresh and successful edits invalidate that
+cache. Returning to a workspace tab retains its draft and nodes. Leaving an
+unfinished main-page load cancels its reads; mutations are not cancelled.
+
+Run `npm run build:frontend` for the hashed/minified app and lazy Forms/platform
+chunks. Deploy the generated `dist/index.html` and its assets together. Apply the
+`render.yaml` cache rules through the service's normal Blueprint/header workflow:
+only content-hashed `/assets/*` is immutable; config and stable embed URLs must not
+receive that policy. No API or database migration is required. These changes and
+cache settings are local only; see the project record for checks and limitations.
+
+For synthetic browser checks, build then run
+`node test/fixtures/platform-preview.js` and open `/shell` on port 4319.
+`CRM_TAB_QA_LOG=1` logs API calls; `CRM_TAB_QA_DELAY_MS=8000` delays Bookings
+to verify leaving a slow page and restoring a cached draft.
+
 Updated September 30, 2026 (America/Denver). `opek-sms` is the staff CRM;
 E2 Local is the customer dashboard. Both use the same Supabase records.
 

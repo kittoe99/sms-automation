@@ -104,10 +104,12 @@ export function createFormBuilder({ root, apiFetch, config, canReadSubmissions =
     }));
   }
 
-  async function render() {
-    const response = await apiFetch('/api/web-forms');
-    const data = await response.json();
-    if (!response.ok) throw new Error(data.error || 'Could not load Web Forms');
+  async function render(data) {
+    if (!data) {
+      const response = await apiFetch('/api/web-forms');
+      data = await response.json();
+      if (!response.ok) throw new Error(data.error || 'Could not load Web Forms');
+    }
     canEdit = Boolean(data.canEdit);
     consentText = data.consentText || '';
     timeZone = data.timeZone || '';

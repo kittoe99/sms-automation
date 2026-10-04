@@ -1,12 +1,16 @@
 import {createFormBuilder} from './formBuilder.js?v=20261004-live-test';
 import {renderFormAutomation} from './formAutomationEditor.js?v=20261004-live-test';
+import {createFormData} from './formData.js';
 const esc=v=>String(v??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
-export function createFormWorkspace({root,apiFetch,config,canReadSubmissions}) {
-  let selected=null,tab='form',tenant=null;
+export function createFormWorkspace({root,apiFetch:fetcher,config,canReadSubmissions,getTenantId=()=>config?.tenantId||localStorage.getItem('opek_sms_tenant_id')}) {
+  let selected=null,tab='form',tenant=null,revision=0;
+  const cache=createFormData(fetcher,getTenantId),apiFetch=cache.fetch;
   const request=async(path,options)=>{const r=await apiFetch(path,options),data=await r.json();if(!r.ok)throw new Error(data.error||'Could not load forms');return data;};
-  async function render(){
-    const data=await request('/api/web-forms');
-    const currentTenant=config?.tenantId||localStorage.getItem('sms_tenant_id');
+  async function render({refresh=true}={}){
+    const ticket=++revision,currentTenant=getTenantId();
+    if(refresh)cache.clear();
+    const data=await cache.read('/api/web-forms');
+    if(ticket!==revision||currentTenant!==getTenantId())return;
     if(tenant!==currentTenant){selected=null;tenant=currentTenant;}
     const form=data.forms.find(f=>f.public_id===selected);
     if(!form){selected=null;root.innerHTML=`<section class="card"><div class="card-head"><div><h2>Your forms</h2><p class="muted">Create a form, then configure its messages and rules.</p></div></div>
@@ -14,18 +18,18 @@ export function createFormWorkspace({root,apiFetch,config,canReadSubmissions}) {
       <p role="status" data-status></p><div class="form-list">${data.forms.filter(f=>!f.archived).map(f=>`<button class="form-list-item" data-open="${f.public_id}"><strong>${esc(f.title)}</strong><span>${f.enabled?'Form live':'Form draft'} · ${f.automationEnabled?'Automation active':f.publishedVersion?'Automation paused':'No active automation'}</span><small>${f.submissionCount||0} submissions →</small></button>`).join('')||'<div class="blank">No forms yet. Create your first form to get started.</div>'}</div>
       ${data.forms.some(f=>f.archived)?`<details><summary>Archived forms</summary>${data.forms.filter(f=>f.archived).map(f=>`<button class="btn ghost" data-open="${f.public_id}">${esc(f.title)}</button>`).join('')}</details>`:''}</div></section>`;
       root.querySelector('[data-create]')?.addEventListener('submit',async e=>{e.preventDefault();const input=new FormData(e.currentTarget);const button=e.currentTarget.querySelector('button');button.disabled=true;
-        try{const result=await request('/api/web-forms',{method:'POST',body:JSON.stringify({title:input.get('title'),preset:input.get('preset'),description:'',buttonLabel:'Submit',fields:[],enabled:false})});selected=result.form.public_id;tab='form';await render();}catch(err){root.querySelector('[data-status]').textContent=err.message;button.disabled=false;}});
-      root.querySelectorAll('[data-open]').forEach(b=>b.onclick=()=>{selected=b.dataset.open;tab='form';render().catch(showError);});return;
+        try{const result=await request('/api/web-forms',{method:'POST',body:JSON.stringify({title:input.get('title'),preset:input.get('preset'),description:'',buttonLabel:'Submit',fields:[],enabled:false})});selected=result.form.public_id;tab='form';await render({refresh:false});}catch(err){root.querySelector('[data-status]').textContent=err.message;button.disabled=false;}});
+      root.querySelectorAll('[data-open]').forEach(b=>b.onclick=()=>{selected=b.dataset.open;tab='form';render({refresh:false}).catch(showError);});return;
     }
     root.innerHTML=`<div class="form-workspace-heading"><button class="btn ghost" data-back>← All forms</button><h2>${esc(form.title)}</h2>${data.canEdit&&form.archived?'<button class="btn ghost" data-restore>Restore as draft</button>':''}${data.canEdit&&!form.archived?'<button class="btn ghost" data-duplicate>Duplicate form</button><button class="btn ghost" data-archive>Archive</button>':''}</div>
       <div class="web-builder-tabs" role="tablist" aria-label="Form workspace">${[['form','Form'],...(canReadSubmissions()?[['automation','Automation'],['submissions','Submissions']]:[])].map(([id,label])=>`<button class="btn ${tab===id?'':'ghost'}" role="tab" aria-selected="${tab===id}" data-tab="${id}">${label}</button>`).join('')}</div><div data-panel role="tabpanel"></div><p data-error role="status"></p>`;
-    root.querySelector('[data-back]').onclick=()=>{selected=null;render().catch(showError);};
-    root.querySelectorAll('[data-tab]').forEach(b=>{b.onclick=()=>{tab=b.dataset.tab;render().catch(showError);};b.onkeydown=e=>{const tabs=[...root.querySelectorAll('[data-tab]')],index=tabs.indexOf(b),next=e.key==='ArrowRight'?(index+1)%tabs.length:e.key==='ArrowLeft'?(index+tabs.length-1)%tabs.length:e.key==='Home'?0:e.key==='End'?tabs.length-1:-1;if(next>=0){e.preventDefault();tab=tabs[next].dataset.tab;render().then(()=>root.querySelector(`[data-tab="${tab}"]`)?.focus()).catch(showError);}};});
+    root.querySelector('[data-back]').onclick=()=>{selected=null;render({refresh:false}).catch(showError);};
+    root.querySelectorAll('[data-tab]').forEach(b=>{b.onclick=()=>{tab=b.dataset.tab;render({refresh:false}).catch(showError);};b.onkeydown=e=>{const tabs=[...root.querySelectorAll('[data-tab]')],index=tabs.indexOf(b),next=e.key==='ArrowRight'?(index+1)%tabs.length:e.key==='ArrowLeft'?(index+tabs.length-1)%tabs.length:e.key==='Home'?0:e.key==='End'?tabs.length-1:-1;if(next>=0){e.preventDefault();tab=tabs[next].dataset.tab;render({refresh:false}).then(()=>root.querySelector(`[data-tab="${tab}"]`)?.focus()).catch(showError);}};});
     for(const action of ['duplicate','archive','restore'])root.querySelector(`[data-${action}]`)?.addEventListener('click',async()=>{
-      try{const r=await request(`/api/web-forms/${form.public_id}/${action}`,{method:'POST',body:'{}'});selected=action==='duplicate'?r.form.public_id:null;tab='form';await render();}catch(e){showError(e);}});
+      try{const r=await request(`/api/web-forms/${form.public_id}/${action}`,{method:'POST',body:'{}'});selected=action==='duplicate'?r.form.public_id:null;tab='form';await render({refresh:false});}catch(e){showError(e);}});
     const panel=root.querySelector('[data-panel]');
-    if(tab==='form')await createFormBuilder({root:panel,apiFetch,config,canReadSubmissions,formId:form.public_id,hideSubmissions:true}).render();
-    if(tab==='automation')await renderFormAutomation({root:panel,form,apiFetch,canManage:data.canManageAutomation&&!form.archived,timeZone:data.timeZone});
+    if(tab==='form')await createFormBuilder({root:panel,apiFetch,config,canReadSubmissions,formId:form.public_id,hideSubmissions:true}).render(data);
+    if(tab==='automation')await renderFormAutomation({root:panel,form,apiFetch,loadPresets:()=>cache.read('/api/automation-presets'),canManage:data.canManageAutomation&&!form.archived,timeZone:data.timeZone});
     if(tab==='submissions')await submissions(panel,form,data.canManageAutomation);
   }
   function showError(e){const host=root.querySelector('[data-error]')||root.querySelector('[data-status]');if(host)host.textContent=e.message;}
@@ -36,5 +40,5 @@ export function createFormWorkspace({root,apiFetch,config,canReadSubmissions}) {
     panel.querySelectorAll('[data-enroll]').forEach(b=>b.onclick=async()=>{b.disabled=true;try{await request(`/api/web-forms/${form.public_id}/automation/enroll`,{method:'PUT',body:JSON.stringify({submissionId:b.dataset.enroll})});await submissions(panel,form,staff,page);}catch(e){panel.querySelector('[data-status]').textContent=e.message;b.disabled=false;}});
     panel.querySelectorAll('[data-run]').forEach(b=>b.onclick=async()=>{b.disabled=true;try{await request(`/api/web-forms/${form.public_id}/automation/${b.dataset.action}`,{method:'PUT',body:JSON.stringify({runId:b.dataset.run})});await submissions(panel,form,staff,page);}catch(e){panel.querySelector('[data-status]').textContent=e.message;b.disabled=false;}});
   }
-  return {render};
+  return {render,reset(){revision++;cache.clear();selected=null;tenant=null;tab='form';}};
 }

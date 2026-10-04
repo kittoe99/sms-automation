@@ -2,11 +2,13 @@ import {createFormTest} from './formTest.js?v=20261004-live-test';
 import { BUILTIN_PRESETS, emptySequence, newMessage, TIME_UNITS, validateSequence, sequenceSummary } from './formAutomation.js?v=20261003-forms';
 const esc=v=>String(v??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
 const units=(name,value)=>`<select data-key="${name}">${TIME_UNITS.map(u=>`<option ${u===value?'selected':''}>${u}</option>`).join('')}</select>`;
-export async function renderFormAutomation({root,form,apiFetch,canManage,timeZone}) {
+export async function renderFormAutomation({root,form,apiFetch,canManage,timeZone,loadPresets}) {
   const request=async(path,options)=>{const res=await apiFetch(path,options);const data=await res.json();if(!res.ok)throw new Error(data.error||'Could not load automation');return data;};
-  let saved=await request(`/api/web-forms/${form.public_id}/automation`);
+  let [saved,library]=await Promise.all([
+    request(`/api/web-forms/${form.public_id}/automation`),
+    loadPresets ? loadPresets() : request('/api/automation-presets'),
+  ]);
   let sequence=structuredClone(saved.draft?.steps?.length?saved.draft:emptySequence());
-  const library=await request('/api/automation-presets');
   const presets=[...BUILTIN_PRESETS,...(library.presets||[])];
   let notice='';
   const testHost=document.createElement('section');testHost.className='card form-test-card';

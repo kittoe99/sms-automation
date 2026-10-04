@@ -1,5 +1,43 @@
 # Opek SMS project record
 
+### October 3 - CRM page-load performance (local, not deployed)
+
+CRM startup reuses the authorized /auth/me workspace payload, retaining /tenants
+fallback for older/local servers and fresh reads on workspace changes. Dashboard
+totals, SMS connection and categories load concurrently; totals paint early and
+provisioning is deferred to SMS setup. Categories are fetched only by views that
+use them. No identity, permission or shared database contract changed.
+
+Forms reuses its directory payload in the editor and across internal tabs, loads
+automation rules/presets concurrently, and caches presets within the tenant's
+Forms workspace. Writes, explicit refresh, workspace/session changes and failed
+reads invalidate or discard cached data. Navigation aborts unfinished main-page
+GET/HEAD reads while retaining the render queue and never aborting mutations.
+Cached tab nodes continue to preserve drafts. Platform detail operations still
+use their existing completion guard.
+
+The frontend build now minifies and splits application code into content-hashed
+assets. Forms/platform editors load on demand; the shared auth module stays a
+singleton. Initial application JS falls from 20 modules / 387,149 raw bytes
+(105,743 bytes summed gzip) to 2 files / 171,878 raw bytes (47,223 summed gzip).
+These are local build measurements, excluding external Clerk/vendor scripts.
+Render Blueprint adds immutable caching only for hashed /assets/* and revalidates
+/config.js. These header settings have not been applied to the live service.
+
+Validation: full CRM suite 232 passed, 29 existing skips; final targeted checks
+22 passed and production build passed. E2 paired checks: 28 passed, two
+dashboard-cache mock failures (Unexpected import @/lib/business-services) in the
+E2 working tree. Concurrent E2 runtime edits were observed and left untouched. Built-browser synthetic checks verified dashboard,
+Forms and lazy platform loading, one form-list read across editor/subtab visits,
+one preset read across repeated Automation visits, and preservation of an unsaved
+form title. An injected 8-second Bookings response was cancelled after 77 ms on
+navigation. Build inspection confirmed one auth module and valid hashed URLs.
+
+No migrations, API/worker deployment, live cache-header changes or releases were
+performed. No E2 runtime changes or cross-project migration prerequisites are
+needed; do not replay either migration history. Existing unrelated local changes
+remain preserved.
+
 ### October 3 - actual SMS form test sequences
 
 The form tester now offers Prepare real SMS test, then Start real SMS test after

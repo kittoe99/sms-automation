@@ -54,7 +54,16 @@ http.createServer(async(req,res)=>{
   else if(url.pathname==='/hosting')data={sites:[{...site,publicationStatus:'unpublished',deployments:[]}]};
   else if(url.pathname.endsWith('/forms'))data={business:{tenantId:'demo',name:'Example Services'},connections:[]};
   else if(url.pathname.endsWith('/leads'))data={rows:[],total:0,totalPages:1};
-  else if(url.pathname==='/api/web-forms')data={forms:[{public_id:'00000000-0000-4000-8000-000000000003',title:'Contact form',enabled:true}]};
+  else if(url.pathname==='/api/web-forms')data={canEdit:true,canManageAutomation:true,timeZone:'America/Denver',consentText:'Synthetic SMS consent',forms:[{public_id:'00000000-0000-4000-8000-000000000003',title:'Contact form',description:'',button_label:'Submit',fields:[],enabled:true}]};
+  else if(url.pathname==='/api/automation-presets')data={presets:[]};
+  else if(/^\/api\/web-forms\/[^/]+\/automation$/.test(url.pathname))data={draft:{steps:[]},enabled:false};
+  else if(/^\/api\/web-forms\/[^/]+\/submissions$/.test(url.pathname))data={rows:[],total:0,totalPages:1};
+  else if(/^\/api\/web-forms\/[^/]+\/test-runs$/.test(url.pathname))data={runs:[],sendingEnabled:false};
+  else if(url.pathname==='/api/bookings'){
+    const start=Date.now();res.on('close',()=>{if(process.env.CRM_TAB_QA_LOG==='1')console.log(`Bookings connection closed after ${Date.now()-start}ms`);});
+    await new Promise(resolve=>setTimeout(resolve,Number(process.env.CRM_TAB_QA_DELAY_MS)||0));
+    data={rows:[],total:0,totalPages:1};
+  }
   if(data){res.setHeader('Content-Type','application/json');res.end(JSON.stringify(data));return;}
   const file=resolve(dir,'.'+decodeURIComponent(url.pathname));if(!file.startsWith(dir+sep)){res.writeHead(403);res.end();return;}
   res.setHeader('Content-Type',file.endsWith('.css')?'text/css':file.endsWith('.js')?'text/javascript':file.endsWith('.svg')?'image/svg+xml':'application/octet-stream');res.end(await readFile(file));

@@ -3,11 +3,11 @@ installPhoneFormatting();
 import {createTabMemory, createRenderQueue} from './tabWorkspace.js?v=20261002-workspace';
 import {readBusinessProfile,writeBusinessProfile} from './profileClient.js?v=20261002-access';
 import {canOpenWorkspace,canWriteWorkspace,staffActionSelector} from './workspacePermissions.js?v=20261002-access';
-import { createPlatform } from './platform.js?v=20261003-directory';
+import {createPageReads, readWorkspaceContext} from './pageReads.js';
+import {readDashboard} from './dashboardData.js';
 import {mountTwilioActivation,mountSmsSetupChoice,smsSetupActionsHtml} from './twilioActivation.js?v=20261003-sms-nav';
 import {smsConnectionSummary} from './smsConnectionSummary.js?v=20261002-sms-summary';
 import { connectSupabaseLive } from './live.js?v=20261001-business-services';
-import { createFormWorkspace } from './formWorkspace.js?v=20261004-live-test';
 import { shouldRefreshFromBackground } from './refreshGuard.js';
 import {
   apiFetch as authenticatedFetch,
@@ -24,11 +24,12 @@ import {
   setTenantId,
 } from './auth.js?v=20261001-business-services';
 
+const pageReads = createPageReads(authenticatedFetch);
 async function apiFetch(path, options = {}) {
   if (!isDemoMode() && !canWriteWorkspace(path, options.method || 'GET', state.platformStaff, state.tenant)) {
     return new Response(JSON.stringify({error:'This workspace is read-only for your account.'}), {status:403,headers:{'Content-Type':'application/json'}});
   }
-  const response = await authenticatedFetch(path, options);
+  const response = await pageReads.fetch(path, options);
   if (response.ok && !['GET','HEAD'].includes((options.method || 'GET').toUpperCase())) window.dispatchEvent(new Event('crm:data-changed'));
   return response;
 }
@@ -97,7 +98,14 @@ const el = {
   tenantAvatar: document.getElementById('tenant-avatar'),
 };
 
-const formBuilder = createFormWorkspace({ root: el.root, apiFetch, config: runtimeConfig, canReadSubmissions:()=>state.tenant?.smsRead!==false });
+let formWorkspace = null;
+const formBuilder = {async render() {
+  const {createFormWorkspace} = await import('./formWorkspace.js?v=20261004-live-test');
+  formWorkspace ||= createFormWorkspace({root:el.root,apiFetch,config:runtimeConfig,getTenantId,
+    canReadSubmissions:()=>state.tenant?.smsRead!==false});
+  return formWorkspace.render();
+}};
+let createPlatform;
 const platformInstances = new Map();
 function currentPlatform() {
   const key = state.view.startsWith('platform-') ? state.view : 'platform-businesses';
@@ -170,6 +178,7 @@ function restoreTab(snapshot) {
   window.scrollTo({top: snapshot.scroll, behavior: 'instant'});
 }
 function clearTabs() {
+  formWorkspace?.reset(); formWorkspace = null;
   tabMemory.clear(); platformInstances.clear(); sectionHistory.clear(); categoriesLoaded = false; lastRenderedView = null;
 }
 
@@ -1506,6 +1515,7 @@ function switchView(view, options = {}) {
   if (['automations','ai-instructions'].includes(view)) view = 'web-forms';
   if (view === 'knowledge') view = 'business-context';
   const ticket = ++navigationTicket;
+  if (view !== state.view && KNOWN_VIEWS.includes(view) && canOpenWorkspace(view, state.platformStaff, state.tenant)) pageReads.cancel();
   return renderQueue.run(async () => {
     if (ticket !== navigationTicket || !KNOWN_VIEWS.includes(view)) return;
     await Promise.all([...platformInstances.values()].map(instance => instance.whenIdle()));
@@ -1518,7 +1528,7 @@ function switchView(view, options = {}) {
     state.view = view; closeDrawer(); closeSidebar();
     const explicitTarget = Object.keys(options).some(key => key !== 'history');
     if (snapshot && !explicitTarget) restoreTab(snapshot);
-    else if (changed || explicitTarget) {
+    else if (changed || explicitTarget || lastRenderedView !== view) {
       if ('categoryId' in options) state.categoryId = options.categoryId;
       if ('conversationPhone' in options) state.conversationPhone = options.conversationPhone;
       if ('conversationId' in options) state.conversationId = options.conversationId;
@@ -1694,7 +1704,20 @@ function syncViewControls() {
   el.search.closest('.search-wrap').hidden = state.view.startsWith('platform-') || ['overview', 'call', 'deliverability', 'ai-instructions', 'business-setup', 'business-context', 'booking-setup', 'knowledge', 'web-forms', 'email'].includes(state.view);
   el.status.hidden = !['messages', 'deliverability'].includes(state.view) && !(state.view === 'automations' && state.categoryId);
 }
+async function loadCategories() {
+  if (categoriesLoaded || state.tenant?.smsRead === false) return;
+  const response = await apiFetch('/api/categories');
+  if (response.status === 401 || response.status === 403) throw Object.assign(new Error(authFailureMessage(response)), {status:response.status});
+  const data = await response.json();
+  if (!response.ok) throw new Error(data.error || 'Could not load automation groups. Please retry.');
+  state.categories = data.categories || [];
+  state.cadences = data.cadences || [];
+  state.rulePresets = data.rulePresets || [];
+  categoriesLoaded = true;
+  renderNavAutomations();
+}
 async function renderWorkspace(options = {}) {
+  const readScope = pageReads.begin();
   if (state.view !== 'messaging') document.querySelector('.crm')?.classList.remove('thread-open');
   if (lastRenderedView !== state.view) {
     el.root.innerHTML = '<div class="workspace-skeleton" role="status"><span>Opening your workspace…</span><i></i><i></i><i></i></div>';
@@ -1705,6 +1728,8 @@ async function renderWorkspace(options = {}) {
   syncViewControls();
   try {
     if (state.view.startsWith('platform-')) {
+      ({createPlatform} = await import('./platform.js?v=20261003-directory'));
+      readScope.signal.throwIfAborted();
       el.search.closest('.search-wrap').hidden = true; el.status.hidden = true; el.kpi.innerHTML = '';
       el.toolbarTenant.textContent='CRM';
       el.toolbarSection.textContent={ 'platform-accounts':'Users','platform-businesses':'Businesses','platform-websites':'Websites','platform-twilio':'Twilio accounts' }[state.view];
@@ -1713,20 +1738,7 @@ async function renderWorkspace(options = {}) {
     el.root.classList.remove('platform-root');
     if (!state.tenant) throw new Error('Choose or create a business workspace.');
     if (!canOpenWorkspace(state.view,state.platformStaff,state.tenant)) {state.view=state.tenant.smsRead?'overview':'web-forms';setActiveNav();}
-    if (!categoriesLoaded && state.tenant.smsRead!==false) {
-      const catRes = await apiFetch('/api/categories');
-      if (catRes.status === 401 || catRes.status === 403) {
-        renderAccessScreen({ errorMessage: authFailureMessage(catRes), onRetry: openAuthenticatedWorkspace });
-        return;
-      }
-      const catJson = await catRes.json();
-      if (!catRes.ok) throw new Error(catJson.error || 'Could not load automation groups. Please retry.');
-      state.categories = catJson.categories || [];
-      state.cadences = catJson.cadences || [];
-      state.rulePresets = catJson.rulePresets || [];
-      categoriesLoaded = true;
-      renderNavAutomations();
-    }
+    if (['messaging','contacts','messages','deliverability','automations'].includes(state.view)) await loadCategories();
 
     if (state.view === 'overview') await renderOverview();
     else if (state.view === 'messaging') await renderMessaging();
@@ -1749,13 +1761,20 @@ async function renderWorkspace(options = {}) {
     else if (state.view === 'bookings') await renderBookings();
     else if (state.view === 'knowledge') await renderKnowledge();
     else await renderMessages();
+    readScope.signal.throwIfAborted();
     lastRenderedView = state.view;
     tabStatus();
   } catch (err) {
+    if (readScope.signal.aborted) { lastRenderedView = null; return; }
+    if ([401,403].includes(err.status)) {
+      renderAccessScreen({errorMessage:authFailureMessage(err),onRetry:openAuthenticatedWorkspace});
+      return;
+    }
     console.error(err);
     el.root.innerHTML = `<div class="card"><div class="empty" role="alert"><strong>Could not load this page.</strong><p>${esc(err.message || 'Please try again.')}</p><button type="button" class="btn ghost" data-retry-load>Try again</button></div></div>`;
     el.root.querySelector('[data-retry-load]')?.addEventListener('click', () => load());
   } finally {
+    pageReads.end(readScope);
     refresh.disabled = false;
     document.title = `${el.title.textContent} · E2.Local CRM`;
     syncWorkspaceNavigation();
@@ -1810,31 +1829,24 @@ async function renderOverview() {
   el.pager.hidden = true;
   el.status.disabled = true;
 
-  let data = {};
-  let provisioning = null;
-  let smsConnection = null;
-  let totalsAvailable = false;
+  const paintTotals = data => {
+    el.kpi.innerHTML = [
+      kpiCard('Conversations', data.conversationCount ?? data.contactCount ?? 0),
+      kpiCard('Total SMS', data.total ?? 0),
+      kpiCard('Delivery rate', data.deliveryRate == null ? '—' : `${data.deliveryRate}%`),
+    ].join('');
+  };
+  let result;
   try {
-    const res = await apiFetch('/api/overview');
-    if (res.status === 401 || res.status === 403) {
-      renderAccessScreen({ errorMessage: authFailureMessage(res), onRetry: openAuthenticatedWorkspace });
+    result = await readDashboard(apiFetch, loadCategories, paintTotals);
+  } catch (error) {
+    if (error.status === 401 || error.status === 403) {
+      renderAccessScreen({ errorMessage: authFailureMessage(error), onRetry: openAuthenticatedWorkspace });
       return;
     }
-    if (!res.ok) throw new Error('Could not load dashboard totals');
-    data = await res.json();
-    totalsAvailable = true;
-  } catch (err) {
-    console.error(err);
+    throw error;
   }
-  try {
-    const response = state.platformStaff ? await apiFetch('/api/provisioning') : null;
-    if (response?.ok) provisioning = await response.json();
-  } catch (error) { console.error(error); }
-  state.setupProvisioning = provisioning;
-  try {
-    const response = await apiFetch('/api/sms/connection');
-    if (response.ok) smsConnection = await response.json();
-  } catch (error) { console.error(error); }
+  const {data, totalsAvailable, smsConnection} = result;
   el.kpi.innerHTML = [
     kpiCard('Conversations', totalsAvailable ? data.conversationCount ?? data.contactCount ?? 0 : '—'),
     kpiCard('Total SMS', totalsAvailable ? data.total ?? 0 : '—'),
@@ -3762,7 +3774,7 @@ async function openAuthenticatedWorkspace() {
   document.querySelectorAll('[data-platform-nav]').forEach(node => { node.hidden = !session.capabilities?.platformStaff; });
   state.platformStaff = Boolean(session.capabilities?.platformStaff);
   document.getElementById('add-business').hidden = !state.platformStaff;
-  await loadTenantContext();
+  await loadTenantContext(session);
   if (!state.tenant && state.platformStaff && !state.view.startsWith('platform-')) { state.view = 'platform-accounts'; setActiveNav(); }
   showCrmApp();
   updateAuthChrome();
@@ -3799,10 +3811,8 @@ function updateAuthChrome() {
   initNavFind();
 }
 
-async function loadTenantContext() {
-  const response = await apiFetch('/api/tenants', { tenant: false });
-  if (!response.ok) throw new Error('Could not load business accounts');
-  const data = await response.json();
+async function loadTenantContext(session) {
+  const data = await readWorkspaceContext(apiFetch, session);
   state.tenants = Array.isArray(data.tenants) ? data.tenants : [];
   const stored = getTenantId();
   state.tenant = state.tenants.find((tenant) => tenant.id === stored)
