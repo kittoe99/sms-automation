@@ -1,15 +1,20 @@
+import {createFormTest} from './formTest.js?v=20261004-preview';
 import { BUILTIN_PRESETS, emptySequence, newMessage, TIME_UNITS, validateSequence, sequenceSummary } from './formAutomation.js?v=20261003-forms';
 const esc=v=>String(v??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
 const units=(name,value)=>`<select data-key="${name}">${TIME_UNITS.map(u=>`<option ${u===value?'selected':''}>${u}</option>`).join('')}</select>`;
-export async function renderFormAutomation({root,form,apiFetch,canManage}) {
+export async function renderFormAutomation({root,form,apiFetch,canManage,timeZone}) {
   const request=async(path,options)=>{const res=await apiFetch(path,options);const data=await res.json();if(!res.ok)throw new Error(data.error||'Could not load automation');return data;};
   let saved=await request(`/api/web-forms/${form.public_id}/automation`);
   let sequence=structuredClone(saved.draft?.steps?.length?saved.draft:emptySequence());
   const library=await request('/api/automation-presets');
   const presets=[...BUILTIN_PRESETS,...(library.presets||[])];
   let notice='';
+  const testHost=document.createElement('section');testHost.className='card form-test-card';
+  const tester=createFormTest({root:testHost,apiFetch,timeZone,getForm:()=>form,getSequence:()=>sequence});
+  tester.render();
   const tokens=['first_name','name','business_name','phone','email',...(form.preset==='bookings'?['appointment_at']:[]),...form.fields.map(f=>`field.${f.key}`)];
   const preview=()=>{
+    tester.invalidate();
     const summary=root.querySelector('[data-summary]');if(summary)summary.textContent=sequence.steps.length?sequenceSummary(sequence):'Add a message or choose a preset to see the schedule.';
     root.querySelectorAll('[data-message]').forEach(card=>{
       const s=sequence.steps[Number(card.dataset.message)];
@@ -41,10 +46,12 @@ export async function renderFormAutomation({root,form,apiFetch,canManage}) {
       <button type="button" class="btn ghost" data-action="add">+ Add message</button></fieldset>
       <aside class="form-sequence-summary"><h3>Sequence summary</h3><p data-summary></p><p class="muted">Opt-outs always stop sending. Publishing does not enable Twilio sending.</p></aside>
       <p role="status" data-status>${esc(notice)}</p>${canManage?`<div class="form-editor-actions"><button class="btn ghost" data-action="draft">Save draft</button><button class="btn" data-action="publish">Publish version</button><button class="btn ghost" data-action="state">${saved.enabled?'Pause automation':'Enable published version'}</button></div><div class="form-preset-save"><label>Preset name<input data-preset-name maxlength="100" placeholder="Save these rules for another form" /></label><button class="btn ghost" data-action="preset-save">Save as preset</button></div>`:'<p class="muted">Staff manage this automation.</p>'}</div></section>`;
+    root.append(testHost);
     preview();
   };
   root.oninput=e=>{
     const input=e.target;
+    if(!input.dataset.setting&&!input.dataset.key)return;
     if(input.dataset.setting)sequence[input.dataset.setting]=input.type==='number'?Number(input.value):input.value;
     if(input.dataset.key){const s=sequence.steps[Number(input.closest('[data-message]').dataset.message)];s[input.dataset.key]=input.type==='number'?Number(input.value):input.value;}
     preview();

@@ -1,5 +1,5 @@
-import {createFormBuilder} from './formBuilder.js?v=20261003-forms';
-import {renderFormAutomation} from './formAutomationEditor.js?v=20261003-forms';
+import {createFormBuilder} from './formBuilder.js?v=20261004-preview';
+import {renderFormAutomation} from './formAutomationEditor.js?v=20261004-preview';
 const esc=v=>String(v??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
 export function createFormWorkspace({root,apiFetch,config,canReadSubmissions}) {
   let selected=null,tab='form',tenant=null;
@@ -25,7 +25,7 @@ export function createFormWorkspace({root,apiFetch,config,canReadSubmissions}) {
       try{const r=await request(`/api/web-forms/${form.public_id}/${action}`,{method:'POST',body:'{}'});selected=action==='duplicate'?r.form.public_id:null;tab='form';await render();}catch(e){showError(e);}});
     const panel=root.querySelector('[data-panel]');
     if(tab==='form')await createFormBuilder({root:panel,apiFetch,config,canReadSubmissions,formId:form.public_id,hideSubmissions:true}).render();
-    if(tab==='automation')await renderFormAutomation({root:panel,form,apiFetch,canManage:data.canManageAutomation&&!form.archived});
+    if(tab==='automation')await renderFormAutomation({root:panel,form,apiFetch,canManage:data.canManageAutomation&&!form.archived,timeZone:data.timeZone});
     if(tab==='submissions')await submissions(panel,form,data.canManageAutomation);
   }
   function showError(e){const host=root.querySelector('[data-error]')||root.querySelector('[data-status]');if(host)host.textContent=e.message;}

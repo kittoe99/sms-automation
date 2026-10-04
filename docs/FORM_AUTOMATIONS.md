@@ -103,3 +103,27 @@ The customer-only reader and migration are E2-owned:
 service/form migrations. CRM submission, staff reads and messaging permissions
 stay unchanged. See `../E2local-main/docs/business-services.md` for the release
 contract. Apply only the forward migration; do not replay shared histories.
+
+## Preview a submission and its automation
+
+Open a form's **Form** tab and use **Preview & test**, or use **Test submission**
+below its **Automation** editor. Fill the sample fields (or use sample answers),
+select simulated SMS consent, and choose **Run simulation**. Expand **Test timing
+& customer behavior** to choose a submission time or test a reply/STOP after the
+first message. Booking forms also require an appointment time.
+
+The Form panel uses unsaved fields with saved draft rules. The Automation panel
+uses the current unsaved rules. Results show personalized texts, repeat numbers,
+and estimated dates in the business timezone. Up to 200 occurrences are shown;
+the full configured send count remains visible. Changed inputs/rules invalidate
+the old result. Actual provider processing and late execution can shift times.
+
+Simulation works for draft/disabled forms and explains live readiness separately.
+It respects sample consent, existing opt-outs, missing fields and appointment
+cutoffs, but never creates a real contact, lead, message, run or job. Publishing,
+enabling and real customer submission remain separate actions. SMS-read accounts
+can run simulations; forms-only editors cannot read automation rules.
+
+API: POST /api/web-forms/:id/preview. Deploy only the CRM forward migration
+20261004021248_form_automation_preview after paired form/access prerequisites,
+then crm-api and the CRM frontend. There is no E2 migration for simulation.

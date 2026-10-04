@@ -62,6 +62,12 @@ export function createCrmHandler(db,verify=authenticate,{platform=false,provisio
     return json({business:await db.call('platform_action',user,'business_register',p)},200,headers);
    }
    if(!tenant) return json({error:'Select a business'},400,headers);
+   const formPreview=path.match(/^\/web-forms\/([0-9a-f-]{36})\/preview$/i);
+   if(formPreview&&method==='POST') {
+    const input=await readJson(request);
+    if(input.sample?.phone)input.sample.phone=phone(input.sample.phone);
+    return json(await db.call('preview_form_automation',user,tenant,formPreview[1],input),200,headers);
+   }
    const formRoute=path.match(/^\/web-forms\/([0-9a-f-]{36})(?:\/(automation|submissions|duplicate|archive|restore)(?:\/(draft|publish|state|preset-save|pause|resume|stop|enroll))?)?$/i);
    if(path==='/automation-presets'&&method==='GET') return json(await db.call('form_workspace',user,tenant,'presets',null,{}),200,headers);
    if(path==='/web-forms'&&method==='POST') return json(await db.call('form_workspace',user,tenant,'create',null,await readJson(request)),201,headers);

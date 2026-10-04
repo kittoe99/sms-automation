@@ -3500,3 +3500,21 @@ tr[data-booking-id] { cursor: pointer; }
 .form-visually-hidden{position:absolute;width:1px;height:1px;overflow:hidden;clip-path:inset(50%);white-space:nowrap}
 .sms-activation{max-width:900px;margin-inline:auto}.sms-activation .twilio-connect-card{padding:28px}.sms-activation h2{margin:10px 0}.sms-activation .twilio-connected-number{font-size:1.75rem;margin:16px 0 8px}.sms-activation-steps{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:12px;list-style:none;padding:0;margin:26px 0}.sms-activation-steps li{display:flex;align-items:center;gap:10px;padding:12px;border:1px solid var(--border);border-radius:10px;font-size:.85rem}.sms-activation-steps li span{display:grid;place-items:center;width:26px;height:26px;flex-shrink:0;border-radius:50%;background:var(--bg)}.sms-activation-steps .done{color:var(--accent);background:#eef8f8}.sms-activation [data-test] label{display:grid;gap:8px;max-width:380px;margin-top:20px}.sms-activation [data-test] input{width:100%;box-sizing:border-box}.sms-activation .btn{margin:8px 8px 0 0}.sms-activation-details{padding:20px;margin-top:20px}.sms-activation-details summary{cursor:pointer;font-weight:600}.sms-activation-details .twilio-details{margin-top:20px}@media(max-width:600px){.sms-activation .twilio-connect-card{padding:18px}.sms-activation-steps{gap:6px}.sms-activation-steps li{flex-direction:column;align-items:flex-start;padding:10px 8px;font-size:.75rem}.sms-activation .twilio-connected-number{font-size:1.4rem}}
 .sms-activation [data-test] input{min-height:44px;padding:10px 12px;border:1px solid var(--border);border-radius:8px;background:var(--surface-2);color:var(--text);font:inherit}.sms-activation [data-test] input:focus-visible{outline:2px solid var(--accent);outline-offset:2px}
+.form-test-card { margin-top: 24px; padding: 24px; }
+.form-test { display: grid; gap: 16px; min-width: 0; }
+.form-test p { margin: 0; }
+.form-test label, .form-test-fields { display: grid; gap: 8px; }
+.form-test-fields { gap: 14px; }
+.form-test .checkbox-field { display: flex; align-items: flex-start; }
+.form-test input[type="checkbox"] { width: auto; flex: 0 0 auto; }
+.form-test-notice, .form-test-result { padding: 16px; border: 1px solid var(--line, #c7dfe7); border-radius: 12px; background: var(--surface, #f4fafb); }
+.form-test-notice p { margin-top: 6px; }
+.form-test-options summary { cursor: pointer; margin-bottom: 12px; }
+.form-test-result { display: grid; gap: 12px; }
+.form-test-result h3 { margin: 0; }
+.form-test-timeline { max-height: 520px; overflow: auto; list-style: none; padding: 0; margin: 0; display: grid; gap: 12px; }
+.form-test-timeline li { border-left: 3px solid var(--accent, #087f9f); padding: 8px 12px; }
+.form-test-timeline time { display: block; font-size: .85em; margin-top: 4px; }
+.form-test-timeline p { margin-top: 8px; white-space: pre-wrap; overflow-wrap: anywhere; }
+.form-test [data-test-results] { overflow-wrap: anywhere; }
+@media (max-width: 600px) { .form-test-card { padding: 16px; } .form-test-notice, .form-test-result { padding: 12px; } }

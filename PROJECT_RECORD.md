@@ -1,5 +1,30 @@
 # Opek SMS project record
 
+### October 3 - form submission and automation simulation
+
+CRM Forms now include an interactive Preview & test panel, also available under
+Automation. Users enter sample answers, choose a local start/appointment time and
+simulate no reply, a reply or STOP after the first message. Form preview uses
+current unsaved fields and saved draft rules; Automation uses unsaved editor rules.
+Results show personalized texts, numbered repeats and estimated business-timezone
+send times, plus separate live-readiness warnings. The first 200 sends are shown
+with the full configured count. Existing live delivery/activation is unchanged.
+
+CRM migration 20261004021248_form_automation_preview adds a private, stable,
+tenant-authorized reader used by POST /api/web-forms/:id/preview. It reuses the
+existing rule validator and form_due scheduler. SMS-read permission is required;
+forms-only editors retain interactive fields without automation-read access.
+No contacts, submissions, runs, jobs, texts or E2 Leads are created by simulation.
+No E2 migration or runtime change is required. Prerequisites: CRM form-first
+20261003143731, E2 canonical access 20261002024330 and current unified-leads
+20261003231755 baseline. Never replay either migration history.
+
+Validated 23 CRM API/form/database tests, 19 paired E2 Leads/cache/access tests,
+frontend build, desktop and 390px mobile behavior, unsaved repeats and reply pause.
+Four live prerequisite function hashes matched the paired baseline. The single
+CRM forward migration and CRM API are deployed; frontend release verification is
+pending. Existing unrelated local changes remain excluded.
+
 ### October 3 - unified customer Leads and visible SMS numbers
 
 E2 now exposes one Leads tab for released SMS or enquiries services, combining

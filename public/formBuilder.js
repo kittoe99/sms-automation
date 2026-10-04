@@ -1,3 +1,4 @@
+import {createFormTest} from './formTest.js?v=20261004-preview';
 const PRESETS = [
   ['contacts', 'Contact'],
   ['quote_requests', 'Quote Request'],
@@ -19,6 +20,7 @@ export function createFormBuilder({ root, apiFetch, config, canReadSubmissions =
   let canEdit = false;
   let consentText = '';
   let timeZone = '';
+  let tester;
 
   function rowsMarkup(fields) {
     return fields.map((field, index) => `<div class="web-builder-field" data-field-index="${index}">
@@ -47,26 +49,9 @@ export function createFormBuilder({ root, apiFetch, config, canReadSubmissions =
   }
 
   function preview() {
-    const host = root.querySelector('#web-builder-preview');
-    if (!host) return;
-    const fields = [...root.querySelectorAll('[data-field-index]')].map(row => ({
-      label: row.querySelector('[data-field-label]').value.trim() || 'Custom field',
-      type: row.querySelector('[data-field-type]').value,
-      required: row.querySelector('[data-field-required]').checked,
-      options: row.querySelector('[data-field-options]')?.value.split('\n').map(option => option.trim()).filter(Boolean) || [],
-    }));
-    const fixed = [['Name', 'text'], ['Phone', 'tel'], ['Email', 'email'],
-      ...(draft?.preset === 'bookings' ? [[`Appointment date and time (${timeZone || 'business time zone'})`, 'datetime-local']] : [])];
-    host.innerHTML = `<h3>${escapeHtml(root.querySelector('#web-form-title')?.value || 'Form preview')}</h3>
-      <p>${escapeHtml(root.querySelector('#web-form-description')?.value || '')}</p>
-      ${fixed.map(([label, type]) => `<label>${escapeHtml(label)} <input type="${type}" disabled placeholder="${escapeHtml(label)}" /></label>`).join('')}
-      ${fields.map(field => `<label>${escapeHtml(field.label)} ${field.required ? '*' : ''}
-        ${field.type === 'textarea' ? '<textarea disabled></textarea>' : field.type === 'checkbox' ? '<input type="checkbox" disabled />' : field.type === 'select'
-          ? `<select disabled><option>Choose an option</option>${field.options.map(option => `<option>${escapeHtml(option)}</option>`).join('')}</select>`
-          : `<input type="${field.type === 'date' ? 'date' : 'text'}" disabled />`}</label>`).join('')}
-      <label><input type="checkbox" disabled /> ${escapeHtml(consentText || 'SMS consent (optional)')}</label>
-      ${root.querySelector('#web-form-email-enabled')?.checked ? `<label><input type="checkbox" disabled /> ${escapeHtml(draft.emailConsentText || `I agree to receive marketing and follow-up emails from this business. I can unsubscribe at any time.`)}</label>` : ''}
-      <button type="button" class="btn" disabled>${escapeHtml(root.querySelector('#web-form-button')?.value || 'Submit')}</button>`;
+    if (!tester) return;
+    readFields();
+    tester.render();
   }
 
   function bindFields() {
@@ -143,7 +128,7 @@ export function createFormBuilder({ root, apiFetch, config, canReadSubmissions =
       <h3>Fixed fields</h3><p class="muted">Name, Phone, Email${draft?.preset === 'bookings' ? ', Appointment date and time' : ''}, and optional SMS consent stay on this form. Email marketing has its own unchecked consent choice when enabled.</p>
       <h3>Custom fields</h3><div id="web-builder-fields"></div>
       ${canEdit ? '<button type="button" class="btn ghost" id="web-add-field">Add custom field</button><div class="web-builder-actions"><span id="web-save-status" role="status"></span><button type="button" class="btn" id="web-save-form">Save form</button></div>' : '<p class="muted">An administrator can edit this form.</p>'}
-      </div></section><aside class="card"><div class="card-head"><div><h2>Preview</h2><span class="muted">Customer view · fields are disabled here</span></div></div><div id="web-builder-preview" class="web-builder-preview"></div></aside></div>
+      </div></section><aside class="card"><div class="card-head"><div><h2>Preview &amp; test</h2><span class="muted">Try your form and simulate its automation</span></div></div><div id="web-builder-preview" class="web-builder-preview"></div></aside></div>
       ${canEdit ? `<section class="card web-builder-embed"><div class="card-head"><div><h2>Embed code</h2><span class="muted">Paste this snippet into any website. No URL allowlist is used during testing.</span></div></div>
       <div class="web-builder-body"><textarea id="web-embed-code" rows="4" readonly>${escapeHtml(snippet)}</textarea><button type="button" class="btn ghost" id="web-copy-embed">Copy code</button></div></section>` : ''}
       <section class="card web-builder-embed"><div class="card-head"><h2>Submissions</h2></div><div id="web-form-submissions" class="web-builder-body" role="status">Loading submissions…</div></section></div>`;
@@ -193,6 +178,7 @@ export function createFormBuilder({ root, apiFetch, config, canReadSubmissions =
       });
     }
     root.querySelectorAll('#web-form-title,#web-form-description,#web-form-button,#web-form-email-enabled').forEach(input => input.addEventListener('input', preview));
+    tester = createFormTest({root:root.querySelector('#web-builder-preview'),apiFetch,timeZone,consentText,canTest:canReadSubmissions(),getForm:()=>({...draft,title:root.querySelector('#web-form-title').value,description:root.querySelector('#web-form-description').value})});
     bindFields();
     if (!canEdit) root.querySelectorAll('#web-builder-fields input,#web-builder-fields select,#web-builder-fields textarea,#web-builder-fields button').forEach(input => input.disabled = true);
     if (!hideSubmissions) await submissions(); else root.querySelector('#web-form-submissions')?.closest('section')?.remove();

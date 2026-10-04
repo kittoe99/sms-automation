@@ -7,7 +7,7 @@ import { createPlatform } from './platform.js?v=20261003-directory';
 import {mountTwilioActivation,mountSmsSetupChoice,smsSetupActionsHtml} from './twilioActivation.js?v=20261003-sms-nav';
 import {smsConnectionSummary} from './smsConnectionSummary.js?v=20261002-sms-summary';
 import { connectSupabaseLive } from './live.js?v=20261001-business-services';
-import { createFormWorkspace } from './formWorkspace.js?v=20261003-forms';
+import { createFormWorkspace } from './formWorkspace.js?v=20261004-preview';
 import { shouldRefreshFromBackground } from './refreshGuard.js';
 import {
   apiFetch as authenticatedFetch,
