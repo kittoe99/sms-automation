@@ -22,8 +22,11 @@ No E2 migration or runtime change is required. Prerequisites: CRM form-first
 Validated 23 CRM API/form/database tests, 19 paired E2 Leads/cache/access tests,
 frontend build, desktop and 390px mobile behavior, unsaved repeats and reply pause.
 Four live prerequisite function hashes matched the paired baseline. The single
-CRM forward migration and CRM API are deployed; frontend release verification is
-pending. Existing unrelated local changes remain excluded.
+CRM forward migration and CRM API v44 are deployed. CRM application 0d54190
+is live in Render dep-db0rln49v7es73co4vo0; all seven changed frontend assets
+match source. Security advisors retain five existing findings with no new finding.
+Authenticated production form validation and automation simulation are verified.
+Existing unrelated local changes remain excluded.
 
 ### October 3 - unified customer Leads and visible SMS numbers
 
