@@ -25,7 +25,11 @@ Twilio client, repeat advancement, stop/reply/opt-out, access and idempotency),
 19 paired E2 Leads/cache/access tests, production frontend build, desktop/mobile
 start-review-stop controls and absence of test submissions in the owner reader.
 Nine production function baselines matched before applying only the new migration.
-The migration and CRM API are deployed; frontend verification is pending.
+The migration and CRM API v45 are deployed. Application 746a783 is live in
+Render dep-db0sqhc9v7es73csg5q0, and all seven changed frontend assets match
+source. Authenticated production shows the actual-send controls, connected number,
+sending-enabled state and safe test history, with no browser errors. Security
+advisors retain the same five existing findings.
 No production test sequence was started during verification. E2 has no runtime or
 migration change; both repositories' unrelated local changes remain preserved.
 

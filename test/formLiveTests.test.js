@@ -122,4 +122,3 @@ test('real replies and opt-outs stop subsequent test sends; normal published rul
   assert.equal((await db.query('select status from sms_private.form_runs where id=$1',[r.runId])).rows[0].status,'stopped');
  }finally{await db.close();}
 });
-
