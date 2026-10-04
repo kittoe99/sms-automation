@@ -1,5 +1,30 @@
 # Opek SMS project record
 
+### October 4 - CRM page-load performance production release
+
+CRM application commit `51f21b21135d2e3aacd7e2c7a943129464e575bb` is live
+at https://crm.e2local.com on Render deployment
+`dep-db0vm9ou01pc73c5il3g` (build and deploy completed in 12 seconds).
+The push did not start an automatic deploy; a cleared-cache deploy was triggered.
+Live service headers now cache hashed /assets/* as public, max-age=31536000,
+immutable and revalidate /config.js with no-cache. HTML remains revalidated.
+
+The isolated staged release passed its production build and all 22 targeted
+checks, excluding unrelated local preview/auth edits. All eight emitted assets
+returned 200 with immutable headers and matched that release after normalizing
+platform-dependent chunk filenames; the underlying hosting-upload chunk bytes
+were identical despite its Linux/Windows filename hash difference. Live initial
+application JS is two files, 171,819 raw bytes / 47,208 summed gzip bytes, versus
+387,149 / 105,743 before (about 55% less compressed application JS). This excludes
+external Clerk/vendor scripts and is not an end-to-end page timing benchmark.
+
+Signed-in production checks verified Dashboard totals/connection, Forms listing,
+lazy Platform Users and return navigation; browser warning/error logs were empty.
+No business data was edited or messages sent. No migrations, API/worker release,
+E2 runtime deployment or identity/provider changes were part of this CRM release.
+Both project records and staff workflow docs were updated; unrelated local work
+was preserved. The earlier E2 cache mock failures were fixed by concurrent E2 work.
+
 ### October 3 - CRM page-load performance (local, not deployed)
 
 CRM startup reuses the authorized /auth/me workspace payload, retaining /tenants

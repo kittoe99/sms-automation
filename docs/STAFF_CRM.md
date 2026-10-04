@@ -1,6 +1,6 @@
 # Shared staff CRM and customer dashboard
 
-## Local page-load improvements (October 3; not deployed)
+## Page-load improvements (deployed October 4)
 
 Startup uses the authorized session's workspace list once. Dashboard readers run
 concurrently, with provisioning deferred to SMS setup. Forms retains its list and
@@ -13,7 +13,8 @@ chunks. Deploy the generated `dist/index.html` and its assets together. Apply th
 `render.yaml` cache rules through the service's normal Blueprint/header workflow:
 only content-hashed `/assets/*` is immutable; config and stable embed URLs must not
 receive that policy. No API or database migration is required. These changes and
-cache settings are local only; see the project record for checks and limitations.
+cache settings are live in CRM release `51f21b2` (Render deployment
+`dep-db0vm9ou01pc73c5il3g`); see the project record for checks and limitations.
 
 For synthetic browser checks, build then run
 `node test/fixtures/platform-preview.js` and open `/shell` on port 4319.
