@@ -62,6 +62,17 @@ export function createCrmHandler(db,verify=authenticate,{platform=false,provisio
     return json({business:await db.call('platform_action',user,'business_register',p)},200,headers);
    }
    if(!tenant) return json({error:'Select a business'},400,headers);
+   const formTests=path.match(/^\/web-forms\/([0-9a-f-]{36})\/test-runs(?:\/([0-9a-f-]{36})\/stop)?$/i);
+   if(formTests) {
+    if(method==='GET'&&!formTests[2])return json(await db.call('list_form_test_runs',user,tenant,formTests[1]),200,headers);
+    if(method==='POST'&&formTests[2])return json(await db.call('stop_form_test_run',user,tenant,formTests[1],formTests[2]),200,headers);
+    if(method==='POST') {
+     const input=await readJson(request);
+     if(input.sample?.phone)input.sample.phone=phone(input.sample.phone);
+     return json(await db.call('start_form_test_run',user,tenant,formTests[1],input),202,headers);
+    }
+    return json({error:'Method not allowed'},405,headers);
+   }
    const formPreview=path.match(/^\/web-forms\/([0-9a-f-]{36})\/preview$/i);
    if(formPreview&&method==='POST') {
     const input=await readJson(request);

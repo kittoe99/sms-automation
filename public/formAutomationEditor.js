@@ -1,4 +1,4 @@
-import {createFormTest} from './formTest.js?v=20261004-preview';
+import {createFormTest} from './formTest.js?v=20261004-live-test';
 import { BUILTIN_PRESETS, emptySequence, newMessage, TIME_UNITS, validateSequence, sequenceSummary } from './formAutomation.js?v=20261003-forms';
 const esc=v=>String(v??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
 const units=(name,value)=>`<select data-key="${name}">${TIME_UNITS.map(u=>`<option ${u===value?'selected':''}>${u}</option>`).join('')}</select>`;
@@ -10,7 +10,7 @@ export async function renderFormAutomation({root,form,apiFetch,canManage,timeZon
   const presets=[...BUILTIN_PRESETS,...(library.presets||[])];
   let notice='';
   const testHost=document.createElement('section');testHost.className='card form-test-card';
-  const tester=createFormTest({root:testHost,apiFetch,timeZone,getForm:()=>form,getSequence:()=>sequence});
+  const tester=createFormTest({root:testHost,apiFetch,timeZone,canSend:canManage,getForm:()=>form,getSequence:()=>sequence});
   tester.render();
   const tokens=['first_name','name','business_name','phone','email',...(form.preset==='bookings'?['appointment_at']:[]),...form.fields.map(f=>`field.${f.key}`)];
   const preview=()=>{

@@ -127,3 +127,38 @@ can run simulations; forms-only editors cannot read automation rules.
 API: POST /api/web-forms/:id/preview. Deploy only the CRM forward migration
 20261004021248_form_automation_preview after paired form/access prerequisites,
 then crm-api and the CRM frontend. There is no E2 migration for simulation.
+
+## Send the actual test sequence
+
+In **Form > Preview & test** or **Automation > Test submission**, enter your real
+mobile number and sample answers, select SMS consent, and choose **Prepare real
+SMS test**. Review the recipient, number of sends and first scheduled time, confirm
+that you control the phone, then choose **Start real SMS test**. Standard Twilio
+charges apply. Sample 555-01xx numbers cannot be used for real sending.
+
+The full configured sequence runs on its actual schedule, including delays,
+business sending hours, repeats, appointment cutoffs and reply/STOP behavior.
+Simulation dates and simulated replies are ignored. A future first-send time means
+no SMS is expected immediately. Unsaved Automation editor rules are copied into
+an isolated run; the Form panel uses the saved draft. Publishing is not required.
+Business SMS sending must already be enabled with a connected provider.
+
+**Real SMS tests** shows scheduled time, provider acceptance, delivery and recent
+message statuses, refreshing automatically while pending. **Stop test** prevents
+future sends; an SMS already submitted to Twilio may still arrive. Replies can
+pause tests and STOP ends them. Stop a paused test before starting a new one for
+that form/phone. Uncertain provider submissions require reconciliation first.
+Tests create consent/contact/message history, but no saved customer submission or
+E2 Lead. Existing opt-out/consent restrictions are preserved.
+
+GET/POST /api/web-forms/:id/test-runs read/start tests;
+POST /api/web-forms/:id/test-runs/:runId/stop stops a test. Starting/stopping is
+staff-only; reading uses existing SMS-read permission. Responses exclude secrets,
+Twilio identifiers and raw errors. Start request IDs make transport retries safe.
+
+Apply only CRM 20261004033035_form_live_test_runs after CRM 20261004021248,
+CRM 20261003143731, E2 canonical access 20261002024330 and the current paired
+20261003231755 Leads baseline. Deploy crm-api and the CRM frontend. Existing
+workers call the updated shared functions; no worker code or E2 release is needed.
+Never replay either history. No dispatch, provider or business activation setting
+is changed by this migration.

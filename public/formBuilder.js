@@ -1,4 +1,4 @@
-import {createFormTest} from './formTest.js?v=20261004-preview';
+import {createFormTest} from './formTest.js?v=20261004-live-test';
 const PRESETS = [
   ['contacts', 'Contact'],
   ['quote_requests', 'Quote Request'],
@@ -128,7 +128,7 @@ export function createFormBuilder({ root, apiFetch, config, canReadSubmissions =
       <h3>Fixed fields</h3><p class="muted">Name, Phone, Email${draft?.preset === 'bookings' ? ', Appointment date and time' : ''}, and optional SMS consent stay on this form. Email marketing has its own unchecked consent choice when enabled.</p>
       <h3>Custom fields</h3><div id="web-builder-fields"></div>
       ${canEdit ? '<button type="button" class="btn ghost" id="web-add-field">Add custom field</button><div class="web-builder-actions"><span id="web-save-status" role="status"></span><button type="button" class="btn" id="web-save-form">Save form</button></div>' : '<p class="muted">An administrator can edit this form.</p>'}
-      </div></section><aside class="card"><div class="card-head"><div><h2>Preview &amp; test</h2><span class="muted">Try your form and simulate its automation</span></div></div><div id="web-builder-preview" class="web-builder-preview"></div></aside></div>
+      </div></section><aside class="card"><div class="card-head"><div><h2>Preview &amp; test</h2><span class="muted">Try your form, preview its schedule or send a real SMS test</span></div></div><div id="web-builder-preview" class="web-builder-preview"></div></aside></div>
       ${canEdit ? `<section class="card web-builder-embed"><div class="card-head"><div><h2>Embed code</h2><span class="muted">Paste this snippet into any website. No URL allowlist is used during testing.</span></div></div>
       <div class="web-builder-body"><textarea id="web-embed-code" rows="4" readonly>${escapeHtml(snippet)}</textarea><button type="button" class="btn ghost" id="web-copy-embed">Copy code</button></div></section>` : ''}
       <section class="card web-builder-embed"><div class="card-head"><h2>Submissions</h2></div><div id="web-form-submissions" class="web-builder-body" role="status">Loading submissions…</div></section></div>`;
@@ -178,7 +178,7 @@ export function createFormBuilder({ root, apiFetch, config, canReadSubmissions =
       });
     }
     root.querySelectorAll('#web-form-title,#web-form-description,#web-form-button,#web-form-email-enabled').forEach(input => input.addEventListener('input', preview));
-    tester = createFormTest({root:root.querySelector('#web-builder-preview'),apiFetch,timeZone,consentText,canTest:canReadSubmissions(),getForm:()=>({...draft,title:root.querySelector('#web-form-title').value,description:root.querySelector('#web-form-description').value})});
+    tester = createFormTest({root:root.querySelector('#web-builder-preview'),apiFetch,timeZone,consentText,canTest:canReadSubmissions(),canSend:data.canManageAutomation&&!form.archived,getForm:()=>({...draft,title:root.querySelector('#web-form-title').value,description:root.querySelector('#web-form-description').value})});
     bindFields();
     if (!canEdit) root.querySelectorAll('#web-builder-fields input,#web-builder-fields select,#web-builder-fields textarea,#web-builder-fields button').forEach(input => input.disabled = true);
     if (!hideSubmissions) await submissions(); else root.querySelector('#web-form-submissions')?.closest('section')?.remove();

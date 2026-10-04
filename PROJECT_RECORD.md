@@ -1,5 +1,34 @@
 # Opek SMS project record
 
+### October 3 - actual SMS form test sequences
+
+The form tester now offers Prepare real SMS test, then Start real SMS test after
+showing the recipient, full configured send count and first scheduled time.
+Staff confirms control of the phone and consent. Tests snapshot current rules and
+use the normal automation scheduler, Twilio sending worker, provider acceptance,
+delivery callbacks, reply policy, opt-out fencing and business sending controls.
+Configured delays/windows/repeats remain intact; this is not an immediate-send
+shortcut. The panel refreshes delivery progress and offers Stop test for future
+sends. Simulation remains available separately.
+
+CRM migration 20261004033035_form_live_test_runs adds isolated test snapshots to
+private form runs. Tests may use a disabled draft form without publishing or
+enabling it. They create consent/contact/message history but no customer form
+submission, intake or E2 Lead. SMS-read accounts can view safe progress; starting
+and stopping require existing CRM staff permissions. Duplicate starts reuse their
+request ID, an active/paused test cannot overlap the same form/phone, and uncertain
+provider sends block a new run. A real opted-out phone is never reconsented by test.
+The forward migration also fixes ambiguous dropdown validation in the preview.
+
+Validated 27 CRM tests (including the complete send-worker boundary with a mocked
+Twilio client, repeat advancement, stop/reply/opt-out, access and idempotency),
+19 paired E2 Leads/cache/access tests, production frontend build, desktop/mobile
+start-review-stop controls and absence of test submissions in the owner reader.
+Nine production function baselines matched before applying only the new migration.
+The migration and CRM API are deployed; frontend verification is pending.
+No production test sequence was started during verification. E2 has no runtime or
+migration change; both repositories' unrelated local changes remain preserved.
+
 ### October 3 - form submission and automation simulation
 
 CRM Forms now include an interactive Preview & test panel, also available under

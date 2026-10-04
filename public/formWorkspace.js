@@ -1,5 +1,5 @@
-import {createFormBuilder} from './formBuilder.js?v=20261004-preview';
-import {renderFormAutomation} from './formAutomationEditor.js?v=20261004-preview';
+import {createFormBuilder} from './formBuilder.js?v=20261004-live-test';
+import {renderFormAutomation} from './formAutomationEditor.js?v=20261004-live-test';
 const esc=v=>String(v??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
 export function createFormWorkspace({root,apiFetch,config,canReadSubmissions}) {
   let selected=null,tab='form',tenant=null;

@@ -3517,4 +3517,9 @@ tr[data-booking-id] { cursor: pointer; }
 .form-test-timeline time { display: block; font-size: .85em; margin-top: 4px; }
 .form-test-timeline p { margin-top: 8px; white-space: pre-wrap; overflow-wrap: anywhere; }
 .form-test [data-test-results] { overflow-wrap: anywhere; }
+.form-live-start { border-top: 1px solid var(--border); padding-top: 18px; display: grid; gap: 12px; }
+.form-live-start h3 { margin: 0; }
+.form-live-run { padding: 14px 0; border-bottom: 1px solid var(--border); display: grid; gap: 10px; }
+.form-live-run h4 { margin: 0; overflow-wrap: anywhere; }
+.form-live-run details p { margin-top: 10px; white-space: pre-wrap; }
 @media (max-width: 600px) { .form-test-card { padding: 16px; } .form-test-notice, .form-test-result { padding: 12px; } }
