@@ -17,6 +17,10 @@ import_map = "./functions/import_map.json"
 verify_jwt = false
 import_map = "./functions/import_map.json"
 
+[functions.voice-lookup]
+verify_jwt = false
+import_map = "./functions/import_map.json"
+
 [functions.soni-voice-inbound]
 verify_jwt = false
 import_map = "./functions/import_map.json"
@@ -74,5 +78,17 @@ verify_jwt = false
 import_map = "./functions/import_map.json"
 
 [functions.compliance-session]
+verify_jwt = false
+import_map = "./functions/import_map.json"
+
+[functions.voice-booking]
+verify_jwt = false
+import_map = "./functions/import_map.json"
+
+[functions.voice-runtime]
+verify_jwt = false
+import_map = "./functions/import_map.json"
+
+[functions.voice-maintenance]
 verify_jwt = false
 import_map = "./functions/import_map.json"

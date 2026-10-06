@@ -2,6 +2,7 @@ import {json,readJson,cors,failure,authenticate,env} from '../_shared/http.js';
 import {phone,groupRule,localDateTime,business,message,contact,thread,group} from '../_shared/domain.js';
 import {enrichBusinessFromWebsite} from '../../../src/lib/websiteEnrich.js';
 import {CADENCE_PRESETS} from '../../../src/lib/automations/rulePresets.js';
+import {voiceStorage} from '../_shared/voice-storage.js';
 import {emailOverview,saveEmailGroup} from './email.js';
 import {syncCrmLogin} from '../_shared/crm-account.js';
 import {crmLoginConfig} from '../_shared/http.js';
@@ -62,6 +63,14 @@ export function createCrmHandler(db,verify=authenticate,{platform=false,provisio
     return json({business:await db.call('platform_action',user,'business_register',p)},200,headers);
    }
    if(!tenant) return json({error:'Select a business'},400,headers);
+   if(path==='/voice'&&method==='GET')return json(await db.call('voice_workspace',user,tenant,'overview',{}),200,headers);
+   const voiceRoute=path.match(/^\/voice\/(initialize|save|publish|rollback|calls|leads|call|media)$/);
+   if(voiceRoute) {
+    const action=voiceRoute[1],reads=['calls','leads','call','media'];
+    if(method!==(reads.includes(action)?'GET':'POST'))return json({error:'Method not allowed'},405,headers);
+    const result=await db.call('voice_workspace',user,tenant,action,method==='GET'?params:await readJson(request));
+    return json(action==='media'?await voiceStorage().playback(result.path):result,200,headers);
+   }
    const formTests=path.match(/^\/web-forms\/([0-9a-f-]{36})\/test-runs(?:\/([0-9a-f-]{36})\/stop)?$/i);
    if(formTests) {
     if(method==='GET'&&!formTests[2])return json(await db.call('list_form_test_runs',user,tenant,formTests[1]),200,headers);
@@ -222,7 +231,8 @@ export function createCrmHandler(db,verify=authenticate,{platform=false,provisio
     const retry=path.match(/^\/jobs\/([^/]+)\/retry$/);if(retry) return json(await write('retry_job',{id:retry[1]}),202,headers);
     if(path==='/provisioning/details') return json(await db.call('save_provider_setup',user,tenant,p),200,headers);
     if(path==='/onboarding') return json(await db.call('save_business_profile',user,tenant,p),200,headers);
-    if(path==='/booking-settings'&&method==='PUT') return json(await db.call('save_booking_settings',user,tenant,p),200,headers);
+    if(path==='/booking-availability/preview'&&method==='POST') return json(await db.call('preview_booking_availability',user,tenant,p),200,headers);
+     if(path==='/booking-settings'&&method==='PUT') return json(await db.call('save_booking_settings',user,tenant,p),200,headers);
     if(path==='/voice-booking-rules'&&method==='PUT') return json({rule:await db.call('voice_save_rule',user,tenant,p)},200,headers);
     const bookingCancel=path.match(/^\/bookings\/([^/]+)\/cancel$/);if(bookingCancel)return json({booking:await db.call('cancel_booking',user,tenant,decodeURIComponent(bookingCancel[1]),request.headers.get('Idempotency-Key')||p.idempotencyKey||'')},200,headers);
     if(path==='/profile-versions') return json(await db.call('save_profile_version',user,tenant,p,false),201,headers);

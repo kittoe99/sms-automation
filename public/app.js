@@ -30,11 +30,11 @@ async function apiFetch(path, options = {}) {
     return new Response(JSON.stringify({error:'This workspace is read-only for your account.'}), {status:403,headers:{'Content-Type':'application/json'}});
   }
   const response = await pageReads.fetch(path, options);
-  if (response.ok && !['GET','HEAD'].includes((options.method || 'GET').toUpperCase())) window.dispatchEvent(new Event('crm:data-changed'));
+  if (response.ok && path!=='/api/booking-availability/preview' && !['GET','HEAD'].includes((options.method || 'GET').toUpperCase())) window.dispatchEvent(new Event('crm:data-changed'));
   return response;
 }
 
-const KNOWN_VIEWS = ['overview','contacts','messaging','bookings','automations','email','call','messages','deliverability','optouts','ai-instructions','business-setup','business-context','booking-setup','web-forms','knowledge','platform-accounts','platform-businesses','platform-websites','platform-twilio'];
+const KNOWN_VIEWS = ['voice-agent','overview','contacts','messaging','bookings','automations','email','call','messages','deliverability','optouts','ai-instructions','business-setup','business-context','booking-setup','web-forms','knowledge','platform-accounts','platform-businesses','platform-websites','platform-twilio'];
 function initialViewFromUrl() {
   const view = new URLSearchParams(location.search).get('view');
   if (['automations','ai-instructions'].includes(view)) return 'web-forms';
@@ -67,6 +67,7 @@ const state = {
   emailGroupId: null,
   businessContextDraft: null,
   bookingSettingsDraft: null,
+  voiceBookingDrafts: {},
   bookingStatus: '',
 };
 
@@ -138,7 +139,7 @@ const renderQueue = createRenderQueue();
 const tabStateKeys = ['categoryId','q','status','page','pageSize','totalPages','selected',
   'conversationPhone','conversationId','unreadOnly','contactStatus','contactTab',
   'sourceFilter','consentedOnly','automationBuilderOpen','automationPresetId',
-  'aiBuilderOpen','emailGroupId','businessContextDraft','bookingSettingsDraft','bookingStatus'];
+  'aiBuilderOpen','emailGroupId','businessContextDraft','bookingSettingsDraft','voiceBookingDrafts','bookingStatus'];
 const tabDefaults = Object.fromEntries(tabStateKeys.map(key => [key, state[key]]));
 let currentTabStale = false;
 let categoriesLoaded = false;
@@ -178,6 +179,7 @@ function restoreTab(snapshot) {
   window.scrollTo({top: snapshot.scroll, behavior: 'instant'});
 }
 function clearTabs() {
+  state.voiceWorkspace = {};
   formWorkspace?.reset(); formWorkspace = null;
   tabMemory.clear(); platformInstances.clear(); sectionHistory.clear(); categoriesLoaded = false; lastRenderedView = null;
 }
@@ -262,54 +264,27 @@ for (const eventName of ['input', 'change']) {
   });
 }
 
-const bookingDays=['Sunday','Monday','Tuesday','Wednesday','Thursday','Friday','Saturday'];
 const defaultBookingSettings=()=>({enabled:false,version:0,slotDurationMinutes:60,capacityPerSlot:1,minimumNoticeMinutes:120,maximumAdvanceDays:90,followUpEnabled:false,followUpDelayHours:24,followUpIntervalHours:48,followUpMaxAttempts:2,weeklyAvailability:{0:[],1:[],2:[],3:[],4:[],5:[],6:[]},dateExceptions:[],extraFields:[]});
-const bookingKey=value=>String(value||'').trim().toLowerCase().replace(/[^a-z0-9]+/g,'_').replace(/^_|_$/g,'').slice(0,40);
-
-function renderVoiceBookingRules(root,rules,onSaved){
- const section=document.createElement('section');section.className='card';
- section.innerHTML=`<div class="card-head"><div><h2>Soni service job booking</h2><span class="muted">Set real ZIP coverage and capacity before enabling a market. Shared resource pools count overlapping jobs across services.</span></div></div><div class="setup-body"><label>Rule<select id="voice-rule-select"><option value="">New market rule</option>${rules.map(r=>`<option value="${esc(r.id)}">${esc(r.service.replaceAll('_',' '))} · ${esc(r.market)}${r.enabled?' · enabled':''}</option>`).join('')}</select></label><form id="voice-rule-form"><div class="automation-form-grid"><label>Service<select name="service"><option value="local_moving">Local Moving</option><option value="junk_removal">Junk Removal</option><option value="property_cleanout">Property Cleanouts</option><option value="dumpster_rental">Dumpster Rental</option></select></label><label>Service variant / dumpster size<input name="variant" maxlength="80" placeholder="10 yard, 20 yard, etc."/><small class="muted">Required for dumpster rental. Leave blank for other services.</small></label><label>Market name<input name="market" required maxlength="100" placeholder="Denver metro"/></label><label>ZIP codes<input name="zipCodes" required placeholder="80231, 80247"/><small class="muted">Only listed ZIP codes can be booked live.</small></label><label>Local time zone<input name="timeZone" required placeholder="America/Denver"/></label><label>Resource pool<input name="resourcePool" required placeholder="Denver crew"/><small class="muted">Services sharing staff or equipment should share a pool.</small></label><label>Job duration (minutes)<input name="durationMinutes" type="number" min="15" max="43200" required/></label><label>Jobs at once in pool<input name="capacity" type="number" min="1" max="100" required/></label><label>Minimum notice (minutes)<input name="minimumNoticeMinutes" type="number" min="0" max="43200" required/></label><label>Maximum advance (days)<input name="maximumAdvanceDays" type="number" min="1" max="730" required/></label></div><h3>Local hours</h3><div id="voice-rule-hours">${bookingDays.map((day,i)=>`<div class="booking-window" data-voice-day="${i}"><label><input type="checkbox" data-voice-enabled="${i}"/> ${day}</label><input type="time" data-voice-start="${i}" value="09:00"/><span>to</span><input type="time" data-voice-end="${i}" value="17:00"/></div>`).join('')}</div><label>Date exceptions (JSON)<textarea name="dateExceptions" rows="2">[]</textarea><small class="muted">Optional. Example: [{"date":"2026-12-25","closed":true,"windows":[]}]</small></label><label class="setup-radio"><input name="enabled" type="checkbox"/><span><strong>Enable live job booking for this market</strong><small>Confirmed bookings reserve capacity immediately.</small></span></label><div class="compose-actions"><span id="voice-rule-error" class="login-error" role="alert"></span><span id="voice-rule-saved" class="muted"></span><button class="btn" type="submit">Save service rule</button></div></form></div>`;
- root.append(section);
- const selector=section.querySelector('#voice-rule-select'),form=section.querySelector('#voice-rule-form');
- const show=()=>{const r=rules.find(x=>x.id===selector.value);form.reset();form.elements.service.value=r?.service||'local_moving';form.elements.variant.value=r?.variant||'';form.elements.market.value=r?.market||'';form.elements.zipCodes.value=(r?.zip_codes||[]).join(', ');form.elements.timeZone.value=r?.time_zone||'America/Denver';form.elements.resourcePool.value=r?.resource_pool||'';form.elements.durationMinutes.value=r?.duration_minutes||120;form.elements.capacity.value=r?.capacity||1;form.elements.minimumNoticeMinutes.value=r?.minimum_notice_minutes??120;form.elements.maximumAdvanceDays.value=r?.maximum_advance_days??90;form.elements.dateExceptions.value=JSON.stringify(r?.date_exceptions||[]);form.elements.enabled.checked=Boolean(r?.enabled);bookingDays.forEach((_,i)=>{const window=r?.weekly_availability?.[i]?.[0];section.querySelector(`[data-voice-enabled="${i}"]`).checked=Boolean(window);section.querySelector(`[data-voice-start="${i}"]`).value=window?.start||'09:00';section.querySelector(`[data-voice-end="${i}"]`).value=window?.end||'17:00';});};
- selector.addEventListener('change',show);show();
- form.addEventListener('submit',async event=>{event.preventDefault();const error=section.querySelector('#voice-rule-error'),saved=section.querySelector('#voice-rule-saved'),button=form.querySelector('[type="submit"]');error.textContent='';saved.textContent='';button.disabled=true;try{const weeklyAvailability={};bookingDays.forEach((_,i)=>{weeklyAvailability[i]=section.querySelector(`[data-voice-enabled="${i}"]`).checked?[{start:section.querySelector(`[data-voice-start="${i}"]`).value,end:section.querySelector(`[data-voice-end="${i}"]`).value}]:[];});const payload={id:selector.value||undefined,service:form.elements.service.value,variant:form.elements.variant.value.trim(),market:form.elements.market.value.trim(),zipCodes:form.elements.zipCodes.value.split(',').map(x=>x.trim()).filter(Boolean),timeZone:form.elements.timeZone.value.trim(),resourcePool:form.elements.resourcePool.value.trim(),durationMinutes:Number(form.elements.durationMinutes.value),capacity:Number(form.elements.capacity.value),minimumNoticeMinutes:Number(form.elements.minimumNoticeMinutes.value),maximumAdvanceDays:Number(form.elements.maximumAdvanceDays.value),weeklyAvailability,dateExceptions:JSON.parse(form.elements.dateExceptions.value||'[]'),enabled:form.elements.enabled.checked};const response=await apiFetch('/api/voice-booking-rules',{method:'PUT',body:JSON.stringify(payload)}),body=await response.json();if(!response.ok)throw new Error(body.error||'Could not save service rule');saved.textContent='Saved';await onSaved();}catch(failure){error.textContent=failure.message;button.disabled=false;}});
-}
 
 async function renderBookingSetup(){
- setTitle(...titles['booking-setup']);el.kpi.innerHTML='';el.pager.hidden=true;
- if(!state.bookingSettingsDraft){const response=await apiFetch('/api/booking-settings'),data=await response.json();if(!response.ok)throw new Error(data.error||'Could not load booking settings');state.bookingSettingsDraft={...defaultBookingSettings(),...data};}
- let voiceRules=[];const voiceResponse=await apiFetch('/api/voice-booking-rules');if(voiceResponse.ok)voiceRules=(await voiceResponse.json()).rules||[];
- const draft=state.bookingSettingsDraft;
- const draw=()=>{
-  const weekly=bookingDays.map((day,index)=>{const window=draft.weeklyAvailability?.[index]?.[0]||{};return `<div class="booking-window"><label><input type="checkbox" data-day-enabled="${index}" ${window.start?'checked':''}/> ${day}</label><input type="time" data-day-start="${index}" value="${esc(window.start||'09:00')}" ${window.start?'':'disabled'}/><span>to</span><input type="time" data-day-end="${index}" value="${esc(window.end||'17:00')}" ${window.start?'':'disabled'}/></div>`;}).join('');
-  const exceptions=(draft.dateExceptions||[]).map((x,index)=>`<div class="booking-config-row" data-exception-row="${index}"><input type="date" value="${esc(x.date||'')}" data-exception-date/><label><input type="checkbox" data-exception-closed ${x.closed?'checked':''}/> Closed</label><input type="time" data-exception-start value="${esc(x.windows?.[0]?.start||'09:00')}" ${x.closed?'disabled':''}/><span>to</span><input type="time" data-exception-end value="${esc(x.windows?.[0]?.end||'17:00')}" ${x.closed?'disabled':''}/><button type="button" class="btn ghost" data-remove-exception="${index}">Remove</button></div>`).join('');
-  const fields=(draft.extraFields||[]).map((f,index)=>`<div class="booking-field-row" data-field-row="${index}"><span class="drag-hint">${index+1}</span><input data-field-question maxlength="240" placeholder="Question to ask" value="${esc(f.question||'')}"/><input data-field-key maxlength="40" placeholder="field_key" value="${esc(f.key||'')}"/><select data-field-type><option value="short_text">Short text</option><option value="long_text">Long text</option><option value="number">Number</option><option value="boolean">Yes / no</option><option value="single_select">Single select</option></select><label><input type="checkbox" data-field-required ${f.required?'checked':''}/> Required</label><input data-field-options placeholder="Options, comma separated" value="${esc((f.options||[]).join(', '))}" ${f.type==='single_select'?'':'hidden'}/><button type="button" class="btn ghost" data-remove-field="${index}">Remove</button></div>`).join('');
-  el.root.innerHTML=`<form id="booking-settings-form" class="setup-page" data-dirty="${draft._dirty?'true':'false'}"><section class="card setup-hero"><div><span class="eyebrow">Deterministic SMS booking</span><h2>Let customers book from a text.</h2><p class="muted">The AI collects values; Supabase checks the slot and creates the booking only after the customer replies YES.</p></div><label class="setup-radio"><input id="booking-enabled" type="checkbox" ${draft.enabled?'checked':''}/><span><strong>Enable booking by SMS</strong><small>Existing inbound answers continue normally when disabled.</small></span></label></section><div class="setup-layout"><div class="setup-main"><section class="card"><div class="card-head"><h2>Availability</h2></div><div class="setup-body"><div class="automation-form-grid"><label>Slot length (minutes)<input id="booking-duration" type="number" min="15" max="480" value="${esc(draft.slotDurationMinutes)}"/></label><label>Bookings allowed per slot<input id="booking-capacity" type="number" min="1" max="100" value="${esc(draft.capacityPerSlot)}"/><small class="muted">The slot stays open until this many confirmed bookings exist.</small></label><label>Minimum notice (minutes)<input id="booking-notice" type="number" min="0" max="43200" value="${esc(draft.minimumNoticeMinutes)}"/></label><label>Maximum advance (days)<input id="booking-advance" type="number" min="1" max="730" value="${esc(draft.maximumAdvanceDays)}"/></label></div><div class="booking-windows">${weekly}</div></div></section><section class="card"><div class="card-head"><h2>AI booking follow-ups</h2></div><div class="setup-body"><label class="setup-radio"><input id="booking-followup-enabled" type="checkbox" ${draft.followUpEnabled?'checked':''}/><span><strong>Follow up on unfinished bookings</strong><small>The AI sends a helpful reminder from approved business context and stops after the limit or any customer reply.</small></span></label><div class="automation-form-grid" style="margin-top:16px"><label>First follow-up after (hours)<input id="booking-followup-delay" type="number" min="1" max="720" value="${esc(draft.followUpDelayHours)}"/></label><label>Time between follow-ups (hours)<input id="booking-followup-interval" type="number" min="1" max="720" value="${esc(draft.followUpIntervalHours)}"/></label><label>Maximum follow-ups<input id="booking-followup-max" type="number" min="1" max="5" value="${esc(draft.followUpMaxAttempts)}"/></label></div></div></section><section class="card"><div class="card-head"><h2>Date exceptions</h2><button type="button" class="btn ghost" id="add-booking-exception">Add date</button></div><div class="setup-body" id="booking-exceptions">${exceptions||'<p class="muted">No closures or custom-date hours.</p>'}</div></section><section class="card"><div class="card-head"><div><h2>Extra questions</h2><span class="muted">Name, phone, address, date, and time are always collected.</span></div><button type="button" class="btn ghost" id="add-booking-field">Add question</button></div><div class="setup-body" id="booking-fields">${fields||'<p class="muted">No additional questions.</p>'}</div></section><div class="compose-actions"><span id="booking-settings-error" class="login-error" role="alert"></span><span id="booking-settings-saved" class="muted"></span><button class="btn" type="submit">Save booking setup</button></div></div><aside class="setup-side"><div class="card setup-card"><div class="card-head"><h2>How confirmation works</h2></div><div class="setup-body"><ol class="setup-help-list"><li>The assistant asks one missing question at a time.</li><li>The database validates the requested slot.</li><li>The customer receives a summary and replies YES.</li><li>The slot is checked again and booked atomically.</li></ol><p class="muted">Configuration version ${esc(draft.version||'new')}</p></div></div></aside></div></form>`;
-  el.root.querySelectorAll('[data-field-type]').forEach((select,index)=>{select.value=draft.extraFields[index]?.type||'short_text';select.addEventListener('change',()=>{select.closest('[data-field-row]').querySelector('[data-field-options]').hidden=select.value!=='single_select';mark();});});
-  const mark=()=>{draft._dirty=true;el.root.querySelector('#booking-settings-form')?.setAttribute('data-dirty','true');};
-  const sync=()=>{draft.enabled=el.root.querySelector('#booking-enabled').checked;draft.slotDurationMinutes=Number(el.root.querySelector('#booking-duration').value);draft.capacityPerSlot=Number(el.root.querySelector('#booking-capacity').value);draft.minimumNoticeMinutes=Number(el.root.querySelector('#booking-notice').value);draft.maximumAdvanceDays=Number(el.root.querySelector('#booking-advance').value);draft.followUpEnabled=el.root.querySelector('#booking-followup-enabled').checked;draft.followUpDelayHours=Number(el.root.querySelector('#booking-followup-delay').value);draft.followUpIntervalHours=Number(el.root.querySelector('#booking-followup-interval').value);draft.followUpMaxAttempts=Number(el.root.querySelector('#booking-followup-max').value);draft.weeklyAvailability={};bookingDays.forEach((_,i)=>{const on=el.root.querySelector(`[data-day-enabled="${i}"]`).checked;draft.weeklyAvailability[i]=on?[{start:el.root.querySelector(`[data-day-start="${i}"]`).value,end:el.root.querySelector(`[data-day-end="${i}"]`).value}]:[];});draft.dateExceptions=[...el.root.querySelectorAll('[data-exception-row]')].map(row=>{const closed=row.querySelector('[data-exception-closed]').checked;return {date:row.querySelector('[data-exception-date]').value,closed,windows:closed?[]:[{start:row.querySelector('[data-exception-start]').value,end:row.querySelector('[data-exception-end]').value}]};});draft.extraFields=[...el.root.querySelectorAll('[data-field-row]')].map(row=>{const question=row.querySelector('[data-field-question]').value.trim(),type=row.querySelector('[data-field-type]').value;return {key:bookingKey(row.querySelector('[data-field-key]').value||question),question,type,required:row.querySelector('[data-field-required]').checked,options:type==='single_select'?row.querySelector('[data-field-options]').value.split(',').map(x=>x.trim()).filter(Boolean):[]};});};
-  el.root.querySelectorAll('input,select').forEach(input=>input.addEventListener('input',()=>{sync();mark();}));
-  el.root.querySelectorAll('[data-day-enabled]').forEach(box=>box.addEventListener('change',()=>{const i=box.dataset.dayEnabled;el.root.querySelector(`[data-day-start="${i}"]`).disabled=!box.checked;el.root.querySelector(`[data-day-end="${i}"]`).disabled=!box.checked;}));
-  el.root.querySelectorAll('[data-exception-closed]').forEach(box=>box.addEventListener('change',()=>box.closest('[data-exception-row]').querySelectorAll('[type="time"]').forEach(x=>x.disabled=box.checked)));
-  el.root.querySelector('#add-booking-exception')?.addEventListener('click',()=>{sync();draft.dateExceptions.push({date:'',closed:true,windows:[]});mark();draw();});
-  el.root.querySelector('#add-booking-field')?.addEventListener('click',()=>{sync();draft.extraFields.push({key:'',question:'',type:'short_text',required:false,options:[]});mark();draw();});
-  el.root.querySelectorAll('[data-remove-exception]').forEach(button=>button.addEventListener('click',()=>{sync();draft.dateExceptions.splice(Number(button.dataset.removeException),1);mark();draw();}));
-  el.root.querySelectorAll('[data-remove-field]').forEach(button=>button.addEventListener('click',()=>{sync();draft.extraFields.splice(Number(button.dataset.removeField),1);mark();draw();}));
-  el.root.querySelector('#booking-settings-form')?.addEventListener('submit',async event=>{event.preventDefault();sync();const error=el.root.querySelector('#booking-settings-error'),saved=el.root.querySelector('#booking-settings-saved'),button=event.currentTarget.querySelector('[type="submit"]');error.textContent='';saved.textContent='';button.disabled=true;try{const payload={...draft};delete payload._dirty;delete payload.version;const response=await apiFetch('/api/booking-settings',{method:'PUT',body:JSON.stringify(payload)}),data=await response.json();if(!response.ok)throw new Error(data.error||'Could not save booking setup');state.bookingSettingsDraft={...defaultBookingSettings(),...data};saved.textContent='Saved';draw();}catch(failure){error.textContent=failure.message;button.disabled=false;mark();}});
-  renderVoiceBookingRules(el.root,voiceRules,async()=>{const response=await apiFetch('/api/voice-booking-rules');if(response.ok)voiceRules=(await response.json()).rules||[];draw();});
- };
- draw();
+ const {mountBookingSetup}=await import('./bookingSetup.js');
+ setTitle('Booking setup','Hours, date exceptions and availability previews.');el.kpi.innerHTML='';el.pager.hidden=true;
+ const read=async path=>{const response=await apiFetch(path),body=await response.json();if(!response.ok)throw new Error(body.error||'Could not load booking setup');return body;};
+ const [settings,voice]=await Promise.all([state.bookingSettingsDraft||read('/api/booking-settings'),read('/api/voice-booking-rules')]);
+ state.bookingSettingsDraft??={...defaultBookingSettings(),...settings};state.voiceBookingDrafts??={};
+ mountBookingSetup(el.root,{draft:state.bookingSettingsDraft,voiceState:state.voiceBookingDrafts,rules:voice.rules||[],apiFetch,
+  timeZone:state.tenant?.time_zone||state.tenant?.timeZone,onProfile:()=>switchView('business-context')});
 }
 
 async function renderBookings(){
  setTitle(...titles.bookings);el.kpi.innerHTML='';el.pager.hidden=false;el.status.hidden=true;el.search.placeholder='Search name, phone, or address…';
  const params=new URLSearchParams({page:String(state.page),pageSize:String(state.pageSize)});if(state.q)params.set('q',state.q);if(state.bookingStatus)params.set('status',state.bookingStatus);
  const response=await apiFetch(`/api/bookings?${params}`),data=await response.json();if(!response.ok)throw new Error(data.error||'Could not load bookings');state.totalPages=data.totalPages||1;renderPager(data);
- const rows=(data.bookings||[]).map(b=>`<tr data-booking-id="${esc(b.id)}"><td><strong>${esc(b.customer_name||'—')}</strong><br><span class="muted">${esc(b.customer_phone||b.contact_phone||'')}</span></td><td>${esc(fmtTime(b.appointment_at))}</td><td>${esc(b.service_address||'—')}</td><td><span class="status ${esc(b.status)}">${esc(b.status)}</span></td><td>${esc(b.source||'—')}</td></tr>`).join('');
- el.root.innerHTML=`<section class="card"><div class="card-head"><div><h2>Appointments</h2><span class="muted">${fmt(data.total)} booking${Number(data.total)===1?'':'s'}</span></div><select id="booking-status-filter"><option value="">All statuses</option><option value="confirmed">Confirmed</option><option value="cancelled">Cancelled</option><option value="requested">Requested</option></select></div><div class="table-scroll"><table class="data"><thead><tr><th>Customer</th><th>Date and time</th><th>Address</th><th>Status</th><th>Source</th></tr></thead><tbody>${rows||'<tr><td colspan="5" class="empty">No bookings yet.</td></tr>'}</tbody></table></div></section>`;
+ const rows=(data.bookings||[]).map(b=>`<tr data-booking-id="${esc(b.id)}"><td><strong>${esc(b.customer_name||'—')}</strong><br><span class="muted">${esc(b.customer_phone||b.contact_phone||'')}</span></td><td>${esc(fmtTime(b.appointment_at))}</td><td>${esc(b.service_address||'—')}</td><td><span class="status ${esc(b.status)}">${esc(b.status)}</span></td><td>${esc(b.voice_agent_id?`Voice agent: ${b.voice_agent_id}`:b.source||'—')}</td></tr>`).join('');
+ el.root.innerHTML=`<section class="card"><div class="card-head"><div><h2>Appointments</h2>${state.platformStaff?'<button type="button" class="btn ghost" data-booking-settings>Availability settings</button>':''}<span class="muted">${fmt(data.total)} booking${Number(data.total)===1?'':'s'}</span></div><select id="booking-status-filter"><option value="">All statuses</option><option value="confirmed">Confirmed</option><option value="cancelled">Cancelled</option><option value="requested">Requested</option></select></div><div class="table-scroll"><table class="data"><thead><tr><th>Customer</th><th>Date and time</th><th>Address</th><th>Status</th><th>Source</th></tr></thead><tbody>${rows||'<tr><td colspan="5" class="empty">No bookings yet. Staff can configure hours using Availability settings.</td></tr>'}</tbody></table></div></section>`;
+ el.root.querySelector('[data-booking-settings]')?.addEventListener('click',()=>switchView('booking-setup'));
  const filter=el.root.querySelector('#booking-status-filter');filter.value=state.bookingStatus;filter.addEventListener('change',()=>{state.bookingStatus=filter.value;state.page=1;renderBookings();});
- el.root.querySelectorAll('[data-booking-id]').forEach(row=>row.addEventListener('click',async()=>{const id=row.dataset.bookingId,res=await apiFetch(`/api/bookings/${encodeURIComponent(id)}`),body=await res.json();if(!res.ok)throw new Error(body.error||'Could not load booking');const b=body.booking,answers=Object.entries(b.extra_answers||{}).map(([key,value])=>`<div class="row"><div class="k">${esc(key.replaceAll('_',' '))}</div><div class="v">${esc(value)}</div></div>`).join('');openDrawer(`Booking ${id}`,`<div class="kv"><div class="row"><div class="k">Customer</div><div class="v">${esc(b.customer_name||'—')}</div></div><div class="row"><div class="k">Phone</div><div class="v">${esc(b.customer_phone||b.contact_phone||'—')}</div></div><div class="row"><div class="k">Appointment</div><div class="v">${esc(fmtTime(b.appointment_at))} · ${esc(b.time_zone||'')}</div></div><div class="row"><div class="k">Address</div><div class="v">${esc(b.service_address||'—')}</div></div><div class="row"><div class="k">Status</div><div class="v">${esc(b.status)}</div></div>${answers}</div><div class="compose-actions"><span id="booking-action-error" class="login-error"></span><button class="btn ghost" id="booking-open-thread">Open conversation</button>${b.status==='confirmed'?'<button class="btn danger" id="booking-cancel">Cancel booking</button>':''}</div>`);el.drawerBody.querySelector('#booking-open-thread')?.addEventListener('click',()=>{switchView('messaging',{conversationId:null,conversationPhone:b.customer_phone||b.contact_phone,force:true});});el.drawerBody.querySelector('#booking-cancel')?.addEventListener('click',async event=>{if(!confirm('Cancel this booking and its pending reminders?'))return;event.currentTarget.disabled=true;const cancel=await apiFetch(`/api/bookings/${encodeURIComponent(id)}/cancel`,{method:'POST',headers:{'Idempotency-Key':crypto.randomUUID()},body:'{}'}),result=await cancel.json();if(!cancel.ok){el.drawerBody.querySelector('#booking-action-error').textContent=result.error||'Cancellation failed';event.currentTarget.disabled=false;return;}closeDrawer();await renderBookings();});}));
+ el.root.querySelectorAll('[data-booking-id]').forEach(row=>row.addEventListener('click',async()=>{const id=row.dataset.bookingId,res=await apiFetch(`/api/bookings/${encodeURIComponent(id)}`),body=await res.json();if(!res.ok)throw new Error(body.error||'Could not load booking');const b=body.booking,answers=Object.entries(b.extra_answers||{}).map(([key,value])=>`<div class="row"><div class="k">${esc(key.replaceAll('_',' '))}</div><div class="v">${esc(value)}</div></div>`).join('');openDrawer(`Booking ${id}`,`<div class="kv"><div class="row"><div class="k">Customer</div><div class="v">${esc(b.customer_name||'—')}</div></div><div class="row"><div class="k">Phone</div><div class="v">${esc(b.customer_phone||b.contact_phone||'—')}</div></div><div class="row"><div class="k">Appointment</div><div class="v">${esc(fmtTime(b.appointment_at))} · ${esc(b.time_zone||'')}</div></div><div class="row"><div class="k">Address</div><div class="v">${esc(b.service_address||'—')}</div></div><div class="row"><div class="k">Status</div><div class="v">${esc(b.status)}</div></div>${answers}</div><div class="compose-actions"><span id="booking-action-error" class="login-error"></span>${state.platformStaff&&b.voice_call_id?`<button class="btn ghost" id="booking-voice-call" data-id="${esc(b.voice_call_id)}">Open voice call</button>`:''}<button class="btn ghost" id="booking-open-thread">Open conversation</button>${b.status==='confirmed'?'<button class="btn danger" id="booking-cancel">Cancel booking</button>':''}</div>`);el.drawerBody.querySelector('#booking-voice-call')?.addEventListener('click',event=>openVoiceCall(event.currentTarget.dataset.id));el.drawerBody.querySelector('#booking-open-thread')?.addEventListener('click',()=>{switchView('messaging',{conversationId:null,conversationPhone:b.customer_phone||b.contact_phone,force:true});});el.drawerBody.querySelector('#booking-cancel')?.addEventListener('click',async event=>{if(!confirm('Cancel this booking and its pending reminders?'))return;event.currentTarget.disabled=true;const cancel=await apiFetch(`/api/bookings/${encodeURIComponent(id)}/cancel`,{method:'POST',headers:{'Idempotency-Key':crypto.randomUUID()},body:'{}'}),result=await cancel.json();if(!cancel.ok){el.drawerBody.querySelector('#booking-action-error').textContent=result.error||'Cancellation failed';event.currentTarget.disabled=false;return;}closeDrawer();await renderBookings();});}));
 }
 
 async function fetchOnboarding() {
@@ -1239,6 +1214,7 @@ async function renderAiInstructions() {
 const titles = {
   overview: ['Dashboard', 'Your messages, contacts, and follow-ups in one place.'],
   messaging: ['Inbox', 'Read and reply to customer conversations.'],
+  'voice-agent': ['Voice Agent', 'Configuration, calls, recordings and leads.'],
   call: ['Calls', 'Track inbound calls from your customers.'],
   messages: ['Messages', 'Searchable CRM log for every SMS'],
   contacts: ['Contacts', 'Find customers and manage your contacts.'],
@@ -1439,6 +1415,7 @@ const TAB_GROUPS = [
     {view:'messaging',label:'Inbox'}, {view:'bookings',label:'Bookings'},
     {view:'web-forms',label:'Forms'}, {view:'email',label:'Email'},
   ]},
+  { id: 'voice', label: 'Voice Agent', views: [{view:'voice-agent',label:'Voice Agent'}]},
   { id: 'reports', label: 'Reports', views: [
     { view: 'call', label: 'Inbound calls' },
     { view: 'messages', label: 'Message history' },
@@ -1467,7 +1444,7 @@ function renderSectionNavigation(activeGroup) {
   nav.innerHTML = TAB_GROUPS.map(group => {
     const allowed = group.views.filter(tab => canOpenWorkspace(tab.view, state.platformStaff, state.tenant));
     if (!allowed.length) return '';
-    const icons = {work:'▦', reports:'↗', setup:'⚙', platform:'◈', twilio:'◎'};
+    const icons = {voice:'\u260e',work:'▦', reports:'↗', setup:'⚙', platform:'◈', twilio:'◎'};
     return `<button type="button" class="section-link ${group.id === activeGroup.id ? 'active' : ''}" data-section="${group.id}" ${group.id === activeGroup.id ? 'aria-current="true"' : ''}><span aria-hidden="true">${icons[group.id]}</span><span>${group.label}</span><small>${allowed.length}</small></button>`;
   }).join('');
 }
@@ -1559,6 +1536,8 @@ async function switchTenant(tenantId, options = {}) {
   state.setupRegistration = null;
   state.businessContextDraft = null;
   state.bookingSettingsDraft = null;
+  state.voiceBookingDrafts = {};
+  state.voiceWorkspace = {};
   state.conversationPhone = null;
   state.conversationId = null;
   state.page = 1;
@@ -1742,6 +1721,7 @@ async function renderWorkspace(options = {}) {
 
     if (state.view === 'overview') await renderOverview();
     else if (state.view === 'messaging') await renderMessaging();
+    else if (state.view === 'voice-agent') await renderVoiceWorkspace();
     else if (state.view === 'call') await renderCall();
     else if (state.view === 'contacts') await renderContacts();
     else if (state.view === 'optouts') await renderOptOuts();
@@ -1798,6 +1778,20 @@ function openAutomationGroup(categoryId = null) {
   switchView('automations', { categoryId, force: true });
 }
 
+async function renderVoiceWorkspace(){
+ const {mountVoiceWorkspace}=await import('./voiceWorkspace.js');
+ setTitle(...titles['voice-agent']);el.kpi.innerHTML='';el.pager.hidden=true;el.status.disabled=true;
+ state.voiceWorkspace??={};
+ await mountVoiceWorkspace(el.root,{apiFetch,model:state.voiceWorkspace,
+  onAvailability:()=>switchView('booking-setup'),onBookings:()=>switchView('bookings'),
+  onContact:phone=>switchView('messaging',{conversationPhone:phone,conversationId:null,force:true})});
+}
+async function openVoiceCall(id,phone){
+ state.voiceWorkspace??={};state.voiceWorkspace.tab='calls';state.voiceWorkspace.page=1;
+ if(id)state.voiceWorkspace.focusCall=id;
+ state.voiceWorkspace.filters=phone?{phone}:{};
+ closeDrawer();await switchView('voice-agent',{force:true});
+}
 async function renderCall() {
   setTitle(...titles.call);
   el.kpi.innerHTML = '';
@@ -2761,7 +2755,7 @@ async function renderMessaging() {
               )
               .join('') || `<div class="empty">No messages in this thread.</div>`}
           </div>
-          ${voiceCallsPanel(voiceCalls)}
+          ${voiceCallsPanel(voiceCalls)}${state.platformStaff?'<button type="button" class="btn ghost" data-voice-contact>Voice agent call history</button>':''}
           <form class="reply-box" id="reply-form">
             <textarea id="reply-body" rows="2" placeholder="${
               thread.optedOut ? 'Contact opted out — opt in before sending' : 'Reply via SMS…'
@@ -4013,3 +4007,5 @@ function connectLive() {
     }
   }, 25000);
 }
+
+el.root.addEventListener('click',event=>{if(event.target.closest('[data-voice-contact]'))openVoiceCall(null,state.conversationPhone);});
