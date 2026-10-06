@@ -97,3 +97,17 @@ build passed. Browser checks using the actual workspace module with a synthetic 
 verified unsaved drafts across tabs, save/reload, call details/transcripts and a
 390px layout without horizontal overflow. These do not substitute for a deployed
 phone/recording pilot. See project records for applied/deployed status.
+
+## Live release — October 6, 2026
+
+CRM source dc9b49f is live at https://crm.e2local.com (Render
+`dep-db29enbbc2fs73fpda40`). Migration `20261006060755` is applied;
+CRM API v52, runtime v2 and maintenance v2 are ACTIVE. LiveKit
+`tWp9DZbhN4j8` is Running and a non-conversational RTC probe verified CRM
+revision `1747c5d0-86d9-4699-808f-7abf640108cf` and Vesper. Signed reads,
+restricted-role denials, private bucket and cleanup were verified. The browser
+verified the public sign-in gate; authenticated staff reads were verified through
+the database functions. Runtime is enabled, but voice booking remains disabled
+with no saved schedules. Real phone/recording/OTP/booking pilot is outstanding,
+as is the observed revision from an actual SIP call. No test customer records
+were created. See both project records for detailed validation and release status.

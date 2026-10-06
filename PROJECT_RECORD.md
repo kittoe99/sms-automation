@@ -1,5 +1,41 @@
 # Opek SMS project record
 
+### October 6 — CRM availability and Voice Agent integration released
+
+Released CRM source dc9b49f to https://crm.e2local.com in the user-confirmed
+Micah's workspace. Render deployment dep-db29enbbc2fs73fpda40 is live. The exact
+staged frontend built successfully and passed 29 CRM checks; deployed app and
+availability/voice modules match it (nested chunk filenames normalized). The
+production browser displays the sign-in gate; a signed-in staff browser session
+was unavailable for this release check.
+
+Applied only CRM forward migration 20261006060755 after a rolled-back rehearsal
+and reconciliation of existing 20261006053509/lookup prerequisites. Provisioned
+separate runtime/maintenance login roles and Vault cleanup secret through the
+authenticated Management SQL API, using bootstrap-equivalent SQL and recovery
+credentials written first under ignored data/. No histories were replayed.
+Imported the previously verified production prompt pair as CRM revision
+1747c5d0-86d9-4699-808f-7abf640108cf. LiveKit version tWp9DZbhN4j8 is Running;
+a temporary RTC probe verified that it loads this revision with Vesper. The probe
+did not start a model conversation or create a call/lead/booking record.
+
+Live Edge status: crm-api v52, voice-runtime v2, voice-maintenance v2,
+voice-lookup v5 and voice-booking v3 ACTIVE. Signed configuration reads and
+maintenance succeeded; unsigned endpoints returned 401. Live staff SQL reads
+passed and unauthorized reads were denied. Restricted logins cannot access the
+private schema or booking API. The recording bucket is private. Security advisors
+reported five existing warnings and no new voice-object findings.
+
+CRM runtime is enabled; lookup remains independent. Voice booking stays disabled
+and no schedules were seeded: live calls, operational bookings, settings and voice
+rules were all zero at verification. Business UTC was preserved. The local old
+production publisher is now directed to CRM. Real phone/audio/OTP/booking pilot
+and observed revision from an actual SIP call remain outstanding. Earlier local
+validation passed 46 paired E2 and 47 Python tests plus browser draft/save/mobile
+checks; these are separate from live verification. E2 needs no frontend release
+for these private CRM additions. Unrelated local changes were excluded.
+
+
 ### October 4 - CRM page-load performance production release
 
 CRM application commit `51f21b21135d2e3aacd7e2c7a943129464e575bb` is live

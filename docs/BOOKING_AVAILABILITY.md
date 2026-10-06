@@ -131,6 +131,5 @@ project records.
 Verified release checkpoint: CRM API v49, booking Edge v1 and LiveKit worker
 `rSSD7nP25dsn` are deployed. A temporary RTC probe verified existing lookup access,
 Vesper, unchanged prompt revision and `voice_booking=false`; it did not start a
-model conversation. The frontend is built and browser-checked locally; its Render
-release awaits explicit workspace selection. Production booking activation and
+model conversation. The frontend was subsequently released as source dc9b49f in Render deployment dep-db29enbbc2fs73fpda40 on October 6; its deployed modules were verified. Production booking activation and
 a physical phone pilot remain outstanding.
