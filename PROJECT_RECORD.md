@@ -1,5 +1,30 @@
 # Opek SMS project record
 
+### October 6 — Removed ZIP and dumpster-size fields from agent booking
+
+At the user's request, agent booking no longer requires ZIP coverage or dumpster
+size in CRM or the voice tools. Availability selects one enabled schedule per
+service; a partial unique index prevents ambiguous enabled schedules. Full service
+address, time zone, duration (including multi-day rentals), pool capacity,
+verification, recap, expiry, rule-version checks and idempotency remain enforced.
+Legacy columns/payloads remain compatible; existing records were not rewritten.
+
+CRM-owned forward migration 20261006065213 was rehearsed with save/preview in a
+rolled-back transaction, then applied once after 20261006060755. Live rule count
+was zero. Restricted live availability accepts service/date without removed
+fields. Security advisors reported no errors. No schedules or customer records
+were created and booking remains disabled. E2 customer access is unchanged.
+
+18 CRM tests, 22 paired E2 tests, all 48 Python tests and the exact staged frontend
+build passed. A browser fixture using the real editor saved a dumpster schedule
+without either field. CRM source cce0e3a is live in Render deployment
+dep-db29nabncjis73du0rdg; the deployed booking module matches the tested build.
+LiveKit KsbH9doie9Ur is Running; an RTC probe verified the unchanged published CRM
+configuration. No physical phone pilot was performed. Unrelated local edits were
+excluded. No Edge redeployment was needed because its payload already allowed
+omitting these keys; the database and worker implement the changed requirements.
+
+
 ### October 6 — CRM availability and Voice Agent integration released
 
 Released CRM source dc9b49f to https://crm.e2local.com in the user-confirmed

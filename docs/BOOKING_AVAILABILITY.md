@@ -13,7 +13,8 @@ duplicate exception dates and out-of-range numbers are rejected. Voice exception
 use the same editor as SMS and no longer require JSON.
 
 SMS inherits the business-profile time zone. Voice rules require their own IANA
-time zone, service, variant for dumpster rental, ZIP coverage and resource pool.
+time zone, service and resource pool. ZIP coverage and dumpster size are no
+longer required. Enable only one schedule per service; market is a staff label.
 The editor displays the actual time zone and does not infer local hours or change
 the business profile. The current registered business remains on UTC until staff
 review and change it through the profile workflow.
@@ -60,7 +61,7 @@ Callers cannot supply a tenant, arbitrary operation, SQL, or existing booking ID
 
 | Action | Payload | Result |
 | --- | --- | --- |
-| `availability` | `service`, optional `variant`, `zip`, `localDate` | Configured state, time zone, eligible slots |
+| `availability` | `service`, `localDate` | Configured state, time zone, eligible slots |
 | `prepare` | Above plus `localTime`, `phone`, `name`, `address`, optional object `details` | Availability and expiring prepared reference/recap details |
 | `confirm` | `holdId` only | Confirmed booking ID, appointment, time zone; retries return the same booking |
 
@@ -133,3 +134,8 @@ Verified release checkpoint: CRM API v49, booking Edge v1 and LiveKit worker
 Vesper, unchanged prompt revision and `voice_booking=false`; it did not start a
 model conversation. The frontend was subsequently released as source dc9b49f in Render deployment dep-db29enbbc2fs73fpda40 on October 6; its deployed modules were verified. Production booking activation and
 a physical phone pilot remain outstanding.
+
+October 6 simplification: migration `20261006065213` is applied after the Voice
+CRM migration. Frontend cce0e3a and LiveKit KsbH9doie9Ur are deployed. Agent
+availability/preparation no longer require ZIP or size. Historical fields are
+retained for compatibility; full service address remains required.
