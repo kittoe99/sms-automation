@@ -14,6 +14,27 @@ async function rpc(db,name,...args){return (await db.query(`select voice_booking
 async function verify(db,callId=cid){await db.query("insert into sms_private.voice_otps(tenant_id,call_id,phone,code_hash,expires_at,verified_at) values($1,$2,$3,$4,now()+interval '5 minutes',now())",[tenant,callId,phone,'a'.repeat(64)]);}
 const details=()=>({service:'junk_removal',variant:'',zip:'80231',localDate:day,localTime:'10:00',phone,name:'Test customer',address:'123 Test Street',details:{}});
 
+test('agent schedules and dumpster bookings need neither ZIP coverage nor size',async()=>{
+ const db=await setup();try{
+  const draft={...rule(),service:'dumpster_rental',durationMinutes:1440};delete draft.variant;delete draft.zipCodes;
+  const saved=await call(db,'voice_save_rule','admin',tenant,draft);
+  assert.equal(saved.variant,'');assert.deepEqual(saved.zip_codes,[]);
+  await assert.rejects(()=>call(db,'voice_save_rule','admin',tenant,{...draft,market:'Other'}),/one schedule/);
+  await call(db,'voice_save_rule','admin',tenant,{...draft,market:'Other',enabled:false});
+  const availability=await rpc(db,'availability',tenant,cid,{service:'dumpster_rental',localDate:day});
+  assert.equal(availability.configured,true);assert.ok(availability.slots.some(s=>s.localTime==='10:00'));
+  const preview=await call(db,'preview_booking_availability','admin',tenant,{channel:'voice',localDate:day,rule:draft});
+  assert.equal(preview.slots.find(s=>s.localTime==='10:00').available,true);
+  await verify(db);const input={...details(),service:'dumpster_rental'};delete input.zip;delete input.variant;
+  const prepared=await rpc(db,'prepare',tenant,cid,input);assert.equal(prepared.available,true);
+  const confirmed=await rpc(db,'confirm',tenant,cid,prepared.holdId);assert.equal(confirmed.status,'confirmed');
+  assert.equal((await rpc(db,'confirm',tenant,cid,prepared.holdId)).bookingId,confirmed.bookingId);
+  const booking=(await db.query('select extract(epoch from voice_end_at-appointment_at)/3600 as hours,service_address from public.sms_bookings where id=$1',[confirmed.bookingId])).rows[0];
+  assert.equal(Number(booking.hours),24);assert.equal(booking.service_address,'123 Test Street');
+  assert.equal((await rpc(db,'availability',tenant,cid,{service:'dumpster_rental',localDate:day})).slots.some(s=>s.localTime==='10:00'),false);
+ }finally{await db.close();}
+});
+
 test('schedule validation and draft mapping preserve split days and reject invalid hours',()=>{
  const draft=voiceDraft({weekly_availability:hours,date_exceptions:[{date:day,closed:false,windows:hours[0]}]});
  assert.equal(draft.weeklyAvailability[0].length,2);validateSchedule(draft.weeklyAvailability,draft.dateExceptions);
