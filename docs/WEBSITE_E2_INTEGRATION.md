@@ -86,3 +86,16 @@ E2 customer and CRM staff logins use different Clerk applications in production.
 Shared businesses/forms/enquiries/bookings remain; customer owners/viewers and
 CRM staff/operators are separated by database issuer checks. Migration
 `20260930110000_separate_login_realms.sql` is live as `20260930054730`. Dedicated CRM keys, issuer-bound database authentication and both lifecycle subscriptions are configured. CRM API version 35 and compliance-session version 10 are deployed; E2 37c9a2d and CRM a4b5247 frontend releases are verified. Fresh accounts/staff bootstrap and an authenticated pilot remain; no website files or automations changed.
+
+## Customer website update requests — deployed
+
+CRM Websites → Update requests reads the latest 100 requests for the website's
+current business and lets staff set Received, In progress, Needs information or
+Completed, plus a customer-visible reply. It uses E2's staff-authenticated
+`GET/PATCH /api/web-hosting/:siteId/requests` endpoint. Updates are revision-checked;
+customer text/replies are escaped. No publish action or notification is implied.
+
+Released: E2 migration `20261009053203` is applied; E2 `67a320a` and CRM
+`7c43c2e` are live. No CRM migration, storage bucket or DNS change was made. Customer Assets/Domain connection
+remain previews. See [full workflow and validation](../../E2local-main/docs/website-workspace.md).
+

@@ -1,5 +1,25 @@
 # Opek SMS project record
 
+### Dashboard and website requests release verified
+
+E2 application 67a320a is READY in Vercel deployment
+dpl_BdcTfCABPF8emjEzXSA5xdBY2Fac, assigned to www.e2local.com and e2local.com.
+CRM application 7c43c2e is live in Render deployment dep-db4888qd0e5s73f40pq0.
+The dashboard header, sidebar, AI Assistant preview and Website workspace are
+released. Saved requests and staff status/replies are active. Assets remain
+browser-local previews, Domain connection remains unwired, and no AI model
+is connected. No live asset storage, DNS changes or customer test requests were created.
+
+Applied only E2 migration 20261009053203 after a successful production rollback
+rehearsal. RLS/grant assertions pass; the security advisor reports no errors.
+Both production roots return 200; unsigned customer requests redirect to sign-in
+and staff requests return 401. The deployed CRM request chunk exactly matches the
+staged build; raw source matches after line-ending normalization. Builds, scoped
+lint, 40 E2 tests and 10 CRM tests passed. Desktop/mobile fixture navigation and
+layout were verified; authenticated production rendering/submission was not tested.
+The existing unrelated local changes remain outside these commits.
+
+
 ### October 8 — Customer website requests release prepared
 
 Added the staff Websites Update requests inbox with status and customer-visible
@@ -1082,3 +1102,22 @@ replies. The paired E2 migration passed a live rollback rehearsal and grants/RLS
 assertions; release order is new E2 migration, E2 API/UI, then CRM frontend.
 40 E2 tests and 10 CRM API/render/tab-memory tests passed. Asset storage and
 domain connection remain previews. Deployment is authorized and pending.
+
+### Dashboard and website requests release verified
+
+E2 application 67a320a is READY in Vercel deployment
+dpl_BdcTfCABPF8emjEzXSA5xdBY2Fac, assigned to www.e2local.com and e2local.com.
+CRM application 7c43c2e is live in Render deployment dep-db4888qd0e5s73f40pq0.
+The dashboard header, sidebar, AI Assistant preview and Website workspace are
+released. Saved requests and staff status/replies are active. Assets remain
+browser-local previews, Domain connection remains unwired, and no AI model
+is connected. No live asset storage, DNS changes or customer test requests were created.
+
+Applied only E2 migration 20261009053203 after a successful production rollback
+rehearsal. RLS/grant assertions pass; the security advisor reports no errors.
+Both production roots return 200; unsigned customer requests redirect to sign-in
+and staff requests return 401. The deployed CRM request chunk exactly matches the
+staged build; raw source matches after line-ending normalization. Builds, scoped
+lint, 40 E2 tests and 10 CRM tests passed. Desktop/mobile fixture navigation and
+layout were verified; authenticated production rendering/submission was not tested.
+The existing unrelated local changes remain outside these commits.
