@@ -98,4 +98,3 @@ customer text/replies are escaped. No publish action or notification is implied.
 Released: E2 migration `20261009053203` is applied; E2 `67a320a` and CRM
 `7c43c2e` are live. No CRM migration, storage bucket or DNS change was made. Customer Assets/Domain connection
 remain previews. See [full workflow and validation](../../E2local-main/docs/website-workspace.md).
-
