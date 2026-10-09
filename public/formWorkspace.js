@@ -1,3 +1,4 @@
+import {mountFormDirectory} from './formDirectory.js';
 import {createFormBuilder} from './formBuilder.js?v=20261004-live-test';
 import {renderFormAutomation} from './formAutomationEditor.js?v=20261004-live-test';
 import {createFormData} from './formData.js';
@@ -6,20 +7,21 @@ export function createFormWorkspace({root,apiFetch:fetcher,config,canReadSubmiss
   let selected=null,tab='form',tenant=null,revision=0;
   const cache=createFormData(fetcher,getTenantId),apiFetch=cache.fetch;
   const request=async(path,options)=>{const r=await apiFetch(path,options),data=await r.json();if(!r.ok)throw new Error(data.error||'Could not load forms');return data;};
-  async function render({refresh=true}={}){
+  async function render({refresh=true,formId,initialTab}={}){
     const ticket=++revision,currentTenant=getTenantId();
     if(refresh)cache.clear();
     const data=await cache.read('/api/web-forms');
     if(ticket!==revision||currentTenant!==getTenantId())return;
     if(tenant!==currentTenant){selected=null;tenant=currentTenant;}
+    if(formId){selected=formId;tab=canReadSubmissions()&&['automation','submissions'].includes(initialTab)?initialTab:'form';}
     const form=data.forms.find(f=>f.public_id===selected);
     if(!form){selected=null;root.innerHTML=`<section class="card"><div class="card-head"><div><h2>Your forms</h2><p class="muted">Create a form, then configure its messages and rules.</p></div></div>
       <div class="web-builder-body">${data.canEdit?`<form data-create class="form-rule-grid"><label>Form name<input name="title" required maxlength="120" placeholder="e.g. Spring estimate requests" /></label><label>Starting fields<select name="preset"><option value="contacts">Contact form</option><option value="quote_requests">Quote request</option><option value="bookings">Appointment form</option></select></label><button class="btn" type="submit">Create form</button></form>`:''}
-      <p role="status" data-status></p><div class="form-list">${data.forms.filter(f=>!f.archived).map(f=>`<button class="form-list-item" data-open="${f.public_id}"><strong>${esc(f.title)}</strong><span>${f.enabled?'Form live':'Form draft'} · ${f.automationEnabled?'Automation active':f.publishedVersion?'Automation paused':'No active automation'}</span><small>${f.submissionCount||0} submissions →</small></button>`).join('')||'<div class="blank">No forms yet. Create your first form to get started.</div>'}</div>
-      ${data.forms.some(f=>f.archived)?`<details><summary>Archived forms</summary>${data.forms.filter(f=>f.archived).map(f=>`<button class="btn ghost" data-open="${f.public_id}">${esc(f.title)}</button>`).join('')}</details>`:''}</div></section>`;
+      <p role="status" data-status></p><div data-form-directory></div></div></section>`;
+      mountFormDirectory(root.querySelector('[data-form-directory]'),data,{canReadSubmissions:canReadSubmissions(),onOpen:(id,nextTab)=>{selected=id;tab=nextTab;render({refresh:false}).catch(showError);}});
       root.querySelector('[data-create]')?.addEventListener('submit',async e=>{e.preventDefault();const input=new FormData(e.currentTarget);const button=e.currentTarget.querySelector('button');button.disabled=true;
         try{const result=await request('/api/web-forms',{method:'POST',body:JSON.stringify({title:input.get('title'),preset:input.get('preset'),description:'',buttonLabel:'Submit',fields:[],enabled:false})});selected=result.form.public_id;tab='form';await render({refresh:false});}catch(err){root.querySelector('[data-status]').textContent=err.message;button.disabled=false;}});
-      root.querySelectorAll('[data-open]').forEach(b=>b.onclick=()=>{selected=b.dataset.open;tab='form';render({refresh:false}).catch(showError);});return;
+      return;
     }
     root.innerHTML=`<div class="form-workspace-heading"><button class="btn ghost" data-back>← All forms</button><h2>${esc(form.title)}</h2>${data.canEdit&&form.archived?'<button class="btn ghost" data-restore>Restore as draft</button>':''}${data.canEdit&&!form.archived?'<button class="btn ghost" data-duplicate>Duplicate form</button><button class="btn ghost" data-archive>Archive</button>':''}</div>
       <div class="web-builder-tabs" role="tablist" aria-label="Form workspace">${[['form','Form'],...(canReadSubmissions()?[['automation','Automation'],['submissions','Submissions']]:[])].map(([id,label])=>`<button class="btn ${tab===id?'':'ghost'}" role="tab" aria-selected="${tab===id}" data-tab="${id}">${label}</button>`).join('')}</div><div data-panel role="tabpanel"></div><p data-error role="status"></p>`;

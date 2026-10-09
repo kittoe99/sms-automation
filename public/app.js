@@ -1,3 +1,4 @@
+import {mountFormDirectory} from './formDirectory.js';
 import {installPhoneFormatting,normalizePhoneInput} from './phoneInput.js?v=20261003-phone';
 installPhoneFormatting();
 import {createTabMemory, createRenderQueue} from './tabWorkspace.js?v=20261002-workspace';
@@ -104,7 +105,8 @@ const formBuilder = {async render() {
   const {createFormWorkspace} = await import('./formWorkspace.js?v=20261004-live-test');
   formWorkspace ||= createFormWorkspace({root:el.root,apiFetch,config:runtimeConfig,getTenantId,
     canReadSubmissions:()=>state.tenant?.smsRead!==false});
-  return formWorkspace.render();
+  const target=formBuilder.target;formBuilder.target=null;
+  return formWorkspace.render(target||{});
 }};
 let createPlatform;
 const platformInstances = new Map();
@@ -1866,44 +1868,17 @@ async function renderOverview() {
       <button type="button" class="btn ghost" data-dashboard-view="deliverability">View delivery report</button>
       <button type="button" class="btn ghost" data-dashboard-view="optouts">View opt-outs</button>
     </details>
-    <section class="card followup-section" aria-labelledby="dashboard-followups-title">
-      <div class="followup-section-head">
-        <div>
-          <span class="eyebrow">Automations</span>
-          <h2 id="dashboard-followups-title">Follow-ups</h2>
-          <p>Monitor the sequences that keep customer conversations moving.</p>
-        </div>
-        <button type="button" class="btn ghost" data-dashboard-view="automations">Manage form messages</button>
-      </div>
-      <div class="followup-grid">
-        ${state.categories
-          .map((c) => {
-            const s = data.byCategory?.find((x) => x.id === c.id);
-            const configured = c.automationAiConfigured === true;
-            const active = configured && c.activeAutomation !== false;
-            const total = totalsAvailable ? fmt(s?.total ?? 0) : '—';
-            const delivery = s?.deliveryRate == null ? '—' : `${s.deliveryRate}%`;
-            return `
-              <button type="button" class="followup-card" data-open-automation="${esc(
-                c.id
-              )}" aria-label="Open ${esc(c.name)} automation">
-                <span class="followup-card-top">
-                  <span class="followup-state ${active ? 'is-active' : 'is-paused'}"><i aria-hidden="true"></i>${configured ? (active ? 'Active' : 'Inactive') : 'Setup required'}</span>
-                  <span class="followup-arrow" aria-hidden="true">→</span>
-                </span>
-                <strong class="followup-name">${esc(c.name)}</strong>
-                <span class="followup-description">${esc(c.description || 'Automated customer follow-up.')}</span>
-                <span class="followup-schedule">${esc(automationBlankLabel(c))}</span>
-                <span class="followup-metrics">
-                  <span><b>${total}</b> messages</span>
-                  <span><b>${delivery}</b> delivered</span>
-                </span>
-              </button>`;
-          })
-          .join('') || '<div class="followup-empty"><strong>No follow-ups yet</strong><span>Create an automation to start nurturing customer conversations.</span></div>'}
-      </div>
+    <section class="card" aria-labelledby="dashboard-forms-title">
+      <div class="card-head"><div><h2 id="dashboard-forms-title">Forms and automations</h2><p class="muted">Every form, its submissions and its follow-up settings.</p></div><button type="button" class="btn ghost" data-dashboard-view="web-forms">Manage forms</button></div>
+      <div class="web-builder-body" data-dashboard-forms></div>
     </section>
   `;
+
+  const formsRoot=el.root.querySelector('[data-dashboard-forms]');
+  if(result.formsData)mountFormDirectory(formsRoot,result.formsData,{onOpen:(formId,initialTab)=>{
+    formBuilder.target={formId,initialTab};switchView('web-forms',{force:true});
+  }});
+  else formsRoot.innerHTML='<p role="status">Forms and submission counts are unavailable. Select Refresh to try again.</p>';
 
   if (state.platformStaff && globalThis.SMS_CONFIG?.apiBase) {
     el.root.insertAdjacentHTML('beforeend', '<details class="card automation-health" id="worker-status"><summary><span class="automation-health-dot" aria-hidden="true"></span><span><strong>Automation system</strong><small>Scheduler, queues, and worker health</small></span><span class="automation-health-action">View status</span></summary><div class="worker-status-content muted">Open to check automation status.</div></details>');

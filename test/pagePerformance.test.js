@@ -29,7 +29,7 @@ test('dashboard launches independent reads together and paints totals before sec
   let painted;
   const pending=readDashboard(path=>{started.push(path);return path==='/api/overview'?totals.promise:connection.promise;},
     ()=>{started.push('categories');return categories.promise;},data=>{painted=data;});
-  assert.deepEqual(started,['/api/overview','/api/sms/connection','categories']);
+  assert.deepEqual(started,['/api/overview','/api/sms/connection','categories','/api/web-forms']);
   totals.resolve(Response.json({total:17}));
   await new Promise(resolve=>setImmediate(resolve));
   assert.equal(painted.total,17);
