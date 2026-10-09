@@ -364,3 +364,21 @@ the first signup automatically. A staff/bootstrap SQL action must add its canoni
 matching subject in `sms_private.admins`. No business membership or website
 ownership is granted automatically. Recreate the intended businesses and assign
 the retained website through the CRM after staff access is restored.
+
+## Forms and automation dashboard
+
+CRM Dashboard and Forms list all forms for the selected business, including drafts
+and archived forms. Search by name, description, type or ID, or use Form status.
+Summary totals always cover all forms; filtering only changes the displayed list.
+Each card shows all-time submission count, automation state/version, form type,
+custom fields and recorded dates. Expand Form details for its ID, version, submit
+button and field labels. Open form edits or previews the form; Submissions and
+Automation open those tabs directly when the user has read access.
+
+An Active automation is the saved sequence setting, not a guarantee that SMS can
+send: consent, business sending settings and delivery eligibility still apply.
+Archived submissions remain in totals. Missing counts are Unavailable and missing
+creation dates are Not recorded. Refresh reloads the current business data.
+This CRM-only frontend release uses the existing form-workspace API; E2 site
+connections, customer permissions and shared submission attribution are unchanged.
+Released in CRM Render deploy dep-db472am0tbcc73dcaueg (October 9, 2026 UTC).

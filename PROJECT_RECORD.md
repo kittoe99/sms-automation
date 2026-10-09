@@ -1,5 +1,29 @@
 # Opek SMS project record
 
+### October 8 — Forms and automation dashboard
+
+The CRM Dashboard now lists every form for the current business instead of legacy
+category follow-up cards. Dashboard and Forms share a searchable directory with
+All/Live/Draft/Archived filters, aggregate and per-form all-time submission counts,
+automation state and published version, descriptions, types, fields, IDs and dates.
+Submissions and Automation actions open the selected form directly. Archived forms
+remain visible and contribute to submission totals but not active-form totals.
+Missing counts show Unavailable; failed reads never appear as zero. Existing
+submission-access controls remain in effect. Creation dates absent from the
+existing data are shown as Not recorded; no historical dates were invented.
+
+Validation: 24 CRM form/API/cache/security tests and 13 paired E2 enquiry/access/
+cache tests passed. Browser checks verified filtering, search, direct submissions
+navigation, return to the directory and mobile layout without horizontal overflow.
+The exact staged frontend built successfully. No shared contract, migration, Edge
+function or E2 frontend change was needed; unrelated local work was preserved.
+
+Released source fb034d259fed439ef1ae0e2ef9b04c533d58ac96 to crm.e2local.com in
+Render deploy dep-db472am0tbcc73dcaueg, live October 9 at 04:44:43 UTC. Served form
+directory/workspace chunks match the tested build exactly; dashboard code matches
+after normalizing the unrelated platform asset hash.
+
+
 ### October 8 — Fixed missing voice call history and recovered provider metadata
 
 Investigated the empty Voice Agent history reported by staff. The screenshot was
