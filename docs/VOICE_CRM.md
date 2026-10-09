@@ -122,3 +122,16 @@ is still needed after the repair.
 
 CRM frontend source 3e4eabd is live in Render deploy dep-db46pocs728c739p58h0
 (October 9, 04:26 UTC); the served voice module matches the tested build.
+
+### Inbound calls report
+
+Staff can also open Reports → Inbound calls for voice-agent history. Use Listen
+to load a private recording and then the audio controls to play it; Details shows
+the transcript, recap and related bookings. Links expire after five minutes;
+reopen details to refresh them. Recovered provider-history records with no audio
+show Unavailable. Existing non-agent call records remain below when present.
+Recording access remains staff-only and the 90-day retention policy is unchanged.
+
+Live verification: source 919252f, Render dep-db476gnlot8c738249b0 finished
+October 9, 2026 at 04:53:34 UTC. Served voice module matches the staged build
+exactly; app matches after normalizing unrelated asset hashes.

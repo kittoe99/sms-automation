@@ -1,5 +1,25 @@
 # Opek SMS project record
 
+### October 8 — Voice history and playback in Inbound calls
+
+Reports → Inbound calls now mounts the same staff voice call history and detail
+viewer as Voice Agent, including filters, paging, duration, agent, outcome,
+transcripts, linked bookings and Listen controls. Listen fetches the existing
+private five-minute signed recording URL on demand and exposes browser playback
+and download. Failed loads can retry, and late media responses cannot populate a
+different call's player. Separate report state resets when the business changes.
+Provider-history calls without recovered media now say Unavailable. Existing
+non-agent call records remain below when present; non-staff access is unchanged.
+
+Validation: 14 CRM voice/API/media-expiry/cache tests and 7 paired E2 booking/
+access/cache tests passed. A synthetic browser recording reached readyState 4,
+played with advancing time and no media error; report details and recovered-audio
+labels were verified. Exact staged frontend build passed. This verifies the player,
+not a new production phone recording. No database/Edge/E2 release is required.
+CRM source 919252f submitted to Render deploy dep-db476gnlot8c738249b0; release
+verification is recorded in docs/VOICE_CRM.md. Unrelated work remains preserved.
+
+
 ### October 8 — Forms and automation dashboard
 
 The CRM Dashboard now lists every form for the current business instead of legacy
