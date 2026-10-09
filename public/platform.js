@@ -173,7 +173,7 @@ export function createPlatform({root,title,subtitle,pager,onNavigate,onWorkspace
  }
   async function website(body,row){
   body.innerHTML=`<p>${esc(row.slug)}.e2local.com · ${esc(row.business_name||'Business not assigned')} · ${row.owner_account_id?'Owner assigned':'Owner not assigned'}</p>
-   <nav class="compose-actions" role="tablist" aria-label="Website sections">${['dashboard','domain','assets','business-info','leads'].map(t=>`<button type="button" role="tab" class="btn ghost" data-tab="${t}" aria-selected="${String(tab===t)}" tabindex="${tab===t?'0':'-1'}" ${tab===t?'aria-current="page"':''}>${esc(t.replaceAll('-',' '))}</button>`).join('')}</nav><div data-website-body role="tabpanel"></div>`;
+   <nav class="compose-actions" role="tablist" aria-label="Website sections">${['dashboard','domain','assets','business-info','leads','update-requests'].map(t=>`<button type="button" role="tab" class="btn ghost" data-tab="${t}" aria-selected="${String(tab===t)}" tabindex="${tab===t?'0':'-1'}" ${tab===t?'aria-current="page"':''}>${esc(t.replaceAll('-',' '))}</button>`).join('')}</nav><div data-website-body role="tabpanel"></div>`;
   bind('[data-tab]','click',event=>{switchSiteTab(event.currentTarget.dataset.tab);});
   body.querySelector('[role="tablist"]')?.addEventListener('keydown',event=>{
     if(event.key!=='ArrowRight'&&event.key!=='ArrowLeft')return;
@@ -204,6 +204,9 @@ export function createPlatform({root,title,subtitle,pager,onNavigate,onWorkspace
       <label>Description<textarea name="description" maxlength="1500">${esc(d.description)}</textarea></label>${field('Contact email','contactEmail',d.contactEmail,'type="email"')}${field('Contact phone','contactPhone',d.contactPhone,'type="tel" autocomplete="tel" placeholder="(303) 555-0123"')}
       <label>Services (one per line)<textarea name="services">${esc((d.services||[]).join('\n'))}</textarea></label><label>Areas served (one per line)<textarea name="serviceAreas">${esc((d.serviceAreas||[]).join('\n'))}</textarea></label><button class="btn">Save website details</button></form>`;
     bind('[data-details]','submit',event=>{event.preventDefault();run(async()=>{const data=Object.fromEntries(new FormData(event.currentTarget));await hostWrite(`/${row.id}`,{name:data.name,details:{businessName:data.businessName,description:data.description,contactEmail:data.contactEmail,contactPhone:data.contactPhone,services:data.services.split('\n').map(x=>x.trim()).filter(Boolean),serviceAreas:data.serviceAreas.split('\n').map(x=>x.trim()).filter(Boolean)}},'PATCH');siteCache=null;await detail();});});
+  }else if(tab==='update-requests'){
+    const {mountWebsiteRequests}=await import('./websiteRequests.js');
+    await mountWebsiteRequests(panel,row.id,{read:hosting,write:hostWrite,escape:esc,date});
   }else if(tab==='assets')await assets(panel,row);
   else await leads(panel,row);
  }

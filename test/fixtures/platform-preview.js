@@ -7,6 +7,7 @@ const membership={account_id:accountId,tenant_id:'demo',role:'owner',enabled:tru
 const site={id:siteId,slug:'example-preview',name:'Example Website',sms_tenant_id:'demo',owner_account_id:accountId,business_name:'Example Services',revision:0,created_at:'2026-09-29T12:00:00Z',details:{businessName:'Example Services',services:['Home repairs'],serviceAreas:['Denver']}};
 const records={accounts:[{id:accountId,clerk_display_name:'Example Owner',clerk_primary_email:'owner@example.test',status:'active',created_at:site.created_at,onboarding_completed_at:site.created_at,memberships:[membership],websites:[site],identityMapped:true,personal_info:{firstName:'Example',lastName:'Owner'},business_profile:{businessName:'Example Services'}}],businesses:[{tenant_id:'demo',name:'Example Services',time_zone:'America/Denver',owner_account_id:accountId,memberships:[membership],sites:[site]}],websites:[site]};
 const business=records.businesses[0];
+const websiteRequests=[{id:'00000000-0000-4000-8000-000000000020',title:'Refresh the homepage',category:'content',page:'Home',description:'Please update our homepage introduction.',status:'received',response:'',revision:0,created_at:'2026-10-08T12:00:00Z',updated_at:'2026-10-08T12:00:00Z'}];
 business.registration={accountId,profile:{businessName:'Example Services',timeZone:'America/Denver',contactEmail:'owner@example.test',contactPhone:'+13035550123',summary:'Home repairs and maintenance for Denver customers.',services:['Home repairs'],locations:['Denver']}};
 business.setup={revision:0,draft:{...business.registration.profile},reviewed_profile_id:null};
 business.services=[];
@@ -51,6 +52,10 @@ http.createServer(async(req,res)=>{
    }
    data=type==='business-register'?{id:'demo'}:{saved:true};
   }}
+  else if(url.pathname===`/hosting/${siteId}/requests`){
+    if(req.method==='PATCH'){let raw='';for await(const chunk of req)raw+=chunk;const input=JSON.parse(raw);const row=websiteRequests.find(r=>r.id===input.id);Object.assign(row,{status:input.status,response:input.response,revision:row.revision+1});}
+    data={requests:websiteRequests};
+  }
   else if(url.pathname==='/hosting')data={sites:[{...site,publicationStatus:'unpublished',deployments:[]}]};
   else if(url.pathname.endsWith('/forms'))data={business:{tenantId:'demo',name:'Example Services'},connections:[]};
   else if(url.pathname.endsWith('/leads'))data={rows:[],total:0,totalPages:1};

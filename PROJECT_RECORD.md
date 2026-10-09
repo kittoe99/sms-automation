@@ -1,5 +1,14 @@
 # Opek SMS project record
 
+### October 8 — Customer website requests release prepared
+
+Added the staff Websites Update requests inbox with status and customer-visible
+replies. The paired E2 migration passed a live rollback rehearsal and grants/RLS
+assertions; release order is new E2 migration, E2 API/UI, then CRM frontend.
+40 E2 tests and 10 CRM API/render/tab-memory tests passed. Asset storage and
+domain connection remain previews. Deployment is authorized and pending.
+
+
 ### October 8 — Voice history and playback in Inbound calls
 
 Reports → Inbound calls now mounts the same staff voice call history and detail
@@ -1065,3 +1074,11 @@ both summary cards contain zero form/input/button controls. Staff activation
 setup remains available separately. Security advisors retain the five existing
 warnings with no new finding. No Twilio calls, paid actions or activation SMS.
 Subsequent record-only commits do not change the verified application behavior.
+
+### October 8 — Customer website requests release prepared
+
+Added the staff Websites Update requests inbox with status and customer-visible
+replies. The paired E2 migration passed a live rollback rehearsal and grants/RLS
+assertions; release order is new E2 migration, E2 API/UI, then CRM frontend.
+40 E2 tests and 10 CRM API/render/tab-memory tests passed. Asset storage and
+domain connection remain previews. Deployment is authorized and pending.
