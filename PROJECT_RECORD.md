@@ -1,5 +1,46 @@
 # Opek SMS project record
 
+### October 8 — Fixed missing voice call history and recovered provider metadata
+
+Investigated the empty Voice Agent history reported by staff. The screenshot was
+the Leads tab, but the underlying call table was also empty. Twilio confirmed two
+inbound calls with completed LiveKit SIP legs after the October 6 integration
+release. The October 8 session produced one successful configuration request and
+15 HTTP 400 runtime requests. No caller payloads were included in diagnostic output.
+
+Root cause: runtime and booking adapters JSON.stringify-ed objects before passing
+them to Postgres.js. Its inferred JSONB serializer encoded those strings again,
+so call start could not read the room field and rejected it as a non-phone room.
+The earlier PGlite/function tests missed this wire-level difference. Adapters now
+pass objects directly. The same correction covers maintenance deletion acknowledgments
+and booking payloads. No grants, tenant boundaries or feature flags were changed.
+
+Validation: 15 CRM tests (including an actual Postgres.js serializer regression),
+7 paired E2 database/access/cache tests, and the staged frontend build passed.
+The old failure was reproduced against live PostgreSQL; the fixed adapter completed
+start and finish inside a rolled-back transaction. Deployed source was read back
+and verified. Staff database reads and unauthorized-access denials still pass.
+An extra signed write probe was blocked by automatic policy review; it was not
+retried. Read-only deployed-source verification was used instead.
+
+Deployed voice-runtime v3, voice-maintenance v3 and voice-booking v4, all ACTIVE.
+CRM source 3e4eabd is live in Render deploy dep-db46pocs728c739p58h0
+(finished October 9 at 04:26 UTC). Its served Voice Agent module matches the tested
+build. It includes a truthful 'Not captured' configuration label for
+provider-history recovery. Two real call metadata records were restored atomically
+and idempotently from matched provider parent/SIP-leg evidence, with original SIP
+start/end/duration, unknown outcome/configuration and missing media clearly marked.
+Recovery created no leads, contacts, bookings or consent. Original retention dates
+were preserved. CRM now contains two calls and zero qualified voice leads.
+
+Audio/transcripts were not recovered: Twilio returned no matching recording and
+the LiveKit Analytics API denied access (403). This does not prove no LiveKit copy
+exists. A new real SIP call and end-to-end audio upload remain unverified after
+the fix. Voice booking stays disabled pending the existing pilot. No migration,
+E2 frontend release or voice-worker deployment was necessary. Unrelated edits
+remain preserved.
+
+
 ### October 6 — Removed ZIP and dumpster-size fields from agent booking
 
 At the user's request, agent booking no longer requires ZIP coverage or dumpster

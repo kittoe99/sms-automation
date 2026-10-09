@@ -111,3 +111,14 @@ the database functions. Runtime is enabled, but voice booking remains disabled
 with no saved schedules. Real phone/recording/OTP/booking pilot is outstanding,
 as is the observed revision from an actual SIP call. No test customer records
 were created. See both project records for detailed validation and release status.
+
+October 8 ingestion fix: pass JSON objects directly to Postgres.js; do not pre-stringify
+JSONB RPC arguments. Runtime v3, maintenance v3 and booking v4 are deployed. Two
+post-integration calls were recovered from provider metadata only. In Calls, these
+are marked provider_history with unknown configuration/outcome and unavailable
+audio/transcript. Recovery does not infer qualified leads. Leads remains a subset
+of calls with explicit captured service interest. A new physical phone/audio pilot
+is still needed after the repair.
+
+CRM frontend source 3e4eabd is live in Render deploy dep-db46pocs728c739p58h0
+(October 9, 04:26 UTC); the served voice module matches the tested build.
