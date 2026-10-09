@@ -181,7 +181,7 @@ function restoreTab(snapshot) {
   window.scrollTo({top: snapshot.scroll, behavior: 'instant'});
 }
 function clearTabs() {
-  state.voiceWorkspace = {};
+  state.voiceWorkspace = {};state.inboundVoiceWorkspace={};
   formWorkspace?.reset(); formWorkspace = null;
   tabMemory.clear(); platformInstances.clear(); sectionHistory.clear(); categoriesLoaded = false; lastRenderedView = null;
 }
@@ -1217,7 +1217,7 @@ const titles = {
   overview: ['Dashboard', 'Your messages, contacts, and follow-ups in one place.'],
   messaging: ['Inbox', 'Read and reply to customer conversations.'],
   'voice-agent': ['Voice Agent', 'Configuration, calls, recordings and leads.'],
-  call: ['Calls', 'Track inbound calls from your customers.'],
+  call: ['Inbound calls', 'Track inbound calls from your customers.'],
   messages: ['Messages', 'Searchable CRM log for every SMS'],
   contacts: ['Contacts', 'Find customers and manage your contacts.'],
   optouts: ['Opt-Outs', 'Numbers that asked to stop receiving SMS'],
@@ -1539,7 +1539,7 @@ async function switchTenant(tenantId, options = {}) {
   state.businessContextDraft = null;
   state.bookingSettingsDraft = null;
   state.voiceBookingDrafts = {};
-  state.voiceWorkspace = {};
+  state.voiceWorkspace = {};state.inboundVoiceWorkspace={};
   state.conversationPhone = null;
   state.conversationId = null;
   state.page = 1;
@@ -1800,16 +1800,26 @@ async function renderCall() {
   el.status.disabled = true;
   el.pager.hidden = true;
   el.storeMeta.textContent = 'Inbound calls';
+  const voiceHost=document.createElement('div'),legacyHost=document.createElement('div');
+  el.root.replaceChildren(voiceHost,legacyHost);
+  if(state.platformStaff){
+    const {mountVoiceWorkspace}=await import('./voiceWorkspace.js');
+    state.inboundVoiceWorkspace??={};
+    await mountVoiceWorkspace(voiceHost,{apiFetch,callsOnly:true,model:state.inboundVoiceWorkspace,
+      onBookings:()=>switchView('bookings'),
+      onContact:phone=>switchView('messaging',{conversationPhone:phone,conversationId:null,force:true})});
+  }
   const params = new URLSearchParams({ page: String(state.page), pageSize: String(state.pageSize) });
   const response = await apiFetch(`/api/calls?${params}`);
-  if (!response.ok) throw new Error('Could not load inbound calls');
+  if (!response.ok) {legacyHost.innerHTML='<p role="status">Other inbound call records are unavailable. Refresh to retry.</p>';return;}
   const data = await response.json();
+  if(state.platformStaff&&!data.total){legacyHost.remove();return;}
   state.totalPages = data.totalPages || 1;
   renderPager(data);
   el.pager.hidden = !(data.total > 0);
-  el.root.innerHTML = `
+  legacyHost.innerHTML = `
     <div class="card">
-      <div class="card-head"><h2>Inbound calls</h2><span class="muted">${fmt(data.total || 0)} calls</span></div>
+      <div class="card-head"><h2>${state.platformStaff?'Other inbound call records':'Inbound calls'}</h2><span class="muted">${fmt(data.total || 0)} calls</span></div>
       <div class="table-scroll"><table class="data">
         <thead><tr><th>Caller</th><th>Received</th><th>Status</th><th>Duration</th></tr></thead>
         <tbody>${(data.calls || []).filter(call => call.direction === 'inbound').map(call => `
