@@ -63,6 +63,12 @@ export function createCrmHandler(db,verify=authenticate,{platform=false,provisio
     return json({business:await db.call('platform_action',user,'business_register',p)},200,headers);
    }
    if(!tenant) return json({error:'Select a business'},400,headers);
+   const activityRoute=path.match(/^\/automation-activity(?:\/(report|summary|enquiries|timeline|unlinked|tag|tag_assignment|booking_link|response_link|activity_link|sequence))?$/);
+   if(activityRoute) {
+    const action=activityRoute[1]||'report',reads=['report','summary','enquiries','timeline','unlinked'];
+    if(method!==(reads.includes(action)?'GET':'POST'))return json({error:'Method not allowed'},405,headers);
+    return json(await db.call('automation_activity',user,tenant,action,method==='GET'?params:await readJson(request)),200,headers);
+   }
    if(path==='/inbound-ai') {
     if(!['GET','PUT'].includes(method)) return json({error:'Method not allowed'},405,headers);
     return json(await db.call('inbound_ai_settings_api',user,tenant,method==='PUT'?await readJson(request):null),200,headers);

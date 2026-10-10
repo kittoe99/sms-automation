@@ -1,4 +1,4 @@
-const readViews = new Set(['overview','messaging','contacts','optouts','deliverability','automations','call','messages','bookings']);
+const readViews = new Set(['automation-activity','overview','messaging','contacts','optouts','deliverability','automations','call','messages','bookings']);
 export function canOpenWorkspace(view, staff, tenant) {
   if (staff) return true;
   if (view === 'web-forms') return tenant?.smsRead === true || tenant?.formsManage === true;

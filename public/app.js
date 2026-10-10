@@ -35,7 +35,8 @@ async function apiFetch(path, options = {}) {
   return response;
 }
 
-const KNOWN_VIEWS = ['inbound-ai','voice-agent','overview','contacts','messaging','bookings','automations','email','call','messages','deliverability','optouts','ai-instructions','business-setup','business-context','booking-setup','web-forms','knowledge','platform-accounts','platform-businesses','platform-websites','platform-twilio'];
+let disposeActivity;
+const KNOWN_VIEWS = ['automation-activity','inbound-ai','voice-agent','overview','contacts','messaging','bookings','automations','email','call','messages','deliverability','optouts','ai-instructions','business-setup','business-context','booking-setup','web-forms','knowledge','platform-accounts','platform-businesses','platform-websites','platform-twilio'];
 function initialViewFromUrl() {
   const view = new URLSearchParams(location.search).get('view');
   if (['automations','ai-instructions'].includes(view)) return 'web-forms';
@@ -1229,6 +1230,7 @@ const titles = {
   'business-context': ['Business context', 'Business profile and approved knowledge for this business.'],
   knowledge: ['AI knowledge', 'Approve evidence, review leads, and resolve human handoffs.'],
   bookings: ['Bookings', 'Confirmed appointments created securely for this business.'],
+  'automation-activity': ['Automation activity','Responses, bookings and follow-up workload'],
   'inbound-ai': ['Inbound AI', 'Answer incoming texts and book with shared service availability.'],
   'booking-setup': ['Service availability', 'Shared service schedules for SMS and voice booking.'],
   'web-forms': ['Forms', 'Create and manage forms for your websites.'],
@@ -1416,7 +1418,7 @@ const TAB_GROUPS = [
   { id: 'work', label: 'Workspace', views: [
     {view:'overview',label:'Overview'}, {view:'contacts',label:'Contacts'},
     {view:'messaging',label:'Inbox'}, {view:'bookings',label:'Bookings'},
-    {view:'web-forms',label:'Forms'}, {view:'email',label:'Email'},
+    {view:'web-forms',label:'Forms'}, {view:'automation-activity',label:'Automation activity'}, {view:'email',label:'Email'},
   ]},
   { id: 'voice', label: 'Voice Agent', views: [{view:'voice-agent',label:'Voice Agent'}]},
   { id: 'reports', label: 'Reports', views: [
@@ -1684,7 +1686,7 @@ function load(options = {}) {
 }
 function syncViewControls() {
   document.getElementById('crm-app').dataset.view = state.view;
-  el.search.closest('.search-wrap').hidden = state.view.startsWith('platform-') || ['inbound-ai', 'overview', 'call', 'deliverability', 'ai-instructions', 'business-setup', 'business-context', 'booking-setup', 'knowledge', 'web-forms', 'email'].includes(state.view);
+  el.search.closest('.search-wrap').hidden = state.view.startsWith('platform-') || ['automation-activity','inbound-ai', 'overview', 'call', 'deliverability', 'ai-instructions', 'business-setup', 'business-context', 'booking-setup', 'knowledge', 'web-forms', 'email'].includes(state.view);
   el.status.hidden = !['messages', 'deliverability'].includes(state.view) && !(state.view === 'automations' && state.categoryId);
 }
 async function loadCategories() {
@@ -1700,6 +1702,7 @@ async function loadCategories() {
   renderNavAutomations();
 }
 async function renderWorkspace(options = {}) {
+  disposeActivity?.(); disposeActivity=null;
   const readScope = pageReads.begin();
   if (state.view !== 'messaging') document.querySelector('.crm')?.classList.remove('thread-open');
   if (lastRenderedView !== state.view) {
@@ -1736,6 +1739,15 @@ async function renderWorkspace(options = {}) {
     else if (state.view === 'business-setup') await renderBusinessSetup();
     else if (state.view === 'business-context') await renderBusinessContext();
     else if (state.view === 'booking-setup') await renderBookingSetup();
+    else if (state.view === 'automation-activity') {
+      const {mountAutomationActivity}=await import('./automationActivity.js');
+      const tenantId=getTenantId(),userId=getSession()?.user?.id||state.user?.id||'session';
+      el.pager.hidden=true;el.kpi.innerHTML='';
+      disposeActivity=await mountAutomationActivity(el.root,{apiFetch,identity:`${userId}:${tenantId}`,isCurrent:()=>state.view==='automation-activity'&&getTenantId()===tenantId&&(getSession()?.user?.id||state.user?.id||'session')===userId,
+       onConversation:(conversationId,conversationPhone)=>switchView('messaging',{conversationId,conversationPhone,force:true}),
+       onForm:formId=>{formBuilder.target={formId,initialTab:'automation'};switchView('web-forms',{force:true});},
+       onBookings:()=>switchView('bookings'),onHandoffs:()=>switchView('business-context')});
+    }
     else if (state.view === 'inbound-ai') {
       const {mountInboundAi}=await import('./inboundAi.js');
       const tenantId=getTenantId();

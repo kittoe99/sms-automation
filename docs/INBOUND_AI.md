@@ -183,3 +183,10 @@ form, booking and conversation suites and paired E2 enquiry/booking/access/cache
 suites. Read both project records for actual deployment and activation state.
 
 Applied migration mapping: local `20261010183109_inbound_automation_coordination.sql` = remote `20261010184313_inbound_automation_coordination`. Do not reapply under the local timestamp.
+
+## Activity reporting
+
+Automation activity reads durable agent/booking/message records without calling
+the model. Shadow proposals remain visibly simulated and outside actual response
+and conversion totals. Explicit primary enquiry attribution is audited and does
+not alter a booking creator. See [Automation activity](AUTOMATION_ACTIVITY.md).

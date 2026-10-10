@@ -200,3 +200,11 @@ Verification commands: `node --test test/inboundCoordination.test.js`,
 validation proxy; synthetic local data only). Also run the existing CRM agent,
 form, booking and conversation suites and paired E2 enquiry/booking/access/cache
 suites. Read both project records for actual deployment and activation state.
+
+## Automation activity reporting
+
+The Automation activity tab beside Forms reports accepted/delivered messages,
+responses, bookings, pauses and handoffs. Staff can tag individual enquiries and
+correct primary booking attribution. These reporting actions do not send messages
+or change follow-up templates. Sequence and AI resume remain independent; STOP
+cannot be overridden. See [Automation activity](AUTOMATION_ACTIVITY.md).

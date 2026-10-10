@@ -1,5 +1,31 @@
 # Opek SMS project record
 
+### October 10 — Automation activity implementation and local validation
+
+Added the CRM Automation activity tab beside Forms, tenant-scoped reporting,
+accepted/delivered activity, first-contact conversion cohorts, current workload,
+filtering, enquiry timelines, manual tags and explicit booking/response/AI
+attribution. Private lifecycle records are transactional and callback-deduplicated.
+Booking corrections keep one primary enquiry and preserve the recorded creator.
+Historical unknown transition times stay labeled snapshots; shadow/test/reminder
+activity is excluded from enquiry conversions. Existing E2 permissions and cache
+contracts remain unchanged.
+
+CRM owns forward migration `20261010185337_automation_activity.sql`, after remote
+`20261010184313_inbound_automation_coordination`. Applied histories were reconciled
+against both repositories; no previous migration is to be replayed. Local checks:
+10 new reporting/API tests pass, 22 CRM reporting/form/API tests pass, 21 existing
+agent-database/coordination tests pass, 43 paired E2 tests pass, and three real
+PostgreSQL concurrency checks pass. Browser checks cover filters, empty state,
+timeline, pause, tags, and a corrected 390px responsive layout.
+
+The isolated release build passes, with 46 CRM tests passing against the exact
+release source.
+
+These are local implementation/validation results; deployment is pending at this
+entry. Opek remains shadow and other businesses off. See CRM
+`docs/AUTOMATION_ACTIVITY.md` for definitions, API and rollback.
+
 ### October 10 — Inbound AI / form coordination (backend deployed, shadow only)
 
 Backend release: applied this source once as remote migration
