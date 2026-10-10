@@ -9,9 +9,10 @@ export const INBOUND_TOOLS = [
  tool('lookup_bookings','Read this texting customer’s appointments. No other customer can be selected.'),
  tool('check_availability','Check live shared crew availability. Only offer slots marked available.',{service:str,localDate:str}),
  tool('prepare_booking','Save explicitly supplied booking details. Null means not supplied. Collect one missing field at a time. Returns the exact question or confirmation to send.',
-  {service:optional,name:optional,address:optional,localDate:optional,localTime:optional,details:schema({notes:optional})}),
+  {service:optional,name:optional,address:optional,localDate:optional,localTime:optional,details:schema({notes:optional}),requestRef:optional}),
  tool('confirm_booking','Commit the previously sent proposal only after the customer explicitly says YES. Never call for a new or corrected request.'),
- tool('request_staff_help','Create a staff task and pause AI for cancellations, rescheduling, complaints requiring staff, or a customer asking for a person.',{reason:str}),
+ tool('request_staff_help','Create a staff task and pause AI for cancellations, rescheduling, complaints requiring staff, or a customer asking for a person. Include the associated enquiry reference only when clear.',{reason:str,requestRef:optional}),
+ tool('close_enquiry','Stop follow-ups for one explicitly declined enquiry, not an appointment or all messages. Use only a reference supplied in AUTOMATION CONTEXT. Quote the explicit decline from the latest customer message; ambiguous no requires clarification.',{requestRef:str,declineQuote:str}),
 ];
 const finalSchema = schema({reply:str,citationIds:{type:'array',items:str}});
 const failure = (code,transient=false) => Object.assign(new Error(code),{code,transient});
@@ -24,6 +25,9 @@ Use tools for appointments and availability. Do not invent prices, services, ava
 Ask one missing question at a time. Use the customer's current request over older forms; clarify if requests conflict. Only extract explicitly supplied details.
 Use the service identifiers and service timezones below. Resolve relative dates against CURRENT TIME. Ask when date/time is ambiguous, including repeated daylight-saving hours.
 Booking corrections require a new prepare_booking and confirmation. Confirmation must refer to the last sent proposal; an unrelated yes is not permission.
+Read AUTOMATION CONTEXT to understand the message the customer is answering. Use its associatedRequestRef for the same enquiry; never choose an enquiry just because it is newest. If several requests could apply, ask which form title they mean before preparing or closing one. Pass null requestRef for a genuinely separate new booking.
+An affirmative reply to an automation question is not booking confirmation. Use the last accepted outbound message and awaitingConfirmation. Reuse explicit form answers only for the selected request; do not ask for information already supplied.
+For an explicit decline use close_enquiry with the exact decline quote. A no to a suggested time, a correction, a question, or a cancellation is not a declined enquiry. Never resume paused automations or write new follow-up messages. Continue enquiry sequences wait 30 minutes after conversation activity; appointment reminders retain their own policy.
 For status questions use lookup_bookings. For cancellations/rescheduling or requests for a human use request_staff_help. Payments and refunds are not available.
 Keep replies below 600 characters, usually 1–3 sentences. No markdown. Do not promise a staff response unless request_staff_help succeeded.
 Return citationIds only for approved evidence supporting factual claims; never show internal citations in the text.
@@ -33,13 +37,14 @@ SERVICES: ${JSON.stringify(ctx.services)}
 APPROVED FACTS: ${JSON.stringify(ctx.profile || {}).slice(0,14000)}
 EVIDENCE: ${JSON.stringify(evidence).slice(0,18000)}
 CUSTOMER FORMS: ${JSON.stringify(ctx.requests || []).slice(0,7000)}
+AUTOMATION CONTEXT: ${JSON.stringify(ctx.automation || {})}
 BOOKING DRAFT: ${JSON.stringify(ctx.session || {}).slice(0,6000)}
 BUSINESS INSTRUCTIONS: ${String(ctx.settings.system_prompt || '').slice(0,6000)}`;
 }
 
 export async function processInboundAgent(job,db,{fetchImpl=fetch,apiKey=env('OPENAI_API_KEY'),now=Date.now}={}) {
  const started=now(),deadline=started+35000;
- const metrics={model:INBOUND_AGENT_MODEL,promptVersion:INBOUND_AGENT_VERSION,inputTokens:0,cachedInputTokens:0,outputTokens:0,toolCount:0};
+ const metrics={model:INBOUND_AGENT_MODEL,promptVersion:'sms-coordination-v1',inputTokens:0,cachedInputTokens:0,outputTokens:0,toolCount:0};
  const finish = reply => db.call('complete_inbound_ai',job.id,job.lease_token,{
   ...metrics,reply,latencyMs:now()-started,
   // Standard tier USD per million tokens, verified for this model at implementation.

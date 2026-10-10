@@ -1,5 +1,44 @@
 # Opek SMS project record
 
+### October 10 — Inbound AI / form coordination (backend deployed, shadow only)
+
+Backend release: applied this source once as remote migration
+`20261010184313_inbound_automation_coordination`; AI worker 38 is ACTIVE.
+Opek coordination is enabled in shadow with live validation still locked; no
+other businesses are enabled. No CRM API or sender redeployment was required:
+their existing RPC contracts dispatch the updated database routines. Frontend
+publication is pending below. The exact isolated release build passed and its
+56 tests completed with 55 passed and one existing skip. Final focused tests
+passed all 40 cases. The temporary model validation endpoint is retired (v4).
+
+Added automation context and scoped enquiry association to the existing GPT 6.1 Sol
+worker. Continue enquiry sequences defer during AI processing and for 30 minutes
+after inbound texts or accepted AI replies; deferral preserves the queue item,
+attempt budget and sequence cursor. Paused runs still require staff resume.
+Appointment reminders retain their original policies. Confirmed bookings stop only
+the associated enquiry; explicit declines use a scoped, evidence-checked tool;
+staff handoff pauses an associated enquiry only. Cross-customer references and
+unrelated YES confirmations fail closed. Shadow records proposed actions without
+applying coordination mutations. The staff Inbound AI view shows association,
+reason, quiet time and proposed outcomes.
+
+CRM owns forward migration 20261010183109_inbound_automation_coordination. Its
+prerequisite inbound_sms_agent is already applied as remote 20261010175821; do not
+replay its local timestamp or either repository history. The new coordination
+switch defaults off; Opek will remain shadow only after release. E2 service access,
+customer ownership and booking/reminder hooks remain unchanged.
+
+Validation: 79 CRM tests passed with three existing skips; 43 paired E2 tests
+passed. Real PostgreSQL verified inbound/send and close/send races, duplicate
+webhooks, lease recovery and shared SMS/voice capacity in both orders. Twelve
+synthetic real-model coordination scenarios plus a three-turn linked booking
+passed (one appointment); Codex reviewed replies and tool arguments. Estimated
+API cost $0.044206. Provider acceptance was simulated; no customer SMS was sent.
+Production migration rollback rehearsal passed with private helper denial and
+sender access verified. Synthetic browser checks verified coordination/outcome
+rendering and no console errors. Live activation still requires operational
+schedules and production shadow/business review. Unrelated local work is preserved.
+
 ### October 10 — Inbound AI backend released; Opek shadow enabled
 
 Direct WPacquisition access succeeded despite omission from project discovery.

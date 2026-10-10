@@ -143,3 +143,43 @@ pending versioned sends fail eligibility; confirmed appointments and audit
 history remain. A message already accepted by Twilio cannot be recalled.
 No destructive schema rollback is required. Record applied migrations, deployed
 versions, model verification, shadow review and live activation separately.
+
+## Enquiry coordination (October 10)
+
+The inbound agent loads saved form-run context and accepted-message attribution.
+Multiple possible enquiries require clarification; it never chooses the newest
+submission alone. Only an explicit associated enquiry is closed after booking or
+decline; appointment cancellation/rescheduling goes to staff. Decline evidence
+must appear in the latest inbound text. Bare no, scheduling corrections and
+ambiguous multi-form declines cannot close a run.
+
+With live AI and coordination enabled, Continue submission follow-ups wait until
+30 minutes after the latest inbound or accepted AI reply. Pending AI work also
+holds them. Both generation and final send checks enforce the window; waiting
+reuses the queue item without consuming attempts or advancing the sequence.
+Sending-hour rules still apply. There is no catch-up burst or automatic restart
+of paused runs. Appointment-triggered reminders keep their existing policies.
+
+The Inbound AI view reports enquiry association, outcome/reason and quiet-until
+(or proposed quiet-until in shadow). Shadow does not apply the new mutations;
+ordinary webhook consent and Pause-on-reply policies still run as before.
+
+Rollout: reconcile CRM/E2 histories, apply only the new CRM coordination migration,
+deploy the updated AI worker and frontend, then enable coordination for Opek in
+shadow. The operator-owned `inbound_ai_settings.coordination_enabled` switch
+controls this rollout; update `revision` when changing it to fence in-flight runs.
+Other businesses remain off. Turning AI mode off (with a revision increment)
+disables new AI runs/pending AI sends and coordination; confirmed bookings,
+stopped/paused runs and audit records remain. Disabling only coordination returns
+Continue runs to their original schedules, so it is not a sending kill switch.
+Staff never need a new OpenAI credential for this release. Keep the existing
+server secret and live-validation gate. No E2 application release is required.
+
+Verification commands: `node --test test/inboundCoordination.test.js`,
+`node scripts/test-coordination-concurrency.js`, and
+`node scripts/evaluate-coordination.js` (operator-injected API key or expiring
+validation proxy; synthetic local data only). Also run the existing CRM agent,
+form, booking and conversation suites and paired E2 enquiry/booking/access/cache
+suites. Read both project records for actual deployment and activation state.
+
+Applied migration mapping: local `20261010183109_inbound_automation_coordination.sql` = remote `20261010184313_inbound_automation_coordination`. Do not reapply under the local timestamp.
