@@ -1,5 +1,46 @@
 # Opek SMS project record
 
+### October 10 — Direct contact database/API deployed; frontend pending
+
+Applied CRM source `20261010210847_direct_contact_automations.sql` as remote
+`20261010212516_direct_contact_automations`. CRM API 55 is ACTIVE. Shared scheduler,
+sender and AI SQL contracts now understand direct runs; worker JavaScript and
+model configuration are unchanged. Do not replay the migration under either name.
+
+Production verification: 1 contact, 0 invalid phones, 0 messages missing contacts,
+0 remaining thread-name mismatches, 0 direct enrollments. Private helper browser
+grants are zero; no new WARN/ERROR security advisor categories. Staff-context
+read smoke passed for templates and direct reporting. Opek remains shadow with
+coordination enabled; no business is live. Existing contacts were not enrolled.
+
+Isolated release: 81 CRM tests and production frontend build passed. New direct
+coverage includes 12 database/API/lifecycle tests, booking crash recovery and late
+provider acceptance after stop. Four real PostgreSQL races and 43 paired E2 tests
+passed. Browser synthetic checks verified preview, assignment, stop, blocked
+reenrollment and 390px layout; no console warnings/errors. Frontend deployment
+verification follows separately. E2 access/cache contracts remain unchanged.
+
+### October 10 — Direct contact automations (local validation)
+
+Implemented contact normalization/integrity, source history, reusable direct SMS
+ templates with per-contact snapshots, guarded assignment and overlap choices,
+individual run controls, and persistent business/contact enquiry follow-up blocks.
+Contacts now links to current runs instead of retired enrollments. Automation
+activity has a separate direct funnel and template/origin filters. AI model and
+rollout settings are unchanged. No production contact has been enrolled.
+
+Production read-only audit before migration: 1 contact, 0 invalid phone values,
+0 messages missing contacts, 1 legacy thread-name mismatch. The forward migration
+repairs only that supported display-name mismatch; it does not infer identity or
+consent. Histories reconciled through remote activity migration 20261010191143.
+Local source migration: 20261010210847_direct_contact_automations.sql.
+
+Validation so far: 11 new contact/direct API/database/lifecycle tests, the prior
+47-test CRM regression run, 4 real PostgreSQL races and 43 paired E2 tests passed.
+Actual-component browser checks covered schedule preview, enrollment, contact
+blocking and mobile width 390px. No horizontal document overflow. Release and
+applied migration are recorded separately after verification.
+
 ### October 10 — Automation activity backend deployed
 
 CRM migration source `20261010185337_automation_activity.sql` is applied as remote

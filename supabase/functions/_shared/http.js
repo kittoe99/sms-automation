@@ -52,7 +52,7 @@ export async function readJson(request) {
  try{return text ? JSON.parse(text):{};}catch{throw Object.assign(new Error('Invalid JSON'),{status:400});}
 }
 export function failure(error,headers={}) {
- const status=error.status || (error.code==='42501'?403:error.code==='23505'?409:['P0001','22P02','23514','P0002','23502'].includes(error.code)?400:500);
+ const status=error.status || (error.code==='42501'?403:['23505','40001'].includes(error.code)?409:['P0001','22P02','22023','23514','P0002','23502'].includes(error.code)?400:500);
  console.error(JSON.stringify({event:'request_failed',code:error.code || 'REQUEST_ERROR',status}));
  return json({error:status>=500?'Service temporarily unavailable':error.message},status,headers);
 }

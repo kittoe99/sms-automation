@@ -63,6 +63,15 @@ export function createCrmHandler(db,verify=authenticate,{platform=false,provisio
     return json({business:await db.call('platform_action',user,'business_register',p)},200,headers);
    }
    if(!tenant) return json({error:'Select a business'},400,headers);
+   const directRoute=path.match(/^\/contact-automations\/(templates|read|preview|save|publish|archive|enroll|run|block|edit)$/);
+   if(directRoute) {
+    const action=directRoute[1],reading=['templates','read'].includes(action);
+    if(method!==(reading?'GET':'POST'))return json({error:'Method not allowed'},405,headers);
+    const input=reading?params:await readJson(request);
+    if(!reading&&action!=='preview')input.idempotencyKey=request.headers.get('Idempotency-Key')||input.idempotencyKey;
+    if(input.startAt){const businesses=await read('businesses'),tz=businesses.rows.find(b=>b.tenant_id===tenant)?.time_zone;input.startAt=localDateTime(input.startAt,tz).toISOString();}
+    return json(await db.call('contact_automations',user,tenant,action,input),200,headers);
+   }
    const activityRoute=path.match(/^\/automation-activity(?:\/(report|summary|enquiries|timeline|unlinked|tag|tag_assignment|booking_link|response_link|activity_link|sequence))?$/);
    if(activityRoute) {
     const action=activityRoute[1]||'report',reads=['report','summary','enquiries','timeline','unlinked'];

@@ -1,3 +1,4 @@
+import {mountContactAutomations} from './contactAutomations.js';
 import {mountFormDirectory} from './formDirectory.js';
 import {installPhoneFormatting,normalizePhoneInput} from './phoneInput.js?v=20261003-phone';
 installPhoneFormatting();
@@ -2956,7 +2957,7 @@ async function renderContacts() {
         </div>
       </div>
       <p class="muted directory-note">
-        To start an automation, add a record under its type in Automations. Sending marketing SMS requires recorded consent.
+        Assign a saved automation directly to a contact, or customize it for their request. Marketing SMS requires recorded consent. <button class="btn ghost" data-direct-library>Manage direct templates</button>
       </p>
       ${
         data.configured === false
@@ -2972,7 +2973,7 @@ async function renderContacts() {
               <th>Phone</th>
               <th>Contact type</th>
               <th>Consent</th>
-              <th>Enrolled</th>
+              <th>Automations</th>
               <th>Message</th>
             </tr>
           </thead>
@@ -2981,7 +2982,7 @@ async function renderContacts() {
               rows.length
                 ? rows
                     .map((c) => {
-                      const canEnroll = c.canEnroll || c.smsMarketingConsent === true;
+                      const canEnroll = !c.optedOut && (c.canEnroll || c.smsMarketingConsent === true);
                       return `
               <tr class="contact-row" tabindex="0" data-contact="${esc(c.phone || '')}" data-name="${esc(
                         c.name || ''
@@ -2997,21 +2998,8 @@ async function renderContacts() {
                       : '<span class="muted">n/a</span>'
                 }</td>
                 <td class="muted wrap">
-                  ${
-                    (c.enrollments || []).length
-                      ? (c.enrollments || [])
-                          .map((id) => {
-                            const label =
-                              state.categories.find((x) => x.id === id)?.name || id;
-                            return `<span class="enrolled-chip">
-                      ${esc(label)}
-                      <button type="button" class="unenroll-x unenroll-btn" title="Remove"
-                        data-phone="${esc(c.phone)}" data-category="${esc(id)}">×</button>
-                    </span>`;
-                          })
-                          .join(' ')
-                      : '—'
-                  }
+                  <button class="btn ghost" data-direct-contact="${esc(c.id)}">Manage automations</button>
+                  ${c.enquiry_blocked?'<small>Enquiry follow-ups blocked</small>':''}
                 </td>
                 <td>
                   ${
@@ -3051,7 +3039,10 @@ async function renderContacts() {
     state.page = 1;
     load();
   });
-  bindUnenrollButtons();
+  const directHost=document.createElement('section');el.root.append(directHost);
+  const openDirect=async contactId=>{const tenant=getTenantId(),user=getSession()?.user?.id;await mountContactAutomations(directHost,{apiFetch,contactId,isCurrent:()=>getTenantId()===tenant&&getSession()?.user?.id===user&&state.view==='contacts',onActivity:()=>switchView('automation-activity')});directHost.scrollIntoView({block:'start'});};
+  el.root.querySelector('[data-direct-library]')?.addEventListener('click',()=>openDirect(null));
+  el.root.querySelectorAll('[data-direct-contact]').forEach(button=>button.addEventListener('click',event=>{event.stopPropagation();openDirect(button.dataset.directContact);}));
   el.root.querySelectorAll('.message-btn').forEach((btn) => {
     btn.addEventListener('click', (e) => {
       e.stopPropagation();

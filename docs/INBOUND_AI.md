@@ -190,3 +190,11 @@ Automation activity reads durable agent/booking/message records without calling
 the model. Shadow proposals remain visibly simulated and outside actual response
 and conversion totals. Explicit primary enquiry attribution is audited and does
 not alter a booking creator. See [Automation activity](AUTOMATION_ACTIVITY.md).
+
+
+## Direct contact sequences
+
+Staff can assign versioned enquiry follow-ups without a form. Contact blocks
+apply to form and direct enquiry runs; appointment reminders stay separate.
+See [Direct contact automations](DIRECT_CONTACT_AUTOMATIONS.md) for controls,
+reply policies, attribution, rollout and rollback.

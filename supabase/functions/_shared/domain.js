@@ -1,11 +1,8 @@
 import {normalizeSchedule} from '../../../src/lib/automations/schedule.js';
+import {canonicalPhone} from '../../../public/phoneNormalization.js';
 
 export function phone(value) {
- const raw=String(value || '').trim(); let digits=raw.replace(/\D/g,'');
- if(!raw.startsWith('+') && digits.length===10) digits='1'+digits;
- const result='+'+digits;
- if(!/^\+[1-9]\d{7,14}$/.test(result)) throw Object.assign(new Error('Valid international phone number required'),{status:400});
- return result;
+ try{return canonicalPhone(value);}catch(error){throw Object.assign(error,{status:400});}
 }
 export function groupRule(input={},timeZone='America/Denver') {
  void timeZone;

@@ -99,3 +99,11 @@ Applied mapping: source `20261010185337_automation_activity.sql` is remote
 `20261010191143_automation_activity`; do not replay either timestamp. API 54
 serves these routes. The private-table no-policy INFO notices are intentional;
 see [Supabase RLS advisory](https://supabase.com/docs/guides/database/database-linter?lint=0008_rls_enabled_no_policy).
+
+
+## Direct contact sequences
+
+Staff can assign versioned enquiry follow-ups without a form. Contact blocks
+apply to form and direct enquiry runs; appointment reminders stay separate.
+See [Direct contact automations](DIRECT_CONTACT_AUTOMATIONS.md) for controls,
+reply policies, attribution, rollout and rollback.

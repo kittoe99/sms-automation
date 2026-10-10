@@ -208,3 +208,11 @@ responses, bookings, pauses and handoffs. Staff can tag individual enquiries and
 correct primary booking attribution. These reporting actions do not send messages
 or change follow-up templates. Sequence and AI resume remain independent; STOP
 cannot be overridden. See [Automation activity](AUTOMATION_ACTIVITY.md).
+
+
+## Direct contact sequences
+
+Staff can assign versioned enquiry follow-ups without a form. Contact blocks
+apply to form and direct enquiry runs; appointment reminders stay separate.
+See [Direct contact automations](DIRECT_CONTACT_AUTOMATIONS.md) for controls,
+reply policies, attribution, rollout and rollback.

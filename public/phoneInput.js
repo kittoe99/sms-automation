@@ -1,12 +1,7 @@
-// US/Canada is the default for local entry. International input must be explicit.
+import {canonicalPhone} from './phoneNormalization.js';
+// Leave invalid input visible so the form can explain the error.
 export function normalizePhoneInput(value) {
- const raw=String(value??'').trim();
- if(!raw||!/^[+\d\s().-]+$/.test(raw))return raw;
- let compact=raw.replace(/[\s().-]/g,'');
- if(compact.startsWith('00'))compact='+'+compact.slice(2);
- if(/^\d{10}$/.test(compact))return '+1'+compact;
- if(/^1\d{10}$/.test(compact))return '+'+compact;
- return /^\+[1-9]\d{7,14}$/.test(compact)?compact:raw;
+ try{return canonicalPhone(value);}catch{return String(value??'').trim();}
 }
 const installed=new WeakSet();
 export function installPhoneFormatting(root=document) {
