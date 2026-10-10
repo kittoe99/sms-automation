@@ -63,6 +63,12 @@ export function createCrmHandler(db,verify=authenticate,{platform=false,provisio
     return json({business:await db.call('platform_action',user,'business_register',p)},200,headers);
    }
    if(!tenant) return json({error:'Select a business'},400,headers);
+   if(path==='/inbound-ai') {
+    if(!['GET','PUT'].includes(method)) return json({error:'Method not allowed'},405,headers);
+    return json(await db.call('inbound_ai_settings_api',user,tenant,method==='PUT'?await readJson(request):null),200,headers);
+   }
+   const inboundControl=path.match(/^\/conversations\/([0-9a-f-]{36})\/ai\/(pause|resume)$/i);
+   if(inboundControl&&method==='POST') return json(await db.call('conversation_action',user,tenant,inboundControl[1],inboundControl[2],{}),200,headers);
    if(path==='/voice'&&method==='GET')return json(await db.call('voice_workspace',user,tenant,'overview',{}),200,headers);
    const voiceRoute=path.match(/^\/voice\/(initialize|save|publish|rollback|calls|leads|call|media)$/);
    if(voiceRoute) {

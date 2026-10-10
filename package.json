@@ -18,7 +18,10 @@
     "worker:ai": "node src/workers/run.js ai",
     "build:frontend": "node scripts/build-frontend.js",
     "db:assemble": "node scripts/assemble-migration.js",
-    "test:workers": "node --test test/workerArchitecture.test.js test/edgeWorkers.test.js"
+    "test:workers": "node --test test/workerArchitecture.test.js test/edgeWorkers.test.js",
+    "test:inbound-ai": "node --test test/inboundAgent.test.js test/inboundAgentDatabase.test.js",
+    "test:inbound-concurrency": "node scripts/test-inbound-concurrency.js",
+    "eval:inbound-ai": "node scripts/evaluate-inbound-agent.js"
   },
   "engines": {
     "node": ">=20.9"

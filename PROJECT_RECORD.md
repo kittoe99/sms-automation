@@ -1,5 +1,39 @@
 # Opek SMS project record
 
+### October 10 — Inbound AI backend released; Opek shadow enabled
+
+Direct WPacquisition access succeeded despite omission from project discovery.
+Reconciled remote CRM/E2 histories through E2 `20261009053203`, rehearsed the
+new migration in a rollback transaction, then applied local
+`20261010171755_inbound_sms_agent.sql` as remote `20261010175821_inbound_sms_agent`.
+These are the same migration; do not replay it under the local timestamp.
+Deployed AI worker 37, CRM API 53, SMS worker 20 and Twilio webhook 20. Deno checks
+passed; workers/settings reject unsigned access (401), and unsigned inbound
+webhook requests return 403. All four private tables have RLS; shared cores and
+new RPCs have no anon/authenticated execute access. Advisors added only four
+expected private-table no-policy notices; prior extension/legacy RPC warnings
+remain outside this release.
+
+Existing server credentials successfully accessed GPT 6.1 Sol. Evaluated and
+reviewed 50 supported plus 20 adversarial synthetic messages against real
+Responses with an isolated database: zero provider failures, unauthorized data
+disclosures, false booking confirmations or shadow side effects observed.
+All 50 supported tool choices matched expectations. A separate real-model booking
+conversation prepared, confirmed after YES and handled a repeated YES with one
+appointment total. Provider acceptance was simulated; no real SMS was sent.
+Estimated model cost was $0.20767. `data/inbound-agent-review.json` records the
+Codex review and limitations; business review remains pending. A temporary
+authenticated, expiring validation function used the server key without extracting
+it; it is now retired with JWT verification and a 410-only handler.
+
+Opek is in shadow mode; AI queue dispatch is enabled. No live validation marker
+was set. There are no Opek service schedules and the approved profile timezone is
+UTC, so staff must review operational schedules and shadow observations before
+live activation. All other businesses remain default off. The focused suite
+passed all 29 tests again. Frontend release is pending the Render connector's
+required workspace confirmation. See [release guide](docs/INBOUND_AI.md).
+
+
 ### Dashboard and website requests release verified
 
 E2 application 67a320a is READY in Vercel deployment

@@ -35,7 +35,7 @@ async function apiFetch(path, options = {}) {
   return response;
 }
 
-const KNOWN_VIEWS = ['voice-agent','overview','contacts','messaging','bookings','automations','email','call','messages','deliverability','optouts','ai-instructions','business-setup','business-context','booking-setup','web-forms','knowledge','platform-accounts','platform-businesses','platform-websites','platform-twilio'];
+const KNOWN_VIEWS = ['inbound-ai','voice-agent','overview','contacts','messaging','bookings','automations','email','call','messages','deliverability','optouts','ai-instructions','business-setup','business-context','booking-setup','web-forms','knowledge','platform-accounts','platform-businesses','platform-websites','platform-twilio'];
 function initialViewFromUrl() {
   const view = new URLSearchParams(location.search).get('view');
   if (['automations','ai-instructions'].includes(view)) return 'web-forms';
@@ -1229,7 +1229,8 @@ const titles = {
   'business-context': ['Business context', 'Business profile and approved knowledge for this business.'],
   knowledge: ['AI knowledge', 'Approve evidence, review leads, and resolve human handoffs.'],
   bookings: ['Bookings', 'Confirmed appointments created securely for this business.'],
-  'booking-setup': ['Booking setup', 'Availability and questions collected before an SMS booking.'],
+  'inbound-ai': ['Inbound AI', 'Answer incoming texts and book with shared service availability.'],
+  'booking-setup': ['Service availability', 'Shared service schedules for SMS and voice booking.'],
   'web-forms': ['Forms', 'Create and manage forms for your websites.'],
 };
 
@@ -1427,7 +1428,8 @@ const TAB_GROUPS = [
   { id: 'setup', label: 'Setup', views: [
     { view: 'business-setup', label: 'SMS activation' },
     { view: 'business-context', label: 'Business context' },
-    { view: 'booking-setup', label: 'Booking setup' },
+    { view: 'booking-setup', label: 'Service availability' },
+    { view: 'inbound-ai', label: 'Inbound AI' },
 
   ]},
   { id: 'twilio', label: 'Twilio', views: [{view:'platform-twilio',label:'Twilio accounts'}]},
@@ -1682,7 +1684,7 @@ function load(options = {}) {
 }
 function syncViewControls() {
   document.getElementById('crm-app').dataset.view = state.view;
-  el.search.closest('.search-wrap').hidden = state.view.startsWith('platform-') || ['overview', 'call', 'deliverability', 'ai-instructions', 'business-setup', 'business-context', 'booking-setup', 'knowledge', 'web-forms', 'email'].includes(state.view);
+  el.search.closest('.search-wrap').hidden = state.view.startsWith('platform-') || ['inbound-ai', 'overview', 'call', 'deliverability', 'ai-instructions', 'business-setup', 'business-context', 'booking-setup', 'knowledge', 'web-forms', 'email'].includes(state.view);
   el.status.hidden = !['messages', 'deliverability'].includes(state.view) && !(state.view === 'automations' && state.categoryId);
 }
 async function loadCategories() {
@@ -1734,6 +1736,11 @@ async function renderWorkspace(options = {}) {
     else if (state.view === 'business-setup') await renderBusinessSetup();
     else if (state.view === 'business-context') await renderBusinessContext();
     else if (state.view === 'booking-setup') await renderBookingSetup();
+    else if (state.view === 'inbound-ai') {
+      const {mountInboundAi}=await import('./inboundAi.js');
+      const tenantId=getTenantId();
+      await mountInboundAi(el.root,{apiFetch,onKnowledge:()=>switchView('business-context'),onAvailability:()=>switchView('booking-setup'),isCurrent:()=>state.view==='inbound-ai'&&getTenantId()===tenantId});
+    }
     else if (state.view === 'web-forms') {
       setTitle(...titles['web-forms']);
       el.pager.hidden = true;
@@ -2693,11 +2700,11 @@ async function renderMessaging() {
               <button type="button" class="btn ghost thread-back" id="thread-back" aria-label="Back to inbox">← Inbox</button>
               <h2>${esc(thread.name || thread.phone)}</h2>
               <p class="muted">${esc(thread.phone)} · ${esc(thread.groupName || 'General')} · ${fmt(thread.messageCount)} messages${
-                ' · Manual replies'
+                thread.aiPausedAt ? ' · AI paused' : ' · AI follows business settings'
               }</p>
             </div>
             <div class="thread-actions">
-              <button type="button" class="btn btn-ghost" id="ai-pause-btn" hidden>
+              <button type="button" class="btn btn-ghost" id="ai-pause-btn">
                 ${thread.aiPausedAt ? 'Resume AI' : 'Pause AI'}
               </button>
             </div>

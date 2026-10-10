@@ -1,7 +1,8 @@
 # Booking availability and the phone agent
 
-CRM staff manage **Booking setup**. The Bookings page links to it. SMS and voice
-have separate settings and capacity semantics; E2 customers continue to read
+CRM staff manage **Service availability**. The Bookings page links to it. The new
+[inbound AI implementation](INBOUND_AI.md) shares voice service schedules and
+resource capacity; legacy SMS settings remain separate. E2 customers continue to read
 operational appointments under their existing membership and service-release rules.
 
 ## Staff workflow
@@ -12,7 +13,7 @@ either closing the date or supplying replacement windows. Overlapping windows,
 duplicate exception dates and out-of-range numbers are rejected. Voice exceptions
 use the same editor as SMS and no longer require JSON.
 
-SMS inherits the business-profile time zone. Voice rules require their own IANA
+Legacy SMS inherits the business-profile time zone. Shared voice/inbound-AI rules require their own IANA
 time zone, service and resource pool. ZIP coverage and dumpster size are no
 longer required. Enable only one schedule per service; market is a staff label.
 The editor displays the actual time zone and does not infer local hours or change
@@ -20,12 +21,12 @@ the business profile. The current registered business remains on UTC until staff
 review and change it through the profile workflow.
 
 Set duration, capacity, minimum notice and maximum advance. Voice services sharing
-a resource pool must share its capacity. SMS capacity counts confirmed bookings
-at the same start instant; voice counts overlapping confirmed jobs in the pool.
+a resource pool must share its capacity. Legacy SMS capacity counts confirmed bookings
+at the same start instant; voice and inbound AI count overlapping confirmed jobs in the pool.
 Future unclassified appointments retain the existing conservative voice blockers.
 Dumpster rental retains its existing multi-day duration behavior.
 
-Preview a date before saving. SMS suggestions advance by slot duration; voice
+Preview a date before saving. Legacy SMS suggestions advance by slot duration; shared service
 suggestions advance by 15 minutes. The database checks each candidate using the
 same predicate used for booking. Exact voice requests can use other start minutes.
 Closed dates return no candidates. Unavailable candidates display zero remaining

@@ -1,4 +1,5 @@
 import {currentRequestHistory, hasClarifiedCurrentRequest, requestConflict} from '../lib/ai/requestContext.js';
+import {processInboundAgent, INBOUND_AGENT_VERSION} from './inboundAgent.js';
 export const DEFAULT_AI_MODEL='gpt-5.4-mini-2026-03-17';
 export const DEFAULT_EMBEDDING_MODEL='text-embedding-3-small';
 export const GROUNDED_PROMPT_VERSION='grounded-v8-scoped-context';
@@ -237,6 +238,7 @@ function liveReply(db,job,started,reason,profileId=null,model=DEFAULT_AI_MODEL) 
 }
 
 export async function processAi(job,db,{fetchImpl=fetch,apiKey=env('OPENAI_API_KEY'),model=env('AI_MODEL') || DEFAULT_AI_MODEL,embeddingModel=env('EMBEDDING_MODEL') || DEFAULT_EMBEDDING_MODEL,inputCostPerMillion=rate(env('AI_INPUT_USD_PER_MILLION')),outputCostPerMillion=rate(env('AI_OUTPUT_USD_PER_MILLION')),embeddingCostPerMillion=rate(env('EMBEDDING_USD_PER_MILLION'))}={}) {
+ if(job.payload?.agent_version===INBOUND_AGENT_VERSION) return processInboundAgent(job,db,{fetchImpl,apiKey});
  return db.call('finish',job.id,job.lease_token,'cancelled','SMS_AI_DISABLED',0);
 }
 

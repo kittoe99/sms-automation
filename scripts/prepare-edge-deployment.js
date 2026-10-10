@@ -16,7 +16,7 @@ fs.writeFileSync('data/edge-vault.sql',sql);
 const paths=[];
 function walk(dir){for(const d of fs.readdirSync(dir,{withFileTypes:true})){const p=dir+'/'+d.name;if(d.isDirectory())walk(p);else if(/\.(js|ts|json)$/.test(p))paths.push(p);}}
 walk('supabase/functions');
-for(const file of ['sms.js','ai.js','automation.js','provisioning.js','providerHttp.js'])paths.push('src/workers/'+file);
+for(const file of ['sms.js','inboundAgent.js','ai.js','automation.js','provisioning.js','providerHttp.js'])paths.push('src/workers/'+file);
 paths.push(
   'src/lib/automations/timeRules.js',
   'src/lib/automations/aiDraft.js',
