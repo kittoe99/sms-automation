@@ -154,6 +154,7 @@ function tabStatus(stale = false) {
 }
 window.addEventListener('crm:data-changed', () => {tabMemory.markStale(); tabStatus(true);});
 function rememberTab() {
+  if (state.view === 'automation-activity') return; // Live reports remount; filters have their own scoped storage.
   if (!lastRenderedView || lastRenderedView !== state.view) return;
   tabMemory.save(state.view, {
     nodes: [...el.root.childNodes], kpis: [...el.kpi.childNodes], className: el.root.className,
@@ -182,6 +183,8 @@ function restoreTab(snapshot) {
   window.scrollTo({top: snapshot.scroll, behavior: 'instant'});
 }
 function clearTabs() {
+  disposeActivity?.(); disposeActivity=null;
+  if (state.view === 'automation-activity') el.root.replaceChildren();
   state.voiceWorkspace = {};state.inboundVoiceWorkspace={};
   formWorkspace?.reset(); formWorkspace = null;
   tabMemory.clear(); platformInstances.clear(); sectionHistory.clear(); categoriesLoaded = false; lastRenderedView = null;
@@ -1506,6 +1509,7 @@ function switchView(view, options = {}) {
     clearTimeout(searchTimer); state.q = el.search.value.trim();
     const changed = state.view !== view;
     if (changed) rememberTab();
+    if (changed && state.view === 'automation-activity') {disposeActivity?.();disposeActivity=null;}
     const snapshot = changed ? tabMemory.take(view) : null;
     if (changed) Object.assign(state, tabDefaults);
     state.view = view; closeDrawer(); closeSidebar();

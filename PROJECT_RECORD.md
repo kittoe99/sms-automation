@@ -1,5 +1,26 @@
 # Opek SMS project record
 
+### October 10 — Automation activity backend deployed
+
+CRM migration source `20261010185337_automation_activity.sql` is applied as remote
+`20261010191143_automation_activity`. CRM API 54 is ACTIVE, and unauthenticated
+reporting requests return 401. A production staff-context reporting smoke test
+passes. All six new private tables have RLS; browser roles have no helper execute
+privilege. Security advisors show no new WARN/ERROR categories; the six new
+RLS-without-policy INFO entries are intentional private deny-by-default storage.
+
+Initial frontend commit `5204b7088dd694076f96adb4066ee73241868288` went live in Render
+`dep-db58s5ks728c73c8m43g` at 2026-10-10 19:12:38 UTC. No automatic build/event followed
+the Git push, so one explicit deployment was triggered. A navigation follow-up
+remounts live reports instead of restoring disposed tab nodes, clears them on
+business/account reset, and focuses the timeline for keyboard users. Its exact
+release build and 50 CRM tests pass, including stale reads, refresh cancellation
+and visible request failures. Paired E2: 43 passed; real PostgreSQL: three races
+passed. The follow-up frontend deployment is tracked in the next release entry.
+
+Opek remains SHADOW with coordination enabled; every other business remains off.
+No E2 application release or live AI activation occurred.
+
 ### October 10 — Automation activity implementation and local validation
 
 Added the CRM Automation activity tab beside Forms, tenant-scoped reporting,

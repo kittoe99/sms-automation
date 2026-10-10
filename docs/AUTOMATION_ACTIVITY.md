@@ -94,3 +94,8 @@ activate live AI. Opek stays shadow; other businesses remain off. Rollback resto
 the previous API/frontend, disables new AI runs/pending AI sends with the existing
 off switch, and leaves reporting history, confirmed bookings and intentionally
 paused/stopped enquiries intact. Never roll back by deleting these records.
+
+Applied mapping: source `20261010185337_automation_activity.sql` is remote
+`20261010191143_automation_activity`; do not replay either timestamp. API 54
+serves these routes. The private-table no-policy INFO notices are intentional;
+see [Supabase RLS advisory](https://supabase.com/docs/guides/database/database-linter?lint=0008_rls_enabled_no_policy).
