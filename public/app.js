@@ -7,6 +7,7 @@ import {readBusinessProfile,writeBusinessProfile} from './profileClient.js?v=202
 import {canOpenWorkspace,canWriteWorkspace,staffActionSelector} from './workspacePermissions.js?v=20261002-access';
 import {createPageReads, readWorkspaceContext} from './pageReads.js';
 import {readDashboard} from './dashboardData.js';
+import {dashboardIcon} from './dashboardIcons.js';
 import {mountTwilioActivation,mountSmsSetupChoice,smsSetupActionsHtml} from './twilioActivation.js?v=20261003-sms-nav';
 import {smsConnectionSummary} from './smsConnectionSummary.js?v=20261002-sms-summary';
 import { connectSupabaseLive } from './live.js?v=20261001-business-services';
@@ -1219,7 +1220,7 @@ async function renderAiInstructions() {
 }
 
 const titles = {
-  overview: ['Dashboard', 'Your messages, contacts, and follow-ups in one place.'],
+  overview: ['Overview', 'Your conversations, customers, and follow-ups.'],
   messaging: ['Inbox', 'Read and reply to customer conversations.'],
   'voice-agent': ['Voice Agent', 'Configuration, calls, recordings and leads.'],
   call: ['Inbound calls', 'Track inbound calls from your customers.'],
@@ -1449,17 +1450,22 @@ const TAB_GROUPS = [
 const sectionHistory = new Map();
 function renderSectionNavigation(activeGroup) {
   sectionHistory.set(activeGroup.id, state.view);
-  document.getElementById('nav').dataset.section = activeGroup.id === 'setup' ? 'settings' : activeGroup.id;
+  const toolsNav = document.getElementById('nav');
+  toolsNav.dataset.section = activeGroup.id === 'setup' ? 'settings' : activeGroup.id;
+  // Keep the existing controls and listeners; place tools beside their active area.
+  toolsNav.remove();
   const nav = document.getElementById('section-nav');
   nav.innerHTML = TAB_GROUPS.map(group => {
     const allowed = group.views.filter(tab => canOpenWorkspace(tab.view, state.platformStaff, state.tenant));
     if (!allowed.length) return '';
-    const icons = {voice:'\u260e',work:'▦', reports:'↗', setup:'⚙', platform:'◈', twilio:'◎'};
-    return `<button type="button" class="section-link ${group.id === activeGroup.id ? 'active' : ''}" data-section="${group.id}" ${group.id === activeGroup.id ? 'aria-current="true"' : ''}><span aria-hidden="true">${icons[group.id]}</span><span>${group.label}</span><small>${allowed.length}</small></button>`;
+    return `<button type="button" class="section-link ${group.id === activeGroup.id ? 'active' : ''}" data-section="${group.id}" ${group.id === activeGroup.id ? 'aria-current="true"' : ''}><span class="section-icon">${dashboardIcon(group.id === 'work' ? 'overview' : group.id)}</span><span>${group.label}</span></button>`;
   }).join('');
+  const activeButton = nav.querySelector('.section-link.active');
+  if (activeButton) activeButton.after(toolsNav);
+  else nav.after(toolsNav);
 }
 document.getElementById('section-nav').addEventListener('click', event => {
-  const button = event.target.closest('[data-section]');
+  const button = event.target.closest('.section-link[data-section]');
   if (!button) return;
   const group = TAB_GROUPS.find(group => group.id === button.dataset.section);
   const view = sectionHistory.get(group.id) || group.views.find(tab => canOpenWorkspace(tab.view, state.platformStaff, state.tenant))?.view;
@@ -1886,13 +1892,17 @@ async function renderOverview() {
 
   el.root.innerHTML = `
     ${totalsAvailable ? '' : '<p class="muted" role="status">Message totals are unavailable. Select Refresh to try again.</p>'}
+    <section class="dashboard-services" aria-labelledby="dashboard-services-title">
+      <h2 id="dashboard-services-title" class="dashboard-section-title">Your workspace</h2>
+      <div class="dashboard-actions" aria-label="Quick actions">
+        <button type="button" class="dashboard-action" data-dashboard-view="messaging"><span class="dashboard-action-top">${dashboardIcon('messaging')}<span aria-hidden="true">↗</span></span><strong>Inbox</strong><span>${state.platformStaff ? 'Read and reply to customers' : 'Read customer conversations'}</span></button>
+        <button type="button" class="dashboard-action" data-dashboard-view="contacts"><span class="dashboard-action-top">${dashboardIcon('contacts')}<span aria-hidden="true">↗</span></span><strong>Contacts</strong><span>Find a customer or lead</span></button>
+        <button type="button" class="dashboard-action" data-dashboard-view="bookings"><span class="dashboard-action-top">${dashboardIcon('bookings')}<span aria-hidden="true">↗</span></span><strong>Bookings</strong><span>View scheduled appointments</span></button>
+        <button type="button" class="dashboard-action" data-dashboard-view="automations"><span class="dashboard-action-top">${dashboardIcon('forms')}<span aria-hidden="true">↗</span></span><strong>Forms &amp; follow-ups</strong><span>Review your automated messages</span></button>
+      </div>
+    </section>
     ${smsConnection ? smsConnectionSummary(smsConnection) : '<p class="muted" role="status">SMS connection details are unavailable. Select Refresh to try again.</p>'}
     ${smsSetupActionsHtml({staff:state.platformStaff,summary:smsConnection})}
-    <div class="dashboard-actions" aria-label="Quick actions">
-      <button type="button" class="dashboard-action" data-dashboard-view="messaging"><strong>Open inbox <span aria-hidden="true">→</span></strong><span>${state.platformStaff ? 'Read and reply to customers' : 'Read customer conversations'}</span></button>
-      <button type="button" class="dashboard-action" data-dashboard-view="contacts"><strong>View contacts <span aria-hidden="true">→</span></strong><span>Find a customer or lead</span></button>
-      <button type="button" class="dashboard-action" data-dashboard-view="automations"><strong>Manage follow-ups <span aria-hidden="true">→</span></strong><span>Review your automated messages</span></button>
-    </div>
     <details class="card dashboard-details">
       <summary>More message statistics</summary>
       <dl class="dashboard-stats">

@@ -1,5 +1,20 @@
 # Opek SMS project record
 
+### October 11 — Dashboard redesign release candidate
+
+Prepared from production commit 03b9754, with only the CRM shell, navigation
+icons, overview cards and responsive styling changed. Unrelated local website
+styles, backend work and configuration are excluded. No migrations or E2
+application release are required.
+
+The isolated frontend build and all 16 focused CRM tests passed. Paired E2
+Dashboard tests: 23 passed during implementation. Synthetic desktop/mobile
+checks cover navigation, shortcuts and layout. The existing dashboardFollowups
+test expects retired markup and is not part of the passing test set.
+
+See docs/DASHBOARD_DESIGN.md. Deployment and live asset verification are recorded
+separately after release.
+
 ### October 10 — Direct contact database/API deployed; frontend pending
 
 Applied CRM source `20261010210847_direct_contact_automations.sql` as remote
