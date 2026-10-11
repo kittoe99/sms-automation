@@ -19,13 +19,17 @@ export function createTwilioHandler(db,base=env('SMS_WEBHOOK_BASE_URL')) {
    const raw=await request.text();if(raw.length>65536) return json({error:'Payload too large'},413);
    const form=new URLSearchParams(raw),params=Object.fromEntries(form);
    if([...form.keys()].length!==Object.keys(params).length) return json({error:'Duplicate fields'},400);
-   const config=await db.call('webhook_credentials',params.AccountSid);
+   if(url.searchParams.getAll('attempt_id').length>1 || Object.hasOwn(params,'attempt_id')) return json({error:'Ambiguous attempt reference'},400);
+   const attempt=event==='status'?url.searchParams.get('attempt_id'):null;
+   // Routing hints select credentials only. The unchanged form and full callback
+   // URL (including attempt_id) must pass signature verification before writes.
+   const config=await db.call('resolve_twilio_webhook',params.AccountSid,event,params,attempt);
    if(!config?.auth_token || !base || new URL(base).protocol!=='https:') return json({error:'Webhook not configured'},403);
    const canonical=base.replace(/\/$/,'')+'/'+event+url.search;
    const signature=await twilioSignature(config.auth_token,canonical,params);
    if(!constantEqual(signature,request.headers.get('X-Twilio-Signature'))) return json({error:'Invalid signature'},403);
    if(event==='inbound' && config.from_number && params.To!==config.from_number) return json({error:'Wrong receiving number'},403);
-   if(event==='status' && url.searchParams.has('attempt_id')) params.attempt_id=url.searchParams.get('attempt_id');
+   if(attempt!==null) params.attempt_id=attempt;
    await db.call('record_webhook',config.tenant_id,event,params);
    return new Response('<Response/>',{status:200,headers:{'Content-Type':'text/xml','Cache-Control':'no-store'}});
   } catch(error) {return failure(error);}

@@ -1,6 +1,9 @@
 # Twilio subaccounts for CRM businesses
 
-Each CRM business receives a dedicated Twilio subaccount and Messaging Service.
+The Add SMS provisioning path creates a dedicated Twilio subaccount and Messaging
+Service. Connect approved sender can instead share an existing account across CRM
+businesses, with one exclusive number and a separate single-number Messaging
+Service per business. See [connection and rollout details](TWILIO_CONNECTIONS.md).
 The subaccount is owned by the platform's parent Twilio account, so its usage is
 billed to the parent balance while phone numbers, messages, credentials, and
 registration resources stay separated by business.

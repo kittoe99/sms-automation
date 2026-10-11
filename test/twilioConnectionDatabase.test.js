@@ -1,32 +1,8 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import {readFile,readdir} from 'node:fs/promises';
-import {testDatabase,call} from './helpers/database.js';
-const crm='https://staff.example.test',customer='https://customer.example.test';
-const profile={businessName:'Example Services',contactEmail:'owner@example.test',contactPhone:'+13035550123',summary:'Home repairs and maintenance.',services:['Home repairs'],locations:['Denver'],timeZone:'America/Denver'};
-const selection={accountSid:'AC'+'1'.repeat(32),messagingServiceSid:'MG'+'2'.repeat(32),phoneNumberSid:'PN'+'3'.repeat(32),phoneNumber:'+18775550180',
- profileSid:'BU'+'4'.repeat(32),profileName:'Example Services LLC',legalBusinessName:'Example Services LLC',accountName:'Platform',serviceName:'Example SMS',senderType:'toll_free',registrationSid:'HH'+'5'.repeat(32),revision:0};
-async function fixture() {
- const db=await testDatabase();
- try {
-  const directory=new URL('../../E2local-main/supabase/migrations/',import.meta.url);
-  for(const file of (await readdir(directory)).filter(f=>f.endsWith('.sql')).sort())await db.exec(await readFile(new URL(file,directory),'utf8'));
-  await db.query('select public.configure_platform_login_realms($1,$2)',[customer,crm]);
-  const account=async(subject,issuer)=>{
-   const id=(await db.query('select public.sync_platform_account($1,$2,$2,null,1) id',[issuer,subject])).rows[0].id;
-   await db.query('update public.dashboard_accounts set personal_info=$2 where id=$1',[id,JSON.stringify({firstName:'Example',lastName:'Owner',phone:'+13035550123',role:'Owner'})]);return id;
-  };
-  const admin=await account('staff',crm),reader=await account('reader',crm);
-  await db.query('insert into public.platform_staff_grants(account_id) values($1)',[admin]);
-  await db.query("select set_config('platform.actor_issuer',$1,false)",[crm]);
-  const business=async(subject)=>{
-   const owner=await account(subject,customer);await db.query('select public.complete_platform_onboarding($1,$2)',[owner,JSON.stringify(profile)]);
-   const tenant=(await db.query('select tenant_id from public.dashboard_business_profiles where account_id=$1',[owner])).rows[0].tenant_id;
-   await call(db,'platform_action','staff','business_profile_review',{tenantId:tenant,revision:0,profile});return {owner,tenant};
-  };
-  return {db,admin,reader,business};
- }catch(error){await db.close();throw error;}
-}
+import {call} from './helpers/database.js';
+import {fixture,selection} from './helpers/twilioConnections.js';
+const customer='https://customer.example.test';
 test('approved sender connection is isolated, atomic, private and visible only after per-service release',async()=>{
  const x=await fixture();try {
   const {tenant,owner}=await x.business('owner'),other=await x.business('other');
@@ -66,5 +42,32 @@ test('running bootstrap cannot be replaced; held uncertain bootstrap is cancelle
   await call(x.db,'reserve_twilio_connection','staff',tenant,selection);
   const job=(await x.db.query('select status,lease_token from sms_private.jobs where tenant_id=$1',[tenant])).rows[0];assert.equal(job.status,'cancelled');assert.equal(job.lease_token,null);
   assert.equal((await x.db.query('select provisioning_state from sms_private.providers where tenant_id=$1',[tenant])).rows[0].provisioning_state,'connecting_existing');
+ }finally{await x.db.close();}
+});
+
+test('shared accounts keep sender ownership exclusive across providers and reviewable reservations',async()=>{
+ const x=await fixture();try {
+  const a=await x.business('first'),b=await x.business('second'),c=await x.business('third');
+  const second={...selection,phoneNumber:'+18775550181',phoneNumberSid:'PN'+'6'.repeat(32),messagingServiceSid:'MG'+'7'.repeat(32)};
+  const connect=async(t,s)=>{const r=await call(x.db,'reserve_twilio_connection','staff',t,s);await call(x.db,'complete_twilio_connection','staff',t,r.id,{...s,authToken:'private-secret-token'});};
+  await connect(a.tenant,selection);await connect(b.tenant,second);
+  const access=await call(x.db,'twilio_connection_access','staff',a.tenant);
+  assert.equal(access.bindings.length,2);assert.deepEqual(new Set(access.bindings.map(b=>b.phoneNumber)),new Set([selection.phoneNumber,second.phoneNumber]));
+  assert.equal(await call(x.db,'webhook_credentials',selection.accountSid),null);
+  const fresh={...selection,accountSid:'AC'+'8'.repeat(32),phoneNumber:'+18775550182',phoneNumberSid:'PN'+'8'.repeat(32),messagingServiceSid:'MG'+'8'.repeat(32)};
+  for(const key of ['phoneNumber','phoneNumberSid','messagingServiceSid']){
+   await assert.rejects(()=>call(x.db,'reserve_twilio_connection','staff',c.tenant,{...fresh,[key]:selection[key]}),/already assigned or reserved/);
+  }
+  const r=await call(x.db,'reserve_twilio_connection','staff',c.tenant,fresh);
+  await call(x.db,'fail_twilio_connection','staff',c.tenant,r.id);
+  const pending=await call(x.db,'twilio_connection_access','staff',null);
+  assert.equal(pending.reservations[0].state,'needs_review');assert.equal(pending.reservations[0].tenantId,c.tenant);
+  // Worker checkpoint/direct provider writes must respect reservations too.
+  await assert.rejects(()=>x.db.query('update sms_private.providers set from_number=$1 where tenant_id=$2',[fresh.phoneNumber,b.tenant]),/already assigned or reserved/);
+  assert.equal((await x.db.query('select from_number from sms_private.providers where tenant_id=$1',[b.tenant])).rows[0].from_number,second.phoneNumber);
+  await assert.rejects(()=>call(x.db,'reserve_twilio_connection','staff',a.tenant,selection),/changed/);
+  for(const role of ['anon','authenticated','service_role','sms_api','sms_webhook','sms_sender']){
+   assert.equal((await x.db.query("select has_table_privilege($1,'sms_private.twilio_sender_claims','select') allowed",[role])).rows[0].allowed,false);
+  }
  }finally{await x.db.close();}
 });

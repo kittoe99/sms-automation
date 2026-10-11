@@ -7,7 +7,7 @@ export function mountTwilioConnection(container,business,{read,write,reload,onWo
  container.innerHTML=`<section class="card twilio-connect-card"><div class="twilio-connect-heading"><div><span class="twilio-eyebrow">SMS CONNECTION</span><h3>Connect SMS</h3>
   <p>Connect an existing business profile and phone number from our Twilio account.</p></div><span class="twilio-status">${service?.phoneNumber?'Number connected':'Choose an existing sender'}</span></div>
   ${service?.phoneNumber?`<p class="twilio-connected-number">${esc(service.phoneNumber)}</p>`:''}
-  <p>Each Twilio account is assigned to one CRM business. Connect the profile registered for <strong>${esc(business.name)}</strong>.</p>
+  <p>A Twilio account can serve multiple CRM businesses. Each business has its own phone number and single-number Messaging Service. Connect the profile registered for <strong>${esc(business.name)}</strong>.</p>
   ${!reviewed?'<p class="profile-note">Save a reviewed business profile to connect Twilio.</p>':''}
   <button class="btn ghost" type="button" data-open-twilio ${!reviewed?'disabled':''}>Approved Twilio accounts</button>
   ${service?.phoneNumber?'<button class="btn" type="button" data-activate-sms>Finish SMS activation</button>':''}<div data-twilio-editor></div></section>`;
@@ -18,7 +18,7 @@ export function mountTwilioConnection(container,business,{read,write,reload,onWo
   try {
    const inventory=await read('twilio/accounts');
    editor.innerHTML=`<form class="compose twilio-connection-form"><label>Twilio account<select name="accountSid" required><option value="">Choose an account</option>
-    ${inventory.accounts.map(a=>`<option value="${esc(a.sid)}" ${a.assignedBusiness&&a.assignedBusiness.tenantId!==business.tenant_id?'disabled':''}>${esc(a.name)}${a.isParent?' · Main account':''}${a.assignedBusiness?' · '+esc(a.assignedBusiness.businessName):''}</option>`).join('')}</select></label>
+    ${inventory.accounts.map(a=>`<option value="${esc(a.sid)}">${esc(a.name)}${a.isParent?' · Main account':''}${a.linkedBusinesses?.length?' · CRM: '+a.linkedBusinesses.map(b=>esc(b.businessName)).join(', '):''}</option>`).join('')}</select></label>
     ${!inventory.accounts.length?'<p>No active accounts were found. Check the platform Twilio connection.</p>':''}
     ${inventory.truncated?'<p role="status">The first 100 accounts are shown. More accounts need an administrator inventory review.</p>':''}
     <div data-twilio-profiles></div><p data-twilio-error class="login-error" role="alert"></p></form>`;
@@ -33,11 +33,11 @@ export function mountTwilioConnection(container,business,{read,write,reload,onWo
      if(request!==loading)return;
      options=result.options;connection=result.connection;
      target.innerHTML=`<fieldset class="twilio-sender-list"><legend>Approved senders</legend>
-      ${options.map((p,i)=>{const assignedElsewhere=p.assignedBusiness&&p.assignedBusiness.tenantId!==business.tenant_id;
+      ${options.map((p,i)=>{const owner=p.assignedBusiness||p.reservedBusiness,assignedElsewhere=owner&&owner.tenantId!==business.tenant_id;
        return `<label class="twilio-sender-option"><input type="radio" name="sender" value="${i}" required ${assignedElsewhere?'disabled':''}><span>
         <strong>${esc(p.profileName||p.legalBusinessName)}</strong><span class="twilio-sender-number">${esc(p.phoneNumber)}</span>
         <span class="twilio-status">${esc(p.approvalStatus)}</span><span>${esc(p.serviceName)}</span>
-        ${assignedElsewhere?`<span>Assigned to ${esc(p.assignedBusiness.businessName)}</span>`:''}
+        ${owner?`<span>${p.assignedBusiness?'Linked CRM business':'Reserved for CRM business'}: ${esc(owner.businessName)}${p.reservedBusiness?.state==='needs_review'?' · Needs review':''}</span>`:''}
         ${p.numberRegistrationNote?`<small>${esc(p.numberRegistrationNote)}</small>`:''}</span></label>`;
       }).join('')||'<p>No approved senders are available in this account.</p>'}</fieldset>
       ${result.unavailable.length?`<details class="twilio-unavailable"><summary>Other senders need attention (${result.unavailable.length})</summary>${result.unavailable.map(p=>`<p><strong>${esc(p.name)}${p.phoneNumber?' · '+esc(p.phoneNumber):''}</strong><br>${esc(p.reason)}</p>`).join('')}</details>`:''}
@@ -58,7 +58,7 @@ export function mountTwilioConnection(container,business,{read,write,reload,onWo
     }catch(e){if(request===loading){target.innerHTML='';error.textContent=e.message;}}
    };
    select.addEventListener('change',()=>void showProfiles());
-   const preferred=inventory.accounts.find(a=>a.assignedBusiness?.tenantId===business.tenant_id)||inventory.accounts.find(a=>a.isParent&&!a.assignedBusiness);
+   const preferred=inventory.accounts.find(a=>a.linkedBusinesses?.some(b=>b.tenantId===business.tenant_id)||a.pendingConnections?.some(b=>b.tenantId===business.tenant_id))||inventory.accounts.find(a=>a.isParent);
    if(preferred){select.value=preferred.sid;await showProfiles();}
    form.addEventListener('submit',async event=>{
     event.preventDefault();error.textContent='';const p=options[Number(new FormData(form).get('sender'))];

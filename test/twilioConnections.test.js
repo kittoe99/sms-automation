@@ -33,6 +33,16 @@ test('standalone sender inventory uses a null business scope with staff authoriz
  const x=fixture();const result=await x.api.profiles(x.db,'admin',account);
  assert.deepEqual(x.calls[0],['twilio_connection_access','admin',null]);assert.equal(result.options.length,1);assert.deepEqual(x.mutations,[]);
 });
+test('accounts list every CRM business while senders are assigned by number or service, never account alone',async()=>{
+ const x=fixture(),linked={accountSid:account,tenantId:'first',businessName:'CRM First',phoneNumber:'+18775550181',phoneNumberSid:'PN'+'a'.repeat(32),messagingServiceSid:'MG'+'b'.repeat(32)};
+ const second={...linked,tenantId:'second',businessName:'CRM Second',phoneNumber:'+18775550182'};
+ const pending={...linked,tenantId:'third',businessName:'CRM Third',phoneNumberSid:phone,state:'needs_review'};
+ x.db.call=async()=>({bindings:[linked,second],reservations:[pending]});
+ const accounts=await x.api.accounts(x.db,'admin');assert.deepEqual(accounts.accounts[0].linkedBusinesses,[linked,second]);assert.deepEqual(accounts.accounts[0].pendingConnections,[pending]);
+ let p=(await x.api.profiles(x.db,'admin',account,'business')).options[0];assert.equal(p.assignedBusiness,null);assert.equal(p.reservedBusiness.tenantId,'third');
+ linked.messagingServiceSid=service;
+ p=(await x.api.profiles(x.db,'admin',account,'business')).options[0];assert.equal(p.assignedBusiness.tenantId,'first');
+});
 test('rejected or pending verification, unapproved profiles and ambiguous sender pools are unavailable',async()=>{
  for(const status of ['IN_REVIEW','TWILIO_REJECTED']){const x=fixture();x.data.verifications[0].status=status;assert.equal((await x.api.profiles(x.db,'admin',account,'business')).options.length,0);}
  const x=fixture();x.data.profiles[0].status='pending-review';assert.match((await x.api.profiles(x.db,'admin',account,'business')).unavailable[0].reason,/profile/);

@@ -1,5 +1,38 @@
 # Opek SMS project record
 
+### October 11 — Shared Twilio accounts: backend released, frontend prepared
+
+Admins can connect multiple CRM businesses to one Twilio account, each with an
+exclusive number and separate single-number Messaging Service. Account inventory
+returns all linked CRM businesses and separate pending connections. Resource claims
+fence both reservations and provider writes; failed connections retain ownership.
+Inbound SMS/calls use account plus receiving number; delivery callbacks resolve the
+stored attempt/message and verify consistent routing before signed event writes.
+Soni preserves its registered business/number restriction. No business was linked,
+number moved, SMS sent, or voice call placed by this release.
+
+Applied only CRM migrations 20261011192551 (routing) then 20261011192649 (shared
+ownership). Filenames match Supabase's assigned history versions. Verified
+twilio-webhook v21 and soni-voice-inbound v10 before enabling sharing; crm-api v56
+is ACTIVE. Only feature handlers were replaced in their existing live bundles.
+Live preflight found zero conflicts and all four paired prerequisites; postflight
+found three expected/backfilled claims, no routing mismatches, removed account
+uniqueness, and no direct browser/API grants on claims. New private functions deny
+anon/authenticated. Security advisor has no ERROR findings; existing pg_net/public
+and legacy function warnings remain outside this change. The claims table's RLS
+without policies is intentional (no direct grants; private definer access).
+
+Validation: 43 focused CRM checks passed, eight existing skips; four disposable
+PostgreSQL concurrency checks passed. 18 isolated release checks and frontend build
+passed. Synthetic browser selection verified shared account access, disabled
+occupied/reserved numbers, all linked business names, and successful mock connection
+without browser errors. Paired E2 checks: 40 passed, two unchanged website display
+assertions failed in ownership.test.mjs (Production deployment/Your website starts
+here). The new two-owner number/summary isolation check and cache checks passed.
+E2 needs no migration or runtime release. Frontend deployment confirmation follows.
+See docs/TWILIO_CONNECTIONS.md.
+
+
 ### October 11 — CRM loader and tab cache release candidate
 
 This release adopts the E2 Dashboard ring loader, background preparation of

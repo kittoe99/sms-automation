@@ -79,14 +79,16 @@ export function createTwilioConnections({clientFactory=twilio,environment=env}={
    const access=await db.call('twilio_connection_access',user,null),master=parent();
    const rows=await master.client.api.v2010.accounts.list({status:'active',limit:LIMIT,pageSize:50});
    const accounts=rows.filter(r=>r.ownerAccountSid===master.accountSid&&r.status==='active').map(r=>({sid:r.sid,name:r.friendlyName,
-    isParent:r.sid===master.accountSid,assignedBusiness:access.bindings?.find(b=>b.accountSid===r.sid)||null}));
+    isParent:r.sid===master.accountSid,linkedBusinesses:(access.bindings||[]).filter(b=>b.accountSid===r.sid),
+    pendingConnections:(access.reservations||[]).filter(b=>b.accountSid===r.sid)}));
    return {accounts,truncated:rows.length===LIMIT};
   },
   async profiles(db,user,selected,tenant) {
    const access=await db.call('twilio_connection_access',user,tenant??null);
    const data=await inventory(selected);
-   const binding=access.bindings?.find(b=>b.accountSid===selected);
-   return {options:data.options.map(p=>({...p,assignedBusiness:binding||null})),unavailable:data.unavailable,truncated:data.truncated,
+   const ownsSender=(b,p)=>b.phoneNumberSid===p.phoneNumberSid||b.phoneNumber===p.phoneNumber||b.messagingServiceSid===p.messagingServiceSid;
+   return {options:data.options.map(p=>({...p,assignedBusiness:access.bindings?.find(b=>ownsSender(b,p))||null,
+    reservedBusiness:access.reservations?.find(b=>ownsSender(b,p))||null})),unavailable:data.unavailable,truncated:data.truncated,
     business:access.business,connection:access.connection};
   },
   async connect(db,user,input) {

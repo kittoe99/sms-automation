@@ -88,7 +88,7 @@ async function activeBusiness(db,t='alpha') {
  await call(db,'api_action','admin',null,'create_business',{id:t,name:t,timeZone:'UTC'});
  await call(db,'api_action','admin',t,'contact',{phone:'+13035551234',name:'Alex'});
  await db.exec(`update public.sms_businesses set sending_enabled=true,status='active' where tenant_id='${t}';
- update sms_private.providers set account_sid='${accountSid}',from_number='+13035550000',auth_secret_id=vault.create_secret('test-secret') where tenant_id='${t}';`);
+ update sms_private.providers set account_sid='${accountSid}',from_number='${t==='alpha'?'+13035550000':'+13035550001'}',auth_secret_id=vault.create_secret('test-secret') where tenant_id='${t}';`);
 }
 test('expired submissions are held and a signed callback reconciles the exact attempt',async()=>{
  const db=await testDatabase();try {

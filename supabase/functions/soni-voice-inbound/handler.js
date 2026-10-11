@@ -13,6 +13,7 @@ export function createSoniInboundHandler(db,{
   base=env('SONI_VOICE_WEBHOOK_URL'),
   sipUsername=env('SONI_SIP_USERNAME'),
   sipPassword=env('SONI_SIP_PASSWORD'),
+  tenantId=env('SONI_VOICE_TENANT_ID') || 'opek',
 }={}) {
   return async request=>{
     try{
@@ -26,8 +27,8 @@ export function createSoniInboundHandler(db,{
       if([...form.keys()].length!==Object.keys(params).length)return json({error:'Duplicate fields'},400);
       if(params.To!==OPEK_NUMBER||!/^AC[0-9a-f]{32}$/i.test(params.AccountSid||''))
         return json({error:'Wrong destination'},403);
-      const config=await db.call('webhook_credentials',params.AccountSid);
-      if(config?.tenant_id!=='opek'||config.from_number!==OPEK_NUMBER||!config.auth_token)
+      const config=await db.call('resolve_twilio_webhook',params.AccountSid,'call',params,null);
+      if(config?.tenant_id!==tenantId||config.from_number!==OPEK_NUMBER||!config.auth_token)
         return json({error:'Unknown account'},403);
       const signature=await twilioSignature(config.auth_token,base,params);
       if(!constantEqual(signature,request.headers.get('X-Twilio-Signature')))
