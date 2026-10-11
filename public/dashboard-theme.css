@@ -216,3 +216,14 @@ body { font-family: "Plus Jakarta Sans", Arial, sans-serif; font-size: 14px; lin
 }
 @media (max-width: 420px) { :root { --dashboard-gutter: 16px; } .crm-topbar { padding-inline: 16px; } }
 @media (max-width: 360px) { .crm .dashboard-actions { grid-template-columns: 1fr; } .dashboard-site-link { display: none; } }
+
+/* Shared with E2 Local's DashboardLoader. */
+.crm-loader { display:flex; flex-direction:column; align-items:center; justify-content:center; gap:14px; width:100%; min-height:220px; padding:28px; color:#087aa5; box-sizing:border-box; }
+.crm-loader-ring { display:inline-block; flex:none; width:30px; height:30px; border:2px solid #cbdfe8; border-top-color:currentColor; border-radius:50%; animation:crm-dashboard-spin .9s linear infinite; box-sizing:border-box; }
+.crm-loader-label { color:#536d76; font-size:12px; line-height:1.5; font-weight:500; }
+.crm-boot-loader { min-height:100dvh; }
+.crm-loader-compact { display:inline-flex; flex-direction:row; justify-content:flex-start; gap:8px; width:auto; min-height:0; padding:0; color:inherit; vertical-align:middle; }
+.crm-loader-compact .crm-loader-ring { width:14px; height:14px; }
+.crm-loader-compact .crm-loader-label { color:inherit; font:inherit; }
+@keyframes crm-dashboard-spin { to { transform:rotate(360deg); } }
+@media (prefers-reduced-motion:reduce) { .crm-loader-ring { animation:none; } }

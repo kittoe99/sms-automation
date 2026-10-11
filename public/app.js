@@ -8,12 +8,17 @@ import {canOpenWorkspace,canWriteWorkspace,staffActionSelector} from './workspac
 import {createPageReads, readWorkspaceContext} from './pageReads.js';
 import {readDashboard} from './dashboardData.js';
 import {dashboardIcon} from './dashboardIcons.js';
+import {dashboardLoader} from './dashboardLoader.js';
+import {warmWorkspace,workspaceWarmupTasks} from './workspaceWarmup.js';
+import {CACHE_TTL} from './workspaceCache.js';
 import {mountTwilioActivation,mountSmsSetupChoice,smsSetupActionsHtml} from './twilioActivation.js?v=20261003-sms-nav';
 import {smsConnectionSummary} from './smsConnectionSummary.js?v=20261002-sms-summary';
 import { connectSupabaseLive } from './live.js?v=20261001-business-services';
 import { shouldRefreshFromBackground } from './refreshGuard.js';
 import {
   apiFetch as authenticatedFetch,
+  configureWorkspaceCache,
+  invalidateWorkspaceCache,
   getAccessToken,
   getSession,
   getTenantId,
@@ -147,14 +152,31 @@ const tabStateKeys = ['categoryId','q','status','page','pageSize','totalPages','
   'aiBuilderOpen','emailGroupId','businessContextDraft','bookingSettingsDraft','voiceBookingDrafts','bookingStatus'];
 const tabDefaults = Object.fromEntries(tabStateKeys.map(key => [key, state[key]]));
 let currentTabStale = false;
+let currentTabLoadedAt = 0;
 let categoriesLoaded = false;
+let warmupController;
+function stopWorkspaceWarmup() {warmupController?.abort();warmupController=null;}
+function scheduleWorkspaceWarmup() {
+  stopWorkspaceWarmup();
+  if (document.getElementById('crm-app').hidden || navigator.connection?.saveData || ['slow-2g','2g'].includes(navigator.connection?.effectiveType)) return;
+  const views=KNOWN_VIEWS.filter(view=>canOpenWorkspace(view,state.platformStaff,state.tenant) && (state.tenant || view.startsWith('platform-')));
+  // Prioritize adjacent tabs; rendering the active page always runs first.
+  const controller=warmupController=new AbortController();
+  const tasks=workspaceWarmupTasks(views.filter(view=>view!==state.view), (path,options)=>authenticatedFetch(path,{
+    ...options,priority:'low',signal:AbortSignal.any([options.signal,AbortSignal.timeout(15_000)]),
+  }));
+  void warmWorkspace(tasks,{signal:controller.signal});
+}
 function tabStatus(stale = false) {
   currentTabStale = stale;
   const status = document.getElementById('tab-status');
   status.textContent = stale ? 'Refresh for latest activity' : 'Your workspace, in one place';
   status.classList.toggle('has-updates', stale);
 }
-window.addEventListener('crm:data-changed', () => {tabMemory.markStale(); tabStatus(true);});
+window.addEventListener('crm:data-changed', () => {stopWorkspaceWarmup();invalidateWorkspaceCache();tabMemory.markStale(); tabStatus(true);});
+document.addEventListener('visibilitychange', () => {
+  if (!document.hidden) {invalidateWorkspaceCache();tabMemory.markStale();tabStatus(true);}
+});
 function rememberTab() {
   if (state.view === 'automation-activity') return; // Live reports remount; filters have their own scoped storage.
   if (!lastRenderedView || lastRenderedView !== state.view) return;
@@ -166,7 +188,7 @@ function rememberTab() {
     platformState: state.view.startsWith('platform-') ? currentPlatform().snapshot() : null,
     pager: el.pager.hidden, pageInfo: el.pageInfo.textContent,
     prev: el.prev.disabled, next: el.next.disabled, scroll: window.scrollY,
-    stale: currentTabStale,
+    stale: currentTabStale, loadedAt: currentTabLoadedAt,
   });
 }
 function restoreTab(snapshot) {
@@ -181,10 +203,12 @@ function restoreTab(snapshot) {
   el.prev.disabled = snapshot.prev; el.next.disabled = snapshot.next;
   el.search.value = state.q; el.status.value = state.status; el.pageSize.value = state.pageSize;
   document.querySelector('.crm').classList.toggle('thread-open', state.view === 'messaging' && Boolean(state.conversationPhone));
-  lastRenderedView = state.view; tabStatus(snapshot.stale);
+  currentTabLoadedAt=snapshot.loadedAt || 0;
+  lastRenderedView = state.view; tabStatus(snapshot.stale || Date.now()-currentTabLoadedAt>=CACHE_TTL);
   window.scrollTo({top: snapshot.scroll, behavior: 'instant'});
 }
 function clearTabs() {
+  stopWorkspaceWarmup();
   disposeActivity?.(); disposeActivity=null;
   if (state.view === 'automation-activity') el.root.replaceChildren();
   state.voiceWorkspace = {};state.inboundVoiceWorkspace={};
@@ -252,6 +276,7 @@ function openBusinessContext() {
 }
 
 function refreshFromBackground() {
+  stopWorkspaceWarmup();invalidateWorkspaceCache();
   tabMemory.markStale(); tabStatus(true);
   if (state.view !== 'messaging') return Promise.resolve(false);
   const active = document.activeElement;
@@ -360,7 +385,7 @@ async function renderBusinessSetup({registrationForm=false}={}) {
   el.storeMeta.textContent = state.tenant?.name || 'Your workspace';
 
   let provisioning=state.setupProvisioning,registration=state.setupRegistration;
-  el.root.innerHTML='<div class="card"><p role="status">Loading SMS setup…</p></div>';
+  el.root.innerHTML=dashboardLoader('Loading SMS setup…');
   try {
     const read=async path=>{const res=await apiFetch(path),body=await res.json();if(!res.ok)throw new Error(body.error||'Could not load SMS setup.');return body;};
     [provisioning,registration]=await Promise.all([provisioning||read('/api/provisioning'),registration||read('/api/twilio/registration')]);
@@ -899,7 +924,7 @@ async function renderBusinessContext() {
         <div class="setup-body"><p class="muted">SMS uses the messages saved on each form. Open Forms to configure follow-ups.</p><button type="button" class="btn" id="open-ai-instructions">Open Forms</button></div>
       </section>
       <section id="business-knowledge" class="business-knowledge" aria-label="AI knowledge">
-        <div class="card"><div class="empty">Loading AI knowledge…</div></div>
+        ${dashboardLoader("Loading AI knowledge…")}
       </section>
     </div>`;
 
@@ -1264,7 +1289,7 @@ function bindKnowledgePanel(host,data) {
 async function mountKnowledgePanel() {
   const host=el.root.querySelector('#business-knowledge');
   if(!host)return;
-  host.innerHTML='<div class="card"><div class="empty">Loading AI knowledge…</div></div>';
+  host.innerHTML=dashboardLoader('Loading AI knowledge…');
   const response=await apiFetch('/api/knowledge'),data=await response.json();
   if(!response.ok)throw new Error(data.error||'Could not load AI knowledge');
   if(!host.isConnected||state.view!=='business-context')return;
@@ -1505,6 +1530,7 @@ window.addEventListener('popstate', (event) => {
 // realtime connection stay mounted while only the view re-renders.
 let navigationTicket = 0;
 function switchView(view, options = {}) {
+  stopWorkspaceWarmup();
   if (['automations','ai-instructions'].includes(view)) view = 'web-forms';
   if (view === 'knowledge') view = 'business-context';
   const ticket = ++navigationTicket;
@@ -1520,6 +1546,7 @@ function switchView(view, options = {}) {
     const snapshot = changed ? tabMemory.take(view) : null;
     if (changed) Object.assign(state, tabDefaults);
     state.view = view; closeDrawer(); closeSidebar();
+    setActiveNav();
     const explicitTarget = Object.keys(options).some(key => key !== 'history');
     if (snapshot && !explicitTarget) restoreTab(snapshot);
     else if (changed || explicitTarget || lastRenderedView !== view) {
@@ -1535,12 +1562,14 @@ function switchView(view, options = {}) {
       history.pushState({view}, '', url);
     }
     setActiveNav(); syncViewControls(); applyWorkspacePermissions();
+    scheduleWorkspaceWarmup();
   });
 }
 
 // In-place workspace switch: re-resolve tenant context and re-render
 // the current tab without tearing down auth, theme or realtime.
 async function switchTenant(tenantId, options = {}) {
+  stopWorkspaceWarmup();invalidateWorkspaceCache();
   return renderQueue.run(async () => {
   await Promise.all([...platformInstances.values()].map(instance => instance.whenIdle()));
   clearTabs();
@@ -1713,15 +1742,19 @@ async function loadCategories() {
   renderNavAutomations();
 }
 async function renderWorkspace(options = {}) {
+  stopWorkspaceWarmup();
+  if (options.force) {invalidateWorkspaceCache();categoriesLoaded=false;}
+  if (titles[state.view]) setTitle(...titles[state.view]);
   disposeActivity?.(); disposeActivity=null;
   const readScope = pageReads.begin();
   if (state.view !== 'messaging') document.querySelector('.crm')?.classList.remove('thread-open');
   if (lastRenderedView !== state.view) {
-    el.root.innerHTML = '<div class="workspace-skeleton" role="status"><span>Opening your workspace…</span><i></i><i></i><i></i></div>';
+    el.root.innerHTML = dashboardLoader();
     el.kpi.replaceChildren(); el.pager.hidden = true;
   }
   el.root.setAttribute('aria-busy', 'true');
   const refresh = document.getElementById('refresh'); refresh.disabled = true;
+  const refreshContent=refresh.innerHTML;refresh.innerHTML=dashboardLoader('Loading…',true);
   syncViewControls();
   try {
     if (state.view.startsWith('platform-')) {
@@ -1730,7 +1763,7 @@ async function renderWorkspace(options = {}) {
       el.search.closest('.search-wrap').hidden = true; el.status.hidden = true; el.kpi.innerHTML = '';
       el.toolbarTenant.textContent='CRM';
       el.toolbarSection.textContent={ 'platform-accounts':'Users','platform-businesses':'Businesses','platform-websites':'Websites','platform-twilio':'Twilio accounts' }[state.view];
-      await platform.render(state.view); lastRenderedView = state.view; tabStatus(); return;
+      await platform.render(state.view); lastRenderedView = state.view;currentTabLoadedAt=Date.now(); tabStatus(); return;
     }
     el.root.classList.remove('platform-root');
     if (!state.tenant) throw new Error('Choose or create a business workspace.');
@@ -1775,6 +1808,7 @@ async function renderWorkspace(options = {}) {
     else await renderMessages();
     readScope.signal.throwIfAborted();
     lastRenderedView = state.view;
+    currentTabLoadedAt=Date.now();
     tabStatus();
   } catch (err) {
     if (readScope.signal.aborted) { lastRenderedView = null; return; }
@@ -1788,11 +1822,13 @@ async function renderWorkspace(options = {}) {
   } finally {
     pageReads.end(readScope);
     refresh.disabled = false;
+    refresh.innerHTML=refreshContent;
     document.title = `${el.title.textContent} · E2.Local CRM`;
     syncWorkspaceNavigation();
     applyWorkspacePermissions();
     el.root.querySelector('[data-open-registered-business]')?.addEventListener('click',()=>{const id=state.tenant.id;switchView('platform-businesses').then(()=>platform.openBusiness(id));});
     el.root.setAttribute('aria-busy', 'false');
+    if (!readScope.signal.aborted && lastRenderedView===state.view) scheduleWorkspaceWarmup();
   }
 }
 
@@ -3755,6 +3791,7 @@ function esc(value) {
 }
 
 async function forceLogin(message = '') {
+  invalidateWorkspaceCache();
   clearTabs();
   renderLoginScreen({
     errorMessage: message,
@@ -3829,6 +3866,7 @@ async function loadTenantContext(session) {
     el.tenantSelect.value = state.tenant?.id || '';
   }
   if (!state.tenant) {
+    configureWorkspaceCache({...data,capabilities:{platformStaff:state.platformStaff}});
     state.categories = [];
     updateAuthChrome();
     if (state.platformStaff) return;
@@ -3840,6 +3878,7 @@ async function loadTenantContext(session) {
     setActiveNav();
   }
   setTenantId(state.tenant.id);
+  configureWorkspaceCache({...data,capabilities:{platformStaff:state.platformStaff}});
 }
 
 document.getElementById('sign-out-btn')?.addEventListener('click', async () => {

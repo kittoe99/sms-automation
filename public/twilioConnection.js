@@ -1,3 +1,4 @@
+import {dashboardLoader} from './dashboardLoader.js';
 const esc=value=>String(value??'').replaceAll('&','&amp;').replaceAll('<','&lt;').replaceAll('>','&gt;').replaceAll('"','&quot;').replaceAll("'",'&#39;');
 
 export function mountTwilioConnection(container,business,{read,write,reload,onWorkspace}) {
@@ -13,7 +14,7 @@ export function mountTwilioConnection(container,business,{read,write,reload,onWo
  container.querySelector('[data-activate-sms]')?.addEventListener('click',()=>onWorkspace(business.tenant_id,'sms'));
  const open=container.querySelector('[data-open-twilio]'),editor=container.querySelector('[data-twilio-editor]');
  open.addEventListener('click',async()=>{
-  open.disabled=true;editor.innerHTML='<p role="status">Loading connected Twilio accounts…</p>';
+  open.disabled=true;editor.innerHTML=dashboardLoader('Loading connected Twilio accounts…');
   try {
    const inventory=await read('twilio/accounts');
    editor.innerHTML=`<form class="compose twilio-connection-form"><label>Twilio account<select name="accountSid" required><option value="">Choose an account</option>

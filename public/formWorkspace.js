@@ -2,6 +2,7 @@ import {mountFormDirectory} from './formDirectory.js';
 import {createFormBuilder} from './formBuilder.js?v=20261004-live-test';
 import {renderFormAutomation} from './formAutomationEditor.js?v=20261004-live-test';
 import {createFormData} from './formData.js';
+import {dashboardLoader} from './dashboardLoader.js';
 const esc=v=>String(v??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
 export function createFormWorkspace({root,apiFetch:fetcher,config,canReadSubmissions,getTenantId=()=>config?.tenantId||localStorage.getItem('opek_sms_tenant_id')}) {
   let selected=null,tab='form',tenant=null,revision=0;
@@ -30,6 +31,7 @@ export function createFormWorkspace({root,apiFetch:fetcher,config,canReadSubmiss
     for(const action of ['duplicate','archive','restore'])root.querySelector(`[data-${action}]`)?.addEventListener('click',async()=>{
       try{const r=await request(`/api/web-forms/${form.public_id}/${action}`,{method:'POST',body:'{}'});selected=action==='duplicate'?r.form.public_id:null;tab='form';await render({refresh:false});}catch(e){showError(e);}});
     const panel=root.querySelector('[data-panel]');
+    panel.innerHTML=dashboardLoader();
     if(tab==='form')await createFormBuilder({root:panel,apiFetch,config,canReadSubmissions,formId:form.public_id,hideSubmissions:true}).render(data);
     if(tab==='automation')await renderFormAutomation({root:panel,form,apiFetch,loadPresets:()=>cache.read('/api/automation-presets'),canManage:data.canManageAutomation&&!form.archived,timeZone:data.timeZone});
     if(tab==='submissions')await submissions(panel,form,data.canManageAutomation);

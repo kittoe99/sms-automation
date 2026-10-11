@@ -1,3 +1,4 @@
+import {dashboardLoader} from './dashboardLoader.js';
 import {emptySequence,newMessage,TIME_UNITS,validateSequence,sequenceSummary} from './formAutomation.js';
 const esc=v=>String(v??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
 const mounts=new WeakMap();
@@ -55,6 +56,6 @@ export async function mountContactAutomations(root,{apiFetch,contactId=null,isCu
  if(target.dataset.key){const step=target.closest('[data-step]');const obj=step?sequence.steps[Number(step.dataset.step)]:sequence;obj[target.dataset.key]=target.type==='number'?Number(target.value):target.value;}
  preview=null;const b=root.querySelector('[data-enroll]');if(b)b.disabled=true;};
  }
- root.innerHTML='<p role="status">Loading contact automations…</p>';try{await load();}catch(e){if(active())root.innerHTML=`<p role="alert">${esc(e.message)}</p>`;}
+ root.innerHTML=dashboardLoader('Loading contact automations…');try{await load();}catch(e){if(active())root.innerHTML=`<p role="alert">${esc(e.message)}</p>`;}
  return ()=>{controller.abort();root.oninput=null;};
 }

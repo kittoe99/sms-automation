@@ -1,5 +1,20 @@
 # Opek SMS project record
 
+### October 11 — CRM loader and tab cache release candidate
+
+This release adopts the E2 Dashboard ring loader, background preparation of
+permitted tab modules and default list reads, and a bounded session-scoped
+browser cache. Saved responses expire after 60 seconds and are invalidated on
+writes, refresh, live changes, visibility return, business changes and sign-out.
+Fresh authorization is required before restoring persisted data. See
+`docs/WORKSPACE_PERFORMANCE.md` for cache scope and limits.
+
+Prepared on production `bea0d57`; unrelated website deployment, Forms lifecycle,
+local-preview and backend changes are excluded. Implementation validation passed
+61 CRM checks and 34 paired E2 dashboard checks. The isolated release build and all 37 cache, auth, navigation, Forms and Twilio
+UI checks passed. Production deployment evidence will be recorded separately. No database, worker,
+Edge or E2 runtime change or migration is included.
+
 ### October 11 — Dashboard redesign release candidate
 
 Prepared from production commit 03b9754, with only the CRM shell, navigation

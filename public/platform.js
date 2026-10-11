@@ -1,4 +1,5 @@
 import {createRenderQueue} from './tabWorkspace.js?v=20261002-workspace';
+import {dashboardLoader} from './dashboardLoader.js';
 import {mountTwilioAccounts} from './twilioAccounts.js?v=20261003-directory';
 import {mountBusinessSetup} from './businessSetup.js?v=20261003-sms-nav';
 import {apiFetch,getAccessToken,runtimeConfig} from './auth.js?v=20261001-business-services';
@@ -81,7 +82,7 @@ export function createPlatform({root,title,subtitle,pager,onNavigate,onWorkspace
     tab=next;
     const saved=sitePanels.get(tab);
     if(saved){panel.replaceChildren(...saved.nodes);enquiryPage=saved.enquiryPage;enquiryType=saved.enquiryType;}
-    else {enquiryPage=1;panel.innerHTML='<p role="status">Opening tab…</p>';await renderWebsitePanel(panel,siteRecord);}
+    else {enquiryPage=1;panel.innerHTML=dashboardLoader();await renderWebsitePanel(panel,siteRecord);}
     root.querySelectorAll('[data-tab]').forEach(button=>{
       const active=button.dataset.tab===tab;
       button.setAttribute('aria-selected',String(active));button.tabIndex=active?0:-1;

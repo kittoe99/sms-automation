@@ -1,3 +1,4 @@
+import {dashboardLoader} from './dashboardLoader.js';
 const esc=value=>String(value??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
 export function twilioAccountsHtml(inventory) {
  return `<section class="card"><h2>Twilio accounts</h2><p>Browse active accounts, approved SMS senders and their linked businesses. Viewing this directory does not connect a number or enable sending.</p>
@@ -10,7 +11,7 @@ export function twilioSendersHtml(result) {
  ${result.truncated?'<p role="status">This account exceeds the inventory limit. Only the first 100 resources of each type are shown.</p>':''}`;
 }
 export async function mountTwilioAccounts(container,{read,onBusiness}) {
- container.innerHTML='<section class="card"><p role="status">Loading Twilio accounts…</p></section>';
+ container.innerHTML=dashboardLoader('Loading Twilio accounts…');
  try {
   const inventory=await read('twilio/accounts');container.innerHTML=twilioAccountsHtml(inventory);
   container.querySelectorAll('[data-linked-business]').forEach(button=>button.onclick=()=>onBusiness(button.dataset.linkedBusiness));

@@ -1,3 +1,4 @@
+import {dashboardLoader} from './dashboardLoader.js';
 import {createFormTest} from './formTest.js?v=20261004-live-test';
 const PRESETS = [
   ['contacts', 'Contact'],
@@ -133,7 +134,7 @@ export function createFormBuilder({ root, apiFetch, config, canReadSubmissions =
       </div></section><aside class="card"><div class="card-head"><div><h2>Preview &amp; test</h2><span class="muted">Try your form, preview its schedule or send a real SMS test</span></div></div><div id="web-builder-preview" class="web-builder-preview"></div></aside></div>
       ${canEdit ? `<section class="card web-builder-embed"><div class="card-head"><div><h2>Embed code</h2><span class="muted">Paste this snippet into any website. No URL allowlist is used during testing.</span></div></div>
       <div class="web-builder-body"><textarea id="web-embed-code" rows="4" readonly>${escapeHtml(snippet)}</textarea><button type="button" class="btn ghost" id="web-copy-embed">Copy code</button></div></section>` : ''}
-      <section class="card web-builder-embed"><div class="card-head"><h2>Submissions</h2></div><div id="web-form-submissions" class="web-builder-body" role="status">Loading submissions…</div></section></div>`;
+      <section class="card web-builder-embed"><div class="card-head"><h2>Submissions</h2></div><div id="web-form-submissions" class="web-builder-body">${dashboardLoader("Loading submissions…")}</div></section></div>`;
     const selectPreset = async type => {
       preset = type; page = 1; await render();
       root.querySelector(`[data-web-preset="${type}"]`)?.focus();

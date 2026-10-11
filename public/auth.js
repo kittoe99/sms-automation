@@ -1,4 +1,17 @@
 /** Clerk-backed CRM authentication and tenant request context. */
+import {createWorkspaceCache} from './workspaceCache.js';
+
+const workspaceCache = createWorkspaceCache();
+let cacheIdentity = null, cacheTenant = null, cacheStaff = false;
+const identity = () => {
+  const session=getSession();
+  return session ? JSON.stringify([apiUrl('/api/'),session.id,session.user.id,session.organization?.id || '']) : null;
+};
+export function configureWorkspaceCache(access) {
+  cacheIdentity=identity();cacheTenant=getTenantId();cacheStaff=Boolean(access.capabilities?.platformStaff);
+  workspaceCache.activate(cacheIdentity ? JSON.stringify([cacheIdentity,cacheTenant,access.tenants || [],cacheStaff]) : null);
+}
+export function invalidateWorkspaceCache() {workspaceCache.invalidate();}
 
 let clerk = null;
 export const runtimeConfig = globalThis.SMS_CONFIG || {};
@@ -176,12 +189,14 @@ export async function initAuth() {
     },
   ));
   clerk.addListener(({ session }) => {
-    if (!session) loginSession = null;
+    if (!session) {loginSession = null;workspaceCache.activate(null);}
+    if (cacheIdentity && identity() !== cacheIdentity) {workspaceCache.activate(null);cacheIdentity=null;}
   });
   return { session: getSession(), configured: true };
 }
 
 export async function signOut() {
+  workspaceCache.activate(null);cacheIdentity=null;
   loginSession = null;
   if (clerk) await clerk.signOut({ redirectUrl: '/' });
 }
@@ -208,7 +223,19 @@ export async function apiFetch(url, options = {}) {
     if (!requestKeys.has(fingerprint)) requestKeys.set(fingerprint, crypto.randomUUID());
     headers.set('Idempotency-Key', requestKeys.get(fingerprint));
   }
-  const response = await fetch(apiUrl(url), { ...fetchOptions, headers });
+  const method = String(options.method || 'GET').toUpperCase();
+  const write = !['GET','HEAD'].includes(method);
+  if (write) invalidateWorkspaceCache();
+  if (cacheIdentity && (identity() !== cacheIdentity || getTenantId() !== cacheTenant)) {
+    workspaceCache.activate(null);cacheIdentity=null;
+  }
+  const platformRead = url.startsWith('/api/platform/') && cacheStaff;
+  const useCache = cacheIdentity && (platformRead || headers.get('X-Tenant-ID') === cacheTenant);
+  const request = requestOptions => fetch(apiUrl(url), {...requestOptions,headers});
+  const response = useCache
+    ? await workspaceCache.fetch(url,fetchOptions,request)
+    : await request(fetchOptions);
+  if (write || response.status === 401 || response.status === 403) invalidateWorkspaceCache();
   if (response.ok || (response.status >= 400 && response.status < 500)) requestKeys.delete(fingerprint);
   return response;
 }
