@@ -1,5 +1,12 @@
 # Read-only SMS connection summary
 
+October 11 local correction (not released): show **Toll-free**, **SMS approval**
+and a note that toll-free calling does not require SMS approval. Pending SMS
+registration must not be presented as voice unavailability or as a verified
+sender. The customer response contract, service visibility and business-scoped
+cache remain unchanged. CRM owns the forward migration
+`20261011233216_toll_free_voice_before_sms_approval.sql`; no E2 migration is needed.
+
 E2 customer owners see a released business's SMS connection in **Dashboard → SMS**.
 The SMS app dashboard shows the same summary to staff and existing SMS-read
 operators for their permitted workspace. Customer ownership does not grant CRM

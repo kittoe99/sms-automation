@@ -1,11 +1,11 @@
-# Connect approved Twilio senders
+# Connect Twilio business numbers
 
 ## Standalone account directory
 
 Staff always have a dedicated Twilio area in the CRM navigation. Twilio accounts
 lists active parent/subaccounts and every linked **CRM business**, with its assigned
 phone number, without requiring a selected
-business. View approved senders loads verified toll-free and A2P options, with a
+business. View phone numbers loads toll-free and approved A2P options, with a
 separate disclosure for senders needing attention. Pending connections are listed
 separately as Connecting or Needs review. **Open CRM business** continues
 to the existing connection/activation flow. Directory reads neither connect numbers
@@ -15,13 +15,13 @@ permissions are unchanged; this inventory is staff-only.
 ## Simplified activation
 
 Staff can start directly from the CRM Dashboard's SMS setup & activation card:
-Approved Twilio accounts opens the selected business's account dropdown and sender
+Twilio accounts opens the selected business's account dropdown and sender
 inventory. Review and enable SMS opens activation with fresh status when the test
-has passed. The activation page also always exposes Approved Twilio accounts.
+has passed. The activation page also always exposes Twilio accounts.
 These shortcuts are staff-only; E2 owners and SMS-read operators keep read-only details.
 
 Open **SMS activation** from Setup, or **Finish SMS activation** in the business
-connection card. The standard flow is **Choose approved sender → Test delivery →
+connection card. The standard flow is **Choose existing number → Complete SMS approval → Test delivery →
 Enable SMS**. An approved connected sender only needs a test mobile number; its
 profile and registration are reused. Phone formatting spaces/dashes are accepted.
 A charge confirmation precedes the test. Delivery must succeed before the explicit
@@ -50,17 +50,19 @@ permission changes, and the E2 owner summary remains read-only.
 
 Open **Businesses**, select the registered business, and use **Twilio connection**
 to jump to its connection card. Save a reviewed business profile first. Choose
-**Choose approved sender**, select an active account, select its approved sender,
+**Choose existing number**, select an active account and an available number,
 and review the CRM business, Twilio profile, phone number, account and Messaging
-Service. Confirm the profile belongs to that business and connect it.
+Service. Confirm the number and any registration belong to that business and connect it.
 
 The server inventories the configured `TWILIO_MASTER_ACCOUNT_SID` and its active
 child accounts using `TWILIO_MASTER_AUTH_TOKEN`. Credentials are never entered in
 this browser form. A connected provider's account token is stored in Supabase
 Vault and read only by scoped workers and signature verification functions.
 
-Both verified toll-free senders and US A2P senders are supported. Toll-free
-verification must be `TWILIO_APPROVED`. A2P needs a `VERIFIED` campaign, an
+Voice-capable toll-free numbers can connect before SMS verification, including
+unsubmitted, pending and rejected registrations. Calling does not depend on
+toll-free SMS approval. SMS still requires `TWILIO_APPROVED` and the existing
+profile checks before its delivery test and activation. A2P needs a `VERIFIED` campaign, an
 `APPROVED` non-mock brand and its approved business profile. A profile alone is
 insufficient. Unavailable senders show the missing approval or attachment.
 Twilio's per-number carrier registration can lag behind campaign approval; a
@@ -72,7 +74,8 @@ Customers receive only the [read-only connection summary](SMS_CONNECTION_SUMMARY
 in E2 Local's SMS tab after service release. Existing SMS-read operators see the
 same essentials on the CRM dashboard. Full setup and activation remain staff-only.
 
-Connecting rechecks approval, account ownership and the owned SMS number. The
+Connecting rechecks SMS approval, account ownership and number capabilities.
+Pending toll-free connections additionally require live voice capability. The
 Messaging Service must have exactly one phone number, because sends use that
 service's sender pool. The connection sets and verifies the existing CRM inbound
 and status webhooks without changing voice configuration, moving a phone number,
@@ -92,7 +95,7 @@ visibility; an existing service keeps its visibility. In **Configure SMS**,
 request the separately confirmed activation
 canary, check delivery, and then enable sending. **Set live** controls customer
 dashboard visibility separately. Existing **Add SMS** continues to create a new,
-isolated Twilio child account; use the connection card to reuse an approved one.
+isolated Twilio child account; use the connection card to reuse an existing number.
 
 ## Recovery and isolation
 
@@ -123,15 +126,38 @@ and full callback URL before any event is recorded. Soni retains its fixed
 business/number restriction using the same number-aware resolver. Legacy
 account-only credential lookup returns nothing for a shared account.
 
+## Toll-free calling correction (implemented locally, not released)
+
+CRM migration `20261011233216_toll_free_voice_before_sms_approval.sql` replaces
+only the connection reservation/completion functions. Apply it after the shared
+account migrations and before the updated CRM API. Old approved-only API calls
+remain compatible. No E2 migration or history replay is needed. Release both
+frontend label changes; the customer summary contract/cache fields are unchanged.
+
+A connected number remains configured while its SMS registration is
+`verification_pending`, `in_review` or `rejected`. Sending stays disabled, and
+neither an SMS test nor activation is permitted before the existing gates pass.
+**Check status** discovers the verification by number and refreshes SMS approval;
+reconnecting the same resources neither transfers the sender nor enables SMS.
+Failed attempts can retry with fresh registration metadata for the same resources.
+Number/service ownership, admin review and revision checks remain enforced.
+
+Existing voice routing is preserved. This change does not provision voice agents,
+change number voice URLs, place calls, purchase numbers or submit registrations.
+The signed voice regression routes calls while SMS is in review. Twilio documents
+that [unverified toll-free restrictions exclude voice](https://help.twilio.com/hc/en-us/articles/20212966914075-Toll-Free-Verification-and-Developers-Navigating-the-New-Restrictions).
+
 ## Paired release
 
-### Shared accounts (October 11 backend released; frontend prepared)
+### Shared accounts (deployed and verified October 11)
 
 The new migrations are CRM-owned. Existing E2 registration/access prerequisites
 and the customer summary reader must already be applied. The production read-only
 preflight found all four prerequisites and zero cross-business sender conflicts;
 both new migrations have now been applied in the order below. Messaging webhook v21,
-Soni voice v10, and CRM API v56 are ACTIVE. Frontend deployment is pending.
+Soni voice v10, and CRM API v56 are ACTIVE. Frontend commit e0e86bf is LIVE in Render deployment
+`dep-db5u7l67bikc73e36je0` at crm.e2local.com. The order below records the completed
+rollout; do not reapply these migrations.
 
 1. Apply only `20261011192551_twilio_number_webhook_routing.sql`.
 2. Deploy and verify **both** `twilio-webhook` and `soni-voice-inbound`, including
@@ -181,3 +207,9 @@ PhoneNumber response check to use `sid` (the create request uses `phoneNumberSid
 After deployment, Check status verifies the sender again. The user may then submit
 a new test; failed tests are not automatically replayed and activation still waits
 for delivered status.
+
+Security advisor: no ERROR findings. The new private claim table intentionally has
+RLS without policies and no direct grants. Existing unrelated notices include
+[pg_net in public](https://supabase.com/docs/guides/database/database-linter?lint=0014_extension_in_public)
+and [legacy executable definer functions](https://supabase.com/docs/guides/database/database-linter?lint=0028_anon_security_definer_function_executable);
+these were not changed by this release.

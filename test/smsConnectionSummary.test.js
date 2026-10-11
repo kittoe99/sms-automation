@@ -5,6 +5,12 @@ import {testDatabase,call} from './helpers/database.js';
 import {createCrmHandler} from '../supabase/functions/crm-api/handler.js';
 import {smsConnectionSummary} from '../public/smsConnectionSummary.js';
 
+test('pending toll-free summary separates calling from SMS approval without claiming verification',()=>{
+ const html=smsConnectionSummary({senderType:'toll_free',phoneNumber:'+18775550123',approvalStatus:'in_progress',messagingStatus:'disabled'});
+ assert.match(html,/SMS approval/);assert.match(html,/calling does not require SMS approval/);
+ assert.doesNotMatch(html,/Verified toll-free|SMS verified/);
+});
+
 test('summary HTTP route uses selected tenant and never invokes provisioning or Twilio',async()=>{
  const calls=[],summary={businessName:'Example',phoneNumber:'+18775550180',profileName:'Example LLC',senderType:'toll_free',connectionStatus:'connected',approvalStatus:'approved',messagingStatus:'disabled'};
  const handler=createCrmHandler({call:async(...args)=>{calls.push(args);return summary;}},async()=> 'reader');

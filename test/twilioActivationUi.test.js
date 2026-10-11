@@ -1,10 +1,16 @@
 import test from 'node:test';import assert from 'node:assert/strict';
 import {activationView,activationHtml,smsSetupActionsHtml} from '../public/twilioActivation.js';
 
+test('pending toll-free SMS approval does not imply calling is disabled or expose SMS activation',()=>{
+ const html=activationHtml({provider:{phoneNumber:'+18775550123',connectionDetails:{senderType:'toll_free',voiceCapable:true}},registration:{state:'in_review'}});
+ assert.match(html,/calling does not require SMS approval/);assert.match(html,/Sending disabled/);
+ assert.doesNotMatch(html,/data-test|data-enable/);
+});
+
 test('staff dashboard exposes account selection and state-specific activation without granting readers controls',()=>{
  assert.equal(smsSetupActionsHtml({staff:false,summary:{activationStatus:'ready'}}),'');
  const ready=smsSetupActionsHtml({staff:true,summary:{messagingStatus:'disabled',activationStatus:'ready'}});
- assert.match(ready,/Approved Twilio accounts/);assert.match(ready,/Review and enable SMS/);assert.match(ready,/delivery test has passed/);
+ assert.match(ready,/Twilio accounts/);assert.match(ready,/Review and enable SMS/);assert.match(ready,/delivery test has passed/);
  assert.doesNotMatch(ready,/<details/);
  const pending=smsSetupActionsHtml({staff:true});assert.match(pending,/Continue SMS activation/);assert.doesNotMatch(pending,/delivery test has passed/);
  const active=smsSetupActionsHtml({staff:true,summary:{messagingStatus:'active',activationStatus:'active'}});assert.match(active,/View SMS activation/);assert.doesNotMatch(active,/One step remains/);
@@ -13,7 +19,7 @@ test('staff dashboard exposes account selection and state-specific activation wi
 test('connected activation always provides access to approved accounts',()=>{
  for(const state of ['webhook_verified','canary_pending','ready','rejected']){
   const html=activationHtml({registration:{state}});
-  assert.equal((html.match(/data-business/g)||[]).length,1);assert.match(html,/Approved Twilio accounts/);
+  assert.equal((html.match(/data-business/g)||[]).length,1);assert.match(html,/Twilio accounts/);
  }
  assert.match(activationHtml({registration:{state:'ready'}}),/Awaiting activation/);
 });

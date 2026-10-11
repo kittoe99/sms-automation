@@ -9,7 +9,7 @@ function fixture(changes={}) {
   account:{sid:account,ownerAccountSid:account,status:'active',friendlyName:'Platform',authToken:'private-token-do-not-leak'},
   profiles:[{sid:profile,friendlyName:'Example Services LLC',status:'twilio-approved'}],
   services:[{sid:service,accountSid:account,friendlyName:'Service SMS',inboundRequestUrl:base+'/inbound',inboundMethod:'POST',statusCallback:base+'/status',useInboundWebhookOnNumber:false}],
-  numbers:[{sid:phone,accountSid:account,phoneNumber:'+18775550180',countryCode:'US',capabilities:['SMS']}],
+  numbers:[{sid:phone,accountSid:account,phoneNumber:'+18775550180',countryCode:'US',capabilities:['SMS','Voice']}],
   verifications:[{sid:verification,accountSid:account,tollfreePhoneNumberSid:phone,status:'TWILIO_APPROVED',customerProfileSid:profile,businessName:'Example Services LLC'}],brands:[],campaigns:[],...changes,
  };
  const accounts=()=>({fetch:async()=>data.account});accounts.list=async()=>[data.account];
@@ -17,13 +17,13 @@ function fixture(changes={}) {
   fetch:async()=>data.services[0],update:async p=>{mutations.push(p);Object.assign(data.services[0],p);return data.services[0];}});services.list=async()=>data.services;
  const client={api:{v2010:{accounts}},trusthub:{v1:{customerProfiles:{list:async()=>data.profiles}}},
   messaging:{v1:{services,brandRegistrations:{list:async()=>data.brands},tollfreeVerifications:{list:async params=>{assert.equal(params.pageSize,50);return data.verifications;}}}},
-  incomingPhoneNumbers:()=>({fetch:async()=>({sid:phone,accountSid:data.numberOwner||account,phoneNumber:data.numbers[0].phoneNumber,capabilities:{sms:true}})})};
+  incomingPhoneNumbers:()=>({fetch:async()=>({sid:phone,accountSid:data.numberOwner||account,phoneNumber:data.numbers[0].phoneNumber,capabilities:{sms:true,voice:data.numberVoice!==false}})})};
  const db={call:async(name,...args)=>{calls.push([name,...args]);if(name==='twilio_connection_access')return {bindings:[],business:{name:'Example Services'}};if(name==='reserve_twilio_connection')return {id:'reservation'};if(name==='complete_twilio_connection')return {connected:true,sendingEnabled:false};}};
  const api=createTwilioConnections({clientFactory:()=>client,environment:key=>({TWILIO_MASTER_ACCOUNT_SID:account,TWILIO_MASTER_AUTH_TOKEN:'private-token-do-not-leak',SMS_WEBHOOK_BASE_URL:base})[key]});
  const input={tenantId:'business',accountSid:account,messagingServiceSid:service,phoneNumberSid:phone,registrationSid:verification,revision:0,confirmedBusinessIdentity:true};
  return {api,db,data,calls,mutations,input};
 }
-test('inventory exposes only approved associated senders and never credentials',async()=>{
+test('inventory exposes associated senders and never credentials',async()=>{
  const x=fixture();const a=await x.api.accounts(x.db,'admin'),p=await x.api.profiles(x.db,'admin',account,'business');
  assert.equal(a.accounts[0].sid,account);assert.equal(p.options.length,1);assert.equal(p.options[0].profileName,'Example Services LLC');assert.equal(p.options[0].phoneNumber,'+18775550180');
  assert.equal(JSON.stringify([a,p]).includes('private-token'),false);assert.deepEqual(x.calls[0],['twilio_connection_access','admin',null]);
@@ -43,10 +43,26 @@ test('accounts list every CRM business while senders are assigned by number or s
  linked.messagingServiceSid=service;
  p=(await x.api.profiles(x.db,'admin',account,'business')).options[0];assert.equal(p.assignedBusiness.tenantId,'first');
 });
-test('rejected or pending verification, unapproved profiles and ambiguous sender pools are unavailable',async()=>{
- for(const status of ['IN_REVIEW','TWILIO_REJECTED']){const x=fixture();x.data.verifications[0].status=status;assert.equal((await x.api.profiles(x.db,'admin',account,'business')).options.length,0);}
- const x=fixture();x.data.profiles[0].status='pending-review';assert.match((await x.api.profiles(x.db,'admin',account,'business')).unavailable[0].reason,/profile/);
- x.data.profiles[0].status='twilio-approved';x.data.numbers.push({...x.data.numbers[0],sid:'PN'+'9'.repeat(32)});assert.equal((await x.api.profiles(x.db,'admin',account,'business')).options.length,0);
+test('toll-free calling is available before SMS verification, including unregistered and rejected numbers',async()=>{
+ for(const status of [null,'IN_REVIEW','TWILIO_REJECTED']){
+  const x=fixture();if(status)x.data.verifications[0].status=status;else{x.data.verifications=[];x.input.registrationSid=null;}
+  const result=await x.api.profiles(x.db,'admin',account,'business');
+  assert.equal(result.options.length,1);assert.equal(result.options[0].voiceCapable,true);assert.equal(result.options[0].smsApproved,false);
+  assert.doesNotMatch(result.options[0].approvalStatus,/SMS verified/);
+  await x.api.connect(x.db,'admin',{...x.input,smsApproved:true,voiceCapable:false});
+  const selected=x.calls.find(c=>c[0]==='reserve_twilio_connection')[3];
+  assert.equal(selected.smsApproved,false);assert.equal(selected.voiceCapable,true);assert.deepEqual(x.mutations,[]);
+ }
+});
+test('voice exception preserves single-number services and checks live voice capability',async()=>{
+ const x=fixture();x.data.profiles[0].status='pending-review';
+ let result=await x.api.profiles(x.db,'admin',account,'business');assert.equal(result.options[0].smsApproved,false);
+ x.data.numbers[0].capabilities=['SMS'];assert.equal((await x.api.profiles(x.db,'admin',account,'business')).options.length,0);
+ x.data.numbers[0].capabilities=['SMS','Voice'];x.data.numbers.push({...x.data.numbers[0],sid:'PN'+'9'.repeat(32)});
+ assert.equal((await x.api.profiles(x.db,'admin',account,'business')).options.length,0);
+ const y=fixture({numberVoice:false});y.data.verifications[0].status='IN_REVIEW';
+ await assert.rejects(()=>y.api.connect(y.db,'admin',y.input),/no longer supports calling/);
+ assert.equal(y.calls.some(c=>c[0]==='reserve_twilio_connection'),false);
 });
 test('A2P requires verified campaign, approved non-mock brand and approved business profile',async()=>{
  const x=fixture({verifications:[],brands:[{sid:brand,accountSid:account,status:'APPROVED',customerProfileBundleSid:profile}],campaigns:[{sid:campaign,accountSid:account,messagingServiceSid:service,campaignStatus:'VERIFIED',brandRegistrationSid:brand}]});
@@ -60,9 +76,9 @@ test('connection revalidates Twilio resources, stores credentials only in privat
  const reserved=x.calls.find(c=>c[0]==='reserve_twilio_connection')[3];assert.equal(reserved.phoneNumber,'+18775550180');assert.equal(reserved.profileName,'Example Services LLC');assert.equal('authToken' in reserved,false);
  const stored=x.calls.find(c=>c[0]==='complete_twilio_connection');assert.equal(stored[1],'admin');assert.equal(stored[4].authToken,'private-token-do-not-leak');
 });
-test('foreign accounts, revoked approval, wrong ownership and missing identity confirmation cannot mutate',async()=>{
- for(const change of ['account','approval','number','confirm']){
-  const x=fixture();if(change==='account')x.data.account.ownerAccountSid=child;if(change==='approval')x.data.verifications[0].status='TWILIO_REJECTED';if(change==='number')x.data.numberOwner=child;if(change==='confirm')x.input.confirmedBusinessIdentity=false;
+test('foreign accounts, unsupported senders, wrong ownership and missing identity confirmation cannot mutate',async()=>{
+ for(const change of ['account','capabilities','number','confirm']){
+  const x=fixture();if(change==='account')x.data.account.ownerAccountSid=child;if(change==='capabilities')x.data.numbers[0].capabilities=[];if(change==='number')x.data.numberOwner=child;if(change==='confirm')x.input.confirmedBusinessIdentity=false;
   await assert.rejects(()=>x.api.connect(x.db,'admin',x.input));assert.equal(x.calls.some(c=>c[0]==='reserve_twilio_connection'),false);assert.equal(x.mutations.length,0);
  }
 });

@@ -1,5 +1,15 @@
 # Soni voice agent CRM bridge
 
+## Voice and toll-free SMS approval
+
+Toll-free SMS verification does not gate voice. Existing signed number/business
+routing stays available while SMS is pending or rejected. The October 11 local
+connection correction permits pending voice-capable numbers and preserves their
+voice configuration. It does not create additional Soni agents or broaden this
+bridge's configured Opek business/number. SMS approval and sending gates remain
+separate. See [Twilio connections](TWILIO_CONNECTIONS.md) for rollout status.
+
+
 Soni's LiveKit worker lives in `../voice agent`. The CRM side is the `voice-agent`
 Edge function, a scoped Postgres login, and tenant-bound RPCs in
 `20260926010000_voice_agent_bridge.sql`. The worker signs each request with an

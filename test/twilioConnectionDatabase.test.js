@@ -3,6 +3,41 @@ import assert from 'node:assert/strict';
 import {call} from './helpers/database.js';
 import {fixture,selection} from './helpers/twilioConnections.js';
 const customer='https://customer.example.test';
+test('toll-free voice connects before SMS approval without bypassing SMS activation or ownership',async()=>{
+ const x=await fixture();try {
+  const other=await x.business('other');
+  for(const [index,status,state] of [[0,null,'verification_pending'],[1,'IN_REVIEW','in_review'],[2,'TWILIO_REJECTED','rejected']]){
+   const {tenant}=await x.business('voice-'+index);
+   const s={...selection,phoneNumber:'+1877555018'+index,phoneNumberSid:'PN'+String(index+6).repeat(32),messagingServiceSid:'MG'+String(index+6).repeat(32),
+    registrationSid:status?selection.registrationSid:null,smsApproved:false,voiceCapable:true,smsVerificationStatus:status||'NOT_SUBMITTED'};
+   await assert.rejects(()=>call(x.db,'reserve_twilio_connection','staff',tenant,{...s,voiceCapable:false}),/Invalid Twilio sender/);
+   const request=await call(x.db,'reserve_twilio_connection','staff',tenant,s);
+   const result=await call(x.db,'complete_twilio_connection','staff',tenant,request.id,{...s,authToken:'voice-private-secret'});
+   assert.equal(result.registrationState,state);assert.equal(result.sendingEnabled,false);
+   const summary=await call(x.db,'sms_connection_summary',tenant);
+   assert.equal(summary.connectionStatus,'connected');assert.equal(summary.messagingStatus,'disabled');
+   assert.equal(summary.approvalStatus,state==='rejected'?'needs_attention':'in_progress');
+   await assert.rejects(()=>call(x.db,'request_activation_canary','staff',tenant,{phone:'+13035550123',confirmed:true}),/no rows/);
+   await assert.rejects(()=>call(x.db,'activate_twilio','staff',tenant),/Activation requirements|canary|approval/);
+   await assert.rejects(()=>call(x.db,'reserve_twilio_connection','staff',other.tenant,s),/already assigned or reserved/);
+   // A later verification identifier is not a sender transfer or an SMS activation.
+   assert.equal((await call(x.db,'reserve_twilio_connection','staff',tenant,{...s,registrationSid:selection.registrationSid,smsApproved:true,revision:1})).alreadyConnected,true);
+   assert.equal((await x.db.query('select state from public.sms_twilio_registrations where tenant_id=$1',[tenant])).rows[0].state,state);
+  }
+ }finally{await x.db.close();}
+});
+test('failed voice connection retries with fresh registration status without releasing its reservation',async()=>{
+ const x=await fixture();try {
+  const {tenant}=await x.business('pending');
+  const pending={...selection,registrationSid:null,smsApproved:false,voiceCapable:true,smsVerificationStatus:'NOT_SUBMITTED'};
+  const first=await call(x.db,'reserve_twilio_connection','staff',tenant,pending);
+  await call(x.db,'fail_twilio_connection','staff',tenant,first.id);
+  const approved={...selection,smsApproved:true,voiceCapable:true,smsVerificationStatus:'TWILIO_APPROVED'};
+  const retry=await call(x.db,'reserve_twilio_connection','staff',tenant,approved);assert.equal(retry.id,first.id);
+  const result=await call(x.db,'complete_twilio_connection','staff',tenant,retry.id,{...approved,authToken:'voice-private-secret'});
+  assert.equal(result.registrationState,'webhook_verified');assert.equal(result.sendingEnabled,false);
+ }finally{await x.db.close();}
+});
 test('approved sender connection is isolated, atomic, private and visible only after per-service release',async()=>{
  const x=await fixture();try {
   const {tenant,owner}=await x.business('owner'),other=await x.business('other');

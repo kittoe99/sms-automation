@@ -44,13 +44,16 @@ export function createTwilioConnections({clientFactory=twilio,environment=env}={
    truncated ||= numbers.length===LIMIT||campaigns.length===LIMIT;
    if(!numbers.length){unavailable.push({name:service.friendlyName,reason:'No phone number attached'});continue;}
    for(const number of numbers) {
-    let registration,profile,brand,type,reason;
+    let registration,profile,brand,type,reason,smsApproved=true;
+    const voiceCapable=(number.capabilities||[]).includes('Voice');
     const tollFree=/^\+1(800|888|877|866|855|844|833)/.test(number.phoneNumber||'');
     if(tollFree) {
-     type='toll_free';registration=verifications.find(v=>v.tollfreePhoneNumberSid===number.sid&&v.status==='TWILIO_APPROVED'&&v.accountSid===selected);
-     profile=profileBySid.get(registration?.customerProfileSid);
-     if(!registration)reason='Toll-free verification is not approved';
-     else if(registration.customerProfileSid&&!profile)reason='Associated business profile is not approved';
+     type='toll_free';registration=verifications.find(v=>v.tollfreePhoneNumberSid===number.sid&&v.accountSid===selected);
+     profile=profiles.find(p=>p.sid===registration?.customerProfileSid);
+     smsApproved=registration?.status==='TWILIO_APPROVED'&&(!registration.customerProfileSid||approvedProfile(profile));
+     // Toll-free verification gates messaging only. A voice-capable number can
+     // be connected while SMS is unregistered, pending or rejected.
+     if(!smsApproved&&!voiceCapable)reason='SMS approval is incomplete and this number does not support calling';
     } else {
      type='local_a2p';registration=campaigns.find(r=>r.campaignStatus==='VERIFIED'&&r.accountSid===selected&&r.messagingServiceSid===service.sid&&!r.mock);
      brand=brands.find(b=>b.sid===registration?.brandRegistrationSid&&b.status==='APPROVED'&&!b.mock&&b.accountSid===selected);
@@ -64,10 +67,12 @@ export function createTwilioConnections({clientFactory=twilio,environment=env}={
     if(reason){unavailable.push({name:service.friendlyName,phoneNumber:number.phoneNumber,reason});continue;}
     const target=urls();
     options.push({accountSid:selected,accountName:context.row.friendlyName,profileSid:profile?.sid||null,
-     profileName:profile?.friendlyName||registration.businessName,legalBusinessName:registration.businessName||profile?.friendlyName,
+     profileName:profile?.friendlyName||registration?.businessName||null,legalBusinessName:registration?.businessName||profile?.friendlyName||null,
      messagingServiceSid:service.sid,serviceName:service.friendlyName,phoneNumberSid:number.sid,phoneNumber:number.phoneNumber,
-     senderType:type,approvalStatus:type==='toll_free'?'Toll-free verified':'A2P campaign verified',
-     registrationSid:registration.sid,brandSid:brand?.sid||null,
+     senderType:type,voiceCapable,smsApproved,
+     smsVerificationStatus:type==='toll_free'?(registration?.status||'NOT_SUBMITTED'):registration.campaignStatus,
+     approvalStatus:type==='toll_free'?(smsApproved?'SMS verified':registration?.status==='TWILIO_REJECTED'?'SMS verification rejected':registration?'SMS approval pending':'SMS verification not submitted'):'A2P campaign verified',
+     registrationSid:registration?.sid||null,brandSid:brand?.sid||null,
      webhookReady:service.inboundRequestUrl===target.inbound&&service.statusCallback===target.status&&service.inboundMethod==='POST'&&!service.useInboundWebhookOnNumber,
      numberRegistrationNote:type==='local_a2p'?'Carrier registration must finish for this number. Activation still requires a successful delivery test.':null});
    }
@@ -92,13 +97,15 @@ export function createTwilioConnections({clientFactory=twilio,environment=env}={
     business:access.business,connection:access.connection};
   },
   async connect(db,user,input) {
-   if(input?.confirmedBusinessIdentity!==true)throw fail('Confirm that this Twilio profile belongs to the selected CRM business.');
+   if(input?.confirmedBusinessIdentity!==true)throw fail('Confirm that this Twilio number and any registration belong to the selected CRM business.');
    const tenant=input.tenantId;await db.call('twilio_connection_access',user,tenant);
    const data=await inventory(input.accountSid);
-   const candidate=data.options.find(p=>p.messagingServiceSid===input.messagingServiceSid&&p.phoneNumberSid===input.phoneNumberSid&&p.registrationSid===input.registrationSid);
-   if(!candidate)throw fail('That approved sender is no longer available. Refresh Twilio profiles and choose again.',409);
+   const candidate=data.options.find(p=>p.messagingServiceSid===input.messagingServiceSid&&p.phoneNumberSid===input.phoneNumberSid&&(p.registrationSid??null)===(input.registrationSid??null));
+   if(!candidate)throw fail('That number is no longer available. Refresh Twilio numbers and choose again.',409);
    const number=await data.context.client.incomingPhoneNumbers(candidate.phoneNumberSid).fetch();
    if(number.accountSid!==candidate.accountSid||number.phoneNumber!==candidate.phoneNumber||number.capabilities?.sms!==true)throw fail('Twilio number ownership could not be verified.',403);
+   if(!candidate.smsApproved&&number.capabilities?.voice!==true)throw fail('This number no longer supports calling.',409);
+   candidate.voiceCapable=number.capabilities?.voice===true;
    const reservation=await db.call('reserve_twilio_connection',user,tenant,{...candidate,revision:input.revision});
    if(reservation.alreadyConnected)return reservation;
    try {

@@ -15,5 +15,12 @@ test('standalone inventory renders approval, empty and attention states without 
  const html=twilioSendersHtml({options:[{profileName:'Example',phoneNumber:'+18775550123',approvalStatus:'Toll-free verified',senderType:'toll_free',serviceName:'Service',authToken:'secret-should-not-render'}],unavailable:[{name:'<Old>',reason:'Registration pending'}],truncated:true});
  assert.match(html,/Toll-free verified/);assert.match(html,/Registration pending/);assert.match(html,/&lt;Old&gt;/);assert.match(html,/inventory limit/);
  assert.doesNotMatch(html,/secret-should-not-render|<form|<input/);
- assert.match(twilioSendersHtml({options:[],unavailable:[]}),/No approved senders/);
+ assert.match(twilioSendersHtml({options:[],unavailable:[]}),/No eligible phone numbers/);
+});
+
+
+test('unverified toll-free directory offers calling and identifies the separate SMS status',()=>{
+ const html=twilioSendersHtml({options:[{phoneNumber:'+18775550123',senderType:'toll_free',voiceCapable:true,smsApproved:false,approvalStatus:'SMS approval pending'}],unavailable:[]});
+ assert.match(html,/Calling available/);assert.match(html,/SMS approval pending/);assert.match(html,/Available to connect/);
+ assert.doesNotMatch(html,/Verified toll-free|SMS verified/);
 });

@@ -8,7 +8,7 @@ import {createSoniInboundHandler} from '../supabase/functions/soni-voice-inbound
 test('shared account callbacks isolate inbound, STOP, calls, early delivery and duplicate events',async()=>{
  const x=await fixture();try {
   const a=await x.business('first'),b=await x.business('second');
-  const second={...selection,phoneNumber:'+18777574365',phoneNumberSid:'PN'+'6'.repeat(32),messagingServiceSid:'MG'+'7'.repeat(32)};
+  const second={...selection,phoneNumber:'+18777574365',phoneNumberSid:'PN'+'6'.repeat(32),messagingServiceSid:'MG'+'7'.repeat(32),smsApproved:false,voiceCapable:true,smsVerificationStatus:'IN_REVIEW'};
   for(const [tenant,s] of [[a.tenant,selection],[b.tenant,second]]){
    const r=await call(x.db,'reserve_twilio_connection','staff',tenant,s);
    await call(x.db,'complete_twilio_connection','staff',tenant,r.id,{...s,authToken:'shared-private-token'});
@@ -28,6 +28,7 @@ test('shared account callbacks isolate inbound, STOP, calls, early delivery and 
   const contacts=(await x.db.query('select tenant_id,opted_out from public.sms_contacts where phone=$1',[customer])).rows;
   assert.equal(contacts.find(c=>c.tenant_id===a.tenant).opted_out,true);assert.equal(contacts.find(c=>c.tenant_id===b.tenant).opted_out,false);
   const voice={AccountSid:selection.accountSid,To:second.phoneNumber,From:customer,CallSid:'CA_shared',CallStatus:'completed',CallDuration:'12',Direction:'inbound'};
+  assert.equal((await x.db.query('select state from public.sms_twilio_registrations where tenant_id=$1',[b.tenant])).rows[0].state,'in_review');
   assert.equal((await send('call',voice)).status,200);
   assert.equal((await x.db.query('select tenant_id from public.sms_voice_conversations where conversation_id=$1',[voice.CallSid])).rows[0].tenant_id,b.tenant);
   const voiceUrl='https://example.test/soni';

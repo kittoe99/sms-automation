@@ -1,5 +1,53 @@
 # Opek SMS project record
 
+### October 11 — Toll-free calling correction: backend released, frontends prepared
+
+CRM migration 20261011233216 is applied and CRM API v57 is ACTIVE. The new API
+bundle preserves every previously deployed file except twilio-connections.js.
+Existing number-aware webhook and Soni voice handlers require no redeployment.
+Only this CRM forward migration was applied; neither history was replayed.
+Both frontend label updates are prepared for release. Isolated CRM release tests:
+26 passed; E2 SMS UI: six passed. Prior paired regression and concurrency results
+are recorded below. Final production verification will be recorded separately.
+
+
+### October 11 — Toll-free calling independent of SMS approval (local, not released)
+
+The CRM connection picker now accepts voice-capable toll-free numbers while SMS
+verification is unsubmitted, pending or rejected. It rechecks live Twilio number
+ownership/capabilities and uses server-derived approval state, ignoring browser
+claims. Calling is independent of SMS approval; existing voice configuration is
+preserved. This does not create voice agents or change voice URLs. Admin identity
+review, one exclusive number/service per business, revisions and reservation
+claims remain enforced. A2P approval requirements are unchanged.
+
+The CRM-owned forward migration
+`20261011233216_toll_free_voice_before_sms_approval.sql` follows the shared-account
+migrations and precedes the new CRM API. It preserves pending/rejected SMS states
+instead of marking every connection approved. Old approved-only API calls remain
+compatible. Retry can refresh registration metadata for the same reserved
+resources; reconnecting is idempotent and never enables SMS. Existing Check status
+polling discovers a verification by number and advances SMS independently.
+No E2 migration or customer-response/cache schema change is required. CRM and E2
+labels distinguish SMS approval from calling and no longer call every toll-free
+number verified. Both frontend changes need release with the CRM API correction.
+
+Validation: 42 focused CRM tests passed across the initial run and targeted
+reruns, including signed voice routing while SMS is in review, unsubmitted/pending/
+rejected connections, rejected SMS canary/activation, retry/idempotency, ownership,
+UI, compliance and migration regressions. Four disposable PostgreSQL concurrency
+checks passed. Frontend build passed. Paired E2: 41 passed; two pre-existing
+website-text assertions still fail (`Production deployment`, `Your website starts
+here`). The touched files pass whitespace checks; the pre-existing
+public/dashboard-theme.css blank line remains unrelated.
+
+Release boundary: this correction is local only. Its migration has NOT been
+applied and neither project has been redeployed for it. The preceding shared-account
+release below remains the live version. No live business link, Twilio mutation,
+message, number purchase or phone call was made. Unrelated local work is preserved.
+
+
+
 ### October 11 — Shared Twilio accounts: backend released, frontend prepared
 
 Admins can connect multiple CRM businesses to one Twilio account, each with an
