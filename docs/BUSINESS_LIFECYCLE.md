@@ -147,3 +147,10 @@ applied after the paired authorization release. Existing conversations remain
 readable within the permitted business. Full combined suites passed afterward.
 The production staff/customer walkthrough confirmed owner linking and hidden
 unreleased services without adding or activating any real services.
+
+## Voice customer visibility
+
+Voice is an additional draft/live service for an existing published agent and phone
+number. Add Voice and Set live are explicit staff actions after owner/profile review;
+Hide from customer and ownership transfer revoke customer visibility. Publishing an
+agent never releases it automatically. See [Customer Voice](CUSTOMER_VOICE.md).

@@ -123,7 +123,7 @@ function currentPlatform() {
   if (!platformInstances.has(key)) {
     const instance = createPlatform({root:el.root, title:el.title, subtitle:el.sub, pager:el.pager,
       onOpenRecord:(resource,id)=>switchView(`platform-${resource}`).then(()=>platform.openRecord(resource,id)),
-      onWorkspace:async(tenantId,service)=>{await switchTenant(tenantId);await switchView(service==='sms'?'business-setup':service==='enquiries'?'web-forms':'bookings',{force:true});},
+      onWorkspace:async(tenantId,service)=>{await switchTenant(tenantId);await switchView(service==='sms'?'business-setup':service==='enquiries'?'web-forms':service==='voice'?'voice-agent':'bookings',{force:true});},
       onNavigate:view=>{
         if (view !== state.view) {
           tabMemory.take(view);

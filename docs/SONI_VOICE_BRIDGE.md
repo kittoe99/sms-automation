@@ -110,3 +110,10 @@ only confirms in an enabled ZIP/time, and a caller-requested test text enters th
 Opek outbox. Check the LiveKit worker is Running and that a Console greeting
 works before testing the phone line. Use a controlled test call for final
 Twilio-to-LiveKit routing verification.
+
+## Customer dashboard release
+
+The owner-only E2 Voice dashboard is controlled separately from agent publishing.
+See [Customer Voice](CUSTOMER_VOICE.md) for setup, access, retention and the paired
+forward migration order. This is locally implemented; the new migrations and
+frontends are not yet deployed.

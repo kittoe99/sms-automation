@@ -1,5 +1,48 @@
 # Opek SMS project record
 
+### October 11 — Customer Voice release in progress
+
+Applied the CRM customer_voice_projection migration followed by E2
+customer_voice_service to the shared production database. No history was replayed
+and no Voice service was added or released. Server-only reader grants and both
+cache triggers were verified. Isolated release builds passed; 11 CRM and 43 E2
+focused tests passed. CRM and E2 frontend deployment is pending verification.
+
+### October 11 — Customer Voice dashboard implemented locally
+
+Voice is now a per-business draft/live service. CRM staff can Add Voice for an
+active customer owner after reviewing the business profile and registering an
+agent with a published configuration and phone number. Set live releases the
+owner-only customer tab; Hide from customer and ownership transfers remove it.
+Agent publishing does not release a service. SMS registration approval is not a
+Voice release requirement, and no agent or provider resources are provisioned.
+
+E2 displays published agent names/numbers, approved business facts, a business
+selector and retained call history (25 per page, agent/date/status/search filters).
+Call details expose summaries, outcomes, transcripts and on-demand private audio
+playback. Configurations, prompts, runtime details, storage paths and editing
+controls remain private. Signed recording URLs require current owner/live-service
+access, are audited, and expire within five minutes or the remaining retention.
+There is no download control; playback cannot prevent browser-level capture.
+
+Voice metadata participates in scoped dashboard caching and background warmup.
+Transcripts and media URLs are memory-only/on-demand; expiry is also enforced in
+the UI. Release, ownership, published agent and customer-visible call changes
+invalidate cache revisions; heartbeat and draft-only changes do not.
+
+Migration order: CRM `20261011235651_customer_voice_projection.sql`, then E2
+`20261011235654_customer_voice_service.sql`, then both frontends. The existing
+CRM API service routes are compatible; this feature does not change Edge code.
+Apply only these forward migrations, never either repository's history.
+**Status: local implementation and validation only. Neither migration is applied
+to the shared live database; no release or real business service visibility was
+changed.** Local verification: 17 CRM tests and 54 E2 tests passed, including the
+new Voice tests and existing paired business/cache suites. Both production builds
+passed. Desktop/mobile synthetic browser QA covered history, details, filters,
+business switching, audio playback and hidden/expired states. Two existing E2
+ownership tests still fail on unrelated website wording. See the customer Voice
+workflow documentation for verification.
+
 ### October 11 — Toll-free calling correction: backend released, frontends prepared
 
 CRM migration 20261011233216 is applied and CRM API v57 is ACTIVE. The new API
