@@ -1,5 +1,13 @@
 # Shared staff CRM and customer dashboard
 
+## October 12 production rollout status
+
+CRM migrations are applied as `20261012202507 staff_voice_overview` and
+`20261012202514 voice_setup_flow`; `crm-api` version 58 is ACTIVE. CRM frontend
+release is in progress. E2 application code is unchanged. The local-only/pending
+notes below are historical and superseded by this status. Existing customer
+Voice visibility stays draft until staff explicitly enable access.
+
 ## Page-load improvements (deployed October 4)
 
 Startup uses the authorized session's workspace list once. Dashboard readers run
@@ -382,3 +390,11 @@ creation dates are Not recorded. Refresh reloads the current business data.
 This CRM-only frontend release uses the existing form-workspace API; E2 site
 connections, customer permissions and shared submission attribution are unchanged.
 Released in CRM Render deploy dep-db472am0tbcc73dcaueg (October 9, 2026 UTC).
+
+## Voice Agents setup (local, pending release)
+
+The redesigned Voice Agents library supports new CRM drafts, existing deployed
+agent selection, call history and a guided customer-release checklist. Business
+records have the same Voice panel and an Open Voice Agents shortcut. See
+[CUSTOMER_VOICE.md](CUSTOMER_VOICE.md#voice-agents-library-and-guided-release-october-12-local-implementation)
+for creation, runtime-connection boundaries and rollout order.

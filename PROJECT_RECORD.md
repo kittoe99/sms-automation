@@ -1,5 +1,105 @@
 # Opek SMS project record
 
+### October 12 — Voice Agents production rollout
+
+Applied only CRM-owned `staff_voice_overview` and `voice_setup_flow`, in order,
+as remote versions `20261012202507` and `20261012202514`. These are the exact
+payloads from source files `20261012195517` and `20261012200816`; do not replay
+source timestamps or either repository history. Existing paired customer Voice
+prerequisites were already applied. CRM API version **58** is ACTIVE with its
+existing Clerk authentication. Frontend release is in progress.
+
+The isolated release passed **36 CRM tests** and its frontend build. Paired E2
+production-baseline tests passed **45**, with the two previously documented
+website-copy assertions still failing. No E2 application or schema edits are
+included in this release; its documentation is updated alongside CRM.
+
+The existing Opek phone agent and draft customer Voice service are preserved.
+Creation saves private CRM drafts; cloud runtime/phone provisioning remains a
+separate integration step. The following local implementation entries describe
+the work before this production rollout and are superseded by this status.
+
+### October 12 — Voice Agents library, creation and guided release (local)
+
+The Voice Agents tab now opens an agent library with separate connected-deployment
+and draft cards. Staff can create an agent from scratch (name, voice, personality,
+conversation and business instructions), continue editing, inspect deployed agents
+already registered with CRM, or open an agent's call history. Creation uses a
+client request UUID for idempotence, staff/business authorization and an audit row.
+New drafts have no deployment, phone or published revision. They cannot publish or
+appear in customer projections until their runtime connection is configured.
+
+A shared three-step panel in Voice Agents and the business record shows Agent &
+phone, Review setup, and Customer access. Existing attached/published agents resume
+at review rather than asking staff to attach them again. Owner/profile/agent checks,
+a customer-view preview, and explicit **Enable customer Voice / Hide customer
+access** replace the generic Add Voice / Set live flow for Voice. These actions
+reuse E2's existing revision/authorization/owner-transfer guards. Other services
+retain their controls. The business record links directly into the agent library.
+
+The deployed-agent picker lists CRM-connected deployments and identifies their
+assigned businesses. Other-business entries are disabled. This is not automatic
+LiveKit inventory discovery, cloud worker provisioning, deployment transfer or
+runtime routing configuration; those still require the existing external setup.
+The scoped Opek runtime/phone integration is unchanged. New CRM agent creation is
+fully persisted draft creation, not a claim that a new cloud agent can take calls.
+
+Read-only production verification confirmed Opek Junk Removal's existing phone
+agent is attached/published and its customer Voice service is draft. No production
+agent, service visibility or calling configuration was changed by this work.
+
+Validation: 24 CRM tests passed (Voice setup, staff/customer Voice, workspace and
+platform API); frontend build passed. Paired E2 suites: 46 passed, with the same two
+known website-copy failures (`Production deployment`, `Your website starts here`).
+PGlite covers the paired migration chain, retry-safe creation, authorization,
+revision conflicts, hidden drafts on already live services, catalog metadata and
+release readiness. Synthetic browser checks cover create-from-scratch, disabled
+publishing for drafts, deployment selection/foreign-business blocking, explicit
+release/hide, and refreshed library visibility. Production migrations/releases:
+**none for these changes**.
+
+Pending release order: apply CRM `20261012195517_staff_voice_overview.sql`, then
+CRM `20261012200816_voice_setup_flow.sql`, after the already applied paired customer
+Voice prerequisites. Deploy updated crm-api and CRM frontend. E2's customer API
+contract and code are unchanged; only its project/workflow documentation changed.
+Never replay either migration history over the shared database.
+
+
+### October 12 — CRM Voice workspace parity (local implementation)
+
+The staff Voice workspace now includes reviewed business facts, contacts, services,
+service areas, time zone and separate customer release status. A direct **Manage
+business & Voice setup** action opens the selected business record's Services.
+Registered-agent selection keeps configuration drafts separate; call history adds
+agent filters, published names, summaries and business-local date boundaries.
+Configuration/publish/rollback, availability, bookings, contacts and leads remain
+staff controls. Customer access still requires the existing explicit release.
+
+Recording playback is on demand with no download button, stops on detail/tab/
+business/session changes, and expires with its link. The staff media RPC rejects
+deleted/missing audio and bounds signed-URL lifetime to remaining retention; the
+CRM API forwards that bound. Transcripts and media links remain outside persisted
+workspace caches. Generic deployment assignment/provisioning is still not a CRM
+screen: **Add Voice** releases an already registered, published agent, and does
+not create or reassign deployments or phone routing.
+
+Validation: 27 CRM Voice, transport and cache tests passed; the CRM frontend build
+passed. Paired E2 customer Voice, business-service, ownership and dashboard-cache
+suites produced 46 passes and the same two pre-existing website-copy failures
+(`Production deployment`, `Your website starts here`). Database validation used
+PGlite with CRM and E2 fixtures, not production. Chrome synthetic-fixture checks
+verified agent selection/draft preservation, filtering, transcripts, recording
+expiry, workspace cleanup, setup callback and unregistered-agent messaging;
+no browser console errors were observed.
+
+Release status: **not applied or deployed**. After the already released CRM
+customer_voice_projection and E2 customer_voice_service prerequisites, apply only
+CRM `20261012195517_staff_voice_overview.sql`, then deploy `crm-api` (including
+`_shared/voice-storage.js`) and the CRM frontend. E2 has documentation changes only;
+its public contract and release gates are unchanged. Never replay either history.
+No real agents, phone assignments or customer service releases changed.
+
+
 ### October 11 — Customer Voice release in progress
 
 Applied the CRM customer_voice_projection migration followed by E2

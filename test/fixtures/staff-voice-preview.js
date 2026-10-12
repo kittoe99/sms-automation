@@ -1,0 +1,26 @@
+// Synthetic, local-only UI fixture. Never calls the production CRM or providers.
+import express from 'express';
+import {resolve} from 'node:path';
+const app=express();
+app.use('/public',express.static(resolve('public')));
+app.get('/',(req,res)=>res.type('html').send(`<!doctype html><html><head><meta name="viewport" content="width=device-width,initial-scale=1"><title>CRM Voice preview</title><link rel="stylesheet" href="/public/styles.css"><style>body{display:block;padding:24px;background:#f5f7fa}main{max-width:1160px;margin:auto}aside{margin:0 auto 20px;max-width:1160px}button{cursor:pointer}</style></head><body><aside>Local fixture · synthetic data <button id="empty">Toggle unregistered business</button> <button id="leave">Leave workspace</button><p id="notice"></p></aside><main id="root"></main><script type="module">
+import {mountVoiceWorkspace} from '/public/voiceWorkspace.js';
+let empty=false,dispose,visibility='draft';const model={};const config={name:'Alex',persona:'Helpful receptionist',voice:'Speak clearly',brain:'Use approved business facts',voiceName:'marin'};
+const agents=[{id:'alex',phone:'+18775550180',published:config,draft:config,draft_version:1,history:[],agent_name:'phone-alex',deployment_id:'fixture-alex',published_revision:'rev-one',observed_revision:'rev-one'},{id:'sam',phone:'+18775550181',published:{...config,name:'Sam'},draft:{...config,name:'Sam'},draft_version:1,history:[],agent_name:'phone-sam',deployment_id:'fixture-sam',published_revision:'rev-two'}];
+const base={id:'one',agent_id:'alex',phone:'+13035550123',started_at:'2026-10-11T18:15:00Z',duration_seconds:180,status:'completed',outcome:'callback_request',summary:'Caller asked about a front door repair and a visit next week.',expires_at:'2099-01-01',media_state:'ready',configuration_source:'crm',transcript:[{role:'user',text:'Can you repair my front door?'},{role:'assistant',text:'I can arrange a callback.'}],request:{service:'Door repair'}};
+const calls=[base,{...base,id:'two',agent_id:'sam',status:'failed',media_state:'expired',expires_at:'2020-01-01',transcript:null}];
+async function apiFetch(path,options){const url=new URL(path,location.origin);let data;
+if(url.pathname==='/api/voice'||url.pathname==='/api/platform/voice-setup')data={agents:empty?[]:agents,ownerReady:true,ready:true,deployments:agents.filter(a=>a.deployment_id).map(a=>({id:a.id,deploymentId:a.deployment_id,name:a.published.name,phone:a.phone,businessId:'fixture',businessName:'Bello Home Services',attached:true,published:true})).concat([{id:'other',name:'Taylor',deploymentId:'fixture-other',phone:'+18775550182',businessName:'Mountain Services',businessId:'other',attached:false,published:true}]),service:{id:'service',revision:1,visibility},business:{id:'fixture',name:'Bello Home Services',reviewed:true,description:'Local repairs and maintenance.',contactPhone:'+13035550123',contactEmail:'hello@example.test',services:['Door repairs','General maintenance'],serviceAreas:['Denver','Aurora'],timeZone:'America/Denver'},customerService:{visibility},totals:{calls:2,leads:1,bookings:0}};
+else if(url.pathname.endsWith('/visibility')){visibility=JSON.parse(options.body).visibility;data={};}
+else if(url.pathname.endsWith('/create')){const p=JSON.parse(options.body);const id='agent-'+p.requestId;agents.push({id,draft:p.configuration,draft_version:1,published:null,history:[],phone:null,deployment_id:null});data={agentId:id,state:'draft'};}
+else if(url.pathname.endsWith('/calls')){const rows=calls.filter(c=>(!url.searchParams.get('agent')||url.searchParams.get('agent')===c.agent_id)&&(!url.searchParams.get('status')||url.searchParams.get('status')===c.status));data={calls:rows,total:rows.length,page:1,totalPages:1,timeZone:'America/Denver'};}
+else if(url.pathname.endsWith('/call'))data={call:calls.find(c=>c.id===url.searchParams.get('id')),bookings:[]};
+else if(url.pathname.endsWith('/media'))data={signedUrl:'/fixture.wav',expiresIn:2};
+else if(url.pathname.endsWith('/leads'))data={leads:[],total:0,totalPages:1};
+else {const p=JSON.parse(options.body);const a=agents.find(a=>a.id===p.agentId);if(p.configuration)a.draft=p.configuration;a.draft_version++;data={};}
+return Response.json(data);}
+async function mount(){dispose?.();dispose=await mountVoiceWorkspace(document.getElementById('root'),{apiFetch,model,onBusinessSetup:()=>document.getElementById('notice').textContent='Business record → Services',onAvailability:()=>document.getElementById('notice').textContent='Availability settings'});}
+document.getElementById('empty').onclick=()=>{empty=!empty;model.tab='agents';mount();};document.getElementById('leave').onclick=()=>{dispose?.();document.getElementById('root').textContent='Workspace closed';};mount();
+</script></body></html>`));
+app.get('/fixture.wav',(req,res)=>{const wav=Buffer.alloc(44+16000);wav.write('RIFF',0);wav.writeUInt32LE(wav.length-8,4);wav.write('WAVEfmt ',8);wav.writeUInt32LE(16,16);wav.writeUInt16LE(1,20);wav.writeUInt16LE(1,22);wav.writeUInt32LE(8000,24);wav.writeUInt32LE(16000,28);wav.writeUInt16LE(2,32);wav.writeUInt16LE(16,34);wav.write('data',36);wav.writeUInt32LE(16000,40);res.type('audio/wav').send(wav);});
+app.listen(8189,'127.0.0.1',()=>console.log('CRM Voice fixture http://127.0.0.1:8189'));

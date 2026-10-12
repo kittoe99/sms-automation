@@ -38,6 +38,7 @@ export function createCrmHandler(db,verify=authenticate,{platform=false,provisio
      ? value:db.call('general_conversation',user,tenant,phone(value));
    const params=Object.fromEntries(url.searchParams); const method=request.method;
    if(path.startsWith('/platform/')) {
+    if(method==='GET'&&path==='/platform/voice-setup')return json(await db.call('voice_setup',user,params.tenantId),200,headers);
     if(method==='GET'&&path==='/platform/twilio/accounts')return json(await twilioConnections.accounts(db,user),200,headers);
     if(method==='GET'&&path==='/platform/twilio/profiles')return json(await twilioConnections.profiles(db,user,params.accountSid,params.tenantId),200,headers);
     if(method==='POST'&&path==='/platform/twilio/connect')return json(await twilioConnections.connect(db,user,await readJson(request)),200,headers);
@@ -85,12 +86,12 @@ export function createCrmHandler(db,verify=authenticate,{platform=false,provisio
    const inboundControl=path.match(/^\/conversations\/([0-9a-f-]{36})\/ai\/(pause|resume)$/i);
    if(inboundControl&&method==='POST') return json(await db.call('conversation_action',user,tenant,inboundControl[1],inboundControl[2],{}),200,headers);
    if(path==='/voice'&&method==='GET')return json(await db.call('voice_workspace',user,tenant,'overview',{}),200,headers);
-   const voiceRoute=path.match(/^\/voice\/(initialize|save|publish|rollback|calls|leads|call|media)$/);
+   const voiceRoute=path.match(/^\/voice\/(initialize|create|save|publish|rollback|calls|leads|call|media)$/);
    if(voiceRoute) {
     const action=voiceRoute[1],reads=['calls','leads','call','media'];
     if(method!==(reads.includes(action)?'GET':'POST'))return json({error:'Method not allowed'},405,headers);
     const result=await db.call('voice_workspace',user,tenant,action,method==='GET'?params:await readJson(request));
-    return json(action==='media'?await voiceStorage().playback(result.path):result,200,headers);
+    return json(action==='media'?await voiceStorage().playback(result.path,result.expiresIn):result,200,headers);
    }
    const formTests=path.match(/^\/web-forms\/([0-9a-f-]{36})\/test-runs(?:\/([0-9a-f-]{36})\/stop)?$/i);
    if(formTests) {

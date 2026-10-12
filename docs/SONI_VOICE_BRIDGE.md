@@ -1,5 +1,13 @@
 # Soni voice agent CRM bridge
 
+## October 12 production rollout status
+
+CRM migrations are applied as `20261012202507 staff_voice_overview` and
+`20261012202514 voice_setup_flow`; `crm-api` version 58 is ACTIVE. CRM frontend
+release is in progress. E2 application code is unchanged. The local-only/pending
+notes below are historical and superseded by this status. Existing customer
+Voice visibility stays draft until staff explicitly enable access.
+
 ## Voice and toll-free SMS approval
 
 Toll-free SMS verification does not gate voice. Existing signed number/business
@@ -117,3 +125,19 @@ The owner-only E2 Voice dashboard is controlled separately from agent publishing
 See [Customer Voice](CUSTOMER_VOICE.md) for setup, access, retention and the paired
 forward migration order. This is locally implemented; the new migrations and
 frontends are not yet deployed.
+
+## Staff workspace discovery and customer release
+
+The October 12 local CRM workspace additions are documented in
+[CUSTOMER_VOICE.md](CUSTOMER_VOICE.md#crm-voice-workspace-additions-october-12-local-only).
+Voice Agent now links directly to the selected business record at Services.
+Add Voice / Set live is a customer release operation for an already registered
+agent, not generic LiveKit deployment assignment. The existing Opek initializer
+and external runtime scope are unchanged. See the paired project records for
+local validation and pending migration/API/frontend rollout.
+
+The subsequent Voice Agents redesign adds persisted CRM drafts and a picker of
+CRM-connected deployments. It does not provision LiveKit workers, broaden the
+Opek runtime scope, or transfer another business's deployment. New drafts must
+receive the existing external runtime/phone setup before publishing; null
+deployment/phone drafts are excluded from customer visibility and readiness.

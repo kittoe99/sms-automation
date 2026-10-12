@@ -1,6 +1,7 @@
 const esc=value=>String(value??'').replaceAll('&','&amp;').replaceAll('<','&lt;').replaceAll('>','&gt;').replaceAll('"','&quot;').replaceAll("'",'&#39;');
 import {profileFromForm,profileEditorHtml,bindProfileEditor} from './businessProfileEditor.js?v=20261003-phone';
 import {mountTwilioConnection} from './twilioConnection.js?v=20261003-sms-nav';
+import {mountVoiceSetup} from './voiceSetup.js';
 export {profileFromForm};
 export function mountBusinessSetup(container,row,{read,write,reload,onCreateWebsite,onWebsite,onWorkspace,lookup}) {
  const setup=row.setup||{revision:0,draft:{}},profile={...row.registration?.profile,...setup.draft};
@@ -14,17 +15,18 @@ export function mountBusinessSetup(container,row,{read,write,reload,onCreateWebs
    </form>
    ${row.registration?`<details class="profile-registration"><summary>View original customer registration</summary><pre>${esc(JSON.stringify(row.registration.profile,null,2))}</pre></details>`:''}
    </section>
-   <section class="card"><h3>Services</h3><p>Set live makes a service visible in the customer dashboard. Publishing a website and activating SMS are separate controls. Voice requires an existing published agent and phone number. Publishing agent settings does not release Voice to the customer.</p>
+   <div data-voice-setup></div><section class="card"><h3>Other services</h3><p>Set live makes a service visible in the customer dashboard. Publishing a website and activating SMS are separate controls. Use the Voice setup panel above for voice agents and customer access.</p>
    <p data-service-error class="login-error" role="alert"></p>
-   ${services.map(s=>`<article class="card"><h4>${esc(s.kind==='website'?s.siteName||'Website':({sms:'SMS',enquiries:'Website enquiries',bookings:'Bookings',voice:'Voice'}[s.kind]))}</h4>
+   ${services.filter(s=>s.kind!=='voice').map(s=>`<article class="card"><h4>${esc(s.kind==='website'?s.siteName||'Website':({sms:'SMS',enquiries:'Website enquiries',bookings:'Bookings',voice:'Voice'}[s.kind]))}</h4>
     <p>${s.visibility==='live'?'Live · visible to customer':'Draft · hidden from customer'}${s.kind==='sms'?` · Setup: ${esc(s.providerState||'pending')}${s.phoneNumber?' · '+esc(s.phoneNumber):''}`:''}</p>
     <button type="button" class="btn" data-release="${esc(s.id)}" ${!reviewed&&s.visibility!=='live'?'disabled':''}>${s.visibility==='live'?'Hide from customer':'Set live'}</button>
     ${s.kind==='website'?`<button type="button" class="btn ghost" data-site="${esc(s.site_id)}">Manage website</button>`:`<button type="button" class="btn ghost" data-configure="${s.kind}">Configure ${s.kind==='sms'?'SMS':s.kind}</button>`}</article>`).join('')||'<p>No services added.</p>'}
-   <div class="compose-actions">${['sms','enquiries','bookings','voice'].filter(kind=>!services.some(s=>s.kind===kind)).map(kind=>`<button type="button" class="btn ghost" data-add="${kind}" ${!reviewed?'disabled':''}>Add ${kind==='sms'?'SMS':kind==='voice'?'Voice':kind}</button>`).join('')}
+   <div class="compose-actions">${['sms','enquiries','bookings'].filter(kind=>!services.some(s=>s.kind===kind)).map(kind=>`<button type="button" class="btn ghost" data-add="${kind}" ${!reviewed?'disabled':''}>Add ${kind==='sms'?'SMS':kind==='voice'?'Voice':kind}</button>`).join('')}
    <button type="button" class="btn ghost" data-new-site ${!reviewed?'disabled':''}>Create website</button>
    <button type="button" class="btn ghost" data-link-site ${!reviewed?'disabled':''}>Link existing website</button></div><div data-site-link></div></section>`;
  mountTwilioConnection(container.querySelector('[data-twilio-connection]'),row,{read,write,reload,onWorkspace});
  async function perform(button,error,action){if(button)button.disabled=true;error.textContent='';try{await action();await reload();}catch(e){error.textContent=e.message;if(button)button.disabled=false;}}
+ void mountVoiceSetup(container.querySelector('[data-voice-setup]'),{load:()=>read('voice-setup',{tenantId:row.tenant_id}),write,onLibrary:()=>onWorkspace(row.tenant_id,'voice'),onAgent:id=>onWorkspace(row.tenant_id,'voice',id),onBusiness:()=>container.querySelector('[data-profile]').scrollIntoView({block:'start'})});
  const editor=bindProfileEditor(container.querySelector('[data-profile]'));
  container.querySelector('[data-profile]').addEventListener('submit',event=>{
   event.preventDefault();const form=event.currentTarget,button=event.submitter;

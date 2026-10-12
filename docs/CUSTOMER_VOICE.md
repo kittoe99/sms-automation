@@ -1,5 +1,13 @@
 # Customer Voice dashboard
 
+## October 12 production rollout status
+
+CRM migrations are applied as `20261012202507 staff_voice_overview` and
+`20261012202514 voice_setup_flow`; `crm-api` version 58 is ACTIVE. CRM frontend
+release is in progress. E2 application code is unchanged. The local-only/pending
+notes below are historical and superseded by this status. Existing customer
+Voice visibility stays draft until staff explicitly enable access.
+
 ## Staff setup and release
 
 1. Open the CRM business record and confirm its active customer owner.
@@ -15,8 +23,11 @@
 
 ## Customer experience and data boundary
 
-The main dashboard shows a Voice tab and Overview card only for released services.
-`/dashboard/voice` redirects to `#voice`; unreleased direct links show a setup notice.
+The main dashboard always shows the Voice tab. Its Overview card and customer
+data require a released service. `/dashboard/voice` redirects to `#voice`; without
+a released service, the tab shows "No voice agent yet" and a disabled **Add Voice
+Agent** button with a setup-coming-soon note. Forms will be connected later.
+This navigation update is local only (October 12); customer access gates remain.
 Owners with multiple released businesses select one business at a time. Viewers,
 operators and staff login identities do not gain customer Voice access.
 
@@ -65,7 +76,10 @@ are forward-only and leave current connections, messaging activation and agents 
 ## Validation and current status
 
 The two forward migrations are applied in production in the documented order.
-Frontend deployment is in progress; no real Voice services have been added/released.
+CRM release `4e9a5d5` is LIVE (`dep-db643tlckfvc73c2evk0`); E2 release
+`fb4ada4` is Ready/Production (`dpl_GqrZQeWa8RiVuJ3aERM4qGoVoqh9`).
+Live access gating, HTTP checks, grants and all 13 CRM JavaScript assets were
+verified. No real Voice services have been added/released.
 CRM customer Voice tests exercise the paired migrations, release prerequisites,
 revision/authorization checks, server-only grants, owner-only isolation, multiple
 owned businesses, pre-release history, business-time-zone filters, pagination,
@@ -87,3 +101,64 @@ Production migration history records the exact applied file payloads as
 `20261012021005 customer_voice_service` (Supabase-generated versions). These
 correspond to source files `20261011235651` and `20261011235654`; do not replay
 those source files because their local timestamps differ from the remote entries.
+
+Security advisors after deployment reported no ERROR findings. Existing warnings:
+[public extension](https://supabase.com/docs/guides/database/database-linter?lint=0014_extension_in_public),
+[legacy anonymous definer grants](https://supabase.com/docs/guides/database/database-linter?lint=0028_anon_security_definer_function_executable),
+[legacy authenticated definer grants](https://supabase.com/docs/guides/database/database-linter?lint=0029_authenticated_security_definer_function_executable).
+The new reader is invoker in public, definer in the private schema, with execution
+revoked from browser roles and granted only to the server role.
+
+## CRM Voice workspace additions (October 12, local only)
+
+Select a business in CRM, then open **Voice Agent**. Its overview shows reviewed
+business information, services/service areas, agent names/numbers and the customer
+Voice release status. **Manage business & Voice setup** opens that business's
+record at Services. Use **Add Voice → Set live** there, or **Hide from customer**.
+This releases an existing registered agent; generic agent deployment assignment
+and provisioning still require the existing integration setup outside this screen.
+
+The agent selector controls the admin configuration editor and preserves each
+agent's draft. Calls can be filtered by agent, status, caller/summary and dates in
+the business time zone; details include summaries, transcripts and private audio.
+Playback has no download button, stops when leaving details/workspace, and expires
+with its signed link. Configuration, availability, lead and booking controls remain
+available only in CRM. Publishing settings still does not release customer access.
+
+Pending rollout: apply only CRM `20261012195517_staff_voice_overview.sql` after the
+previous paired customer Voice migrations, then deploy CRM API and frontend.
+The updated API forwards the retention-bounded TTL to private Storage signing.
+No E2 code/migration deployment is needed for these staff additions. Local tests
+and browser verification are recorded in both PROJECT_RECORD files; these additions
+are not yet applied to production or released.
+
+## Voice Agents library and guided release (October 12, local implementation)
+
+1. Select the CRM business and open **Voice Agents**. The business record also
+   provides **Open Voice Agents** in its Voice panel.
+2. Existing connected agents appear immediately with their phone and customer
+   visibility. Use **Manage agent** or **Call history**. **Choose deployed agent**
+   lists CRM-connected deployments; other-business assignments are labelled and
+   disabled. It does not discover unregistered LiveKit deployments or transfer them.
+3. **Create agent → Create draft agent** saves a new private CRM agent from a name,
+   voice and instructions. Continue editing in Configuration. Creation retries
+   reuse the same request UUID and do not duplicate agents. Drafts have no phone or
+   deployment; the existing integration setup must connect their business-scoped
+   runtime and phone before publishing. This UI does not provision cloud workers.
+4. The release panel checks the active customer owner, reviewed profile and
+   connected/published agent. Already attached agents resume here. Preview the
+   customer-facing business information and agents, then explicitly choose
+   **Enable customer Voice**. A missing service is added in draft before release;
+   an existing draft is reused. **Hide customer access** leaves calling connected.
+5. New unconnected drafts stay private even if another agent's customer Voice
+   service is already live. Publishing agent configuration and releasing customer
+   access remain separate operations. Toll-free SMS approval does not gate calls.
+
+The new flow supersedes the generic Add Voice / Set live instructions above for
+Voice. Those routes remain the underlying compatibility API. Existing customer
+readers, history, recordings and owner-only access are unchanged.
+
+Rollout is pending: apply CRM `20261012195517_staff_voice_overview.sql`, followed
+by `20261012200816_voice_setup_flow.sql`; then release the CRM API and frontend.
+The earlier paired customer Voice migrations are prerequisites and must not be
+replayed. No migrations or releases were performed for this local redesign.

@@ -12,7 +12,7 @@ export function voiceStorage(fetchImpl=fetch) {
  function absolute(url){return url?.startsWith('/storage/v1/')?`${base()}${url}`:`${base()}/storage/v1${url?.startsWith('/')?'':'/'}${url}`;}
  return {
   async upload(p){const r=await request(`object/upload/sign/${bucket}/${path(p)}`,{});return {signedUrl:absolute(r.url||r.signedURL||r.signedUrl),token:r.token};},
-  async playback(p){const r=await request(`object/sign/${bucket}/${path(p)}`,{expiresIn:300});return {signedUrl:absolute(r.signedURL||r.signedUrl),expiresIn:300};},
+  async playback(p,ttl=300){const expiresIn=Math.floor(Math.min(300,Number(ttl)));if(!Number.isFinite(expiresIn)||expiresIn<1)throw new Error('Recording is unavailable or expired');const r=await request(`object/sign/${bucket}/${path(p)}`,{expiresIn});return {signedUrl:absolute(r.signedURL||r.signedUrl),expiresIn};},
   async verify(p,bytes){const r=await request(`object/info/${bucket}/${path(p)}`,undefined,'GET');
    if(Number(r.metadata?.size??r.size)!==Number(bytes)||!String(r.metadata?.mimetype??r.content_type??r.contentType??'').startsWith('audio/ogg'))throw new Error('Recording upload is incomplete');},
   async remove(paths){if(paths.length)await request(`object/${bucket}`,{prefixes:paths},'DELETE');},

@@ -42,7 +42,7 @@ async function apiFetch(path, options = {}) {
   return response;
 }
 
-let disposeActivity;
+let disposeActivity,disposeVoice;
 const KNOWN_VIEWS = ['automation-activity','inbound-ai','voice-agent','overview','contacts','messaging','bookings','automations','email','call','messages','deliverability','optouts','ai-instructions','business-setup','business-context','booking-setup','web-forms','knowledge','platform-accounts','platform-businesses','platform-websites','platform-twilio'];
 function initialViewFromUrl() {
   const view = new URLSearchParams(location.search).get('view');
@@ -123,7 +123,7 @@ function currentPlatform() {
   if (!platformInstances.has(key)) {
     const instance = createPlatform({root:el.root, title:el.title, subtitle:el.sub, pager:el.pager,
       onOpenRecord:(resource,id)=>switchView(`platform-${resource}`).then(()=>platform.openRecord(resource,id)),
-      onWorkspace:async(tenantId,service)=>{await switchTenant(tenantId);await switchView(service==='sms'?'business-setup':service==='enquiries'?'web-forms':service==='voice'?'voice-agent':'bookings',{force:true});},
+      onWorkspace:async(tenantId,service,agentId)=>{await switchTenant(tenantId);if(service==='voice')state.voiceWorkspace={tab:agentId?'configuration':'agents',agentId};await switchView(service==='sms'?'business-setup':service==='enquiries'?'web-forms':service==='voice'?'voice-agent':'bookings',{force:true});},
       onNavigate:view=>{
         if (view !== state.view) {
           tabMemory.take(view);
@@ -210,6 +210,7 @@ function restoreTab(snapshot) {
 function clearTabs() {
   stopWorkspaceWarmup();
   disposeActivity?.(); disposeActivity=null;
+  disposeVoice?.(); disposeVoice=null;
   if (state.view === 'automation-activity') el.root.replaceChildren();
   state.voiceWorkspace = {};state.inboundVoiceWorkspace={};
   formWorkspace?.reset(); formWorkspace = null;
@@ -1247,7 +1248,7 @@ async function renderAiInstructions() {
 const titles = {
   overview: ['Overview', 'Your conversations, customers, and follow-ups.'],
   messaging: ['Inbox', 'Read and reply to customer conversations.'],
-  'voice-agent': ['Voice Agent', 'Configuration, calls, recordings and leads.'],
+  'voice-agent': ['Voice Agents', 'Create agents, manage deployments and release customer access.'],
   call: ['Inbound calls', 'Track inbound calls from your customers.'],
   messages: ['Messages', 'Searchable CRM log for every SMS'],
   contacts: ['Contacts', 'Find customers and manage your contacts.'],
@@ -1450,7 +1451,7 @@ const TAB_GROUPS = [
     {view:'messaging',label:'Inbox'}, {view:'bookings',label:'Bookings'},
     {view:'web-forms',label:'Forms'}, {view:'automation-activity',label:'Automation activity'}, {view:'email',label:'Email'},
   ]},
-  { id: 'voice', label: 'Voice Agent', views: [{view:'voice-agent',label:'Voice Agent'}]},
+  { id: 'voice', label: 'Voice Agents', views: [{view:'voice-agent',label:'Voice Agents'}]},
   { id: 'reports', label: 'Reports', views: [
     { view: 'call', label: 'Inbound calls' },
     { view: 'messages', label: 'Message history' },
@@ -1573,6 +1574,7 @@ async function switchTenant(tenantId, options = {}) {
   return renderQueue.run(async () => {
   await Promise.all([...platformInstances.values()].map(instance => instance.whenIdle()));
   clearTabs();
+  disposeVoice?.();disposeVoice=null;
   if (tenantId) setTenantId(tenantId);
   state.categories = [];
   state.cadences = [];
@@ -1746,6 +1748,7 @@ async function renderWorkspace(options = {}) {
   if (options.force) {invalidateWorkspaceCache();categoriesLoaded=false;}
   if (titles[state.view]) setTitle(...titles[state.view]);
   disposeActivity?.(); disposeActivity=null;
+  disposeVoice?.(); disposeVoice=null;
   const readScope = pageReads.begin();
   if (state.view !== 'messaging') document.querySelector('.crm')?.classList.remove('thread-open');
   if (lastRenderedView !== state.view) {
@@ -1850,7 +1853,10 @@ async function renderVoiceWorkspace(){
  const {mountVoiceWorkspace}=await import('./voiceWorkspace.js');
  setTitle(...titles['voice-agent']);el.kpi.innerHTML='';el.pager.hidden=true;el.status.disabled=true;
  state.voiceWorkspace??={};
- await mountVoiceWorkspace(el.root,{apiFetch,model:state.voiceWorkspace,
+ const voiceTenant=getTenantId();
+ disposeVoice=await mountVoiceWorkspace(el.root,{apiFetch,model:state.voiceWorkspace,
+  isCurrent:()=>getTenantId()===voiceTenant&&state.view==='voice-agent',
+  onBusinessSetup:async()=>{await switchView('platform-businesses');await platform.openBusiness(voiceTenant);el.root.querySelector('[data-profile]')?.scrollIntoView({block:'start'});},
   onAvailability:()=>switchView('booking-setup'),onBookings:()=>switchView('bookings'),
   onContact:phone=>switchView('messaging',{conversationPhone:phone,conversationId:null,force:true})});
 }
@@ -1871,7 +1877,9 @@ async function renderCall() {
   if(state.platformStaff){
     const {mountVoiceWorkspace}=await import('./voiceWorkspace.js');
     state.inboundVoiceWorkspace??={};
-    await mountVoiceWorkspace(voiceHost,{apiFetch,callsOnly:true,model:state.inboundVoiceWorkspace,
+    const voiceTenant=getTenantId();
+    disposeVoice=await mountVoiceWorkspace(voiceHost,{apiFetch,callsOnly:true,model:state.inboundVoiceWorkspace,
+      isCurrent:()=>getTenantId()===voiceTenant&&state.view==='call',
       onBookings:()=>switchView('bookings'),
       onContact:phone=>switchView('messaging',{conversationPhone:phone,conversationId:null,force:true})});
   }
