@@ -4,7 +4,8 @@
 
 CRM migrations are applied as `20261012202507 staff_voice_overview` and
 `20261012202514 voice_setup_flow`; `crm-api` version 58 is ACTIVE. CRM frontend
-release is in progress. E2 application code is unchanged. The local-only/pending
+commit `c43600a` is live in Render `dep-db6k4uavcj2c7389muug` at
+https://crm.e2local.com; authenticated library and call-history checks passed. E2 application code is unchanged. The local-only/pending
 notes below are historical and superseded by this status. Existing customer
 Voice visibility stays draft until staff explicitly enable access.
 

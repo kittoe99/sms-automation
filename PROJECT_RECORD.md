@@ -7,7 +7,11 @@ as remote versions `20261012202507` and `20261012202514`. These are the exact
 payloads from source files `20261012195517` and `20261012200816`; do not replay
 source timestamps or either repository history. Existing paired customer Voice
 prerequisites were already applied. CRM API version **58** is ACTIVE with its
-existing Clerk authentication. Frontend release is in progress.
+existing Clerk authentication. Frontend commit **c43600a** is live in Render **dep-db6k4uavcj2c7389muug**
+at https://crm.e2local.com. Authenticated browser checks verified the agent library,
+release checklist and call history. Eight deployed entry assets match the release
+build; the unauthenticated API correctly returns 401. Customer visibility remains
+draft at revision 0. No real agent, phone or service release mutations were made.
 
 The isolated release passed **36 CRM tests** and its frontend build. Paired E2
 production-baseline tests passed **45**, with the two previously documented
