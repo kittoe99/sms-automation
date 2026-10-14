@@ -1,6 +1,6 @@
 # Opek SMS project record
 
-### October 14 — Unified SMS workspace and reply behavior (local implementation)
+### October 14 — Unified SMS workspace and reply behavior (migration applied; frontend pending)
 
 SMS now groups Inbox, Automations, AI replies and Activity, including form message
 editing in place. Calls/voice and Email remain separate. Existing links, permission
@@ -17,8 +17,16 @@ match the local baseline. Tests: 407 passed / 29 skipped; 63 paired tests; 18 fi
 focused checks after the history query/editor refinements. Source, frontend and
 Edge bundle checks passed. Migration applied as remote `20261014210940`
 (`unified_sms_workspace`); all three function hashes and scoped grants match
-the tested build. Opek remains shadow, unapproved, revision 1. Frontend release
-is pending. Security advisor findings are unchanged from the pre-release baseline
+the tested build. Opek remains shadow, unapproved, revision 1. Desktop/mobile
+SMS tabs and retained AI/form-message drafts passed browser checks without console
+errors. GitHub Project checks passed (run `38638227815`). Frontend commit
+`5fb1f2a586bad3c131575a0500b57f0ae304bb84` is pushed to deploy-crm. Render
+deployment `dep-db7v060473hc73844sj0` remains build_in_progress with no logs.
+Render reports builds failing to start across all regions (October 14, 20:57 UTC):
+https://status.render.com/incidents/8tsd93r1wbmz
+The frontend is NOT verified live; served assets still reflect the earlier
+release. Keep the pending deployment and verify all 18 assets plus runtime
+configuration after recovery. Security advisor findings are unchanged from the pre-release baseline
 (existing RLS-without-policy information, pg_net placement and existing public
 function grants); this migration adds no exposed functions or table grants.
 

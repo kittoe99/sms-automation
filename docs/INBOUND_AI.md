@@ -237,3 +237,14 @@ both project records; the UI refactor alone does not enable live replies.
 Applied mapping: local `20261014210130` = remote `20261014210940`. The three
 function source hashes and API-only grants match the tested source. Do not apply
 the local timestamp again. Opek remains Review only and unapproved.
+
+Security advisor output before/after is unchanged: existing [RLS policy
+notices](https://supabase.com/docs/guides/database/database-linter?lint=0008_rls_enabled_no_policy),
+[extension placement](https://supabase.com/docs/guides/database/database-linter?lint=0014_extension_in_public)
+and [existing public function grants](https://supabase.com/docs/guides/database/database-linter?lint=0028_anon_security_definer_function_executable).
+New settings wrappers remain private and callable only through the scoped API.
+
+Frontend commit `5fb1f2a` is pushed; Render deployment `dep-db7v060473hc73844sj0`
+is pending during the October 14 all-region build outage. The database migration
+is applied, but the SMS interface is not yet verified live. See the project record
+and the local `data/unified-sms-verify.mjs` asset verification script.
