@@ -1,6 +1,6 @@
 # Opek SMS project record
 
-### October 14 — CRM navigation responsiveness fix (local implementation)
+### October 14 — CRM navigation responsiveness fix (released)
 
 Sidebar buttons and sibling tabs now keep the same DOM nodes as reads complete;
 only permission/search structure changes rebuild navigation. This prevents a
@@ -16,7 +16,13 @@ stable click targets, sibling selection, ignored transport cancellation, and slo
 body/module waits. Source checks, frontend build, 63 paired-project tests and Edge bundle checks passed. Synthetic browser QA
 covered a six-second booking delay, single-click departure, rapid navigation,
 Back, keyboard tabs, mobile single-tap navigation and unsaved Text replies draft retention. No backend, auth,
-permission, shared contract or database change is included. Deployment is pending.
+permission, shared contract or database change is included.
+
+Released CRM commit `f9f41aef93f67d15cc053f9399d0d918911eecc9` on Render
+(`dep-db7u4d3rjlhs73943mag`, live October 14 at 20:12:50 UTC). GitHub
+Project checks passed (run `38630063749`). All 18 production frontend assets
+and runtime configuration match the tested build. E2 application code is unchanged;
+its project record is synchronized for the paired system.
 
 ### October 14 — Requested complete form cleanup (applied to production)
 

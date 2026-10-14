@@ -71,8 +71,8 @@ then open `http://127.0.0.1:4319/shell`. API reads are logged so tab revisits ca
 checked for zero additional requests. `/mobile` shows a 390px viewport. These are
 local sample records; this fixture does not verify production provider operations.
 
-The static site builds the `deploy-crm` branch. The October 14 lifecycle fixes are
-local until released. The website deployment panel now requires the paired E2
+The static site builds the `deploy-crm` branch. See the project record for the shipped October 14 lifecycle and
+navigation fixes. The website deployment panel now requires the paired E2
 `GET /api/web-hosting/:siteId?page=1&pageSize=25` detail contract; deploy that E2
 endpoint before the CRM frontend. The response contains `site` plus `page`,
 `pageSize`, `total` and `totalPages`; publication status is independent of the
