@@ -29,7 +29,7 @@ export async function renderFormAutomation({root,form,apiFetch,canManage,timeZon
     });
   };
   const render=()=>{
-    root.innerHTML=`<section class="card form-automation"><div class="card-head"><div><h2>Messages & timing</h2><p class="muted">${saved.enabled?'Active for new submissions':'Not enrolling new submissions'} · ${saved.publishedVersion?`Published version ${saved.publishedVersion}`:'Draft only'}</p></div></div>
+    root.innerHTML=`<section class="card form-automation"><div class="card-head"><div><h2>Messages & timing</h2><p class="muted">${form.archived?'Form deleted':form.enabled===false?'Form inactive · not enrolling new submissions':saved.enabled?'Active for new submissions':'Not enrolling new submissions'} · ${saved.publishedVersion?`Published version ${saved.publishedVersion}`:'Draft only'}</p></div></div>
       <div class="web-builder-body"><p>Each message finishes its repeats before the next message starts. Existing runs keep their published version.</p>
       <fieldset ${canManage?'':'disabled'}><legend class="form-visually-hidden">Automation configuration</legend>
       <label>Start with a preset<select data-preset><option value="">Choose a starting point</option>${presets.map((p,i)=>`<option value="${i}">${esc(p.name)}</option>`).join('')}</select></label>

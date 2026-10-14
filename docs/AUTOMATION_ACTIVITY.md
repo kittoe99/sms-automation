@@ -4,6 +4,23 @@ Staff reporting lives at `?view=automation-activity`, beside Forms. SMS readers
 can inspect reports; existing CRM management permission is required for tags,
 attribution and sequence controls. No customer E2 page or service grant changes.
 
+## Simplified workspace (October 12, local)
+
+The CRM page has one heading and Refresh control. Four summary cards show delivered
+messages and customer replies within the selected dates, plus current active
+follow-ups and open handoffs. Search and dates stay visible; **More filters** contains
+form/template, status, response, booking, handoff, activity type and tags, with an
+active-filter count. Apply submits filters; Reset restores defaults. Quick filters
+remain directly accessible.
+
+The enquiry list follows immediately. Customer tags appear beneath the customer,
+and booking/handoff results share an Outcome column. Select a customer for the
+existing timeline and actions. **Detailed metrics** expands the full message counts,
+form/direct conversion metrics, definitions and workload breakdown below the list.
+Disclosure state survives background updates; unapplied filter changes defer them.
+No reporting definitions, permissions or API contracts changed. This redesign is
+locally built and browser-checked; it has not been deployed.
+
 ## Reading the report
 
 The default interval is the last 30 calendar days in the business timezone.
@@ -101,7 +118,25 @@ serves these routes. The private-table no-policy INFO notices are intentional;
 see [Supabase RLS advisory](https://supabase.com/docs/guides/database/database-linter?lint=0008_rls_enabled_no_policy).
 
 
-## Direct contact sequences
+## Reporting cost — local hardening
+
+The pending CRM `20261014061007_queue_reporting_hardening.sql` migration adds a
+private, transactionally maintained first-contact projection and its date index.
+It backfills the first provider acceptance from existing message records once.
+Reports select a narrow set of filter keys, calculate conversion details only
+for the selected date cohort, and hydrate display details only for the requested
+page. Unlinked candidate lists are also built after pagination. Current workload
+counts remain across all dates; expensive quiet checks run only for active
+enquiries, using indexed latest-message and pending-job probes.
+
+The result fields, business-local dates, explicit attribution and permission
+checks stay compatible. A regression with 80 historical completed runs and a
+one-row current page verifies that quiet calculation does not run over all
+historical rows. Real Postgres query plans and capacity still require a staging
+measurement; PGlite verifies behavior rather than production throughput. See
+[current SQL workflow](../supabase/sql/current/README.md).
+
+## Direct contact sequence controls
 
 Staff can assign versioned enquiry follow-ups without a form. Contact blocks
 apply to form and direct enquiry runs; appointment reminders stay separate.

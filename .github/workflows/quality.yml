@@ -1,0 +1,54 @@
+name: Project checks
+on:
+  pull_request:
+  push:
+  workflow_dispatch:
+    inputs:
+      e2_ref:
+        description: Exact E2 commit containing the paired baseline (required for a release)
+        required: true
+        type: string
+permissions:
+  contents: read
+jobs:
+  crm:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '24'
+          cache: npm
+      - run: npm ci
+      - run: npm run check
+      - run: npm test
+      - run: npm run build:frontend
+        env:
+          SUPABASE_PUBLISHABLE_KEY: sb_publishable_offline_build_fixture
+      - run: node scripts/prepare-edge-deployment.js --bundle-only
+  paired-release:
+    if: github.event_name == 'workflow_dispatch'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          path: opek-sms
+      - name: Require immutable paired revision
+        env:
+          E2_REF: ${{ inputs.e2_ref }}
+        run: test "${#E2_REF}" -eq 40 && [[ "$E2_REF" =~ ^[0-9a-fA-F]+$ ]]
+      - uses: actions/checkout@v4
+        with:
+          repository: kittoe99/E2local
+          ref: ${{ inputs.e2_ref }}
+          path: E2local-main
+          token: ${{ secrets.PAIRED_REPO_TOKEN || github.token }}
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '24'
+      - run: npm ci
+        working-directory: opek-sms
+      - run: npm ci
+        working-directory: E2local-main
+      - run: npm run test:paired
+        working-directory: opek-sms

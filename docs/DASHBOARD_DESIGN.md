@@ -18,3 +18,9 @@ Verification: frontend build and the 16 tests in dashboardTheme, tabWorkspace,
 pagePerformance, formDirectory and smsConnectionSummary pass. The existing
 dashboardFollowups test expects previously retired markup. Deployment evidence
 belongs in the paired project records; a passing build alone is not a release.
+
+## Shared loading states (released October 11)
+
+CRM release `d507c4c` uses the Dashboard ring loader for startup, workspaces and inline
+refresh, including reduced-motion support. Background tab preparation and scoped
+browser caching are described in [Workspace performance](WORKSPACE_PERFORMANCE.md).

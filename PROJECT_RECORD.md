@@ -1,5 +1,110 @@
 # Opek SMS project record
 
+The paired main E2 review is now implemented locally; its final verification
+and three new unapplied E2 migrations are recorded in the appended
+[October 14 main E2 entry](#october-14--main-e2-reliability-review-verification-local-only).
+Use the [E2 release guide](../E2local-main/docs/reliability-release.md) with the
+CRM hardening guide when releasing the current paired checkout.
+
+### October 14 — Architecture and reliability hardening (local only)
+
+Implemented the paired review recommendations locally. CRM now preserves explicit
+business context, fences tokens/cache/results across Clerk session changes, clears
+account/business drafts and subscriptions on identity changes, and ignores late
+mutation completions outside their original editor. Platform reads have cancellation
+and deadlines, writes no longer block navigation, uploads use four bounded workers,
+and Voice/Calls remount working handlers while releasing media on departure.
+
+E2 hosting directory reads are paginated metadata only. A new authorized per-site
+GET reads one deployment page and a publication manifest with a five-second storage
+deadline, including stalled body collection. CRM uses that endpoint. Release this
+E2 API before the new CRM frontend. E2 owns the additive pagination-index migration
+20261014061728_hosting_read_indexes.sql.
+
+CRM owns 20261014061007_queue_reporting_hardening.sql: bounded expired-email
+recovery, terminal/paused lifecycle cancellation, single-active-address retry rules,
+send-window checks, tenant rotation, bounded scheduler candidates, heartbeat
+normalization and reporting indexes/projections. Activity reports narrow the cohort
+and page before expensive work. Email shares admission slots with automation;
+capacity limits do not promise strict alternation between worker types. The
+first-contact projection has a one-time backfill that needs production sizing.
+
+Website enrichment and knowledge ingestion share public-only HTTPS validation,
+redirect/DNS checks, connections pinned to a checked address with TLS verification,
+response limits and a 30-second deadline. Late knowledge results cannot be saved.
+Synchronous parser CPU remains subject to the Edge runtime's own CPU limits.
+
+Build/release inputs now include reviewed environment destinations, generated static
+security headers that preserve public embeds, complete Edge dependency packaging,
+four maintained SQL source modules and an exact migration assembly check. The old
+historical SQL assembler refuses execution. Local CI definitions check CRM and offer
+a manual paired release gate with an immutable E2 revision and reviewed source/hash
+baseline. These definitions do not establish remote branch-protection settings.
+
+Validation on the final local snapshot:
+
+- CRM: 424 tests, 395 passed, 29 existing legacy/disabled-AI skips, zero failures.
+- Paired E2 access/service/Voice/hosting contracts: 44 passed, zero skips/failures.
+- Final changed frontend/auth/lifecycle tests: 14 passed after code freeze.
+- E2 TypeScript check passed; CRM frontend build and secret-free 65-file Edge
+  bundle passed; 178 source files, static headers and current SQL checks passed.
+- Render Blueprint passed its official JSON Schema. Synthetic browser QA verified
+  site details, deployment history, Leads and restoration through Users navigation.
+  This used mocked records and does not prove deployed Clerk/R2 integration.
+
+Both owning migrations are NEW AND UNAPPLIED for this work. No production database,
+provider send, service visibility, publication, DNS or deployment was changed.
+Reconcile existing remote migration aliases and both histories before applying only
+the missing owning forward migrations; never replay either complete history. Hosted
+Deno transport/TLS checks, actual CSP flows, PostgreSQL query plans/concurrency and
+index/backfill timing remain explicit pre-release requirements. Existing unrelated
+local work is preserved; the CRM diff retains a pre-existing trailing blank line in
+public/dashboard-theme.css. Full local test logs are ignored workstation artifacts.
+
+Release sequence and operational evidence: [paired hardening guide](docs/HARDENING_RELEASE.md).
+
+### October 13 — Documentation reconciliation (local only)
+
+Current documentation now describes form/direct SMS templates, the separate gated
+inbound agent, explicit owner-linked service setup, shared-account sender routing
+and the Voice Agents library/customer release flow. The CRM API reference marks
+retired 410 mutations and includes form tests, contact sequences, activity,
+Twilio connection and Voice gateway contracts. Configuration covers all current
+Edge environment names, including the previously omitted Voice credentials and
+flags. The guide index includes every CRM guide. Current database additions are
+separate from the dated September catalog in both repositories.
+
+Added the shared recovery runbook: backup/Storage inventory, incident role
+assignment, contained restore, access/opt-out and provider reconciliation, release
+checks and handover evidence. Alert thresholds are proposed operator defaults,
+not newly installed monitoring. Actual backup coverage, named on-call contacts,
+RPO/RTO and a successful restore drill remain unverified operational requirements.
+
+Validation: 22 focused CRM tests and 12 paired E2 tests passed. The E2
+business-services fixture exercised the combined local migration baseline;
+source dependency edges were checked against the owning migrations/guides.
+This does not replay or validate production migration history. Documentation
+links/index, Edge configuration names and function inventory were checked locally.
+No application code, credentials, database, provider, migration or deployment
+changed. These are local documentation edits; publication/commit remains separate.
+
+
+### October 12 — Simplified Automation activity layout (local)
+
+CRM Automation activity now uses the page-level heading and Refresh control,
+four summary cards, compact customer/date filters, and a six-column enquiry list.
+Advanced filters and complete delivery/conversion/workload metrics expand on demand;
+all original report fields, attribution actions and scoped API requests are retained.
+Tags sit with customers; booking and handoff results share an Outcome column.
+Expanded sections survive report reloads and automatic refresh defers unsaved filter
+edits. Current-workload cards remain explicitly separate from date-based counts.
+
+Validation: frontend build and three existing API/async lifecycle checks passed. Synthetic
+browser QA checked desktop and 390px mobile layouts, status filtering/reset,
+expanded metrics and enquiry timelines. Fixture: `test/fixtures/automation-activity-preview.js`
+in CRM. E2 application code, shared contracts, migrations and production releases
+are unchanged; this entry records local UI implementation only.
+
 ### October 12 — Voice Agents production rollout
 
 Applied only CRM-owned `staff_voice_overview` and `voice_setup_flow`, in order,
@@ -104,13 +209,40 @@ its public contract and release gates are unchanged. Never replay either history
 No real agents, phone assignments or customer service releases changed.
 
 
-### October 11 — Customer Voice release in progress
+### October 11 — Customer Voice deployed and verified
 
-Applied the CRM customer_voice_projection migration followed by E2
-customer_voice_service to the shared production database. No history was replayed
-and no Voice service was added or released. Server-only reader grants and both
-cache triggers were verified. Isolated release builds passed; 11 CRM and 43 E2
-focused tests passed. CRM and E2 frontend deployment is pending verification.
+Both customer Voice migrations are applied in order: CRM source
+`20261011235651_customer_voice_projection.sql` is remote history version
+`20261012021000`; E2 source `20261011235654_customer_voice_service.sql` is remote
+version `20261012021005`. Supabase generated these history timestamps. Do not
+replay source files because their timestamps differ from the recorded versions.
+Postflight verifies two cache triggers, server-only customer reader execution,
+an invoker public wrapper, an empty unauthorized result and zero Voice services.
+Existing released SMS and website services are unchanged.
+
+CRM commit `4e9a5d5511dae701809e9ad958973892538891af` is LIVE in Render deployment
+`dep-db643tlckfvc73c2evk0`, finished 2026-10-12 02:12:18 UTC. The push produced no
+build/deploy event after more than a minute; one direct deployment then ran.
+All 13 served JavaScript assets match the isolated release build byte for byte.
+E2 commit `fb4ada466f046bbc1e8aa8553c2c60c00ee39859` is Ready in Production in
+Vercel deployment `dpl_GqrZQeWa8RiVuJ3aERM4qGoVoqh9`, completed 02:11:47 UTC,
+with www.e2local.com assigned. Both public sites return HTTP 200.
+Deployment-scoped runtime logs show zero console warnings/errors/fatals; the
+verified production dashboard and dashboard API requests returned HTTP 200.
+
+The authenticated production `/dashboard/voice` redirects to `#voice`, shows
+the setup notice and leaves Voice absent from navigation while unreleased.
+Unauthenticated Voice API requests redirect to sign-in; cross-origin recording
+requests return 403. No real call recordings were accessed, no agent settings
+changed, and no business Voice service was created/released during verification.
+No CRM Edge code changed; the existing generic service routes remain compatible.
+
+Isolated release validation: 11 CRM and 43 E2 focused tests and both production
+builds passed. Prior implementation verification includes 71 passes and desktop/
+mobile synthetic audio/UI checks; two known unrelated E2 website-copy assertions
+remain documented. Security advisors report no ERROR findings, with existing
+public-extension and legacy function-grant warnings; remediation links are in the
+customer Voice workflow. Earlier local/pending entries below are historical.
 
 ### October 11 — Customer Voice dashboard implemented locally
 
@@ -147,15 +279,37 @@ business switching, audio playback and hidden/expired states. Two existing E2
 ownership tests still fail on unrelated website wording. See the customer Voice
 workflow documentation for verification.
 
-### October 11 — Toll-free calling correction: backend released, frontends prepared
+### October 11 — Toll-free calling correction deployed and verified
 
-CRM migration 20261011233216 is applied and CRM API v57 is ACTIVE. The new API
-bundle preserves every previously deployed file except twilio-connections.js.
-Existing number-aware webhook and Soni voice handlers require no redeployment.
-Only this CRM forward migration was applied; neither history was replayed.
-Both frontend label updates are prepared for release. Isolated CRM release tests:
-26 passed; E2 SMS UI: six passed. Prior paired regression and concurrency results
-are recorded below. Final production verification will be recorded separately.
+CRM migration `20261011233216_toll_free_voice_before_sms_approval.sql` is applied.
+CRM API v57 is ACTIVE; all deployed files match the release payload, preserving
+prior live files except twilio-connections.js. Database postflight confirms
+pending-status support, voice-capability validation, three existing sender claims,
+API execution permission and no anonymous/browser function access. No history
+was replayed; no E2 migration or webhook redeployment was necessary.
+
+CRM commit `f4d84718088818f8cdba6aefa77e5ba7f2fef90e` is LIVE at
+https://crm.e2local.com in Render deployment `dep-db61pqnlot8c738ih6v0`, finished
+2026-10-11 23:34:14 UTC. The push produced no build/deployment event; after checking
+both histories, one direct deployment ran. All 13 served JavaScript assets match
+the isolated release build byte for byte.
+
+E2 commit `2074c54ba4fd28447b04bb0b964aa3957ad53240` is Ready in Production in
+Vercel deployment `dpl_F6FqL4bbwJmvhYBtJTsUvN5q5fKH`, completed at 23:33:31 UTC,
+with www.e2local.com assigned. The authenticated customer SMS dashboard shows
+Toll-free, SMS approval and the calling-independent-of-SMS-approval note. The
+live CRM account directory loads and lists linked CRM businesses with numbers.
+Both public sites return HTTP 200; unsigned CRM inventory correctly returns 401.
+
+Isolated release validation: 26 CRM tests and six E2 SMS UI tests passed; both
+production builds passed (including E2 TypeScript). Prior verification includes
+42 focused CRM tests, four real PostgreSQL concurrency checks and 41 paired E2
+passes; two known unrelated E2 website-text assertions remain documented below.
+Security advisor reports no ERROR findings; existing pg_net/public and legacy
+function-grant warnings remain, with links in docs/TWILIO_CONNECTIONS.md.
+No business connections, voice routing, registration submissions, SMS activation,
+number purchases, messages or calls were changed during release verification.
+Unrelated local work is preserved. Earlier local/prepared entries are historical.
 
 
 ### October 11 — Toll-free calling independent of SMS approval (local, not released)
@@ -194,6 +348,40 @@ release below remains the live version. No live business link, Twilio mutation,
 message, number purchase or phone call was made. Unrelated local work is preserved.
 
 
+### October 11 — Shared Twilio accounts deployed and verified
+
+CRM commit e0e86bfec98524c2c7bd2ff0e630feb2c0efcf60 is LIVE at
+https://crm.e2local.com in Render deployment dep-db5u7l67bikc73e36je0, completed
+2026-10-11 19:30:50 UTC (1:30:50 PM America/Denver). The push did not create a
+Render build/deploy event; after checking both histories, one direct deploy ran.
+The frontend lists every linked CRM business and assigned number per Twilio
+account, separates pending connections, and permits other available senders in
+shared accounts. Each business retains one exclusive number and single-number
+Messaging Service.
+
+CRM migrations 20261011192551 and 20261011192649 are applied in staged order.
+Messaging webhook v21, Soni voice v10 and CRM API v56 are ACTIVE and their deployed
+files match the reviewed changes over previous live bundles. The database
+postflight verified sender claims, number-aware routing, removed account
+uniqueness and denied public/browser access to new private functions/tables.
+No E2 migration/runtime release, real business linking, message send, number
+purchase/transfer or voice call was performed. Unrelated local work was preserved.
+
+Production root returns 200 and loads app-GI7RIQVJ.js. Both served Twilio source
+files match the release; all 16 bundles match the isolated build after normalizing
+hash-based import filenames (the local fflate dependency uses a symlink path).
+Render error logs are empty. Unsigned CRM inventory returns 401; both webhook
+consumers reject unsigned requests with 403 and GET with 405. Functional shared
+linking/routing was tested with synthetic records, not live customer mutations or
+a signed-in production admin session. Browser evidence: local
+data/shared-twilio-qa/account-sharing.png.
+
+Tests: 43 focused CRM passes, eight existing skips; four PostgreSQL concurrency
+passes; 18 isolated release passes; frontend build passed. Paired E2: 40 passes
+and two unchanged website text assertions failing in ownership.test.mjs. Shared
+account customer isolation and cache regression checks passed. Earlier prepared
+status below is historical; this entry is the final release status.
+
 
 ### October 11 — Shared Twilio accounts: backend released, frontend prepared
 
@@ -228,35 +416,132 @@ E2 needs no migration or runtime release. Frontend deployment confirmation follo
 See docs/TWILIO_CONNECTIONS.md.
 
 
-### October 11 — CRM loader and tab cache release candidate
+### October 11 — Loading animation and browser cache deployed
 
-This release adopts the E2 Dashboard ring loader, background preparation of
-permitted tab modules and default list reads, and a bounded session-scoped
-browser cache. Saved responses expire after 60 seconds and are invalidated on
-writes, refresh, live changes, visibility return, business changes and sign-out.
-Fresh authorization is required before restoring persisted data. See
-`docs/WORKSPACE_PERFORMANCE.md` for cache scope and limits.
+CRM `d507c4c00d71ab86a1955594e942eb2a488addc8` is live at
+https://crm.e2local.com in Render deployment `dep-db5tg067bikc73e0n9mg`, finished
+2026-10-11 18:40:15 UTC (12:40:15 PM America/Denver). The push produced no build
+or deployment event; one direct deployment followed inspection of both histories.
 
-Prepared on production `bea0d57`; unrelated website deployment, Forms lifecycle,
-local-preview and backend changes are excluded. Implementation validation passed
-61 CRM checks and 34 paired E2 dashboard checks. The isolated release build and all 37 cache, auth, navigation, Forms and Twilio
-UI checks passed. Production deployment evidence will be recorded separately. No database, worker,
-Edge or E2 runtime change or migration is included.
+Production app.js, auth.js, workspaceCache.js, workspaceWarmup.js,
+dashboardLoader.js and dashboard-theme.css match the release commit byte-for-byte.
+The homepage and all eight entry/preload assets return HTTP 200; built assets
+match the isolated local build and carry immutable caching. Entry bundle is
+app-ITLLK7MH.js; Dashboard theme is dashboard-theme-KQEKUQFM.css. Render error
+logs are empty. Functional staff navigation was checked with synthetic records,
+not a signed-in production staff account.
 
-### October 11 — Dashboard redesign release candidate
+The isolated checkout was based on production bea0d57. Build and all 37 focused
+cache/auth/navigation/Forms/Twilio UI checks passed; isolated browser Forms
+navigation had no console errors. The implementation run had already passed
+61 CRM and 34 paired E2 checks. Unrelated local website-deployment, form lifecycle,
+preview and backend changes were excluded and remain preserved. Only CRM static
+assets were released: no migrations, Edge/worker changes, E2 release, or changes
+to SMS/AI sending settings. See docs/WORKSPACE_PERFORMANCE.md.
 
-Prepared from production commit 03b9754, with only the CRM shell, navigation
-icons, overview cards and responsive styling changed. Unrelated local website
-styles, backend work and configuration are excluded. No migrations or E2
-application release are required.
+### October 11 — Matching loader and background tab cache (local, unreleased)
 
-The isolated frontend build and all 16 focused CRM tests passed. Paired E2
-Dashboard tests: 23 passed during implementation. Synthetic desktop/mobile
-checks cover navigation, shortcuts and layout. The existing dashboardFollowups
-test expects retired markup and is not part of the passing test set.
+The CRM now shares E2 Dashboard's blue ring loading UI, including inline refresh
+and reduced-motion states. Permitted tabs warm lazy code and bounded default
+summary/directory reads sequentially after foreground rendering. A 60-second,
+32-entry / approximately 1 MB sessionStorage cache survives same-tab reloads only
+after fresh authorization; scopes include session, user, organization, business
+and returned access. Writes, refresh, live updates, visibility return, business
+changes and sign-out invalidate saved reads. Errors, auth responses, credentials,
+detail records and later/search pages are not persisted. Existing DOM tab memory
+continues to preserve drafts; expired retained views indicate that refresh is due.
 
-See docs/DASHBOARD_DESIGN.md. Deployment and live asset verification are recorded
-separately after release.
+Validation: frontend build passed; 61 focused CRM checks and 34 paired E2
+dashboard checks passed. Browser QA with synthetic records and 350ms API delay
+confirmed background GETs use Low priority, warmed Forms opens without a data
+request, and reload rechecks auth while restoring Forms from browser storage.
+See `docs/WORKSPACE_PERFORMANCE.md` for scope, bounds and limitations. No migrations
+were authored or applied, no backend contracts changed, and no release was made
+for this work. Production remains the prior `bea0d57` Dashboard redesign.
+
+### October 11 — Dashboard redesign deployed and verified
+
+CRM commit `bea0d574cd22cc5ac468902059aa125cc0598ef2` is deployed on
+`deploy-crm`. Render deployment `dep-db5sv4vavr4c739vf230` is LIVE, finished
+2026-10-11 18:04:15 UTC (12:04:15 PM America/Denver). The push produced no new
+build/deploy event; one explicit deployment followed inspection of both histories.
+
+Production app.js, dashboard-theme.css and dashboardIcons.js match the release
+commit byte-for-byte. The new index references app-ZDVA7OT6.js and
+dashboard-theme-N6J6PV72.css; all seven referenced entry/preload assets return
+200 with immutable caching. The homepage returns 200 and deployment error logs
+are empty. Authenticated staff workflows were checked synthetically, not through
+a signed-in production session.
+
+The isolated release was based on production `03b9754`; it excludes unrelated
+local website-deployment styling, backend/configuration changes and local preview
+code. Build and all 16 focused CRM tests passed; paired E2 checks previously
+passed 23 tests. Isolated browser checks verified the actual Overview and mobile
+drawer/Bookings navigation at 390px without document overflow. The old
+dashboardFollowups test still expects retired markup, as documented previously.
+
+Only CRM static assets were released. No database migration, worker/Edge release,
+E2 application deployment or sending/AI setting change occurred. Both project
+records and workflow documentation are updated; unrelated local work and the
+normal Git index are preserved.
+
+### October 11 — E2 Dashboard visual alignment (local only)
+
+The CRM shell now follows the paired E2 Dashboard: 72px white header, 240px
+white sidebar, pale workspace, blue selected areas, outlined icons, pill buttons
+and white bordered cards. Overview has Inbox, Contacts, Bookings and Forms /
+follow-up shortcuts. Existing tool controls appear beneath their selected area;
+navigation search, permissions and view retention are preserved. Mobile keeps
+the CRM drawer and uses two-column shortcut cards with non-overlapping totals.
+
+Validation: frontend build passed; 16 focused CRM theme, preview, navigation,
+page-reader and form-directory tests passed, plus two SMS summary tests. All 23
+paired E2 cache/performance/warmup tests passed. Existing dashboardFollowups test
+still expects retired followup-section markup (also absent in HEAD), unrelated
+to this redesign. Synthetic browser checks covered overview shortcuts, staff
+Users/Businesses navigation, Forms, mobile menu/search and 390px overflow.
+The synthetic platform fixture lacks the Delivery report API; its error state
+was observed after verifying filtered navigation, not treated as live coverage.
+
+Both project records and staff workflow docs updated. Only local source and the
+local frontend build changed; no deployment, migration, authentication, service
+visibility or shared database contract changed. No cross-project migration order
+or prerequisite changes are required. Existing migration histories must not be
+replayed. Existing unrelated local changes remain preserved.
+
+### October 10 — Direct contact automation release verified
+
+CRM release `03b9754edb71c4bf55296db238d976442de6b419` is deployed to
+`deploy-crm`. Render `dep-db5aroijnfac739r7rpg` is LIVE, finished
+2026-10-10 21:28:14 UTC (15:28:14 America/Denver). The push produced no automatic
+build; one explicit deployment followed inspection of deploy/event histories.
+Production contactAutomations.js, phoneNormalization.js, automationActivity.js
+and assets/app-NRJCFDHW.js match the tested isolated release byte-for-byte; the
+production index references that app bundle and returns HTTP 200.
+
+CRM API 55 ACTIVE; source migration 20261010210847 is applied as remote
+20261010212516_direct_contact_automations. Shared worker SQL is updated; worker
+JavaScript/model configuration is unchanged. Production staff-context reads for
+contact runs, templates and direct reports pass; unsigned API requests return
+401. All four new private tables have RLS, helper browser grants are zero and no
+new WARN/ERROR security advisor categories were introduced.
+
+Validation: 81 isolated CRM tests/build, 43 paired E2 tests and nine real
+PostgreSQL scenarios passed (four direct/contact races, three coordination and
+two SMS/voice shared-capacity directions). Actual-component synthetic browser
+checks covered preview, enrollment, stop, blocked reenrollment, async isolation
+and mobile 390px layout; no page overflow or console warnings/errors. Production
+verification used deployed assets and guarded SQL/API boundaries, not an
+interactive authenticated staff browser session.
+
+The single production contact has a valid normalized phone; no messages lack a
+contact, and the one supported thread-name mismatch is repaired. Zero direct
+runs/templates were created in production. Opek AI remains shadow with
+coordination enabled; other businesses remain off. No customer was automatically
+enrolled and no E2 application release or live AI activation occurred. Both
+project records/workflow docs updated; unrelated local work and the normal Git
+index remain preserved. See docs/DIRECT_CONTACT_AUTOMATIONS.md for usage and the
+runtime switch that disables direct enrollments/sends without erasing history.
 
 ### October 10 — Direct contact database/API deployed; frontend pending
 
@@ -298,6 +583,38 @@ Validation so far: 11 new contact/direct API/database/lifecycle tests, the prior
 Actual-component browser checks covered schedule preview, enrollment, contact
 blocking and mobile width 390px. No horizontal document overflow. Release and
 applied migration are recorded separately after verification.
+
+### October 10 — Automation activity release verified
+
+Deployed CRM commit `d4337a2ee216417490323cc6b8140761abf588e3` (initial feature commit
+`5204b7088dd694076f96adb4066ee73241868288`) to `deploy-crm`. Render deployment
+`dep-db58ubss728c73c8tbmg` is LIVE, finished 2026-10-10 19:17:16 UTC
+(13:17:16 America/Denver). The second push again produced no automatic build or
+event; one explicit deployment was triggered after checking both histories.
+Production `/automationActivity.js`, `assets/chunk-MN7BOYGB.js` and
+`assets/app-TE267JGJ.js` match the verified release build, and the production
+index references the verified app bundle. Reproduction accounts for Linux
+checkout line endings and the local package path used by the fflate import.
+
+CRM API 54 is ACTIVE. CRM source migration
+`20261010185337_automation_activity.sql` is applied as remote
+`20261010191143_automation_activity`; do not replay either timestamp. Production
+staff-context SQL smoke checks pass for enquiry, test and unlinked reports;
+unauthenticated API reporting returns 401. All new private tables have RLS and
+report helpers are unavailable to browser roles. No new WARN/ERROR advisor
+categories were introduced; private no-policy INFO notices are intentional.
+
+Validation: exact isolated release build passed; 50 CRM tests, 43 paired E2 tests
+and three real PostgreSQL concurrency checks passed. Browser verification used
+the actual component with synthetic local data: filters, empty/error states,
+timeline, tags, pause, keyboard focus and 390px layout. Production verification
+covered deployed assets, API authentication boundary and database reporting; an
+interactive authenticated production staff browser session was not exercised.
+
+Opek remains SHADOW with coordination enabled, zero businesses are live, and all
+other businesses remain off. No E2 application release or live AI activation.
+Both project records and reporting/workflow docs updated; unrelated local changes
+and the normal Git index were preserved.
 
 ### October 10 — Automation activity backend deployed
 
@@ -346,6 +663,36 @@ These are local implementation/validation results; deployment is pending at this
 entry. Opek remains shadow and other businesses off. See CRM
 `docs/AUTOMATION_ACTIVITY.md` for definitions, API and rollback.
 
+### October 10 — Enquiry coordination release verified (shadow only)
+
+Deployed isolated CRM commit `56a83d388af7e10a9ead533ee280d5a128b5b548`
+(parent implementation `317fbf0e1d00e2c650094b87e6754da88a0c52c7`) to
+`deploy-crm`. Render deployment `dep-db58fv5ckfvc739auub0` is live, finished
+2026-10-10 18:46:31 UTC (12:46:31 America/Denver). Both pushes produced no
+Render build/deploy events, confirmed through event and deployment history;
+one explicit API deployment was then started. Production CRM returns 200;
+served Inbound AI and form-editor modules match the tested release.
+
+Backend AI worker 38 matches the tested source. CRM forward migration source
+`20261010183109_inbound_automation_coordination.sql` is applied as remote
+`20261010184313_inbound_automation_coordination`; do not replay either timestamp.
+The existing CRM API/sender RPC contracts required no redeployment. Opek has
+coordination enabled in SHADOW only, live validation remains locked, other
+businesses are off, and no new coordinated live runs exist. Security advisors
+remain unchanged (four prior findings); helper access is denied. Unsigned AI
+worker/API calls and the retired validation endpoint return 401.
+
+Final focused tests: 40 passed. Exact release tests: 55 passed, one existing
+skip. Broader CRM tests: 79 passed, three existing skips; paired E2: 43 passed.
+Real PostgreSQL concurrency and 12 real-model scenarios plus the three-turn
+booking passed as recorded below. Synthetic actual-component browser checks
+verified the association/quiet-time and outcome tables without console errors.
+No new authenticated production staff UI session or real customer SMS was used.
+Live activation still requires operational schedules and production shadow /
+business review. Both records and workflow docs are updated locally; no E2
+application deployment or E2-owned migration was required. The original Git
+index and unrelated working changes were preserved using an isolated release.
+
 ### October 10 — Inbound AI / form coordination (backend deployed, shadow only)
 
 Backend release: applied this source once as remote migration
@@ -385,6 +732,23 @@ sender access verified. Synthetic browser checks verified coordination/outcome
 rendering and no console errors. Live activation still requires operational
 schedules and production shadow/business review. Unrelated local work is preserved.
 
+### October 10 — Inbound AI frontend deployed
+
+User confirmed Micah's Render workspace. Fast-forwarded `deploy-crm` to the
+tested isolated release `1ffa88f14ccc177b8c7492274d4656ebd47dff24`. Render did not
+create an automatic build/event, so one API deployment was started after checking
+the queue/history. Deployment `dep-db583fks728c73c66stg` is live, completed at
+18:19:53 UTC (12:19:53 PM America/Denver). `https://crm.e2local.com` returns 200,
+contains Inbound AI navigation, and serves an Inbound AI module matching the
+release source. The bundled Inbound AI asset also returns 200 with the configured
+model. This is asset verification, not a new authenticated staff UI session.
+
+Backend versions/migration and model evaluation are recorded below. Opek remains
+shadow only with live validation locked; no service schedules were invented or
+customer replies enabled. Supabase and existing OpenAI credentials already work,
+so no new login authorization is required. Both project records and rollout docs
+are updated locally; unrelated checkout edits remain untouched.
+
 ### October 10 — Inbound AI backend released; Opek shadow enabled
 
 Direct WPacquisition access succeeded despite omission from project discovery.
@@ -418,6 +782,133 @@ live activation. All other businesses remain default off. The focused suite
 passed all 29 tests again. Frontend release is pending the Render connector's
 required workspace confirmation. See [release guide](docs/INBOUND_AI.md).
 
+Published isolated source commit `1ffa88f14ccc177b8c7492274d4656ebd47dff24` on
+`codex/inbound-sms-release`. Its exact archived source built and passed 56 tests
+with three existing skips after supplying the paired E2 migration fixture path.
+Working-tree checks passed 57 with three skips (one additional unrelated local
+test). The release commit excludes unrelated local edits and leaves the checkout
+and original index intact. HTTPS push succeeded after SSH host verification was
+unavailable; no host-key protections were changed. Render deployment remains
+pending the connector's explicit workspace-selection requirement.
+
+### October 10 — GPT 6.1 Sol inbound SMS agent (local, release pending)
+
+Implemented the versioned `sms-agent-v1` inbound worker with direct OpenAI
+Responses requests, low reasoning, standard tier, `store:false`, bounded tools
+and deterministic booking/handoff replies. Added staff Inbound AI settings,
+off/shadow/live modes, revision checking, booking permission, recent run metrics,
+scoped pause/resume and manual takeover. All businesses default off; only Opek
+may enter the pilot and live requires a separately recorded validation gate.
+
+CRM-owned forward migration `20261010171755_inbound_sms_agent.sql` extracts
+shared booking prepare/commit functions while retaining voice authentication,
+OTP wrappers and endpoint contracts. SMS and voice share service/resource
+capacity locks; SMS appointments retain existing intake/reminder hooks with
+source `sms`. Confirmation is bound to an accepted exact proposal and schedule
+version; corrections/expiry require preparation again. Stable action records
+recover committed bookings and repeated confirmations without duplication.
+STOP, newer inputs, staff replies and settings changes fence execution and
+pending sends. Staff handoff pauses atomically; shadow has no action side effects.
+Form Pause/Continue and retired automation boundaries remain intact.
+
+Validation: broad CRM worker/conversation/form/booking/voice/API batch passed
+78 tests, with nine existing disabled-legacy skips. The final focused inbound
+suite passed all 29, including atomic handoff pause/crash recovery. Paired E2 booking, enquiry,
+service-access and cache batch passed all 48 against local CRM and relevant E2
+migrations. Real PostgreSQL 17.10 concurrency passed voice-first and SMS-first
+capacity contention with independent sessions. Provider/queue/Vault services
+were fixtures. Frontend build and scoped whitespace checks passed. Synthetic
+actual-component browser check verified saving shadow settings, disabled live
+gate and knowledge/availability links; screenshot is in ignored
+`data/inbound-ai-settings.png`. No authenticated production UI was exercised.
+
+Prepared an isolated real-model evaluator with 50 supported and 20 adversarial
+scenarios, not yet run: `OPENAI_API_KEY` is unavailable. Recommend a dedicated
+OpenAI API project key in WPacquisition Edge Function secrets. The connected
+Supabase account exposes Hobby Projects, not WPacquisition; production applied
+histories cannot yet be verified. No migration was applied, no deployment or
+activation occurred, and no customer messages were sent. The forward migration
+requires CRM `20261006065213` and the existing paired baseline, including CRM
+`20261003143731` before E2 `20261003145302`; never replay either history. No E2
+schema or customer-permission change is needed. See [Inbound AI](docs/INBOUND_AI.md)
+for release gates, commands and rollback. Existing unrelated local work is retained.
+
+### October 10 — Deactivate and recoverably delete forms (local)
+
+Added editor-only Deactivate form and Delete form controls to the Forms workspace,
+including its Automation tab. Inline confirmations explain consequences and keep
+Cancel focused initially. Delete uses the existing archive action, per the user's
+choice to preserve history and allow restore. Current forms excludes deleted
+forms; Deleted forms exposes Restore as draft. Inactive forms no longer count as
+active automations, and the Automation header reports their inactive state.
+
+Deactivation uses the existing form-save transaction after reading current saved
+fields: collection is disabled, active SMS runs pause, active email enrollments
+cancel, and the published sequence setting/history remain. Archive disables the
+sequence and stops active/paused runs. Restore never re-enables collection or
+restarts stopped runs. Actions retain the original business scope, invalidate
+cached reads and suppress late rendering after navigation; failures remain
+retryable. Existing editor/reader/customer permissions and E2 visibility apply.
+
+Validation: CRM production build and 30 focused CRM tests passed, including real
+paired-schema assertions for deactivation, editor/reader denial, stopped runs,
+retained submissions/versions and inactive restore. Eleven E2 enquiry/service
+schema tests passed using both migration histories. Existing CRM-first form
+migration 20261003143731 followed by E2 20261003145302 remains the prerequisite;
+no new migration or API release is required. Synthetic desktop browser checks
+verified cancel, deactivate, delete, Deleted filter and restore with retained
+counts; a 390px confirmation had matching 375px content/scroll widths. The first
+native browser-confirm check hit a tooling timeout; the final inline confirmation
+flow passed in a fresh tab with no console errors. No live customer forms,
+provider messages, schema, deployment, commit or push were changed. Release only
+the CRM frontend for these controls; unrelated local work remains preserved.
+
+### October 10 — Website deployment page simplified (local)
+
+Website details now open on Deployments (formerly Assets), with a flat production
+status panel, folder/ZIP upload choices, collapsible file requirements and compact
+version rows. Preview/Publish remain prominent; View files and protected deletion
+are under More. The old Dashboard tab is labeled Settings. Existing tab keys,
+upload/build/publish APIs, business assignment and customer access are unchanged.
+No migration, provider change, push or deployment was performed.
+
+Validation: CRM production build, nine CRM tests and thirteen paired E2 hosting
+lifecycle/tab tests passed. Synthetic actual-component desktop and 390px browser
+checks verified default navigation, keyboard tab switching, file requirements,
+saved-file viewing, live deletion protection and empty-upload feedback. Mobile
+content/scroll widths both measured 375px and browser error logs were empty.
+The earlier live pilot remains unpublished and blocked at file selection; this
+redesign did not resume or publish it. Unrelated changes remain preserved.
+
+### October 10 — CRM website creation and deployment verification
+
+Traced the existing CRM create/upload/preview/publish flow against the paired E2
+hosting routes, private R2 storage and delivery Worker. Fixed a root-file mismatch:
+CRM and E2 upload validation accepted uppercase `INDEX.html`, but the builder and
+Worker require exact lowercase `index.html`. Both validators now reject it before
+creating an unusable deployment. Assets explains static build output and separate
+preview/publish steps. Source projects still require compilation before upload.
+
+Added E2 `tests/hosting-lifecycle.test.mjs`, using the real CRM file preparer, E2
+routes/build and Worker with in-memory database/storage. It covers creation,
+preview isolation, publish, restore, unpublish, incomplete-upload recovery,
+invalid files/addresses, unsigned access and cross-site deployment rejection.
+13 CRM tests, 40 E2 tests (including 11 paired-schema/access tests), four Worker
+tests, both production builds, scoped E2 lint and Worker TypeScript passed.
+The combined migration harness preserved CRM prerequisite `20261001235349`
+before E2 lifecycle `20261001235352`; no new migration is needed or was applied.
+
+Live browser verification: existing customer website reported published; staff
+created `crm-check-20261010`, named CRM Hosting Verification — temporary. It is
+unassigned, unpublished and has zero deployments. Chrome's extension denied
+local file selection twice, including the user's requested retry, because its
+file-URL permission is off. The tool also blocked opening chrome://extensions.
+Production upload, preview and publish therefore remain unverified. Two harmless
+pilot files are saved under ignored `data/hosting-verification/` for manual
+selection. Resume with this existing test site; do not create a duplicate.
+After a successful pilot, unpublish the test site. No existing site, business,
+owner or service release was changed. No source commit, push or application
+release was performed; the validation fix remains local. Unrelated edits remain.
 
 ### Dashboard and website requests release verified
 
@@ -447,6 +938,24 @@ assertions; release order is new E2 migration, E2 API/UI, then CRM frontend.
 40 E2 tests and 10 CRM API/render/tab-memory tests passed. Asset storage and
 domain connection remain previews. Deployment is authorized and pending.
 
+
+### October 8 — Website update requests, local implementation
+
+The paired E2 customer Website tab now includes a saved update-request workflow.
+CRM Websites has an Update requests inbox for statuses and customer-visible
+replies, served by the E2 hosting API using existing staff authorization. Customer
+reads remain scoped to the submitting account, authorized site and current site
+business; staff changes use revisions. No website publication happens here.
+Asset selection and domain connection remain customer-side previews; no live
+storage was created. No database migration or app release was performed.
+
+The E2-owned `20261009053203_website_update_requests.sql` migration must follow
+the existing paired platform/login/service schemas, then E2 API/UI release,
+then this CRM frontend release. No CRM migration is required; never replay either
+repository's history. E2 build/TypeScript/lint, CRM frontend build, 35 E2 combined
+schema/access/API tests and ten CRM tests passed. Synthetic browser checks
+verified customer retry/draft behavior and staff status/reply persistence.
+Details: [paired Website workspace](../E2local-main/docs/website-workspace.md).
 
 ### October 8 — Voice history and playback in Inbound calls
 
@@ -594,6 +1103,70 @@ checks; these are separate from live verification. E2 needs no frontend release
 for these private CRM additions. Unrelated local changes were excluded.
 
 
+### October 6 — Voice Agent CRM workspace implemented locally
+
+Added the Opek Voice Agent workspace, configuration drafts/publish/rollback,
+private calls/audio/transcripts, qualified voice leads and atomic booking attribution.
+The worker loads per-call published snapshots and preserves existing lookup,
+verification, consent, booking-capacity and persona mismatch safeguards. New runtime
+and maintenance roles are separate and narrow. CRM audio/transcripts expire after
+90 days; customer E2 visibility is unchanged. New forward migration is
+20261006060755_voice_crm_workspace, dependent on 20261006053509 and existing paired
+account/service prerequisites. No earlier migration was modified.
+
+Local validation: 29 CRM checks, 46 paired E2 checks, all 47 Python tests and the CRM
+frontend build passed. Browser checks covered draft preservation, saved reload,
+call details/transcripts and 390px mobile layout. Production import, new migration,
+Edge/worker/frontend releases and controlled phone-recording pilot are not yet
+verified at this checkpoint. Existing unrelated local changes remain preserved.
+See CRM docs/VOICE_CRM.md for contracts, rollout and operational limitations.
+
+
+### October 5 — availability backend and voice-worker deployment verified
+
+CRM API v49 and voice-booking v1 are ACTIVE. LiveKit voice-agent-phone version
+rSSD7nP25dsn deployed successfully and reports Running. A temporary RTC probe
+verified database_lookups=true, voice_booking=false, Vesper, and the unchanged
+prompt revision fd70eef16bd943d69522e2e2f0765260. The probe did not start an OpenAI
+conversation and its temporary room was removed. A signed booking request is
+blocked by the disabled Edge flag (503); unsigned CRM preview returns 401.
+Live counts remain zero for booking settings, voice rules and operational bookings.
+No physical phone/OTP booking pilot was performed. The CRM frontend build and
+actual-component browser checks passed; its Render release awaits explicit
+selection of Micah's workspace required by the connector. Source remains local
+and uncommitted; unrelated local changes were preserved.
+
+### October 5 — CRM availability and scoped voice booking
+
+Implemented CRM split-day schedules, structured date exceptions, strict validation,
+independent drafts and database-backed slot previews. Conversational SMS stays
+inactive; voice retains separate crew/equipment capacity. Added a separate,
+provider-bound HMAC booking endpoint with a restricted database role and only
+availability/prepare/confirm. The sibling voice agent now supports verified new
+bookings after completed recap playback and a fresh affirmative caller response;
+network retries retain the same preparation. Rescheduling/cancellation remain out
+of scope. No customer permission or website-form booking behavior changed.
+
+Validation: 48 selected CRM checks passed, two disabled-SMS checks skipped; 41
+paired E2 account/service/cache/booking checks and all 41 voice-agent Python tests
+passed. Fixed the E2 booking test to create its required form explicitly. CRM build
+passed; synthetic actual-component browser checks verified independent drafts,
+split windows, save/reload and 390px layout. Real phone booking remains untested.
+
+Reconciled live history, including voice bridge alias 20260926141343 and lookup
+migrations 20261005200000/20261005203000. Applied only CRM forward migration
+20261006053509_booking_availability_voice after a rolled-back rehearsal. CRM and
+voice-booking Edge APIs deployed; restricted-login availability succeeded, direct
+tables/private legacy calls were denied, security advisors found no errors, and
+unsigned CRM preview returned 401. Edge and agent booking flags remain false.
+No live schedules, bookings, provider settings, verification texts or E2 runtime
+release were created. Existing unrelated working changes are preserved.
+
+See CRM docs/BOOKING_AVAILABILITY.md and voice agent/README.md for setup and rollout.
+Frontend workspace selection and voice-worker release verification were still
+pending when this implementation entry was written; later release notes supersede
+that checkpoint.
+
 ### October 4 - CRM page-load performance production release
 
 CRM application commit `51f21b21135d2e3aacd7e2c7a943129464e575bb` is live
@@ -618,6 +1191,58 @@ No business data was edited or messages sent. No migrations, API/worker release,
 E2 runtime deployment or identity/provider changes were part of this CRM release.
 Both project records and staff workflow docs were updated; unrelated local work
 was preserved. The earlier E2 cache mock failures were fixed by concurrent E2 work.
+
+### October 4 - dashboard performance production release
+
+E2 application commit `e09f7951aa37d5a7ffe83d54cfe327f880753794` was pushed to
+`main`. Vercel deployment `dpl_EN7cy9QnNg1DdHmMPi8dMvi2Z6W9` completed Ready
+in 28 seconds and was verified Current in Production with `www.e2local.com`
+assigned. The signed-in production dashboard loaded successfully; Overview,
+Leads, Website publication details and SMS connection details rendered correctly.
+Browser warning/error logs were empty. These are live functional checks, not a
+controlled performance benchmark; production phone timings remain unmeasured.
+The prior entry records the local regression, lint, TypeScript and build results.
+No database migrations, Clerk configuration changes, CRM runtime deployment or
+provider changes were performed. Unrelated local CRM/documentation edits remain
+preserved.
+
+### October 3 - E2 progressive dashboard performance (local, not deployed)
+
+E2 entry now uses the existing fast verified identity/access reader instead of
+blocking on Clerk profile synchronization. Signed lifecycle webhooks and the
+missing-identity provisioning fallback remain. Cold bootstrap returns authorized
+business/service navigation in one request (four backend calls); a matching
+account/session/revision hint returns state only (two calls). Overview loads
+independently using an authorized website count, five recent leads and booking
+totals. Website deployment history, the storage SDK and R2 manifests are deferred
+until Website is visited. Detailed Leads/Bookings pages and all five secondary
+panel bundles load on demand. Legacy snapshot clients remain compatible.
+
+Browser schema 5 stores the separate resources. Focus revalidation keeps panels
+mounted behind a hidden/inert access gate; unchanged revisions retain drafts and
+pagination. Session changes, denial and changed revisions still clear/isolate
+protected data. Before/after revision checks, late-response generation checks,
+service release rules and the account-wide Refresh limit remain in force.
+
+Validation actually performed: all 26 cache/request/performance tests passed,
+including seven new bootstrap, summary, isolation and race regressions. Full E2
+suite: 145 passed, three older database fixture failures reproduced from the
+unchanged HEAD baseline (bookings default form and two platform default-form
+assumptions). Nineteen paired CRM account/business/API/tab tests passed. E2 lint
+and production build including TypeScript passed; deferred chunks are emitted.
+Actual-component browser checks verified early navigation while summaries were
+artificially delayed 1.5 seconds, one-request cached reload, deferred service
+reads, no tab-revisit reads, draft/pagination retention after focus validation,
+and revoked service removal on Refresh. The 390px frame had no document overflow
+and no browser warnings/errors. Authenticated production timing remains unmeasured.
+The transient cache mock failures recorded during concurrent CRM work are fixed.
+
+Compared both records, customer/CRM identity flows, lifecycle webhooks and shared
+readers. No new schema or shared reader contract: no migrations or new paired
+migration prerequisites; existing owning-repository order remains unchanged.
+No live database, Clerk configuration, provider, deployment or release changes.
+Existing unrelated/concurrent CRM and documentation edits were preserved.
+See E2 docs/dashboard-cache.md, docs/accounts.md and docs/api-reference.md.
 
 ### October 3 - CRM page-load performance (local, not deployed)
 
@@ -886,6 +1511,46 @@ Last documentation reconciliation: **October 1, 2026 (America/Denver)**.
 This is the current implementation and release-reference record for `opek-sms`. Update it after material code, schema, authentication or deployment work. Configuration names and synthetic examples are appropriate here; credentials and customer data are not.
 
 ## Current implementation
+
+October 14, documentation follow-up: both guide sets now reflect the completed
+paired review, including current API inventory, hosting recovery/drain rules and
+local-versus-deployed status. Documentation links, guide coverage and E2 route
+coverage were checked; no application changes or new deployments occurred. See
+the appended paired documentation completion entry.
+
+October 14, local: the paired E2 review adds session-safe dashboard/onboarding,
+scoped customer queries, contact intake limits and guarded hosting mutations.
+CRM's paired baseline now fingerprints the complete hosting mutation path and
+Worker and runs 63 shared-contract tests. CRM's 395 passing tests and 29 existing
+skips remain unchanged. Three additional E2 migrations are unapplied; drain old
+hosting invocations before the guard migration. See
+[paired release guide](docs/HARDENING_RELEASE.md) and the appended E2 verification.
+
+October 12: Dashboard product tabs are deployed in E2 `07f8f6c` / Vercel
+`dpl_9DBrmF4AgrfK7MH2qtzAx4Go6ea7`. Always-visible tabs and inactive-service Add
+placeholders are verified in production. No CRM runtime or database release was
+required. See the final October 12 Dashboard release entry for evidence.
+
+October 12, local: all Dashboard product tabs are visible before activation.
+Inactive tabs show an empty state and disabled Add Lead Capture / Add Bookings /
+Add Website / Add SMS / Add Voice Agent buttons, with setup forms deferred.
+Active views, Overview cards, access gates and service-data warmup retain their
+release filtering. This is an E2 UI change; CRM has paired documentation only.
+No migrations, live database changes or deployments were made.
+
+October 5 live phone lookup: the external `voice-agent-phone` now uses ACTIVE
+`voice-lookup` v2 with restricted approved business reads and call/phone-bound,
+consented SMS verification for customer bookings. Both new additive CRM migrations
+are applied and tracked; CRM/E2 runtimes are unchanged. Saved persona still says
+Mile High Moving while the approved sender/database belong to Opek. See the
+October 5 change entry and CRM `docs/SONI_VOICE_BRIDGE.md` for verification limits.
+
+
+E2 dashboard performance (October 4, deployed as `e09f795`): conditional workspace
+bootstrap, independent Overview summaries, deferred service data/panel code and
+retained same-revision panels during access revalidation are implemented.
+Existing identity, ownership and service-release contracts remain; no migration
+or CRM runtime change is required. See the latest E2 performance entry above.
 
 October 2 existing Twilio connections: staff can select approved toll-free or A2P
 senders from the configured parent account and active child accounts in Businesses.
@@ -1514,6 +2179,76 @@ setup remains available separately. Security advisors retain the five existing
 warnings with no new finding. No Twilio calls, paid actions or activation SMS.
 Subsequent record-only commits do not change the verified application behavior.
 
+
+### October 4, 2026 — approved phone connected to the GPT-Live cloud agent
+
+Live inventory confirmed the existing Opek toll-free sender is approved and voice-capable. The sibling voice agent is deployed as voice-agent-phone (CA_H8mbfRdWKWJV, version P3HUxF5Y2kGd) with its saved prompts. LiveKit inbound trunk ST_wuu4MFmMMfdG and dispatch rule SDR_KjBLwj6ZZg4h route callers to separate rooms. The existing signed voice webhook was rejecting the registered provider owner because it required the legacy opek tenant. Its owner guard is now configured through SONI_VOICE_TENANT_ID, retaining the exact-number and signature checks; soni-voice-inbound version 5 is ACTIVE. Deployment used downloaded live shared modules to avoid releasing unrelated local authentication edits.
+
+Validation actually performed: 25 focused CRM tests and 16 paired E2 account/service UI checks passed; signed live webhook returned 200 with matching SIP destination/credentials, unsigned requests returned 403, and the cloud agent generated audible greeting audio. PSTN audio still needs a physical call. SMS callbacks, provider/account ownership, customer visibility, shared database contracts and migration order are unchanged; no migrations or CRM/E2 frontend releases. Current details are in CRM docs/SONI_VOICE_BRIDGE.md and the voice agent README. The new voice runtime has no CRM tool bridge.
+
+
+### October 4, 2026 — Vesper phone voice deployed
+
+At the user's request, the external voice-agent-phone deployment now uses Vesper through VOICE_AGENT_VOICE. Version d6P5JWi7NpUf is Running. Six configuration checks passed and a fresh cloud session generated audible greeting audio; its temporary room was removed. Saved prompts, models, phone routing and SMS callbacks remain unchanged. No CRM/E2 runtime release or migration.
+
+### October 5 - live phone agent database lookup deployment
+
+The sibling LiveKit `voice-agent-phone` (cloud ID `CA_H8mbfRdWKWJV`) now uses a
+separate read-only `voice-lookup` gateway in shared Supabase project
+`wxamwhfmelxqahkdtcci`. Edge version 2 is ACTIVE. LiveKit production version `f3pBiwBsMUYb` is Running. The fixed scope is the approved
+line's registered provider owner, `biz-1c0c09ce-819e-4795-86b9-0e457ab92f58`
+(Opek Junk Removal); ownership is checked on each operation. Business lookup
+returns only approved active profile fields and approved active knowledge.
+Customer name/phone and up to ten bookings require consented SMS verification
+for that exact call and phone. Codes expire after five minutes, allow three
+attempts, and are rate limited; verified reads expire after 30 minutes. Booking
+creation, rescheduling/cancellation and general texting are not exposed.
+
+Only two additive CRM migrations were individually applied and tracked:
+`20261005200000_voice_agent_read_lookup.sql` then
+`20261005203000_voice_lookup_boundary.sql`. No historical migrations were replayed.
+The dedicated `sms_voice_lookup_login` has no direct customer-table privileges,
+no superuser/bypass-RLS rights, and no `sms_private` schema access. Its four
+`voice_lookup_api` wrappers enforce scope and verification. The isolation migration
+addresses inherited PUBLIC execution on older internal routines without changing
+existing client privileges. Edge owns the restricted database credential and OTP
+hashing key; LiveKit receives only the Supabase URL and a signed gateway key,
+not admin/service-role credentials. The legacy voice write bridge is unchanged.
+
+The phone route, Vesper voice, GPT-Live-1/GPT-6.1 Sol and saved prompt revision
+`13635bbf6dfb4543ad199ab37b2a116e` are preserved. Lookup workflow rules are appended
+at runtime, including after future prompt publications. The saved persona says
+Mile High Moving, while the database belongs to Opek; runtime rules prohibit
+misattributing business facts. Staff can reconcile it in the local live prompt UI.
+The local worker is configured for the same restricted gateway. Existing
+Twilio SMS callbacks, business/provider ownership and CRM/E2 application
+runtimes were not changed or released.
+
+Validation actually performed: 36 Python checks, five focused CRM bridge/lookup
+checks and 24 paired E2 accounts, business services, CRM linking/access and
+bookings checks passed. Synthetic SQL fixtures cover actual verification outbox
+queueing, wrong/valid/expired codes, phone/call isolation, approved-only facts,
+denied table access and denied legacy/internal functions. Live signed business
+lookup returned the approved Opek profile; unsigned requests returned 401 and
+signed unverified customer requests returned 403. Production contact, booking
+and message counts were unchanged. A fresh cloud voice session generated audible
+greeting audio and the live model successfully delegated to and executed the
+business lookup tool; the temporary room was removed. No real verification SMS
+or customer record lookup was performed. A controlled PSTN call and real SMS
+verification are still needed for complete telephony/delivery coverage.
+See CRM `docs/SONI_VOICE_BRIDGE.md` and sibling voice agent `README.md`.
+
+### October 8 — Paired Website request inbox change record (not released)
+
+Added the Websites Update requests section and E2-hosting API client for staff
+status/reply management. Customer request data stays within the existing staff
+realm and submitting-customer boundaries. E2 owns the new request table/RPC
+migration; CRM owns only its inbox UI. Apply the new E2 migration before releasing
+E2 APIs/UI and then CRM. No live storage, database changes, pushes or deployments
+were performed. E2 build/lint and 35 combined schema/access/API tests passed;
+CRM frontend build and 10 API/render/tab-memory tests passed. Synthetic browser
+checks verified status/reply refresh. See ../E2local-main/docs/website-workspace.md.
+
 ### October 8 — Customer website requests release prepared
 
 Added the staff Websites Update requests inbox with status and customer-visible
@@ -1540,3 +2275,156 @@ staged build; raw source matches after line-ending normalization. Builds, scoped
 lint, 40 E2 tests and 10 CRM tests passed. Desktop/mobile fixture navigation and
 layout were verified; authenticated production rendering/submission was not tested.
 The existing unrelated local changes remain outside these commits.
+
+
+### October 12 — Always-visible Dashboard products (local)
+
+All five product tabs now remain visible in both loading and loaded navigation.
+Inactive hash selections stay on their own tab and render a shared empty state
+with a service-specific disabled Add button and setup-coming-soon explanation.
+Forms are intentionally deferred. Active service views remain intact; private
+service data, Overview summaries and background data requests remain gated by
+existing released-service access. No provisioning or activation action is wired.
+
+Compared both project records and the CRM service-release implementation. No new
+migration is needed; the existing paired migration order is unchanged. No history
+was replayed and no shared live database or deployment was changed. Existing
+unrelated local edits in both repositories were preserved.
+
+Validation performed: 40 E2 tests passed (service UI, paired service database,
+cache, warmup and customer Voice); 10 CRM business-setup/customer-Voice tests
+passed. These database suites use local fixtures and exercise paired migrations.
+Scoped ESLint and the E2 production build including TypeScript passed. Actual
+component browser checks verified the desktop Voice empty state, active SMS
+navigation and the 390px Voice tab/empty state; no browser warnings/errors were
+reported. Both records and affected customer-service/cache/Voice docs updated.
+
+### October 12 — All Dashboard product tabs deployed and verified
+
+E2 commit `07f8f6c4db8e01ba9246fd4f09e67a36bbef73ea` was pushed to main and is
+Ready in Production in Vercel deployment `dpl_9DBrmF4AgrfK7MH2qtzAx4Go6ea7`,
+completed October 12 at 2:27:39 PM MDT. Both www.e2local.com and e2local.com are
+assigned. The existing Git integration deployed automatically in about 29 seconds.
+All five product tabs remain visible before activation, including the loading
+shell. Inactive selections show their empty state and disabled Add service button;
+forms remain deferred. Existing released data and Overview filtering are preserved.
+
+Isolated release validation: 32 E2 focused tests, scoped ESLint and the production
+build/TypeScript passed. The initial isolated build rejected an external dependency
+junction; installing dependencies directly resolved it. Prior paired verification
+remains 40 E2 and 10 CRM passes. Signed-in production verification confirmed all
+five product tabs and the Voice empty state with Add Voice Agent. Browser and
+deployment-scoped warning/error/fatal logs were empty. Both public roots returned
+HTTP 200. Screenshot: E2 `.artifacts/dashboard/all-products-live.png`.
+
+No database migration or CRM runtime deployment was needed for this task. Other
+pending work remains separate. Both local project records and workflow docs now
+record the verified release; earlier local/prepared statements are historical.
+
+### October 13 — Documentation verification record
+
+Reconciled the CRM's main reading paths and affected E2 integration/database
+references; preserved unrelated work. CRM validation command: `node --test
+test/platformApi.test.js test/formSequences.test.js test/directAutomationsApi.test.js
+test/voiceSetup.test.js test/sharedTwilioWebhooks.test.js` (22 passed). E2:
+`node --test tests/business-services-database.test.mjs tests/customer-voice.test.mjs`
+(12 passed). Documentation-only work; no frontend build or live/provider test was
+needed or performed. Source migration prerequisites are documented in CRM
+`docs/DEVELOPMENT.md`; recovery evidence still needed is explicit in CRM
+`docs/RECOVERY.md`. Earlier dated rollout observations remain historical evidence.
+
+### October 14 — Main E2 reliability review verification (local only)
+
+Completed the main E2 review and implemented verified fixes while preserving
+unrelated local work. Dashboard requests now fence redirects/cache writes by
+session, bound transport/body waits and persisted cache size, and clear old
+drafts on account changes. Onboarding forms and save actions verify the
+originating account/session; late saves cannot navigate or refresh another
+session. Voice media/dialog cleanup and transcript access are corrected.
+
+Customer SQL readers authorize the account's service set, select narrow page
+keys and totals, then hydrate only page payloads. Connected forms use the direct
+relationship. Server database transport has a 10-second cancellation-aware
+deadline. Current SQL source modules are checked against their owning migration.
+
+Contact intake has bounded JSON input, durable retry identity, atomic email/IP
+limits and generic confirmation text. Trusted-ingress IP handling is explicit.
+Contact/Pricing browser submissions prevent duplicates, preserve retry IDs for
+unchanged drafts and bound response waits. Resend calls have an 8-second deadline.
+Contact mail remains best-effort after durable storage; this is not an email outbox.
+
+Hosting builds copy one bounded file at a time and no longer run the legacy
+Tailwind compiler. Existing ready/published manifests remain usable. All conflicting
+hosting mutations serialize per website, with token/generation-fenced database
+writes and explicit recovery holds for expired/uncertain external operations.
+Malformed, missing-body or JSON-null publication metadata cannot be mistaken for
+a missing pointer during cleanup. The delivery Worker validates manifest sizes,
+paths, deployment keys and preview expiry.
+
+Static-page-compatible security headers, generic recovery/404 pages, truthful
+newsletter placeholder, maintained documentation index/architecture guide and a
+paired CI/release gate are implemented. Removed unused compiler dependencies and
+one-off tunnel settings. CI still needs reviewed immutable paired revisions and
+remote repository configuration before enforcement can be claimed.
+
+New E2-owned forward migrations:
+- `20261014065217_dashboard_scoped_reads.sql`
+- `20261014065602_contact_intake_limits.sql`
+- `20261014071224_hosting_operation_fencing.sql`
+
+All three remain NEW AND UNAPPLIED for this work. The earlier local CRM
+`20261014061007_queue_reporting_hardening.sql` and E2
+`20261014061728_hosting_read_indexes.sql` remain separately owned release inputs.
+Drain old hosting mutation invocations before the fencing migration and deploy
+the matching E2 API before reopening writes. Old unfenced hosting code is not a
+compatible rollback. Reconcile existing remote aliases and apply only missing
+reviewed owning migrations; never replay either repository history.
+
+Final local verification:
+- E2: 239 tests passed, zero failures/skips; delivery Worker: 6 passed.
+- Expanded paired source/migration fingerprints and contracts: 63 tests passed.
+  These overlap the E2 suite and are not additional independent test coverage.
+- CRM: 424 tests, 395 passed, 29 existing legacy/disabled-AI skips, zero failures.
+- E2 full ESLint, application/Worker TypeScript, maintained-SQL comparison and
+  final production build passed. Public marketing pages remain prerendered.
+- CRM source/header/Edge dependency checks and maintained-SQL comparison passed.
+- Local production HTTP checks passed for 11 public pages, metadata/canonicals,
+  structured data, sitemap/robots, internal links, social image and real 404s.
+- Synthetic browser checks verified same-session draft retention and account
+  switching with a delayed old-session 401. Offline onboarding component/action
+  tests verified stale-session rejection and late-completion isolation.
+- 21 E2 documentation files decode as UTF-8 and 203 local links resolve.
+  Served Contact/Pricing/404 security headers passed local HTTP checks.
+- Both repositories' relevant diffs passed whitespace checks. The unrelated
+  pre-existing CRM `public/dashboard-theme.css` trailing blank line is preserved.
+
+No production migrations, database edits, provider submissions, publications,
+DNS changes, commits or deployments were performed. Local logs are ignored
+workstation artifacts. Hosted Clerk/CSP/media behavior, actual PostgreSQL
+concurrency/query plans, R2 interruption/recovery and ingress forwarding remain
+release checks, not proven by PGlite or mocked transport tests.
+
+### October 14 — Paired documentation completion follow-up
+
+Confirmed both projects have maintained documentation indexes, setup/configuration,
+architecture, APIs, customer/staff workflows, database ownership, release and
+recovery guides. Filled the remaining gaps after the implementation review.
+
+E2's API reference now matches all current route/method combinations, paginated
+hosting responses, Voice resources and website-update request contracts. Browser
+storage schema 6 is distinguished from the cache-key/API version. Contact retry
+troubleshooting and onboarding session-test instructions match the source.
+Account/service release observations and earlier ownership-test failures are
+explicitly historical; the October 14 passing suite remains dated evidence.
+
+CRM's documentation index links the main E2 index, architecture and release guide.
+Architecture, website integration, operations, workspace performance and deployment
+guides now carry the guarded-hosting conflict/recovery behavior, drain requirement
+and the complete paired release inventory through its authoritative guide.
+
+Validation for this documentation-only follow-up: 57 README/guide files decode
+as UTF-8; 524 local file/heading links resolve; every guide appears in its index;
+all 25 E2 route/method combinations appear in the API inventory. Relevant Markdown
+diffs pass whitespace checks. Earlier application/build/test results were not
+rerun or presented as new evidence. No application, migration, provider,
+production database or deployment change was made in this follow-up.

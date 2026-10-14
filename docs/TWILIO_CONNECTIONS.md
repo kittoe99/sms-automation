@@ -126,13 +126,14 @@ and full callback URL before any event is recorded. Soni retains its fixed
 business/number restriction using the same number-aware resolver. Legacy
 account-only credential lookup returns nothing for a shared account.
 
-## Toll-free calling correction (implemented locally, not released)
+## Toll-free calling correction (deployed and verified October 11)
 
 CRM migration `20261011233216_toll_free_voice_before_sms_approval.sql` replaces
-only the connection reservation/completion functions. Apply it after the shared
-account migrations and before the updated CRM API. Old approved-only API calls
-remain compatible. No E2 migration or history replay is needed. Release both
-frontend label changes; the customer summary contract/cache fields are unchanged.
+only the connection reservation/completion functions. It is applied after the shared
+account migrations; CRM API v57 is ACTIVE. Old approved-only API calls
+remain compatible. No E2 migration or history replay was needed. CRM f4d8471 and
+E2 2074c54 are live; the customer summary contract/cache fields are unchanged.
+See both project records for deployment IDs and validation evidence.
 
 A connected number remains configured while its SMS registration is
 `verification_pending`, `in_review` or `rejected`. Sending stays disabled, and

@@ -1,8 +1,45 @@
 # Workspace loading and browser cache
 
-Release prepared October 11, 2026 on the previous Dashboard design release
-`bea0d57`. The isolated production-config build and all 37 focused release checks
-passed. Deployment status and evidence are recorded in the paired project records. No API, database, migration, or paired E2
+## October 14 lifecycle and hosting changes — local only
+
+Platform pages own independent hosts and cancellable read scopes. Navigation no
+longer waits for all platform operations. Reads have a 30-second deadline and
+cancel immediately when leaving, including while authentication/transport is
+pending. Already submitted writes are not cancelled by ordinary tab navigation;
+their results stay with the initiating page. Retained editors show a refresh hint
+after background changes rather than losing unsaved values. A workspace/session
+reset disposes old page controllers and prevents subsequent workflow steps.
+
+Website deployments load only their site's paginated detail response, 25 versions
+per page, instead of the complete hosting portfolio. Upload PUTs run with four
+workers and a two-minute batch deadline; a failure stops remaining uploads. Build
+requests have a separate two-minute deadline. An abandoned or failed upload remains
+a staging deployment and can be inspected/deleted or rebuilt after verifying its
+files; a deadline is not proof that a submitted server operation did not complete.
+If E2 returns `hosting_recovery_required`, further mutations remain held until
+the operator stops the original invocation, verifies storage and follows the
+[hosting reconciliation procedure](../../E2local-main/docs/web-hosting.md#operation-recovery).
+Neither repeated retries nor lease expiry clears that uncertainty. `hosting_busy`
+means another operation is running; wait for its result and refresh.
+Ordinary tab navigation can leave an upload running, with progress retained in its
+page. Page reload, sign-out or changing business is not a durable background job.
+
+Voice/Calls controls remount from their data model and preserve unsaved agent
+drafts, while timers, audio sources and details are disposed on every departure.
+Realtime connection ownership follows business/session changes and ignores retired
+subscription callbacks. Explicit foreign-business reads retain their requested
+tenant and bypass the selected-business cache.
+
+The CRM deployment panel requires the paired E2 paginated site-detail endpoint
+before release. Regression coverage includes Voice disposal/remount, explicit tenant
+headers and cache bypass, platform cancellation with an uncooperative transport,
+realtime reconnect/late SDK loading, upload concurrency/deadline, and paginated
+deployment numbering. These are local functional checks, not production load tests.
+
+## Existing cache release
+
+Deployed October 11, 2026 as CRM `d507c4c` in Render deployment
+`dep-db5tg067bikc73e0n9mg` (LIVE at 12:40:15 PM America/Denver). No API, database, migration, or paired E2
 application release is required for these frontend changes.
 
 The CRM uses E2 Local's Dashboard loader: a 30px blue rotating ring and small
@@ -45,6 +82,10 @@ time-based freshness rather than indefinite reuse.
 Writes clear the read cache before and after the request. Refresh, live updates,
 business changes, visibility return and sign-out also invalidate saved data.
 Generation checks prevent an older request from refilling an invalidated cache.
+Session/user identity is checked around token retrieval and response delivery,
+so a delayed token from a prior Clerk account cannot start a request within the
+new account's cache scope. Active-account changes clear retained drafts, selected
+records, page reads and Realtime before a fresh authorized bootstrap.
 Existing mounted-tab memory keeps drafts and scroll positions; aged or invalidated
 tabs show “Refresh for latest activity” rather than silently replacing an editor.
 Cached response data never grants write permission: the API still authorizes
@@ -58,3 +99,8 @@ build. In a synthetic local preview with 350ms API delay, opening warmed Forms
 made no additional Forms request; reloading made fresh auth/config and auth/me
 requests while restoring the Forms data from session storage. These observations
 are local functional evidence, not a production latency benchmark.
+
+Release verification: the isolated production-config build and 37 focused checks
+passed. The homepage and all eight entry/preload assets return 200 and match the
+build; six served source files match the release commit. Render error logs are
+empty. The isolated browser Forms check used synthetic data.

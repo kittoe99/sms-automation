@@ -1,6 +1,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { enrichBusinessFromWebsite, factsFromPage, normalizeWebsiteUrl } from '../src/lib/websiteEnrich.js';
+const resolveDns=async()=>['8.8.8.8'];
 
 test('website URL normalization rejects non-public hosts', () => {
   assert.equal(normalizeWebsiteUrl('example.com'), 'https://example.com/');
@@ -23,7 +24,7 @@ test('facts fall back to headings, lists, tel links and hours without Firecrawl'
     <p>Proudly serving Denver, Aurora and Lakewood.</p>
     </body></html>`;
   const fetchImpl = async () => new Response(html, { status: 200, headers: { 'content-type': 'text/html' } });
-  const facts = await enrichBusinessFromWebsite('https://example.com', { fetchImpl });
+  const facts = await enrichBusinessFromWebsite('https://example.com', { fetchImpl,resolveDns });
   assert.equal(facts.source, 'html');
   assert.match(facts.businessName, /Bello Moving/);
   assert.match(facts.summary, /junk removal/i);
@@ -51,7 +52,7 @@ test('Firecrawl extraction wins and junk nav labels are dropped', async () => {
     },
   };
   const fetchImpl = async () => Response.json(payload);
-  const facts = await enrichBusinessFromWebsite('example.com', { apiKey: 'fc-test', fetchImpl });
+  const facts = await enrichBusinessFromWebsite('example.com', { apiKey: 'fc-test', fetchImpl,resolveDns });
   assert.equal(facts.source, 'firecrawl');
   assert.equal(facts.businessName, 'Bello Moving');
   assert.ok(facts.services.includes('Junk removal'));
@@ -73,7 +74,22 @@ test('factsFromPage caps lists to the save limits', () => {
 test('Firecrawl auth failure surfaces a configuration error', async () => {
   const fetchImpl = async () => new Response('{}', { status: 401 });
   await assert.rejects(
-    enrichBusinessFromWebsite('https://example.com', { apiKey: 'bad', fetchImpl }),
+    enrichBusinessFromWebsite('https://example.com', { apiKey: 'bad', fetchImpl,resolveDns }),
     /not configured/
   );
+});
+
+test('enrichment rejects private destinations and redirect escapes before fetching them',async()=>{
+ for(const address of ['https://[::1]:8443/','https://[fd00::1]/','https://169.254.169.254/','https://[::ffff:127.0.0.1]/']) {
+  await assert.rejects(enrichBusinessFromWebsite(address,{fetchImpl:()=>{throw new Error('Must not fetch');}}),/valid website address/);
+ }
+ let calls=0;
+ await assert.rejects(enrichBusinessFromWebsite('example.com',{resolveDns,fetchImpl:async()=>{calls++;return new Response(null,{status:302,headers:{location:'http://169.254.169.254/'}});}}),{code:'UNSAFE_SOURCE_URL'});
+ assert.equal(calls,1);
+});
+
+test('enrichment fallback enforces streaming limits',async()=>{
+ let cancelled=false;
+ await assert.rejects(enrichBusinessFromWebsite('example.com',{resolveDns,fetchImpl:async()=>new Response(new ReadableStream({start(c){c.enqueue(new Uint8Array(1500001));},cancel(){cancelled=true;}}),{headers:{'content-type':'text/html'}})}),{code:'SOURCE_TOO_LARGE'});
+ assert.equal(cancelled,true);
 });

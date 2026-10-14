@@ -18,7 +18,7 @@ test('directory includes archived submissions but excludes archived forms from a
 test('cards escape form content, preserve zero counts and respect submission permissions',()=>{
   const html=formCards([{...forms[1],title:'<script>bad</script>',description:'<img onerror=bad>',fields:[{label:'<b>Name</b>',required:true}],created_at:'2026-10-08T12:00:00Z'}],{canReadSubmissions:false,timeZone:'UTC'});
   assert.ok(html.includes('&lt;script&gt;'));assert.ok(!html.includes('<script>'));
-  assert.ok(html.includes('<dd>0</dd>'));assert.ok(html.includes('Paused · v2'));
+  assert.ok(html.includes('<dd>0</dd>'));assert.ok(html.includes('Paused · form inactive · v2'));
   assert.ok(!html.includes('data-form-tab="submissions"'));assert.ok(!html.includes('data-form-tab="automation"'));
   assert.ok(html.includes('&lt;b&gt;Name&lt;/b&gt; (required)'));
 });

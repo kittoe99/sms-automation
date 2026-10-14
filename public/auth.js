@@ -85,7 +85,7 @@ const clerkAppearance = {
 
 export function getTenantId() {
   try {
-    return localStorage.getItem(demoMode ? DEMO_TENANT_STORAGE_KEY : TENANT_STORAGE_KEY) || '';
+    return localStorage.getItem(demoMode || runtimeConfig.previewReadOnly ? DEMO_TENANT_STORAGE_KEY : TENANT_STORAGE_KEY) || '';
   } catch {
     return '';
   }
@@ -96,7 +96,7 @@ export function setTenantId(tenantId) {
   if (!/^[a-z0-9][a-z0-9_-]{0,63}$/.test(value)) {
     throw new Error('Invalid business account identifier');
   }
-  localStorage.setItem(demoMode ? DEMO_TENANT_STORAGE_KEY : TENANT_STORAGE_KEY, value);
+  localStorage.setItem(demoMode || runtimeConfig.previewReadOnly ? DEMO_TENANT_STORAGE_KEY : TENANT_STORAGE_KEY, value);
 }
 
 export function getSession() {
@@ -120,7 +120,10 @@ export function getSession() {
 
 export async function getAccessToken() {
   if (localMode) return 'local-development';
-  return (clerk?.session || loginSession)?.getToken() || null;
+  const started=identity();
+  const token=await ((clerk?.session || loginSession)?.getToken() || null);
+  if(identity()!==started)throw new DOMException('The signed-in account changed.', 'AbortError');
+  return token;
 }
 
 export function createOrganizationChangeHandler(sessionId, organizationId, onChange) {
@@ -188,9 +191,16 @@ export async function initAuth() {
       }
     },
   ));
+  let observedSessionId=clerk.session?.id;
   clerk.addListener(({ session }) => {
+    const ended=observedSessionId&&!session;
+    const changed=observedSessionId&&session&&observedSessionId!==session.id;
+    observedSessionId=session?.id;
     if (!session) {loginSession = null;workspaceCache.activate(null);}
     if (cacheIdentity && identity() !== cacheIdentity) {workspaceCache.activate(null);cacheIdentity=null;}
+    if(ended||changed){loginSession=null;requestKeys.clear();}
+    if(ended)globalThis.window?.dispatchEvent(new Event('clerk:session-ended'));
+    else if(changed)globalThis.window?.dispatchEvent(new Event('clerk:session-changed'));
   });
   return { session: getSession(), configured: true };
 }
@@ -203,22 +213,29 @@ export async function signOut() {
 
 /** fetch() wrapper that attaches the current Clerk session token. */
 export async function apiFetch(url, options = {}) {
-  if (demoMode && !['GET', 'HEAD'].includes(String(options.method || 'GET').toUpperCase())) {
+  if ((demoMode || runtimeConfig.previewReadOnly) && !['GET', 'HEAD'].includes(String(options.method || 'GET').toUpperCase())) {
     return new Response(JSON.stringify({ error: 'Read-only demo: changes, SMS, and calls are disabled.' }), {
       status: 403, headers: { 'Content-Type': 'application/json' },
     });
   }
   const { tenant = true, ...fetchOptions } = options;
   const headers = new Headers(options.headers || {});
+  // Capture the request context before token retrieval can yield to navigation.
+  // Platform tools may explicitly address another authorized business.
+  const tenantId = headers.get('X-Tenant-ID') || (tenant ? getTenantId() : '');
+  const requestIdentity=identity();
+  const assertIdentity=()=>{
+    if(identity()!==requestIdentity)throw new DOMException('The signed-in account changed.', 'AbortError');
+  };
   const token = await getAccessToken();
+  assertIdentity();
   if (token) headers.set('Authorization', `Bearer ${token}`);
-  const tenantId = getTenantId();
-  if (tenant && tenantId) headers.set('X-Tenant-ID', tenantId);
+  if (tenantId) headers.set('X-Tenant-ID', tenantId);
   if (options.body && !headers.has('Content-Type') && !(options.body instanceof FormData)) {
     headers.set('Content-Type', 'application/json');
   }
   const mutation = String(options.method || 'GET').toUpperCase() === 'POST';
-  const fingerprint = `${tenantId}:${url}:${options.body || ''}`;
+  const fingerprint = `${requestIdentity}:${tenantId}:${url}:${options.body || ''}`;
   if (mutation && !headers.has('Idempotency-Key')) {
     if (!requestKeys.has(fingerprint)) requestKeys.set(fingerprint, crypto.randomUUID());
     headers.set('Idempotency-Key', requestKeys.get(fingerprint));
@@ -231,10 +248,16 @@ export async function apiFetch(url, options = {}) {
   }
   const platformRead = url.startsWith('/api/platform/') && cacheStaff;
   const useCache = cacheIdentity && (platformRead || headers.get('X-Tenant-ID') === cacheTenant);
-  const request = requestOptions => fetch(apiUrl(url), {...requestOptions,headers});
+  const request = async requestOptions => {
+    assertIdentity();
+    const response=await fetch(apiUrl(url), {...requestOptions,headers});
+    assertIdentity();
+    return response;
+  };
   const response = useCache
     ? await workspaceCache.fetch(url,fetchOptions,request)
     : await request(fetchOptions);
+  assertIdentity();
   if (write || response.status === 401 || response.status === 403) invalidateWorkspaceCache();
   if (response.ok || (response.status >= 400 && response.status < 500)) requestKeys.delete(fingerprint);
   return response;
@@ -271,6 +294,7 @@ export function renderLoginScreen({ onSuccess, errorMessage = '' } = {}) {
     completed = true;
     loginSession = session;
     Promise.resolve(onSuccess?.()).catch((err) => {
+      if(err.name==='AbortError')return;
       renderAccessScreen({ errorMessage: err?.message || 'Could not open the CRM.', onRetry: onSuccess });
     });
   });

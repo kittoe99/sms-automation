@@ -1,6 +1,20 @@
 # Grounded SMS AI and Twilio registration
 
-The migration `20260919010000_grounded_ai_knowledge.sql` is additive and leaves grounded AI, Edge dispatch, scheduling, and business sending disabled. Apply it before deploying the new functions.
+The new default-off [Inbound AI agent](INBOUND_AI.md) supersedes the generation
+path below for `sms-agent-v1` jobs only. It uses GPT 6.1 Sol and five narrow tools.
+Older AI jobs remain disabled; knowledge approval and embedding workflows remain.
+The inbound backend/frontend were released October 10 and Opek was enabled in
+shadow; live activation still requires the documented pilot gate. These are
+recorded release observations, not a fresh live inspection. The legacy generation
+instructions below are historical; use [Inbound AI](INBOUND_AI.md) for current settings.
+
+The original additive migration `20260919010000_grounded_ai_knowledge.sql` seeded
+grounded AI, dispatch, scheduling and business sending disabled. Later migrations
+extend this implementation. For an existing deployment, reconcile applied history
+before deploying a change; do not reapply the original rollout wholesale. Current
+runtime/configuration references are [architecture](ARCHITECTURE.md) and
+[configuration](CONFIGURATION.md); prior release observations are in the
+[project record](../PROJECT_RECORD.md).
 
 ## Runtime responsibilities
 
@@ -13,17 +27,55 @@ The migration `20260919010000_grounded_ai_knowledge.sql` is additive and leaves 
 
 All provider writes have a before/after checkpoint. `submission_unknown` is terminal for automatic execution and must go through reconciliation.
 
+## Source fetching and job limits
+
+Website enrichment and knowledge ingestion share `src/lib/publicHttps.js`.
+It accepts public HTTPS on port 443, rejects credentials and private/reserved
+addresses (including IPv4-mapped IPv6), and validates every redirect. The crawler
+also keeps every page and redirect on the source origin. The production transport
+connects directly to the validated IP while retaining the original TLS certificate
+identity, SNI and HTTP Host; it does not let `fetch` resolve the hostname again.
+There is no fallback to an unpinned transport. `node:https` must be supported by
+the runtime. The transport requests identity encoding and rejects servers that
+return compressed bodies despite that request.
+
+Each source request has a 12-second deadline including DNS, headers and streaming
+body reads. Streaming byte limits are 1.5 MB for enrichment, 2 MiB per crawled page
+and 10 MiB for a private knowledge file. Enrichment's Firecrawl call has a 25-second
+limit and a bounded 2 MiB JSON response; the entire enrichment operation has a
+30-second budget. Storage downloads never follow redirects with service credentials.
+
+Knowledge reads and asynchronous document extraction share a 30-second deadline
+across all five crawl pages or one file. Expiry aborts network/body work, prevents
+late extraction results from completing the job and lets the existing runner
+schedule a retry and release its slot. Completion has the existing database
+statement timeout; the work budget leaves room before the 40-second knowledge
+batch budget and 120-second lease/slot expiry. Byte and extracted-text limits are
+also enforced. Supabase Edge does not support Web Workers, so JavaScript timers
+cannot interrupt synchronous parser CPU; its platform CPU/memory limits remain
+the final bound. CPU-heavy document extraction belongs in an isolated parser
+service if it becomes a frequent workload. No provider SMS retry behavior changes.
+
+These are local implementation guarantees. Before releasing, run the network and
+knowledge regression tests and a controlled public-HTTPS import in the target Edge
+runtime to verify its Node TLS compatibility. No production source imports or
+deployments were performed during this hardening work.
+
 ## Required secrets
 
 Configure `SMS_SENDER_DATABASE_URL`, `SMS_AUTOMATION_DATABASE_URL`, `SMS_AI_DATABASE_URL`, the eight worker bearer secrets listed in `.env.example`, `OPENAI_API_KEY`, `SUPABASE_SERVICE_ROLE_KEY`, Clerk settings, and the existing Twilio master provisioning credentials. Link each queue's bearer secret to `sms_private.edge_config.secret_id` before enabling that queue.
 
-For per-tenant estimated cost reporting, set the four optional current-rate values in `.env.example`. Rates are configuration rather than hard-coded prices; if they are omitted, the dashboard reports token and segment usage and labels cost as unconfigured.
+For per-tenant estimated costs, set the four optional rate values in `.env.example`
+from separately verified provider rates. The runtime treats these as estimates;
+it does not fetch pricing. The secret-preparation helper fills fixed AI defaults,
+so an omitted local value does not necessarily leave the generated deployment
+unconfigured. Review generated settings privately before importing.
 
 Twilio Compliance Embeddable access is an account-level prerequisite. The server integration is included; the returned `inquiryId` and `sessionToken` are intended for Twilio's `@twilio/twilio-compliance-embed` client. Sensitive legal answers go directly to Twilio and are not persisted by this application.
 
 ## Rollout
 
-1. Apply the migration and deploy `knowledge-worker`, `embedding-worker`, `handoff-worker`, `compliance-worker`, and `compliance-session` alongside the existing functions.
+1. Confirm the required migration definitions are already applied or apply only the intended new additive change; deploy the affected knowledge, embedding, handoff, compliance or session functions with their dependencies.
 2. Configure and verify the new scoped database URLs and worker tokens while every new `edge_config` row is disabled.
 3. Backfill validation is automatic for completed business profiles. Review the active profile in AI knowledge.
 4. Enable knowledge and embedding queues. Import sources, inspect extracted drafts, then explicitly approve each version.

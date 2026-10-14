@@ -1,20 +1,26 @@
 # Twilio subaccounts for CRM businesses
 
-The Add SMS provisioning path creates a dedicated Twilio subaccount and Messaging
-Service. Connect approved sender can instead share an existing account across CRM
-businesses, with one exclusive number and a separate single-number Messaging
-Service per business. See [connection and rollout details](TWILIO_CONNECTIONS.md).
+The **Add SMS** provisioning path creates a dedicated Twilio subaccount and
+Messaging Service. The **Connect approved sender** path can instead share an
+existing account across CRM businesses, with one exclusive number and separate
+single-number Messaging Service per business. Shared-account deployment was
+verified October 11; see [connection and rollout details](TWILIO_CONNECTIONS.md).
+For business lifecycle release status see [Business lifecycle](BUSINESS_LIFECYCLE.md).
 The subaccount is owned by the platform's parent Twilio account, so its usage is
 billed to the parent balance while phone numbers, messages, credentials, and
 registration resources stay separated by business.
 
-Twilio limits parent accounts to 1,000 subaccounts by default. The platform must
-request a higher limit from Twilio before approaching that threshold. See
+Provider quotas and registration requirements should be verified for the intended
+parent account before scaling. This repository does not establish current limits. See
 [Twilio's subaccount documentation](https://www.twilio.com/docs/iam/api/subaccounts).
 
-## Automatic creation flow
+This guide describes the current Edge provisioning flow. The old Express
+single-active-business guard belongs to the [legacy reference](LEGACY.md).
+For staff steps see [Business setup](USER_GUIDE.md#business-setup-and-provider-activation).
 
-1. An administrator creates a business in the CRM.
+## Provisioning after explicit Add SMS
+
+1. Customer onboarding creates the owner-linked business without a provider. An administrator reviews its extended profile and explicitly adds SMS in the CRM.
 2. The database inserts a private provider row. An `AFTER INSERT` trigger queues
    one `twilio-bootstrap:v1` job in `provisioning_jobs`.
 3. The provisioning Edge worker authenticates with the parent Account SID and
@@ -41,13 +47,13 @@ been created, the job moves to `submission_unknown`. It is not retried
 automatically because a replay could create a second resource. An operator must
 inspect the parent Twilio account and reconcile the exact child resource first.
 
-The business creation transaction and its durable queue entry commit together.
+The SMS service addition transaction and its durable queue entry commit together.
 The queue uses the business-scoped idempotency key `twilio-bootstrap:v1`, so
 duplicate API requests or scheduler overlap do not create duplicate jobs.
 
 ## Phone numbers and campaign registration
 
-Phone-number purchase is intentionally not part of automatic business creation
+Phone-number purchase is intentionally not part of automatic SMS service addition
 because it starts recurring charges and requires a geographic/type choice. The
 number must be purchased in the child's account and attached to that child's
 Messaging Service.

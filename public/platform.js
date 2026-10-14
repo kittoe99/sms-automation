@@ -1,41 +1,59 @@
+import {deploymentMarkup} from './websiteDeployments.js';
 import {createRenderQueue} from './tabWorkspace.js?v=20261002-workspace';
 import {dashboardLoader} from './dashboardLoader.js';
 import {mountTwilioAccounts} from './twilioAccounts.js?v=20261003-directory';
 import {mountBusinessSetup} from './businessSetup.js?v=20261003-sms-nav';
 import {apiFetch,getAccessToken,runtimeConfig} from './auth.js?v=20261001-business-services';
+import {abortable,createPageLifecycle,uploadFiles} from './pageLifecycle.js';
 const esc=value=>String(value??'').replaceAll('&','&amp;').replaceAll('<','&lt;').replaceAll('>','&gt;').replaceAll('"','&quot;').replaceAll("'",'&#39;');
 const date=value=>value?new Date(value).toLocaleString():'—';
 async function json(response){const data=await response.json();if(!response.ok)throw new Error(data.error||'Request failed. Please retry.');return data;}
-const read=(resource,params={})=>apiFetch(`/api/platform/${resource}?${new URLSearchParams(params)}`,{tenant:false}).then(json);
-const write=(action,input)=>apiFetch(`/api/platform/${action}`,{tenant:false,method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(input)}).then(json).then(data=>{window.dispatchEvent(new Event('crm:data-changed'));return data;});
-async function hosting(path='',options={}){
- const base=runtimeConfig.hostingApiBase;
- if(!base)throw new Error('Website tools are not configured. Set HOSTING_API_BASE for the CRM deployment.');
- const token=await getAccessToken();if(!token)throw new Error('Sign in again to continue.');
- return json(await fetch(base.replace(/\/$/,'')+path,{...options,headers:{Authorization:`Bearer ${token}`,...(options.body?{'Content-Type':'application/json'}:{}),...options.headers},cache:'no-store'}));
-}
-const hostWrite=(path,body,method='POST')=>hosting(path,{method,...(body?{body:JSON.stringify(body)}:{})}).then(data=>{window.dispatchEvent(new Event('crm:data-changed'));return data;});
 const button=(text,attrs='')=>`<button type="button" class="btn ghost" ${attrs}>${esc(text)}</button>`;
 const field=(label,name,value='',attrs='')=>`<label class="compose-label">${esc(label)}<input name="${name}" value="${esc(value)}" ${attrs}/></label>`;
 const checkbox=(label,name,checked=false)=>`<label><input type="checkbox" name="${name}" ${checked?'checked':''}/> ${esc(label)}</label>`;
 
-export function createPlatform({root,title,subtitle,pager,onNavigate,onWorkspace,onOpenRecord}){
- let view='accounts',page=1,q='',selected=null,tab='dashboard',enquiryPage=1,enquiryType='all';
+export function createPlatform({root,title,subtitle,pager,onNavigate,onWorkspace,onOpenRecord,isCurrent=()=>true,
+ fetcher=apiFetch,hostingFetcher=fetch,getToken=getAccessToken,config=runtimeConfig}){
+ root.classList.add('platform-root');
+ let view='accounts',page=1,q='',selected=null,tab='dashboard',enquiryPage=1,enquiryType='all',deploymentPage=1;
+ let disposed=false,needsRefresh=false,activeReads=0;
+ const lifecycle=createPageLifecycle({isCurrent:()=>!disposed&&isCurrent()});
+ const changed=data=>{needsRefresh=true;window.dispatchEvent(new Event('crm:data-changed'));return data;};
+ async function scopedRead(callback){activeReads++;try{return await lifecycle.read(callback);}finally{activeReads--;}}
+ const read=(resource,params={})=>scopedRead(signal=>fetcher(`/api/platform/${resource}?${new URLSearchParams(params)}`,{tenant:false,signal}).then(json));
+ function write(action,input){
+  if(disposed)return Promise.reject(new DOMException('Workspace changed','AbortError'));
+  const signal=AbortSignal.timeout(60_000);
+  return abortable(fetcher(`/api/platform/${action}`,{tenant:false,method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(input),signal}).then(json),signal).then(changed);
+ }
+ async function hostingRequest(path='',options={}){
+  if(disposed)throw new DOMException('Workspace changed','AbortError');
+  const base=config.hostingApiBase;
+  if(!base)throw new Error('Website tools are not configured. Set HOSTING_API_BASE for the CRM deployment.');
+  const token=await abortable(getToken(),options.signal);if(!token)throw new Error('Sign in again to continue.');
+  options.signal?.throwIfAborted();
+  return abortable(hostingFetcher(base.replace(/\/$/,'')+path,{...options,headers:{Authorization:`Bearer ${token}`,...(options.body?{'Content-Type':'application/json'}:{}),...options.headers},cache:'no-store'}).then(json),options.signal);
+ }
+ const hosting=(path='')=>scopedRead(signal=>hostingRequest(path,{signal}));
+ const hostWrite=(path,body,method='POST')=>hostingRequest(path,{method,signal:AbortSignal.timeout(120_000),...(body?{body:JSON.stringify(body)}:{})}).then(changed);
  // Cached website record + hosting payload so sub-tabs (dashboard,
  // domain, assets, business-info, leads) switch instantly without
  // refetching on every tab click. Invalidated by mutations.
  let siteCache=null, siteRecord=null;
+ let sitePanelReady=true,siteNavigation=0;
  const sitePanels=new Map(), siteQueue=createRenderQueue();
- const pending = new Set();
- function openRecord(resource,id){if(onOpenRecord){onOpenRecord(resource,id);return;}view=resource;selected=id;tab='dashboard';siteCache=null;run(detail);}
+ function openRecord(resource,id){if(onOpenRecord){onOpenRecord(resource,id);return;}view=resource;selected=id;tab=resource==='websites'?'assets':'dashboard';siteCache=null;run(detail);}
  function bind(selector,event,callback){root.querySelectorAll(selector).forEach(node=>node.addEventListener(event,callback));}
  function run(callback){
+  const alert=root.querySelector('[data-error]');
   let task;try{task=Promise.resolve(callback());}catch(error){task=Promise.reject(error);}
-  task=task.catch(error=>{const alert=root.querySelector('[data-error]');if(alert)alert.textContent=error.message;else root.insertAdjacentHTML('afterbegin',`<p role="alert">${esc(error.message)}</p>`);});
-  pending.add(task);task.finally(()=>pending.delete(task));return task;
+  task=task.catch(error=>{if(error.name==='AbortError'||disposed)return;if(alert)alert.textContent=error.message;else if(lifecycle.current())root.insertAdjacentHTML('afterbegin',`<p role="alert">${esc(error.message)}</p>`);});
+  return task;
  }
  function error(){return '<p data-error class="login-error" role="alert"></p>';}
  async function directory(){
+  if(!lifecycle.current()){needsRefresh=true;return;}
+  lifecycle.begin();needsRefresh=false;
   if(view==='twilio'){title.textContent='Twilio accounts';subtitle.textContent='Approved senders and business connections';pager.hidden=true;await mountTwilioAccounts(root,{read,onBusiness:id=>openRecord('businesses',id)});return;}
   title.textContent={accounts:'Users',businesses:'Businesses',websites:'Websites'}[view];subtitle.textContent='Platform management';pager.hidden=true;
   const result=await read(view,{page,pageSize:25,q});
@@ -51,7 +69,7 @@ export function createPlatform({root,title,subtitle,pager,onNavigate,onWorkspace
      <div class="compose-actions">${button('Previous',`data-page="${page-1}" ${page<=1?'disabled':''}`)}<span>Page ${page} of ${result.totalPages} · ${result.total} records</span>${button('Next',`data-page="${page+1}" ${page>=result.totalPages?'disabled':''}`)}</div></section>`;
   bind('[data-search]','submit',event=>{event.preventDefault();q=new FormData(event.currentTarget).get('q').trim();page=1;run(directory);});
   bind('[data-page]','click',event=>{page=Number(event.currentTarget.dataset.page);run(directory);});
-  bind('[data-open]','click',event=>{if(selected!==event.currentTarget.dataset.open)siteCache=null;selected=event.currentTarget.dataset.open;tab='dashboard';run(detail);});
+  bind('[data-open]','click',event=>{if(selected!==event.currentTarget.dataset.open)siteCache=null;selected=event.currentTarget.dataset.open;deploymentPage=1;tab=view==='websites'?'assets':'dashboard';run(detail);});
   bind('[data-create-site]','click',()=>run(createSite));
   bind('[data-create-business]','click',()=>run(registration));
  }
@@ -62,6 +80,8 @@ export function createPlatform({root,title,subtitle,pager,onNavigate,onWorkspace
   container.querySelector('button').addEventListener('click',()=>run(search));await search();return select;
  }
   async function detail(options={}){
+  if(!lifecycle.current()){needsRefresh=true;return;}
+  lifecycle.begin();needsRefresh=false;
   onNavigate?.(`platform-${view}`);
   const result=await read(view,{id:selected});const row=result.rows[0];if(!row)throw new Error('Record no longer exists.');
   if(view==='websites'){siteRecord=row;sitePanels.clear();if(!options.keepSite)siteCache=null;}
@@ -74,15 +94,18 @@ export function createPlatform({root,title,subtitle,pager,onNavigate,onWorkspace
  // Instant website sub-tab switch: re-render from the cached record
  // instead of refetching the business directory + hosting payload.
  function switchSiteTab(next){
+  if(!lifecycle.current())return Promise.resolve();
+  const ticket=++siteNavigation;
+  if(next!==tab||!sitePanelReady)lifecycle.begin();
   return run(()=>siteQueue.run(async()=>{
-    if(next===tab)return;
+    if(ticket!==siteNavigation||!lifecycle.current()||(next===tab&&sitePanelReady))return;
     const panel=root.querySelector('[data-website-body]');
     if(!panel||!siteRecord)return;
-    sitePanels.set(tab,{nodes:[...panel.childNodes],enquiryPage,enquiryType});
+    if(sitePanelReady)sitePanels.set(tab,{nodes:[...panel.childNodes],enquiryPage,enquiryType});
     tab=next;
     const saved=sitePanels.get(tab);
-    if(saved){panel.replaceChildren(...saved.nodes);enquiryPage=saved.enquiryPage;enquiryType=saved.enquiryType;}
-    else {enquiryPage=1;panel.innerHTML=dashboardLoader();await renderWebsitePanel(panel,siteRecord);}
+    if(saved){panel.replaceChildren(...saved.nodes);enquiryPage=saved.enquiryPage;enquiryType=saved.enquiryType;sitePanelReady=true;}
+    else {sitePanelReady=false;enquiryPage=1;panel.innerHTML=dashboardLoader();await renderWebsitePanel(panel,siteRecord);if(ticket!==siteNavigation||!lifecycle.current())return;sitePanelReady=true;}
     root.querySelectorAll('[data-tab]').forEach(button=>{
       const active=button.dataset.tab===tab;
       button.setAttribute('aria-selected',String(active));button.tabIndex=active?0:-1;
@@ -148,6 +171,8 @@ export function createPlatform({root,title,subtitle,pager,onNavigate,onWorkspace
   await membershipEditor(body.querySelector('[data-editor]'),{tenantId:row.tenant_id});
  }
  async function registration(accountId=null){
+  if(!lifecycle.current())return;
+  lifecycle.begin();
   root.classList.add('platform-root');title.textContent='Business setup';subtitle.textContent='Registered customer';pager.hidden=true;
   onNavigate?.('platform-businesses');view='businesses';selected=null;
   root.innerHTML=`${button('Back to businesses','data-back')}<section class="card"><h2>Set up registered business</h2><p>Choose an E2 Local customer who has completed registration. Their submitted profile and owner link are retained.</p>${error()}<form class="compose" data-register><div data-account></div><details><summary>Resolve an existing business match</summary><p>Use this only when registration needs review. The selected business must belong to this customer or be unassigned.</p><div data-existing></div></details><button class="btn">Open business setup</button></form></section>`;
@@ -163,18 +188,28 @@ export function createPlatform({root,title,subtitle,pager,onNavigate,onWorkspace
   });});
  }
  async function createSite(tenantId=null){
+  if(!lifecycle.current())return;
+  lifecycle.begin();
   root.innerHTML=`${button('Back','data-back')}<section class="card">${error()}<form data-create class="compose"><h2>Create website</h2>${field('Name','name','','required maxlength="100"')}${field('E2 Local subdomain','slug','','required maxlength="32"')}<p>${tenantId?'This website will be linked to this business and hidden from the customer until you set it live.':'Assign its business after creation. Publishing is a separate action.'}</p><button class="btn">Create website</button></form></section>`;
-  bind('[data-back]','click',()=>run(tenantId?detail:directory));bind('[data-create]','submit',event=>{event.preventDefault();const submit=event.submitter;submit.disabled=true;run(async()=>{try{
-    const form=new FormData(event.currentTarget);const data=await hostWrite('',{name:form.get('name'),slug:form.get('slug')});
-    // Navigate to the created record even if linking fails, so retry cannot create it twice.
-    const siteId=data.site.id;selected=siteId;view='websites';tab='dashboard';
-    if(tenantId){const site=(await read('websites',{id:siteId})).rows[0];await write('services',{tenantId,kind:'website',siteId,siteRevision:site.revision});view='businesses';selected=tenantId;}
-    await detail();
-  }catch(error){if(view==='websites'&&selected){await detail();throw new Error(`Website created. Link it from business setup: ${error.message}`);}throw error;}finally{submit.disabled=false;}});});
+  bind('[data-back]','click',()=>run(tenantId?detail:directory));bind('[data-create]','submit',event=>{
+   event.preventDefault();const submit=event.submitter,formNode=event.currentTarget,form=new FormData(formNode);submit.disabled=true;
+   run(async()=>{let created;
+    try{
+     created=(await hostWrite('',{name:form.get('name'),slug:form.get('slug')})).site;
+     // Finish the submitted create/link workflow even if its page is detached.
+     if(tenantId){const data=await fetcher(`/api/platform/websites?${new URLSearchParams({id:created.id})}`,{tenant:false,signal:AbortSignal.timeout(30_000)}).then(json);await write('services',{tenantId,kind:'website',siteId:created.id,siteRevision:data.rows[0].revision});}
+     submit.textContent='Website created';
+     if(lifecycle.current()&&formNode.isConnected){view=tenantId?'businesses':'websites';selected=tenantId||created.id;tab='assets';siteCache=null;deploymentPage=1;await detail();}
+    }catch(error){
+     if(created){submit.textContent='Website created';if(lifecycle.current()&&formNode.isConnected){view='websites';selected=created.id;tab='assets';siteCache=null;await detail();}throw new Error(`Website created. Link it from business setup: ${error.message}`);}
+     submit.disabled=false;throw error;
+    }
+   });
+  });
  }
   async function website(body,row){
   body.innerHTML=`<p>${esc(row.slug)}.e2local.com · ${esc(row.business_name||'Business not assigned')} · ${row.owner_account_id?'Owner assigned':'Owner not assigned'}</p>
-   <nav class="compose-actions" role="tablist" aria-label="Website sections">${['dashboard','domain','assets','business-info','leads','update-requests'].map(t=>`<button type="button" role="tab" class="btn ghost" data-tab="${t}" aria-selected="${String(tab===t)}" tabindex="${tab===t?'0':'-1'}" ${tab===t?'aria-current="page"':''}>${esc(t.replaceAll('-',' '))}</button>`).join('')}</nav><div data-website-body role="tabpanel"></div>`;
+   <nav class="website-tabs" role="tablist" aria-label="Website sections">${['assets','dashboard','domain','business-info','leads','update-requests'].map(t=>`<button type="button" role="tab" class="btn ghost" data-tab="${t}" aria-selected="${String(tab===t)}" tabindex="${tab===t?'0':'-1'}" ${tab===t?'aria-current="page"':''}>${esc({assets:'Deployments',dashboard:'Settings',domain:'Domain','business-info':'Business info',leads:'Leads','update-requests':'Update requests'}[t])}</button>`).join('')}</nav><div data-website-body role="tabpanel"></div>`;
   bind('[data-tab]','click',event=>{switchSiteTab(event.currentTarget.dataset.tab);});
   body.querySelector('[role="tablist"]')?.addEventListener('keydown',event=>{
     if(event.key!=='ArrowRight'&&event.key!=='ArrowLeft')return;
@@ -185,13 +220,15 @@ export function createPlatform({root,title,subtitle,pager,onNavigate,onWorkspace
     next.focus();switchSiteTab(next.dataset.tab);
   });
   const panel=body.querySelector('[data-website-body]');
+  sitePanelReady=false;
   await renderWebsitePanel(panel,row);
+  sitePanelReady=true;
  }
  async function renderWebsitePanel(panel,row){
   if(tab==='dashboard'){
-    if(!siteCache||siteCache.id!==row.id){const all=await hosting();siteCache={id:row.id,all};}
-    const site=siteCache.all.sites.find(s=>s.id===row.id);if(!site)throw new Error('Website not found.');
-    panel.innerHTML=`<h3>${esc(site.name)}</h3><p>Publication: ${esc(site.publicationStatus)} · ${site.deployments.length} versions · Created ${date(site.created_at)}</p>
+    if(!siteCache||siteCache.id!==row.id){siteCache={id:row.id,...await hosting(`/${row.id}?page=${deploymentPage}&pageSize=25`)};}
+    const site=siteCache.site;if(!site)throw new Error('Website not found.');
+    panel.innerHTML=`<h3>${esc(site.name)}</h3><p>Publication: ${esc(site.publicationStatus)} · ${siteCache.total} versions · Created ${date(site.created_at)}</p>
      ${site.publicationStatus==='published'?`<a class="btn" href="https://${esc(site.slug)}.e2local.com/" target="_blank" rel="noopener noreferrer">Visit website</a>`:''}
      <form data-assign class="compose"><h3>Assign business</h3><div data-lookup-business></div><p>The primary business owner receives website access. Form connections prevent cross-business reassignment.</p><button class="btn">Save assignment</button></form>
      ${button('Unpublish','data-unpublish')}${button('Delete website','data-delete-site')}`;
@@ -212,13 +249,15 @@ export function createPlatform({root,title,subtitle,pager,onNavigate,onWorkspace
   else await leads(panel,row);
  }
   async function assets(panel,row){
-  if(!siteCache||siteCache.id!==row.id){siteCache={id:row.id,all:await hosting()};}
-  const all=siteCache.all,site=all.sites.find(s=>s.id===row.id);if(!site)throw new Error('Website not found.');
-  panel.innerHTML=`<h3>Website files and versions</h3><form data-upload class="compose"><label>Choose a folder<input data-folder type="file" webkitdirectory multiple/></label><label>Or choose files / ZIP<input data-files type="file" multiple/></label><p>Root index.html required. Maximum 500 files, 20 MB per file, and 50 MB total.</p><button class="btn">Upload and build preview</button><p data-upload-status role="status"></p></form>
-   ${site.deployments.map(d=>`<article class="card"><strong>${date(d.created_at)}</strong><p>${esc(d.status)} · ${Math.round(d.source_bytes/1024)} KB${site.liveDeploymentId===d.id?' · Live':''}</p>${d.error_message?`<p>${esc(d.error_message)}</p>`:''}
-     ${button('View files',`data-files-id="${d.id}"`)} ${['staging','failed'].includes(d.status)?button('Build preview',`data-build="${d.id}"`):''}
-     ${d.status==='ready'?`${d.preview_token?`<a class="btn ghost" href="https://p-${esc(d.preview_token)}.e2local.com/" target="_blank" rel="noopener noreferrer">Preview</a>`:''} ${button(site.liveDeploymentId===d.id?'Published':'Publish',`data-publish="${d.id}" ${site.liveDeploymentId===d.id?'disabled':''}`)}`:''}
-     ${button('Delete version',`data-delete-version="${d.id}" ${site.liveDeploymentId===d.id||d.status==='building'?'disabled':''}`)}</article>`).join('')||'<p>No deployments uploaded.</p>'}<div data-file-list></div>`;
+  if(!siteCache||siteCache.id!==row.id||siteCache.page!==deploymentPage){siteCache={id:row.id,...await hosting(`/${row.id}?page=${deploymentPage}&pageSize=25`)};}
+  const site=siteCache.site;if(!site)throw new Error('Website not found.');
+  panel.innerHTML=deploymentMarkup(site,date,siteCache);
+  panel.insertAdjacentHTML('beforeend',`<div class="compose-actions">${button('Previous',`data-deployment-page="${deploymentPage-1}" ${deploymentPage<=1?'disabled':''}`)}<span>Page ${siteCache.page} of ${siteCache.totalPages} · ${siteCache.total} versions</span>${button('Next',`data-deployment-page="${deploymentPage+1}" ${deploymentPage>=siteCache.totalPages?'disabled':''}`)}</div>`);
+  bind('[data-deployment-page]','click',event=>{deploymentPage=Number(event.currentTarget.dataset.deploymentPage);lifecycle.begin();siteCache=null;run(()=>assets(panel,row));});
+  bind('[data-folder],[data-files]','change',()=>{
+    const files=[...panel.querySelector('[data-folder]').files,...panel.querySelector('[data-files]').files];
+    panel.querySelector('[data-file-selection]').textContent=files.length?`${files.length} ${files.length===1?'file':'files'} selected`:'No files selected';
+  });
   bind('[data-build]','click',event=>run(async()=>{await hostWrite(`/${row.id}/deployments/${event.currentTarget.dataset.build}`,{action:'build'});siteCache=null;await detail();}));
   bind('[data-publish]','click',event=>run(async()=>{if(confirm('Publish this version to the live website?')){await hostWrite(`/${row.id}/deployments/${event.currentTarget.dataset.publish}`,{action:'publish'});siteCache=null;await detail();}}));
   bind('[data-delete-version]','click',event=>run(async()=>{if(confirm('Permanently delete this unpublished version?')){await hostWrite(`/${row.id}/deployments/${event.currentTarget.dataset.deleteVersion}`,null,'DELETE');siteCache=null;await detail();}}));
@@ -230,9 +269,10 @@ export function createPlatform({root,title,subtitle,pager,onNavigate,onWorkspace
       const {prepareHostingFiles}=await import('./hostingUpload.js');files=await prepareHostingFiles(files);
       const status=form.querySelector('[data-upload-status]');status.textContent='Preparing upload…';
       const created=await hostWrite(`/${row.id}/deployments`,{mode:'static',files:files.map(f=>({path:f.path,size:f.file.size}))});
-      for(const upload of created.uploads){const f=files.find(f=>f.path===upload.path);const response=await fetch(upload.url,{method:'PUT',headers:{'Content-Type':upload.contentType},body:f.file});if(!response.ok)throw new Error('Upload failed. Check R2 upload CORS and retry with a new version.');status.textContent=`Uploaded ${upload.path}`;}
-      status.textContent='Building preview…';const built=await hostWrite(`/${row.id}/deployments/${created.deploymentId}`,{action:'build'});siteCache=null;await detail();
-      if(built.previewUrl)root.querySelector('[data-detail]').insertAdjacentHTML('afterbegin',`<p><a href="${esc(built.previewUrl)}" target="_blank" rel="noopener noreferrer">Open the new preview</a></p>`);
+      await uploadFiles(created.uploads,files,{fetcher:hostingFetcher,onProgress:path=>{status.textContent=`Uploaded ${path}`;}});
+      status.textContent='Building preview…';const built=await hostWrite(`/${row.id}/deployments/${created.deploymentId}`,{action:'build'});siteCache=null;deploymentPage=1;
+      status.textContent='Preview built. Refresh deployments to view the new version.';
+      if(selected===row.id&&lifecycle.current()){await detail();if(built.previewUrl)root.querySelector('[data-detail]')?.insertAdjacentHTML('afterbegin',`<p><a href="${esc(built.previewUrl)}" target="_blank" rel="noopener noreferrer">Open the new preview</a></p>`);}
     }finally{submit.disabled=false;}
   });});
  }
@@ -246,10 +286,21 @@ export function createPlatform({root,title,subtitle,pager,onNavigate,onWorkspace
     <div class="compose-actions">${button('Previous',`data-enquiry-page="${enquiryPage-1}" ${enquiryPage===1?'disabled':''}`)}<span>Page ${enquiryPage} of ${enquiries.totalPages} · ${enquiries.total} enquiries</span>${button('Next',`data-enquiry-page="${enquiryPage+1}" ${enquiryPage>=enquiries.totalPages?'disabled':''}`)}</div>`;
   bind('[data-copy]','click',event=>run(async()=>{const btn=event.currentTarget;await navigator.clipboard.writeText(connections.connections.find(c=>c.id===btn.dataset.copy).snippet);btn.textContent='Copied';}));
   bind('[data-disable]','click',event=>run(async()=>{if(confirm('Disable this connection? Customers will lose access to its enquiries.')){await hostWrite(`/${row.id}/forms?connection=${event.currentTarget.dataset.disable}`,null,'DELETE');await detail();}}));
-  if(connections.business){const response=await apiFetch('/api/web-forms',{headers:{'X-Tenant-ID':connections.business.tenantId}});const data=await json(response);panel.querySelector('[data-form]').innerHTML=data.forms.filter(f=>f.enabled).map(f=>`<option value="${esc(f.public_id||f.publicId||f.id)}">${esc(f.title||f.preset)}</option>`).join('');}
+  if(connections.business){const data=await scopedRead(signal=>fetcher('/api/web-forms',{tenant:false,signal,headers:{'X-Tenant-ID':connections.business.tenantId}}).then(json));panel.querySelector('[data-form]').innerHTML=data.forms.filter(f=>f.enabled).map(f=>`<option value="${esc(f.public_id||f.publicId||f.id)}">${esc(f.title||f.preset)}</option>`).join('');}
   bind('[data-connect]','submit',event=>{event.preventDefault();run(async()=>{await hostWrite(`/${row.id}/forms`,{formId:panel.querySelector('[data-form]').value});await detail();});});
   bind('[data-type]','change',event=>{enquiryType=event.currentTarget.value;enquiryPage=1;run(()=>detail({keepSite:true}));});
   bind('[data-enquiry-page]','click',event=>{enquiryPage=Number(event.currentTarget.dataset.enquiryPage);run(()=>detail({keepSite:true}));});
  }
- return {snapshot(){return {view,page,q,selected,tab,enquiryPage,enquiryType,siteCache,siteRecord,panels:new Map(sitePanels)};},restore(saved){({view,page,q,selected,tab,enquiryPage,enquiryType,siteCache,siteRecord}=saved);sitePanels.clear();for(const [key,value] of saved.panels)sitePanels.set(key,value);},async whenIdle(){await Promise.all([...pending]);},async openRecord(resource,id){root.classList.add('platform-root');view=resource;selected=id;tab='dashboard';siteCache=null;await run(detail);},async openBusiness(id){root.classList.add('platform-root');view='businesses';selected=id;siteCache=null;await run(detail);},async openRegistration(){await run(registration);},async render(nextView){root.classList.add('platform-root');const resource=nextView.replace('platform-','');if(resource!==view){view=resource;selected=null;siteCache=null;page=1;q='';}await (selected?detail():directory());}};
+ return {
+  mount(container){container.replaceChildren(root);lifecycle.resume();},
+  suspend(){if(activeReads)needsRefresh=true;lifecycle.suspend();},
+  dispose(){disposed=true;lifecycle.suspend();},
+  // Keep the retained editor and draft values. A completed background mutation
+  // or cancelled secondary read flags refresh instead of replacing an editor.
+  resume(){lifecycle.resume();return needsRefresh;},
+  async openRecord(resource,id){view=resource;selected=id;deploymentPage=1;tab=resource==='websites'?'assets':'dashboard';siteCache=null;await run(detail);},
+  async openBusiness(id){view='businesses';selected=id;siteCache=null;await run(detail);},
+  async openRegistration(){await run(registration);},
+  async render(nextView){const resource=nextView.replace('platform-','');if(resource!==view){view=resource;selected=null;siteCache=null;page=1;q='';deploymentPage=1;}await (selected?detail():directory());},
+ };
 }

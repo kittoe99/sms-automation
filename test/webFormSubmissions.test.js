@@ -71,7 +71,7 @@ test('Web Forms enforce required fields, matching groups, and unique submission 
     await assert.rejects(() => db.query(`insert into public.sms_web_form_contact_submissions(tenant_id,name,phone,email)
       values($1,$2,$3,null)`, required.slice(0, 3)), /not-null constraint/);
     await assert.rejects(() => db.query(`insert into public.sms_web_form_contact_submissions(tenant_id,name,phone,email)
-      values($1,$2,'123',$3)`, [required[0], required[1], required[3]]), /check constraint/);
+      values($1,$2,'123',$3)`, [required[0], required[1], required[3]]), /Valid international phone number required/);
     await assert.rejects(() => db.query(`insert into public.sms_web_form_contact_submissions(tenant_id,name,phone,email)
       values($1,$2,$3,'invalid')`, required.slice(0, 3)), /check constraint/);
     await assert.rejects(() => db.query(`insert into public.sms_web_form_contact_submissions(tenant_id,name,phone,email,details)

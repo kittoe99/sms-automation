@@ -39,6 +39,7 @@ test('existing businesses receive separate disabled email groups and shared prov
 });
 
 async function setup(db) {
+  await db.exec('update sms_private.runtime set edge_enabled=true');
   await call(db, 'api_action', 'admin', null, 'create_business',
     { id: 'e2-local', name: 'E2 Local', timeZone: 'America/Denver' });
   const secret = (await db.query("select vault.create_secret(repeat('a',32)) as id")).rows[0].id;

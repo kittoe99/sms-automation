@@ -19,6 +19,6 @@ export async function prepareHostingFiles(input){
  if(result.length&&result.every(f=>f.path.includes('/')&&f.path.split('/')[0]===result[0].path.split('/')[0])&&!result.some(f=>f.path==='index.html'))result=result.map(f=>({...f,path:f.path.slice(f.path.indexOf('/')+1)}));
  const seen=new Set();let size=0;
  for(const f of result){if(!f.path||f.path.startsWith('/')||f.path.includes('\\')||f.path.split('/').some(p=>!p||p==='.'||p==='..')||seen.has(f.path.toLowerCase()))throw new Error('Invalid or duplicate website file path.');seen.add(f.path.toLowerCase());size+=f.file.size;if(f.file.size>20*1024*1024)throw new Error('A file exceeds 20 MB.');}
- if(!seen.has('index.html')||result.length>500||size>50*1024*1024)throw new Error('Root index.html required, with at most 500 files and 50 MB total.');
+ if(!result.some(f=>f.path==='index.html')||result.length>500||size>50*1024*1024)throw new Error('Root index.html (lowercase) required, with at most 500 files and 50 MB total.');
  return result;
 }

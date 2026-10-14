@@ -2,7 +2,7 @@ import {mountContactAutomations} from './contactAutomations.js';
 import {mountFormDirectory} from './formDirectory.js';
 import {installPhoneFormatting,normalizePhoneInput} from './phoneInput.js?v=20261003-phone';
 installPhoneFormatting();
-import {createTabMemory, createRenderQueue} from './tabWorkspace.js?v=20261002-workspace';
+import {createTabMemory, createRenderQueue, retainsMountedTab, resetWorkspaceState, createCompletionGuard} from './tabWorkspace.js?v=20261002-workspace';
 import {readBusinessProfile,writeBusinessProfile} from './profileClient.js?v=20261002-access';
 import {canOpenWorkspace,canWriteWorkspace,staffActionSelector} from './workspacePermissions.js?v=20261002-access';
 import {createPageReads, readWorkspaceContext} from './pageReads.js';
@@ -13,7 +13,7 @@ import {warmWorkspace,workspaceWarmupTasks} from './workspaceWarmup.js';
 import {CACHE_TTL} from './workspaceCache.js';
 import {mountTwilioActivation,mountSmsSetupChoice,smsSetupActionsHtml} from './twilioActivation.js?v=20261003-sms-nav';
 import {smsConnectionSummary} from './smsConnectionSummary.js?v=20261002-sms-summary';
-import { connectSupabaseLive } from './live.js?v=20261001-business-services';
+import { connectSupabaseLive, disconnectSupabaseLive } from './live.js?v=20261001-business-services';
 import { shouldRefreshFromBackground } from './refreshGuard.js';
 import {
   apiFetch as authenticatedFetch,
@@ -43,6 +43,7 @@ async function apiFetch(path, options = {}) {
 }
 
 let disposeActivity,disposeVoice;
+let stopLive = () => {};
 const KNOWN_VIEWS = ['automation-activity','inbound-ai','voice-agent','overview','contacts','messaging','bookings','automations','email','call','messages','deliverability','optouts','ai-instructions','business-setup','business-context','booking-setup','web-forms','knowledge','platform-accounts','platform-businesses','platform-websites','platform-twilio'];
 function initialViewFromUrl() {
   const view = new URLSearchParams(location.search).get('view');
@@ -108,6 +109,13 @@ const el = {
   tenantAvatar: document.getElementById('tenant-avatar'),
 };
 
+function workspaceCompletionGuard(node) {
+  return createCompletionGuard(
+    ()=>[getSession()?.id,getSession()?.user?.id,getTenantId(),state.view],
+    ()=>Boolean(node?.isConnected&&(el.root.contains(node)||el.drawerBody.contains(node))),
+  );
+}
+
 let formWorkspace = null;
 const formBuilder = {async render() {
   const {createFormWorkspace} = await import('./formWorkspace.js?v=20261004-live-test');
@@ -121,7 +129,9 @@ const platformInstances = new Map();
 function currentPlatform() {
   const key = state.view.startsWith('platform-') ? state.view : 'platform-businesses';
   if (!platformInstances.has(key)) {
-    const instance = createPlatform({root:el.root, title:el.title, subtitle:el.sub, pager:el.pager,
+    const host = document.createElement('div');
+    const instance = createPlatform({root:host, title:el.title, subtitle:el.sub, pager:el.pager,
+      isCurrent:()=>host.isConnected && platformInstances.get(state.view)===instance,
       onOpenRecord:(resource,id)=>switchView(`platform-${resource}`).then(()=>platform.openRecord(resource,id)),
       onWorkspace:async(tenantId,service,agentId)=>{await switchTenant(tenantId);if(service==='voice')state.voiceWorkspace={tab:agentId?'configuration':'agents',agentId};await switchView(service==='sms'?'business-setup':service==='enquiries'?'web-forms':service==='voice'?'voice-agent':'bookings',{force:true});},
       onNavigate:view=>{
@@ -178,42 +188,45 @@ document.addEventListener('visibilitychange', () => {
   if (!document.hidden) {invalidateWorkspaceCache();tabMemory.markStale();tabStatus(true);}
 });
 function rememberTab() {
-  if (state.view === 'automation-activity') return; // Live reports remount; filters have their own scoped storage.
+  if (!retainsMountedTab(state.view)) return; // Live pages remount using their retained model/filter state.
   if (!lastRenderedView || lastRenderedView !== state.view) return;
   tabMemory.save(state.view, {
     nodes: [...el.root.childNodes], kpis: [...el.kpi.childNodes], className: el.root.className,
     state: Object.fromEntries(tabStateKeys.map(key => [key, state[key]])),
     title: el.title.textContent, sub: el.sub.textContent, meta: el.storeMeta.textContent,
     crumb: el.toolbarTenant.textContent, section: el.toolbarSection.textContent, documentTitle: `${el.title.textContent} · E2.Local CRM`,
-    platformState: state.view.startsWith('platform-') ? currentPlatform().snapshot() : null,
     pager: el.pager.hidden, pageInfo: el.pageInfo.textContent,
     prev: el.prev.disabled, next: el.next.disabled, scroll: window.scrollY,
     stale: currentTabStale, loadedAt: currentTabLoadedAt,
   });
 }
-function restoreTab(snapshot) {
+async function restoreTab(snapshot) {
   Object.assign(state, snapshot.state);
   el.root.replaceChildren(...snapshot.nodes); el.root.className = snapshot.className;
   el.kpi.replaceChildren(...snapshot.kpis);
   setTitle(snapshot.title, snapshot.sub); el.storeMeta.textContent = snapshot.meta;
   el.toolbarTenant.textContent = snapshot.crumb; el.toolbarSection.textContent = snapshot.section;
   document.title = snapshot.documentTitle;
-  if (snapshot.platformState) currentPlatform().restore(snapshot.platformState);
   el.pager.hidden = snapshot.pager; el.pageInfo.textContent = snapshot.pageInfo;
   el.prev.disabled = snapshot.prev; el.next.disabled = snapshot.next;
   el.search.value = state.q; el.status.value = state.status; el.pageSize.value = state.pageSize;
   document.querySelector('.crm').classList.toggle('thread-open', state.view === 'messaging' && Boolean(state.conversationPhone));
   currentTabLoadedAt=snapshot.loadedAt || 0;
   lastRenderedView = state.view; tabStatus(snapshot.stale || Date.now()-currentTabLoadedAt>=CACHE_TTL);
+  if (state.view.startsWith('platform-') && currentPlatform().resume()) tabStatus(true);
   window.scrollTo({top: snapshot.scroll, behavior: 'instant'});
 }
 function clearTabs() {
   stopWorkspaceWarmup();
   disposeActivity?.(); disposeActivity=null;
   disposeVoice?.(); disposeVoice=null;
-  if (state.view === 'automation-activity') el.root.replaceChildren();
-  state.voiceWorkspace = {};state.inboundVoiceWorkspace={};
+  el.root.replaceChildren();
+  el.drawerBody.replaceChildren();
+  document.querySelector('.crm')?.classList.remove('drawer-open','thread-open');
+  syncOverlayLock();
+  resetWorkspaceState(state);
   formWorkspace?.reset(); formWorkspace = null;
+  for (const instance of platformInstances.values()) instance.dispose();
   tabMemory.clear(); platformInstances.clear(); sectionHistory.clear(); categoriesLoaded = false; lastRenderedView = null;
 }
 
@@ -251,6 +264,19 @@ el.tenantSelect?.addEventListener('change', () => {
 
 window.addEventListener('clerk:organization-changed', () => {
   switchTenant(getTenantId(), { force: true }).catch(error=>console.error(error));
+});
+
+window.addEventListener('clerk:session-ended', () => {
+  pageReads.cancel();
+  void forceLogin('Your session ended. Sign in again to continue.');
+});
+
+window.addEventListener('clerk:session-changed', () => {
+  pageReads.cancel();
+  document.getElementById('crm-app').hidden=true;
+  void openAuthenticatedWorkspace().catch(error=>{
+    if(error.name!=='AbortError')renderAccessScreen({errorMessage:error.message,onRetry:openAuthenticatedWorkspace});
+  });
 });
 
 document.getElementById('add-business')?.addEventListener('click', () => {
@@ -318,7 +344,7 @@ async function renderBookings(){
  el.root.innerHTML=`<section class="card"><div class="card-head"><div><h2>Appointments</h2>${state.platformStaff?'<button type="button" class="btn ghost" data-booking-settings>Availability settings</button>':''}<span class="muted">${fmt(data.total)} booking${Number(data.total)===1?'':'s'}</span></div><select id="booking-status-filter"><option value="">All statuses</option><option value="confirmed">Confirmed</option><option value="cancelled">Cancelled</option><option value="requested">Requested</option></select></div><div class="table-scroll"><table class="data"><thead><tr><th>Customer</th><th>Date and time</th><th>Address</th><th>Status</th><th>Source</th></tr></thead><tbody>${rows||'<tr><td colspan="5" class="empty">No bookings yet. Staff can configure hours using Availability settings.</td></tr>'}</tbody></table></div></section>`;
  el.root.querySelector('[data-booking-settings]')?.addEventListener('click',()=>switchView('booking-setup'));
  const filter=el.root.querySelector('#booking-status-filter');filter.value=state.bookingStatus;filter.addEventListener('change',()=>{state.bookingStatus=filter.value;state.page=1;renderBookings();});
- el.root.querySelectorAll('[data-booking-id]').forEach(row=>row.addEventListener('click',async()=>{const id=row.dataset.bookingId,res=await apiFetch(`/api/bookings/${encodeURIComponent(id)}`),body=await res.json();if(!res.ok)throw new Error(body.error||'Could not load booking');const b=body.booking,answers=Object.entries(b.extra_answers||{}).map(([key,value])=>`<div class="row"><div class="k">${esc(key.replaceAll('_',' '))}</div><div class="v">${esc(value)}</div></div>`).join('');openDrawer(`Booking ${id}`,`<div class="kv"><div class="row"><div class="k">Customer</div><div class="v">${esc(b.customer_name||'—')}</div></div><div class="row"><div class="k">Phone</div><div class="v">${esc(b.customer_phone||b.contact_phone||'—')}</div></div><div class="row"><div class="k">Appointment</div><div class="v">${esc(fmtTime(b.appointment_at))} · ${esc(b.time_zone||'')}</div></div><div class="row"><div class="k">Address</div><div class="v">${esc(b.service_address||'—')}</div></div><div class="row"><div class="k">Status</div><div class="v">${esc(b.status)}</div></div>${answers}</div><div class="compose-actions"><span id="booking-action-error" class="login-error"></span>${state.platformStaff&&b.voice_call_id?`<button class="btn ghost" id="booking-voice-call" data-id="${esc(b.voice_call_id)}">Open voice call</button>`:''}<button class="btn ghost" id="booking-open-thread">Open conversation</button>${b.status==='confirmed'?'<button class="btn danger" id="booking-cancel">Cancel booking</button>':''}</div>`);el.drawerBody.querySelector('#booking-voice-call')?.addEventListener('click',event=>openVoiceCall(event.currentTarget.dataset.id));el.drawerBody.querySelector('#booking-open-thread')?.addEventListener('click',()=>{switchView('messaging',{conversationId:null,conversationPhone:b.customer_phone||b.contact_phone,force:true});});el.drawerBody.querySelector('#booking-cancel')?.addEventListener('click',async event=>{if(!confirm('Cancel this booking and its pending reminders?'))return;event.currentTarget.disabled=true;const cancel=await apiFetch(`/api/bookings/${encodeURIComponent(id)}/cancel`,{method:'POST',headers:{'Idempotency-Key':crypto.randomUUID()},body:'{}'}),result=await cancel.json();if(!cancel.ok){el.drawerBody.querySelector('#booking-action-error').textContent=result.error||'Cancellation failed';event.currentTarget.disabled=false;return;}closeDrawer();await renderBookings();});}));
+ el.root.querySelectorAll('[data-booking-id]').forEach(row=>row.addEventListener('click',async()=>{const ownsRow=workspaceCompletionGuard(row);const id=row.dataset.bookingId,res=await apiFetch(`/api/bookings/${encodeURIComponent(id)}`),body=await res.json();if(!ownsRow())return;if(!res.ok)throw new Error(body.error||'Could not load booking');const b=body.booking,answers=Object.entries(b.extra_answers||{}).map(([key,value])=>`<div class="row"><div class="k">${esc(key.replaceAll('_',' '))}</div><div class="v">${esc(value)}</div></div>`).join('');openDrawer(`Booking ${id}`,`<div class="kv"><div class="row"><div class="k">Customer</div><div class="v">${esc(b.customer_name||'—')}</div></div><div class="row"><div class="k">Phone</div><div class="v">${esc(b.customer_phone||b.contact_phone||'—')}</div></div><div class="row"><div class="k">Appointment</div><div class="v">${esc(fmtTime(b.appointment_at))} · ${esc(b.time_zone||'')}</div></div><div class="row"><div class="k">Address</div><div class="v">${esc(b.service_address||'—')}</div></div><div class="row"><div class="k">Status</div><div class="v">${esc(b.status)}</div></div>${answers}</div><div class="compose-actions"><span id="booking-action-error" class="login-error"></span>${state.platformStaff&&b.voice_call_id?`<button class="btn ghost" id="booking-voice-call" data-id="${esc(b.voice_call_id)}">Open voice call</button>`:''}<button class="btn ghost" id="booking-open-thread">Open conversation</button>${b.status==='confirmed'?'<button class="btn danger" id="booking-cancel">Cancel booking</button>':''}</div>`);el.drawerBody.querySelector('#booking-voice-call')?.addEventListener('click',event=>openVoiceCall(event.currentTarget.dataset.id));el.drawerBody.querySelector('#booking-open-thread')?.addEventListener('click',()=>{switchView('messaging',{conversationId:null,conversationPhone:b.customer_phone||b.contact_phone,force:true});});el.drawerBody.querySelector('#booking-cancel')?.addEventListener('click',async event=>{if(!confirm('Cancel this booking and its pending reminders?'))return;const button=event.currentTarget,isCurrent=workspaceCompletionGuard(button),error=el.drawerBody.querySelector('#booking-action-error');button.disabled=true;try{const cancel=await apiFetch(`/api/bookings/${encodeURIComponent(id)}/cancel`,{method:'POST',headers:{'Idempotency-Key':crypto.randomUUID()},body:'{}'}),result=await cancel.json();if(!cancel.ok)throw new Error(result.error||'Cancellation failed');if(!isCurrent())return;closeDrawer();await load({force:true},isCurrent);}catch(cause){if(error)error.textContent=cause.message;button.disabled=false;}});}));
 }
 
 async function fetchOnboarding() {
@@ -1007,6 +1033,7 @@ async function renderBusinessContext() {
     faqsInput.dispatchEvent(new Event('input'));
   };
   fetchButton?.addEventListener('click', async () => {
+    const isCurrent=workspaceCompletionGuard(form);
     const url = fetchUrlInput.value.trim() || websiteInput.value.trim();
     if (!url) {
       error.textContent = 'Enter a website address to fetch.';
@@ -1020,9 +1047,10 @@ async function renderBusinessContext() {
     try {
       const payload = JSON.stringify({ websiteUrl: url });
       const headers = { 'Content-Type': 'application/json' };
-      const token = await getAccessToken();
-      if (token) headers.Authorization = `Bearer ${token}`;
       const tenantId = getTenantId();
+      const token = await getAccessToken();
+      if(!isCurrent())return;
+      if (token) headers.Authorization = `Bearer ${token}`;
       if (tenantId) headers['X-Tenant-ID'] = tenantId;
 
       // Prefer the project server: it owns the Firecrawl credential and keeps it
@@ -1036,10 +1064,12 @@ async function renderBusinessContext() {
         response = null;
       }
       const localResponseIsJson = response?.headers.get('content-type')?.toLowerCase().includes('application/json');
+      if(!isCurrent())return;
       if ((!response || response.status === 404 || !localResponseIsJson) && runtimeConfig.apiBase) {
         response = await apiFetch('/api/enrich-website', { method: 'POST', body: payload });
         data = await response.json().catch(() => ({}));
       }
+      if(!isCurrent())return;
       if (!response) throw new Error('Website fetch is unavailable. Check the server and try again.');
       if (response.status === 404) throw new Error('Website fetch is not deployed yet. Fill in the form manually for now.');
       if (!response.ok) throw new Error(data.error || 'That website could not be read. Check the address and try again.');
@@ -1068,6 +1098,7 @@ async function renderBusinessContext() {
 
   form.addEventListener('submit', async (event) => {
     event.preventDefault();
+    const isCurrent=workspaceCompletionGuard(form);
     const businessName = nameInput.value.trim();
     const websiteUrl = websiteInput.value.trim();
     const summary = summaryInput.value.trim();
@@ -1090,7 +1121,7 @@ async function renderBusinessContext() {
     const intent = event.submitter?.value === 'draft' ? 'draft' : 'review';
     const payload = {businessName, timeZone:timeZoneInput.value.trim(), websiteUrl, summary, services, locations, hours, contactPhone, contactEmail, tone, faqs, pricing, policies, bookingRules, handoff};
     if (intent === 'draft') {
-      try {const result=await saveOnboarding(payload,'draft');state.setupOnboarding={...result.data,source:'api'};state.businessContextDraft=null;await renderBusinessContext();}
+      try {const result=await saveOnboarding(payload,'draft');if(!isCurrent())return;state.setupOnboarding={...result.data,source:'api'};state.businessContextDraft=null;await load({force:true},isCurrent);}
       catch (failure) {fail(failure.message);}
       return;
     }
@@ -1118,6 +1149,7 @@ async function renderBusinessContext() {
         return;
       }
       const result = await saveOnboarding(payload);
+      if(!isCurrent())return;
       state.setupOnboarding = {
         ...result.data,
         onboarding: result.data.onboarding || {},
@@ -1125,7 +1157,8 @@ async function renderBusinessContext() {
         source: result.source,
       };
       state.businessContextDraft = null;
-      await loadTenantContext();
+      await loadTenantContext(undefined,isCurrent);
+      if(!isCurrent())return;
       switchView('overview', { force: true });
     } catch (failure) {
       error.textContent = failure.message;
@@ -1535,21 +1568,25 @@ function switchView(view, options = {}) {
   if (['automations','ai-instructions'].includes(view)) view = 'web-forms';
   if (view === 'knowledge') view = 'business-context';
   const ticket = ++navigationTicket;
-  if (view !== state.view && KNOWN_VIEWS.includes(view) && canOpenWorkspace(view, state.platformStaff, state.tenant)) pageReads.cancel();
+  if (view !== state.view && KNOWN_VIEWS.includes(view) && canOpenWorkspace(view, state.platformStaff, state.tenant)) {
+    pageReads.cancel();
+    for (const instance of platformInstances.values()) instance.suspend();
+  }
   return renderQueue.run(async () => {
     if (ticket !== navigationTicket || !KNOWN_VIEWS.includes(view)) return;
-    await Promise.all([...platformInstances.values()].map(instance => instance.whenIdle()));
     if (ticket !== navigationTicket || !canOpenWorkspace(view, state.platformStaff, state.tenant)) return;
     clearTimeout(searchTimer); state.q = el.search.value.trim();
     const changed = state.view !== view;
     if (changed) rememberTab();
     if (changed && state.view === 'automation-activity') {disposeActivity?.();disposeActivity=null;}
+    if (changed) {disposeVoice?.();disposeVoice=null;}
     const snapshot = changed ? tabMemory.take(view) : null;
     if (changed) Object.assign(state, tabDefaults);
     state.view = view; closeDrawer(); closeSidebar();
+    if (!changed && state.view.startsWith('platform-')) currentPlatform().resume();
     setActiveNav();
     const explicitTarget = Object.keys(options).some(key => key !== 'history');
-    if (snapshot && !explicitTarget) restoreTab(snapshot);
+    if (snapshot && !explicitTarget) await restoreTab(snapshot);
     else if (changed || explicitTarget || lastRenderedView !== view) {
       if ('categoryId' in options) state.categoryId = options.categoryId;
       if ('conversationPhone' in options) state.conversationPhone = options.conversationPhone;
@@ -1570,29 +1607,19 @@ function switchView(view, options = {}) {
 // In-place workspace switch: re-resolve tenant context and re-render
 // the current tab without tearing down auth, theme or realtime.
 async function switchTenant(tenantId, options = {}) {
+  const sessionId=getSession()?.id;
+  const isCurrent=()=>sessionId===getSession()?.id;
   stopWorkspaceWarmup();invalidateWorkspaceCache();
+  stopLive();pageReads.cancel();
+  for (const instance of platformInstances.values()) instance.suspend();
   return renderQueue.run(async () => {
-  await Promise.all([...platformInstances.values()].map(instance => instance.whenIdle()));
+  if(!isCurrent())return;
   clearTabs();
-  disposeVoice?.();disposeVoice=null;
   if (tenantId) setTenantId(tenantId);
-  state.categories = [];
-  state.cadences = [];
-  state.rulePresets = [];
-  state.setupProvisioning = null;
-  state.setupOnboarding = null;
-  state.setupRegistration = null;
-  state.businessContextDraft = null;
-  state.bookingSettingsDraft = null;
-  state.voiceBookingDrafts = {};
-  state.voiceWorkspace = {};state.inboundVoiceWorkspace={};
-  state.conversationPhone = null;
-  state.conversationId = null;
-  state.page = 1;
-  lastRenderedView = null;
   try {
-    await loadTenantContext();
+    await loadTenantContext(undefined,isCurrent);
   } catch (error) {
+    if(error.name==='AbortError')return;
     console.error(error);
     await forceLogin(error.message || 'Could not load business accounts');
     return;
@@ -1604,6 +1631,8 @@ async function switchTenant(tenantId, options = {}) {
   updateAuthChrome();
   setActiveNav();
   await renderWorkspace({ force: true });
+  if(!isCurrent())return;
+  if (!isDemoMode() && !runtimeConfig.previewReadOnly && !document.getElementById('crm-app').hidden && state.tenant && state.tenant.smsRead!==false) connectLive();
   });
 }
 
@@ -1688,6 +1717,7 @@ async function renderEmailGroups() {
   }
   el.root.querySelectorAll('[data-email-group]').forEach(form => form.addEventListener('submit', async event => {
     event.preventDefault();
+    const isCurrent=workspaceCompletionGuard(form);
     const button = form.querySelector('button[type="submit"]'), error = form.querySelector('[role="alert"]');
     const current = data.groups.find(group => group.group_id === form.dataset.emailGroup);
     const field = name => form.elements.namedItem(name);
@@ -1705,11 +1735,12 @@ async function renderEmailGroups() {
       }) });
       const result = await saved.json();
       if (!saved.ok) throw new Error(result.error || 'Could not save email settings');
-      await renderEmailGroups();
+      if(isCurrent())await load({force:true},isCurrent);
     } catch (cause) { error.textContent = cause.message; button.disabled = false; }
   }));
   for (const [selector, endpoint, method] of [['[data-email-resolve]','enrollments','PATCH'],['[data-email-retry]','jobs','POST']]) {
     el.root.querySelectorAll(selector).forEach(button => button.addEventListener('click', async () => {
+      const isCurrent=workspaceCompletionGuard(button),error=el.root.querySelector('#email-action-error');
       button.disabled = true;
       const id = button.dataset.emailResolve || button.dataset.emailRetry;
       const suffix = endpoint === 'jobs' ? 'retry' : 'resolve';
@@ -1717,14 +1748,14 @@ async function renderEmailGroups() {
         const response = await apiFetch(`/api/email/${endpoint}/${encodeURIComponent(id)}/${suffix}`, { method, body: '{}' });
         const result = await response.json();
         if (!response.ok) throw new Error(result.error || 'Email action failed');
-        await renderEmailGroups();
-      } catch (cause) { el.root.querySelector('#email-action-error').textContent = cause.message; button.disabled = false; }
+        if(isCurrent())await load({force:true},isCurrent);
+      } catch (cause) { if(error)error.textContent = cause.message; button.disabled = false; }
     }));
   }
 }
 
-function load(options = {}) {
-  return renderQueue.run(() => renderWorkspace(options));
+function load(options = {},isCurrent=()=>true) {
+  return renderQueue.run(() => isCurrent()?renderWorkspace(options):undefined);
 }
 function syncViewControls() {
   document.getElementById('crm-app').dataset.view = state.view;
@@ -1766,7 +1797,9 @@ async function renderWorkspace(options = {}) {
       el.search.closest('.search-wrap').hidden = true; el.status.hidden = true; el.kpi.innerHTML = '';
       el.toolbarTenant.textContent='CRM';
       el.toolbarSection.textContent={ 'platform-accounts':'Users','platform-businesses':'Businesses','platform-websites':'Websites','platform-twilio':'Twilio accounts' }[state.view];
-      await platform.render(state.view); lastRenderedView = state.view;currentTabLoadedAt=Date.now(); tabStatus(); return;
+      el.root.classList.add('platform-root');
+      currentPlatform().mount(el.root);
+      await platform.render(state.view);readScope.signal.throwIfAborted();lastRenderedView = state.view;currentTabLoadedAt=Date.now();tabStatus();return;
     }
     el.root.classList.remove('platform-root');
     if (!state.tenant) throw new Error('Choose or create a business workspace.');
@@ -1790,7 +1823,7 @@ async function renderWorkspace(options = {}) {
       const {mountAutomationActivity}=await import('./automationActivity.js');
       const tenantId=getTenantId(),userId=getSession()?.user?.id||state.user?.id||'session';
       el.pager.hidden=true;el.kpi.innerHTML='';
-      disposeActivity=await mountAutomationActivity(el.root,{apiFetch,identity:`${userId}:${tenantId}`,isCurrent:()=>state.view==='automation-activity'&&getTenantId()===tenantId&&(getSession()?.user?.id||state.user?.id||'session')===userId,
+      disposeActivity=await mountAutomationActivity(el.root,{apiFetch,embedded:true,identity:`${userId}:${tenantId}`,isCurrent:()=>state.view==='automation-activity'&&getTenantId()===tenantId&&(getSession()?.user?.id||state.user?.id||'session')===userId,
        onConversation:(conversationId,conversationPhone)=>switchView('messaging',{conversationId,conversationPhone,force:true}),
        onForm:formId=>{formBuilder.target={formId,initialTab:'automation'};switchView('web-forms',{force:true});},
        onBookings:()=>switchView('bookings'),onHandoffs:()=>switchView('business-context')});
@@ -1853,9 +1886,9 @@ async function renderVoiceWorkspace(){
  const {mountVoiceWorkspace}=await import('./voiceWorkspace.js');
  setTitle(...titles['voice-agent']);el.kpi.innerHTML='';el.pager.hidden=true;el.status.disabled=true;
  state.voiceWorkspace??={};
- const voiceTenant=getTenantId();
+ const voiceTenant=getTenantId(),voiceSession=getSession()?.id;
  disposeVoice=await mountVoiceWorkspace(el.root,{apiFetch,model:state.voiceWorkspace,
-  isCurrent:()=>getTenantId()===voiceTenant&&state.view==='voice-agent',
+  isCurrent:()=>getTenantId()===voiceTenant&&getSession()?.id===voiceSession&&state.view==='voice-agent',
   onBusinessSetup:async()=>{await switchView('platform-businesses');await platform.openBusiness(voiceTenant);el.root.querySelector('[data-profile]')?.scrollIntoView({block:'start'});},
   onAvailability:()=>switchView('booking-setup'),onBookings:()=>switchView('bookings'),
   onContact:phone=>switchView('messaging',{conversationPhone:phone,conversationId:null,force:true})});
@@ -1877,9 +1910,9 @@ async function renderCall() {
   if(state.platformStaff){
     const {mountVoiceWorkspace}=await import('./voiceWorkspace.js');
     state.inboundVoiceWorkspace??={};
-    const voiceTenant=getTenantId();
+    const voiceTenant=getTenantId(),voiceSession=getSession()?.id;
     disposeVoice=await mountVoiceWorkspace(voiceHost,{apiFetch,callsOnly:true,model:state.inboundVoiceWorkspace,
-      isCurrent:()=>getTenantId()===voiceTenant&&state.view==='call',
+      isCurrent:()=>getTenantId()===voiceTenant&&getSession()?.id===voiceSession&&state.view==='call',
       onBookings:()=>switchView('bookings'),
       onContact:phone=>switchView('messaging',{conversationPhone:phone,conversationId:null,force:true})});
   }
@@ -1981,7 +2014,7 @@ async function renderOverview() {
         const data = await response.json();
         const active = (data.workers || []).filter(w => Date.now() - new Date(w.seen_at).getTime() < 120000);
         const automation = data.automationQueue || {};
-        node.innerHTML = `<p>Scheduling: ${data.scheduler?.scheduler_enabled ? 'On' : 'Paused'} · ${active.length} worker connections active</p>` +
+        node.innerHTML = `<p>Scheduling: ${data.scheduler?.scheduler_enabled ? 'On' : 'Paused'} · ${active.length} queues recently active</p>` +
           `<p>Automation queue: ${fmt(automation.backlog || 0)} waiting · oldest ${automation.oldestAgeSeconds == null ? '—' : `${fmt(automation.oldestAgeSeconds)}s`} · ${fmt(automation.failed || 0)} failed</p>` +
           (data.jobs || []).map(j => `<p>${esc(j.queue.replaceAll('_', ' '))}: ${fmt(j.count)} ${esc(j.status.replaceAll('_', ' '))}</p>`).join('') +
           (data.automationFailures || []).map(i => `<p><strong>Paused automation:</strong> ${esc(i.group_name || 'Unknown group')} · ${esc(i.error_code || 'Draft failed')} <button class="btn ghost" data-redraft-job="${esc(i.id)}">Redraft and resume</button></p>`).join('') +
@@ -3798,7 +3831,10 @@ function esc(value) {
     .replaceAll("'", '&#39;');
 }
 
+let workspaceOpenRevision=0;
 async function forceLogin(message = '') {
+  workspaceOpenRevision++;
+  stopLive();
   invalidateWorkspaceCache();
   clearTabs();
   renderLoginScreen({
@@ -3814,15 +3850,24 @@ function authFailureMessage(response) {
 }
 
 async function openAuthenticatedWorkspace() {
+  const revision=++workspaceOpenRevision;
+  const sessionId=getSession()?.id;
+  const isCurrent=()=>revision===workspaceOpenRevision&&sessionId===getSession()?.id;
+  const assertCurrent=()=>{if(!isCurrent())throw new DOMException('The signed-in account changed.', 'AbortError');};
+  pageReads.cancel();
+  stopLive();
   clearTabs();
-  const me = await apiFetch('/api/auth/me', { tenant: false });
+  // Bootstrap belongs to the new identity, not the cancelled page render.
+  const me = await authenticatedFetch('/api/auth/me', { tenant: false });
   if (me.status === 401 || me.status === 403) throw new Error(authFailureMessage(me));
   if (!me.ok) throw new Error('The CRM service is temporarily unavailable. Try again shortly.');
   const session = await me.json();
+  assertCurrent();
   document.querySelectorAll('[data-platform-nav]').forEach(node => { node.hidden = !session.capabilities?.platformStaff; });
   state.platformStaff = Boolean(session.capabilities?.platformStaff);
   document.getElementById('add-business').hidden = !state.platformStaff;
-  await loadTenantContext(session);
+  await loadTenantContext(session,isCurrent);
+  assertCurrent();
   if (!state.tenant && state.platformStaff && !state.view.startsWith('platform-')) { state.view = 'platform-accounts'; setActiveNav(); }
   showCrmApp();
   updateAuthChrome();
@@ -3835,6 +3880,7 @@ async function openAuthenticatedWorkspace() {
     installDemoActionGuard();
   }
   await load();
+  assertCurrent();
   syncViewUrl();
   if (!runtimeConfig.previewReadOnly && !document.getElementById('crm-app').hidden && state.tenant && state.tenant.smsRead!==false) connectLive();
 }
@@ -3859,8 +3905,9 @@ function updateAuthChrome() {
   initNavFind();
 }
 
-async function loadTenantContext(session) {
-  const data = await readWorkspaceContext(apiFetch, session);
+async function loadTenantContext(session,isCurrent=()=>true) {
+  const data = await readWorkspaceContext(authenticatedFetch, session);
+  if(!isCurrent())throw new DOMException('The signed-in account changed.', 'AbortError');
   state.tenants = Array.isArray(data.tenants) ? data.tenants : [];
   const stored = getTenantId();
   state.tenant = state.tenants.find((tenant) => tenant.id === stored)
@@ -3890,6 +3937,7 @@ async function loadTenantContext(session) {
 }
 
 document.getElementById('sign-out-btn')?.addEventListener('click', async () => {
+  stopLive();
   await signOut();
   await forceLogin('');
 });
@@ -3916,6 +3964,7 @@ async function boot() {
     }
     await openAuthenticatedWorkspace();
   } catch (err) {
+    if(err.name==='AbortError')return;
     console.error(err);
     if (getSession()) {
       renderAccessScreen({ errorMessage: err.message || 'Could not open the CRM.', onRetry: openAuthenticatedWorkspace });
@@ -3961,7 +4010,9 @@ function setLiveStatus(online, label) {
 }
 
 function connectLive() {
+  stopLive();
   if (globalThis.SMS_CONFIG?.apiBase) {
+    stopLive=disconnectSupabaseLive;
     connectSupabaseLive(() => refreshFromBackground().catch(() => {}), setLiveStatus).catch(() => setLiveStatus(false, 'Live updates unavailable'));
     return;
   }
@@ -3970,10 +4021,14 @@ function connectLive() {
   let retryMs = 1000;
   let refreshTimer = null;
   let pollTimer = null;
+  let retryTimer = null, pingTimer = null, active = true;
+  stopLive=()=>{active=false;clearTimeout(refreshTimer);clearTimeout(retryTimer);clearInterval(pollTimer);clearInterval(pingTimer);ws?.close();};
 
   const scheduleRefresh = (evt) => {
+    if (!active) return;
     clearTimeout(refreshTimer);
     refreshTimer = setTimeout(() => {
+      if (!active) return;
       // Keep an open thread snappy when its phone matches
       if (
         state.view === 'messaging' &&
@@ -4001,7 +4056,7 @@ function connectLive() {
   };
 
   const startPollFallback = () => {
-    if (pollTimer) return;
+    if (!active || pollTimer) return;
     pollTimer = setInterval(() => refreshFromBackground().catch(() => {}), 15000);
   };
   const stopPollFallback = () => {
@@ -4012,6 +4067,7 @@ function connectLive() {
 
   const open = async () => {
     const token = await getAccessToken().catch(() => null);
+    if (!active) return;
     if (!token) {
       setLiveStatus(false, 'Sign in required');
       return;
@@ -4021,6 +4077,7 @@ function connectLive() {
       ['opek-sms-v1', `auth.${token}`]
     );
     ws.addEventListener('open', () => {
+      if (!active) return;
       retryMs = 1000;
       setLiveStatus(true, 'Live');
       stopPollFallback();
@@ -4038,9 +4095,10 @@ function connectLive() {
       }
     });
     ws.addEventListener('close', () => {
+      if (!active) return;
       setLiveStatus(false, 'Reconnecting…');
       startPollFallback();
-      setTimeout(() => open().catch(() => {}), retryMs);
+      retryTimer=setTimeout(() => open().catch(() => {}), retryMs);
       retryMs = Math.min(retryMs * 1.6, 15000);
     });
     ws.addEventListener('error', () => {
@@ -4053,7 +4111,7 @@ function connectLive() {
   };
 
   open().catch(() => startPollFallback());
-  setInterval(() => {
+  pingTimer=setInterval(() => {
     if (ws && ws.readyState === WebSocket.OPEN) {
       try {
         ws.send(JSON.stringify({ type: 'ping' }));

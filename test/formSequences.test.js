@@ -77,6 +77,30 @@ test('paired forms have independent sequences, immutable runs and restricted wri
  }finally{await db.close();}
 });
 
+test('deactivate pauses runs; recoverable deletion stops them and preserves submission/version history',async()=>{
+ const {db,tenant,act,create,submit,enable}=await fixture();try{
+  const form=await create();await enable(form,{...emptySequence(),startHour:0,endHour:24,steps:[newMessage('Hello')]});await submit(form);
+  const save={title:form.title,description:'',buttonLabel:'Submit',fields:[],enabled:false};
+  await assert.rejects(()=>act('save',form.public_id,save,'reader'),/access|edit|permission/i);
+  await act('save',form.public_id,save,'forms');
+  assert.equal(await call(db,'public_web_form',form.public_id),null);
+  const paused=(await db.query('select * from sms_private.form_runs where form_id=$1',[form.public_id])).rows[0];
+  assert.equal(paused.status,'paused');assert.equal(paused.reason,'FORM_DISABLED');
+  await assert.rejects(()=>submit(form),/unavailable|not found|disabled/i);
+  await assert.rejects(()=>act('archive',form.public_id,{},'reader'),/access|edit|permission/i);
+  await act('archive',form.public_id,{},'forms');
+  const stopped=(await db.query('select * from sms_private.form_runs where form_id=$1',[form.public_id])).rows[0];
+  assert.equal(stopped.status,'stopped');assert.equal(stopped.reason,'FORM_ARCHIVED');assert.ok(stopped.generation>paused.generation);
+  assert.equal((await act('submissions',form.public_id)).total,1);
+  assert.equal((await act('read',form.public_id)).publishedVersion,1);
+  assert.equal((await act('read',form.public_id)).enabled,false);
+  await act('restore',form.public_id,{},'forms');
+  const restored=(await call(db,'list_form_workspace','admin',tenant)).forms.find(f=>f.public_id===form.public_id);
+  assert.equal(restored.archived,false);assert.equal(restored.enabled,false);assert.equal(restored.submissionCount,1);
+  assert.equal((await db.query('select status from sms_private.form_runs where form_id=$1',[form.public_id])).rows[0].status,'stopped');
+ }finally{await db.close();}
+});
+
 test('provider acceptance advances repeated steps once, replies pause and opt-outs stop',async()=>{
  const {db,tenant,act,create,submit,enable}=await fixture();try{
   const form=await create();await enable(form,{...emptySequence(),startHour:0,endHour:24,steps:[{...newMessage('Hi {{first_name}} from {{business_name}}'),sendCount:2},newMessage('Next')]});await submit(form);

@@ -1,0 +1,7 @@
+{
+  "supabaseUrl": "https://wxamwhfmelxqahkdtcci.supabase.co",
+  "apiBase": "https://wxamwhfmelxqahkdtcci.supabase.co/functions/v1/crm-api",
+  "hostingApiBase": "https://www.e2local.com/api/web-hosting",
+  "embedBaseUrl": "https://crm.e2local.com",
+  "clerkOrigin": "https://clerk.crm.e2local.com"
+}

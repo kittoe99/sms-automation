@@ -10,6 +10,6 @@ test('folder and ZIP uploads remove a single wrapper and preserve website paths'
  const zip=await prepareHostingFiles([new File([zipped],'site.zip')]);assert.deepEqual(zip.map(f=>f.path),['index.html','styles/main.css']);
 });
 test('upload paths, duplicates, missing root and expansion limits fail before upload',async()=>{
- for(const files of [[file('index.html','site','../index.html')],[file('index.html'),file('INDEX.html')],[file('app.js')]])await assert.rejects(()=>prepareHostingFiles(files),/Invalid|index.html/);
+ for(const files of [[file('index.html','site','../index.html')],[file('index.html'),file('INDEX.html')],[file('INDEX.html')],[file('Index.html','site','site/Index.html')],[file('app.js')]])await assert.rejects(()=>prepareHostingFiles(files),/Invalid|index.html/);
  const zip=zipSync({'index.html':new Uint8Array(21*1024*1024)});await assert.rejects(()=>prepareHostingFiles([new File([zip],'site.zip')]),/exceeds/);
 });

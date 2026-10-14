@@ -22,9 +22,16 @@ verification enabled and no remaining OpenAI access in its code.
 Opek **shadow** and the AI queue are enabled. Live remains locked; Opek currently
 has no shared service schedules, and its approved profile timezone is UTC.
 Review actual timezone/hours/resource capacity and production shadow observations
-before live activation. Other businesses default off. Frontend deployment is
-pending Render workspace confirmation. Detailed synthetic artifacts and review
-are in ignored `data/inbound-agent-*.json`.
+before live activation. Other businesses default off. Frontend deployment
+`dep-db583fks728c73c66stg` is live in Micah's Render workspace as of October 10,
+18:19:53 UTC. The CRM page/navigation and served Inbound AI source/bundle were
+verified against the release at `https://crm.e2local.com`. Detailed synthetic
+artifacts and review are in ignored `data/inbound-agent-*.json`.
+
+Isolated release source is published on `codex/inbound-sms-release`, commit
+`1ffa88f14ccc177b8c7492274d4656ebd47dff24`. Its exact source builds and passes 56
+targeted tests (three existing skips), with the paired E2 migration fixtures.
+The active checkout's unrelated edits were excluded from that release commit.
 
 ## Runtime and controls
 
@@ -183,6 +190,8 @@ form, booking and conversation suites and paired E2 enquiry/booking/access/cache
 suites. Read both project records for actual deployment and activation state.
 
 Applied migration mapping: local `20261010183109_inbound_automation_coordination.sql` = remote `20261010184313_inbound_automation_coordination`. Do not reapply under the local timestamp.
+
+Release verified October 10: AI worker 38; remote migration `20261010184313`; CRM `56a83d3`, Render `dep-db58fv5ckfvc739auub0` live at 18:46:31 UTC. Opek coordination is shadow-only; other businesses remain off. Live activation has not occurred. See both PROJECT_RECORD files for validation scope and remaining operational gates.
 
 ## Activity reporting
 

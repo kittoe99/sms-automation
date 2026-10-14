@@ -1,6 +1,6 @@
 # Read-only SMS connection summary
 
-October 11 local correction (not released): show **Toll-free**, **SMS approval**
+October 11 correction (deployed and verified): show **Toll-free**, **SMS approval**
 and a note that toll-free calling does not require SMS approval. Pending SMS
 registration must not be presented as voice unavailability or as a verified
 sender. The customer response contract, service visibility and business-scoped

@@ -11,11 +11,12 @@ test('app, platform management and live updates resolve the same authentication 
 });
 
 test('initializing app authentication supplies tokens to Users, Businesses, Websites and live updates', async t => {
-  const originals = Object.fromEntries(['fetch', 'document', 'Clerk', 'localStorage'].map(key => [key, Object.getOwnPropertyDescriptor(globalThis, key)]));
+  const originals = Object.fromEntries(['fetch', 'document', 'Clerk', 'localStorage','window'].map(key => [key, Object.getOwnPropertyDescriptor(globalThis, key)]));
   t.after(() => { for (const [key, descriptor] of Object.entries(originals)) {
     if (descriptor) Object.defineProperty(globalThis, key, descriptor); else delete globalThis[key];
   } });
   const requests = [], listeners = [];
+  const events=[];globalThis.window={dispatchEvent:event=>events.push(event.type)};
   let activeToken = 'synthetic-crm-session';
   const session = { id: 'test-session', getToken: async () => activeToken };
   globalThis.Clerk = { user: { id: 'test-user', emailAddresses: [] }, session, load: async () => {},
@@ -49,4 +50,6 @@ test('initializing app authentication supplies tokens to Users, Businesses, Webs
   listeners.forEach(fn => fn({ session: null }));
   assert.equal(await appAuth.getAccessToken(), null);
   assert.equal(await liveAuth.getAccessToken(), null);
+  assert.deepEqual(events,['clerk:session-ended']);
+  listeners.forEach(fn => fn({ session: null }));assert.equal(events.length,1);
 });

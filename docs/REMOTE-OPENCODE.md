@@ -1,7 +1,10 @@
 # OpenCode Remote Access (Web UI + Tailscale)
 
-This PC is configured to run OpenCode as a remote web server so you can
-control this project from another device.
+This optional workstation guide records an earlier OpenCode remote-access setup.
+It is independent of the CRM production runtime. The checked-in launch scripts
+are present; installed versions, firewall state and device addresses were not
+reverified during documentation reconciliation. Start with [development](DEVELOPMENT.md)
+if you only need to run the CRM.
 
 ## What was set up
 
@@ -9,7 +12,7 @@ control this project from another device.
 - `scripts/start-opencode-remote.ps1` — secure launcher (requires password)
 - `scripts/start-opencode-remote.cmd` — double-click launcher
 - `scripts/setup-opencode-firewall.ps1` — Windows Firewall rule (admin)
-- OpenCode v1.18.31 installed globally via npm
+- OpenCode v1.18.31 was recorded as installed globally via npm; verify the installed version before relying on these historical CLI examples
 
 ## 1. Install Tailscale (once per device)
 
@@ -59,7 +62,7 @@ Optional username (default `opencode`):
 ## 4. Connect remotely
 
 - Tailscale: `http://<tailscale-ip>:4096` (e.g. `http://100.64.10.5:4096`)
-- LAN: `http://192.168.1.179:4096`
+- LAN: `http://<current-private-lan-ip>:4096`
 - This PC: `http://127.0.0.1:4096`
 
 Login with user `opencode` + your `OPENCODE_SERVER_PASSWORD`.
@@ -97,10 +100,10 @@ Use terminal + web at the same time, sharing sessions:
 opencode web
 
 # remote (what the scripts do)
-$env:OPENCODE_SERVER_PASSWORD="secret"
+$env:OPENCODE_SERVER_PASSWORD="<strong-unique-password>"
 opencode web --port 4096 --hostname 0.0.0.0
 
 # headless API only (no web UI)
-$env:OPENCODE_SERVER_PASSWORD="secret"
+$env:OPENCODE_SERVER_PASSWORD="<strong-unique-password>"
 opencode serve --port 4096 --hostname 0.0.0.0
 ```

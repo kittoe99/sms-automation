@@ -1,15 +1,52 @@
 # Email automation rollout
 
+## Queue hardening — local, not released
+
+CRM migration `20261014061007_queue_reporting_hardening.sql` and the updated
+`email-worker` address recovery, send windows and shared worker admission. Apply
+only this forward migration after reconciling the paired baseline; deploy the
+worker with its new `handler.js` afterward. No provider sends or migrations were
+performed as part of the local implementation.
+
+Expired leases recover from both the regular scheduler and the email dispatcher,
+even when no pending email exists. Terminal jobs pause only the matching current
+enrollment generation/step and expose `pause_reason`; historical terminal jobs
+are reconciled in bounded batches. A safe staff retry can resume a failed job's
+paused enrollment only while no other enrollment is active for that address.
+Escalation, group/form shutdown, unsubscribe and provider suppression also stop
+paused enrollments and invalidate their old job generation. Uncertain submissions beyond the 23-hour retry horizon stay
+held for provider reconciliation. Resend's idempotency key and frozen payload are
+preserved throughout retries.
+
+The dispatcher excludes already-created jobs before selecting its batch. It
+visits up to 32 tenants, creates at most 10 jobs per tenant and 100 per tick, and
+rotates tenants between ticks. Claims also rotate tenants, then take each tenant's
+oldest eligible job. The email worker shares the `automation_jobs` admission cap,
+uses at most five jobs with a 20-second claim-loop budget, and releases its slot
+on success or failure. A provider call already started can finish after that
+budget. `runtime.edge_enabled=false` now also stops email dispatch/admission;
+existing email group/consent switches still govern individual deliveries.
+
+Retries are scheduled into the enrollment snapshot's business-local send window.
+The final send guard checks the window again after drafting or a backlog and
+defers without consuming a retry attempt. It also rechecks the provider
+idempotency horizon after a long pause. SMS uncertainty handling stays separate.
+
+For staff steps, see [the user guide](USER_GUIDE.md#email). For variables and
+safe operator checks, see [configuration](CONFIGURATION.md) and
+[operations](OPERATIONS.md). Deployment observations below were recorded during
+the original rollout and were not rechecked live during documentation work.
+
 Email follows the four existing automation groups for each CRM business: Contacts, Quote Requests, Bookings, and Reviews. Each group has its own disabled-by-default email schedule, purpose, system prompt, and business context. A new opted-in intake record can enroll only when its business's email group is enabled. The three public forms also require their own email switch and a separate, unchecked email consent box. Staff intake records require an email address and recorded consent evidence. Existing records are never backfilled.
 
 The earlier pricing-only Resend automation (`01a0d955-fe85-70ab-bb56-a715e31632da`) is a superseded draft and must remain disabled. The new workflow sends individual AI-drafted messages through Resend's Email API, using `E2 Local <hello@e2local.com>` and replies to `hello@e2local.com`.
 
 ## Release order
 
-1. The nine `2026092517` group email migrations and two `202609251800` business-scope migrations are applied to WPacquisition. All email settings and form switches seed off for Opek and Bello Moving. They add consent history, enrollments, jobs, suppressions, worker RPCs, form hooks, Vault integration, and a once-per-minute email dispatch. New CRM businesses also receive four disabled email groups.
+1. The original rollout recorded the nine `2026092517` group email migrations and two `202609251800` business-scope migrations as applied to WPacquisition. They add consent history, enrollments, jobs, suppressions, worker RPCs, form hooks, Vault integration, and a once-per-minute email dispatch. Existing seeds and new CRM businesses receive four disabled email groups. Reconcile migration history before any future change; seed defaults do not establish current business settings.
 2. Store the Resend sending key and webhook signing secret in Supabase Vault through `sms_private.email_provider_secrets`. The `email-worker` and `email-webhook` functions read them through the scoped `email_secret_value` RPC. `OPENAI_API_KEY`, `SMS_AUTOMATION_DATABASE_URL`, `WEB_FORM_DATABASE_URL`, `AUTOMATION_WORKER_SECRET`, and the `automation_jobs` Vault bearer configuration must also be present in the existing Edge setup. The optional `RESEND_API_KEY` and `RESEND_WEBHOOK_SECRET` Edge secrets take precedence if configured. Set `EMAIL_UNSUBSCRIBE_BASE_URL=https://crm.e2local.com` and `EMAIL_UNSUBSCRIBE_API_URL=https://wxamwhfmelxqahkdtcci.supabase.co/functions/v1/web-form/email/unsubscribe` if the deployed defaults differ. `scripts/prepare-edge-secrets.js` carries the email variables from local `.env` when used.
-3. Deploy `crm-api`, `web-form`, `email-worker`, and `email-webhook`. Keep `verify_jwt=false` for the public worker and webhook routes as configured in `supabase/config.toml`; their bearer or signature checks run in the handlers. Deploy the CRM static site with `email-unsubscribe.html`. Confirm an unauthorized worker POST returns 401 and an authorized idle POST returns `{"processed":0}`.
-4. The Resend webhook is registered at `https://wxamwhfmelxqahkdtcci.supabase.co/functions/v1/email-webhook` for sent, delivered, delayed, bounced, complained, failed, and suppressed email events. Its signing secret is in Vault. `node scripts/check-email-live.js` checks valid and invalid signatures using a harmless ping event. Bounces, complaints, and suppressions stop future marketing email to that address across businesses that share this sender.
+3. Deploy affected `crm-api`, `web-form`, `email-worker`, and `email-webhook` changes with their dependencies. Keep `verify_jwt=false` as configured; bearer/signature checks run in handlers and forms use public validation/rate controls. Deploy the static site with `email-unsubscribe.html`. Confirm an unauthorized worker POST returns 401. Establish controlled paused/empty conditions before an authorized worker call: it can process jobs. An idle email worker returns `{"processed":0}`.
+4. The rollout recorded a Resend webhook at `https://wxamwhfmelxqahkdtcci.supabase.co/functions/v1/email-webhook` for sent, delivered, delayed, bounced, complained, failed, and suppressed events, with its signing secret in Vault. `node scripts/check-email-live.js` invokes the authenticated email worker, which can send queued email, as well as checking signatures with a ping event. Establish controlled conditions before executing it. Bounces, complaints, and suppressions stop future marketing email to that address across businesses sharing the sender.
 5. In the CRM Email section, fill in each group's purpose, email system prompt, business context, separate cadence, and **real business mailing address**. Enable a group when the worker and provider are ready. In Web Forms, enable email consent only on forms that should offer it. Both switches must be on for public form enrollment.
 
 ## Operation

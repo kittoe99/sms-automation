@@ -29,3 +29,20 @@ test('signed Opek voice webhook forwards only the approved number to LiveKit',as
     body:new URLSearchParams({...params,To:'+18313187139'})}));
   assert.equal(other.status,403);
 });
+
+test('registered business routing still requires the configured owner, number and signature',async()=>{
+  const tenantId='biz-registered-opek';
+  const signature=await twilioSignature(token,url,params);
+  const request=()=>new Request(url,{method:'POST',headers:{
+    'Content-Type':'application/x-www-form-urlencoded','X-Twilio-Signature':signature,
+  },body:new URLSearchParams(params)});
+  const options={base:url,sipUsername:'opek_soni_inbound',sipPassword:'S'.repeat(32),tenantId};
+  const route=config=>createSoniInboundHandler({call:async()=>config},options);
+  assert.equal((await route({tenant_id:tenantId,from_number:number,auth_token:token})(request())).status,200);
+  for(const config of [null,{tenant_id:'opek',from_number:number,auth_token:token},
+    {tenant_id:tenantId,from_number:'+18313187139',auth_token:token},
+    {tenant_id:tenantId,from_number:number,auth_token:'wrong-token'},
+    {tenant_id:tenantId,from_number:number}]){
+    assert.equal((await route(config)(request())).status,403);
+  }
+});

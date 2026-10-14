@@ -7,6 +7,8 @@
  * by the caller — never read from the environment here.
  */
 
+import {publicHttpsUrl,resolvePublicHost,fetchPublicHttps,readBoundedBody,abortable,deadline} from './publicHttps.js';
+
 const FIRECRAWL_BASE = 'https://api.firecrawl.dev/v1';
 
 const EXTRACT_PROMPT =
@@ -51,17 +53,9 @@ export function normalizeWebsiteUrl(raw) {
     fail('Enter a valid website address.', 400);
   }
   if (!['http:', 'https:'].includes(url.protocol)) fail('Enter a valid website address.', 400);
-  const host = url.hostname.toLowerCase();
-  if (
-    host === 'localhost' || host.endsWith('.local') || host.endsWith('.internal') ||
-    host === '0.0.0.0' || host.startsWith('127.') || host === '::1' ||
-    host.startsWith('10.') || host.startsWith('192.168.') ||
-    /^172\.(1[6-9]|2\d|3[01])\./.test(host)
-  ) {
-    fail('Enter a valid website address.', 400);
-  }
   url.protocol = 'https:';
-  return url.href;
+  try { return publicHttpsUrl(url.href).href; }
+  catch { fail('Enter a valid website address.', 400); }
 }
 
 function decodeEntities(value) {
@@ -233,9 +227,12 @@ export function factsFromPage(sourceUrl, { json = {}, markdown = '', html = '' }
   return { websiteUrl: sourceUrl, businessName, summary, services, locations, contactPhone, hours };
 }
 
-async function firecrawlScrape(sourceUrl, apiKey, fetchImpl) {
-  const response = await fetchImpl(`${FIRECRAWL_BASE}/scrape`, {
+async function firecrawlScrape(sourceUrl, apiKey, fetchImpl, signal) {
+  const scope=deadline(25000,signal);
+  try {
+  const response = await abortable(fetchImpl(`${FIRECRAWL_BASE}/scrape`, {
     method: 'POST',
+    redirect: 'error',
     headers: { authorization: `Bearer ${apiKey}`, 'content-type': 'application/json' },
     body: JSON.stringify({
       url: sourceUrl,
@@ -244,9 +241,11 @@ async function firecrawlScrape(sourceUrl, apiKey, fetchImpl) {
       formats: ['json', 'markdown', 'links', 'html'],
       jsonOptions: { prompt: EXTRACT_PROMPT, schema: EXTRACT_SCHEMA },
     }),
-    signal: AbortSignal.timeout(25000),
-  });
-  const payload = await response.json().catch(() => undefined);
+    signal: scope.signal,
+  }),scope.signal);
+  let payload;
+  try { payload = JSON.parse(new TextDecoder().decode(await readBoundedBody(response,2*1024*1024,scope.signal))); }
+  catch(error) { if(error.code) throw error; }
   if (!response.ok) {
     if (response.status === 401 || response.status === 403) fail('Website reading is not configured. Try again later.', 503);
     fail('That website could not be read. Check the address and try again.');
@@ -257,21 +256,21 @@ async function firecrawlScrape(sourceUrl, apiKey, fetchImpl) {
     markdown: typeof data.markdown === 'string' ? data.markdown : '',
     html: typeof data.html === 'string' ? data.html : typeof data.rawHtml === 'string' ? data.rawHtml : '',
   };
+  } finally { scope.close(); }
 }
 
-async function directFetchHtml(sourceUrl, fetchImpl) {
-  const response = await fetchImpl(sourceUrl, {
+async function directFetchHtml(sourceUrl, options) {
+  const response = await fetchPublicHttps(sourceUrl, {
+    ...options,maxBytes:1500000,
     headers: { 'user-agent': 'opek-sms-business-enrich/1.0', accept: 'text/html' },
-    signal: AbortSignal.timeout(12000),
   });
-  if (!response.ok) fail('That website could not be read. Check the address and try again.');
-  const contentType = response.headers?.get?.('content-type') || '';
+  const contentType = response.contentType;
   if (contentType && !/text\/html|application\/xhtml/i.test(contentType)) {
     fail('That address did not return a website page.');
   }
-  const html = await response.text();
+  const html = new TextDecoder().decode(response.bytes);
   if (!html || html.length < 200) fail('That website could not be read. Check the address and try again.');
-  return html.slice(0, 1500000);
+  return html;
 }
 
 /**
@@ -280,15 +279,27 @@ async function directFetchHtml(sourceUrl, fetchImpl) {
  */
 export async function enrichBusinessFromWebsite(rawUrl, options = {}) {
   const sourceUrl = normalizeWebsiteUrl(rawUrl);
-  const fetchImpl = options.fetchImpl || fetch;
+  const scope = deadline(30000,options.signal);
+  try {
+  await resolvePublicHost(new URL(sourceUrl),{resolveDns:options.resolveDns,signal:scope.signal});
   const apiKey = String(options.apiKey || '').trim();
   if (apiKey) {
-    const scraped = await firecrawlScrape(sourceUrl, apiKey, fetchImpl).catch((error) => {
+    const scraped = await firecrawlScrape(sourceUrl, apiKey, options.fetchImpl || fetch,scope.signal).catch((error) => {
+      scope.signal.throwIfAborted();
       if (error?.status === 503 || error?.status === 400) throw error;
       return null;
     });
-    if (scraped) return { ...factsFromPage(sourceUrl, scraped), source: 'firecrawl' };
+    if (scraped) {
+      scope.check();
+      const facts = factsFromPage(sourceUrl, scraped);
+      scope.check();
+      return { ...facts, source: 'firecrawl' };
+    }
   }
-  const html = await directFetchHtml(sourceUrl, fetchImpl);
-  return { ...factsFromPage(sourceUrl, { html }), source: apiKey ? 'firecrawl-fallback' : 'html' };
+  const html = await directFetchHtml(sourceUrl, {...options,signal:scope.signal});
+  scope.check();
+  const facts = factsFromPage(sourceUrl, { html });
+  scope.check();
+  return { ...facts, source: apiKey ? 'firecrawl-fallback' : 'html' };
+  } finally { scope.close(); }
 }

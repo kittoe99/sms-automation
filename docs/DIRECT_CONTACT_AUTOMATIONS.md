@@ -76,3 +76,8 @@ submitted provider messages require existing reconciliation.
 
 Applied mapping: source `20261010210847` → remote `20261010212516`. CRM API 55
 is active; see the project records for verified frontend release status.
+
+Frontend verified LIVE: commit `03b9754`, Render `dep-db5aroijnfac739r7rpg`,
+2026-10-10 21:28:14 UTC. Served source modules and app bundle match the tested
+release. No direct templates/runs were created in production; Opek AI remains
+shadow and all other businesses off.

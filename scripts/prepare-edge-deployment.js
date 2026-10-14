@@ -1,6 +1,8 @@
 import fs from 'node:fs';
 import dotenv from 'dotenv';
-const e=dotenv.parse(fs.readFileSync('data/edge-secrets.env'));
+import {collectEdgeFiles} from './edge-files.js';
+const bundleOnly=process.argv.includes('--bundle-only');
+const e=bundleOnly?{}:dotenv.parse(fs.readFileSync('data/edge-secrets.env'));
 const map={
   sms_send_jobs:'SMS_WORKER_SECRET',
   automation_jobs:'AUTOMATION_WORKER_SECRET',
@@ -11,19 +13,13 @@ const map={
   handoff_alert_jobs:'HANDOFF_WORKER_SECRET',
   compliance_jobs:'COMPLIANCE_WORKER_SECRET',
 };
-const sql=Object.entries(map).map(([q,k])=>`update sms_private.edge_config set secret_id=vault.create_secret('${e[k]}') where queue='${q}' and secret_id is null;`).join('\n');
-fs.writeFileSync('data/edge-vault.sql',sql);
-const paths=[];
-function walk(dir){for(const d of fs.readdirSync(dir,{withFileTypes:true})){const p=dir+'/'+d.name;if(d.isDirectory())walk(p);else if(/\.(js|ts|json)$/.test(p))paths.push(p);}}
-walk('supabase/functions');
-for(const file of ['sms.js','inboundAgent.js','ai.js','automation.js','provisioning.js','providerHttp.js'])paths.push('src/workers/'+file);
-paths.push(
-  'src/lib/automations/timeRules.js',
-  'src/lib/automations/aiDraft.js',
-  'src/lib/automations/rulePresets.js',
-  'src/lib/websiteEnrich.js',
-  'src/lib/tenantContext.js',
-  'src/lib/dataMode.js',
-);
-fs.writeFileSync('data/edge-bundle.json',JSON.stringify(paths.map(name=>({name,content:fs.readFileSync(name,'utf8')}))));
-console.log('Prepared Vault configuration and function bundle.');
+fs.mkdirSync('data',{recursive:true});
+if(!bundleOnly) {
+  for(const name of Object.values(map))if(typeof e[name]!=='string'||e[name].length<32)throw new Error(`Missing worker secret: ${name}`);
+  const literal=value=>`'${value.replaceAll("'","''")}'`;
+  const sql=Object.entries(map).map(([q,k])=>`update sms_private.edge_config set secret_id=vault.create_secret(${literal(e[k])}) where queue='${q}' and secret_id is null;`).join('\n');
+  fs.writeFileSync('data/edge-vault.sql',sql,{mode:0o600});
+}
+const files=await collectEdgeFiles();
+fs.writeFileSync('data/edge-bundle.json',JSON.stringify(files));
+console.log(`Prepared complete Edge source bundle (${files.length} files)${bundleOnly?'': ' and local Vault configuration'}.`);

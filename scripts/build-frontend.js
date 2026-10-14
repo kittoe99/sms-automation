@@ -1,10 +1,14 @@
 import 'dotenv/config';
-import {cp,mkdir,readFile,writeFile} from 'node:fs/promises';
+import {cp,mkdir,readFile,writeFile,rm} from 'node:fs/promises';
+import {resolve,dirname} from 'node:path';
+import {fileURLToPath} from 'node:url';
+import {frontendConfig} from './frontend-config.js';
 import {build} from 'esbuild';
-const {CRM_API_BASE,SUPABASE_URL,SUPABASE_PUBLISHABLE_KEY,PUBLIC_FORM_BASE_URL,HOSTING_API_BASE}=process.env;
-if(!CRM_API_BASE||!SUPABASE_URL||!SUPABASE_PUBLISHABLE_KEY) throw new Error('CRM_API_BASE, SUPABASE_URL and SUPABASE_PUBLISHABLE_KEY are required');
-if(SUPABASE_URL!=='https://wxamwhfmelxqahkdtcci.supabase.co') throw new Error('Deployment must target WPacquisition');
-if(!/^sb_publishable_/.test(SUPABASE_PUBLISHABLE_KEY)) throw new Error('Use a Supabase publishable key, never a secret or service role key');
+const config=await frontendConfig();
+const project=resolve(dirname(fileURLToPath(import.meta.url)),'..');
+const output=resolve(project,'dist');
+if(resolve(process.cwd())!==project||dirname(output)!==project)throw new Error('Build must run in this repository; refusing to clean another directory');
+await rm(output,{recursive:true,force:true});
 await cp('public','dist',{recursive:true});await mkdir('dist/vendor',{recursive:true});
 // Only hashed assets receive immutable caching. Keep public embed URLs and
 // config.js stable, and preserve one shared auth module across lazy chunks.
@@ -12,7 +16,7 @@ const frontend=await build({entryPoints:['public/app.js','public/styles.css','pu
   bundle:true,splitting:true,format:'esm',platform:'browser',target:'es2022',minify:true,
   outdir:'dist/assets',entryNames:'[name]-[hash]',chunkNames:'chunk-[hash]',assetNames:'[name]-[hash]',
   external:['/vendor/*','/fonts/*'],loader:{'.woff2':'file','.svg':'file'},metafile:true});
-let html=await readFile('public/index.html','utf8');
+let html=(await readFile('public/index.html','utf8')).replaceAll('\r\n','\n');
 const preloads=new Set();
 function preloadImports(output) {
   for(const dependency of frontend.metafile.outputs[output].imports) {
@@ -34,4 +38,4 @@ await writeFile('dist/build-meta.json',JSON.stringify(frontend.metafile));
 await build({stdin:{contents:"export {createClient} from '@supabase/supabase-js'",resolveDir:process.cwd()},bundle:true,format:'esm',platform:'browser',outfile:'dist/vendor/supabase.js',minify:true});
 await build({entryPoints:['src/frontend/complianceEmbed.jsx'],bundle:true,format:'esm',platform:'browser',outfile:'dist/vendor/compliance-embed.js',minify:true});
 await build({stdin:{contents:"export {unzipSync} from 'fflate'",resolveDir:process.cwd()},bundle:true,format:'esm',platform:'browser',outfile:'dist/vendor/fflate.js',minify:true});
-await writeFile('dist/config.js',`globalThis.SMS_CONFIG=${JSON.stringify({apiBase:CRM_API_BASE,supabaseUrl:SUPABASE_URL,supabasePublishableKey:SUPABASE_PUBLISHABLE_KEY,formApiBase:`${SUPABASE_URL}/functions/v1/web-form`,embedBaseUrl:PUBLIC_FORM_BASE_URL||'',hostingApiBase:HOSTING_API_BASE||'https://www.e2local.com/api/web-hosting'})};\n`);
+await writeFile('dist/config.js',`globalThis.SMS_CONFIG=${JSON.stringify(config)};\n`);

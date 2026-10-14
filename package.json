@@ -6,6 +6,11 @@
   "type": "module",
   "main": "src/index.js",
   "scripts": {
+    "check": "node scripts/check-project.js && node scripts/check-current-sql.js",
+    "headers:generate": "node scripts/static-security.js",
+    "test:paired": "node scripts/paired-baseline.js --test",
+    "baseline:record": "node scripts/paired-baseline.js --record",
+    "verify:release": "npm run check && npm test && npm run test:paired && npm run build:frontend && node scripts/prepare-edge-deployment.js --bundle-only",
     "start": "npm run build:frontend && node scripts/preview-frontend.js",
     "dev": "npm run start",
     "start:legacy": "node src/index.js",

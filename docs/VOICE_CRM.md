@@ -1,10 +1,17 @@
 # Voice Agent workspace
 
 CRM staff use **Voice Agent** to inspect the Opek phone agent, edit its configuration,
-read calls and recordings, and work qualified leads. E2 customer access is unchanged.
+read calls and recordings, and work qualified leads. The customer Voice projection
+requires an explicitly released service and active owner; see [Customer Voice](CUSTOMER_VOICE.md).
 The existing Inbound calls report keeps historical provider records.
 
 ## Staff workflow
+
+The current entry screen is the **Voice Agents** library, including connected
+agents and private drafts. **Create draft agent** persists configuration with a
+request UUID; it does not create a cloud deployment or buy/connect a phone.
+The guided release panel replaces the older generic Add Voice / Set live steps.
+See [library and release workflow](CUSTOMER_VOICE.md#voice-agents-library-and-guided-release).
 
 - Overview shows the assigned phone/deployment, models, published and last observed
   revisions, and call/lead/confirmed-booking totals. Observation is not an uptime SLA.
@@ -19,7 +26,8 @@ The existing Inbound calls report keeps historical provider records.
   Caller ID and supplied callback numbers are unverified. Recording an inquiry
   never sends SMS, grants consent, enrolls a follow-up or reserves a booking.
 - Availability stays in Booking setup. Voice booking still requires enabled rules
-  and the separate deployment feature flag. Conversational SMS remains inactive.
+  and the separate deployment feature flag. SMS booking uses the independent
+  [Inbound AI](INBOUND_AI.md) settings and validation gate.
 
 ## Contracts and security
 
@@ -30,6 +38,11 @@ publish require `agentId` and `version`; save takes `configuration`, rollback ta
 `revision`. Initialize is an operator import of the verified existing deployment.
 Configuration fields are `name`, `persona`, `voice`, `brain`, and `voiceName`.
 Credentials, routing and model identifiers are not editable through this workspace.
+
+`POST /api/voice/create` takes `{requestId,configuration}`; `requestId` is a stable
+UUID reused on retries. Draft creation is staff-only and business-scoped.
+`GET /api/platform/voice-setup?tenantId=...` supplies the authorized guided release
+state. See [API reference](API_REFERENCE.md#staff-voice-workspace) for all routes.
 
 `voice-runtime` uses a separate HMAC secret and restricted SQL login. Its envelope
 is `{action,callId,payload}`; business and agent are pinned server-side. Operations
@@ -57,7 +70,11 @@ audio. Missing/failed recordings are shown explicitly. SDK transcripts can be la
 or incomplete. Six-digit codes are omitted from CRM transcript text. CRM retention
 does not govern copies independently retained in LiveKit Agent Insights.
 
-## Release sequence
+## Historical October 6 release sequence
+
+The sequence below records the original runtime rollout. Subsequent agent-library
+migrations and API/frontend releases are recorded in [Customer Voice](CUSTOMER_VOICE.md).
+Reconcile applied history before using any bootstrap or migration step.
 
 1. Reconcile shared migration history. Apply **only**
    `20261006060755_voice_crm_workspace`, after CRM availability migration

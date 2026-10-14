@@ -7,6 +7,7 @@ const membership={account_id:accountId,tenant_id:'demo',role:'owner',enabled:tru
 const site={id:siteId,slug:'example-preview',name:'Example Website',sms_tenant_id:'demo',owner_account_id:accountId,business_name:'Example Services',revision:0,created_at:'2026-09-29T12:00:00Z',details:{businessName:'Example Services',services:['Home repairs'],serviceAreas:['Denver']}};
 const records={accounts:[{id:accountId,clerk_display_name:'Example Owner',clerk_primary_email:'owner@example.test',status:'active',created_at:site.created_at,onboarding_completed_at:site.created_at,memberships:[membership],websites:[site],identityMapped:true,personal_info:{firstName:'Example',lastName:'Owner'},business_profile:{businessName:'Example Services'}}],businesses:[{tenant_id:'demo',name:'Example Services',time_zone:'America/Denver',owner_account_id:accountId,memberships:[membership],sites:[site]}],websites:[site]};
 const business=records.businesses[0];
+const previewForms=[{public_id:'00000000-0000-4000-8000-000000000003',title:'Contact form',description:'Website enquiries',button_label:'Submit',fields:[],enabled:true,archived:false,preset:'contacts',submissionCount:3,automationEnabled:true,publishedVersion:1,email_enabled:false}];
 const websiteRequests=[{id:'00000000-0000-4000-8000-000000000020',title:'Refresh the homepage',category:'content',page:'Home',description:'Please update our homepage introduction.',status:'received',response:'',revision:0,created_at:'2026-10-08T12:00:00Z',updated_at:'2026-10-08T12:00:00Z'}];
 business.registration={accountId,profile:{businessName:'Example Services',timeZone:'America/Denver',contactEmail:'owner@example.test',contactPhone:'+13035550123',summary:'Home repairs and maintenance for Denver customers.',services:['Home repairs'],locations:['Denver']}};
 business.setup={revision:0,draft:{...business.registration.profile},reviewed_profile_id:null};
@@ -24,7 +25,8 @@ http.createServer(async(req,res)=>{
     res.setHeader('Content-Type','text/html');res.end(shell);return;
   }
   if(url.pathname==='/mobile'){
-    res.setHeader('Content-Type','text/html');res.end('<!doctype html><html><body style="margin:0;background:#dde8ee"><iframe title="CRM mobile preview" src="/shell?view=platform-websites" style="display:block;margin:20px auto;width:390px;height:844px;border:0"></iframe></body></html>');return;
+    const mobileView=url.searchParams.get('view')==='web-forms'?'web-forms':'platform-websites';
+    res.setHeader('Content-Type','text/html');res.end(`<!doctype html><html><body style="margin:0;background:#dde8ee"><iframe title="CRM mobile preview" src="/shell?view=${mobileView}" style="display:block;margin:20px auto;width:390px;height:844px;border:0"></iframe></body></html>`);return;
   }
   if(url.pathname==='/api/auth/config')data={mode:'local'};
   else if(url.pathname==='/api/auth/me'||url.pathname==='/api/tenants')data={user:{id:'preview'},tenants:[{id:'demo',name:'Example Services',timeZone:'America/Denver',smsRead:true}],currentTenant:{id:'demo',name:'Example Services',timeZone:'America/Denver',smsRead:true},capabilities:{platformStaff:process.env.SUMMARY_QA_READONLY!=='true'}};
@@ -56,10 +58,23 @@ http.createServer(async(req,res)=>{
     if(req.method==='PATCH'){let raw='';for await(const chunk of req)raw+=chunk;const input=JSON.parse(raw);const row=websiteRequests.find(r=>r.id===input.id);Object.assign(row,{status:input.status,response:input.response,revision:row.revision+1});}
     data={requests:websiteRequests};
   }
-  else if(url.pathname==='/hosting')data={sites:[{...site,publicationStatus:'unpublished',deployments:[]}]};
+  else if(url.pathname==='/hosting'||url.pathname===`/hosting/${siteId}`){const detail={...site,publicationStatus:process.env.HOSTING_QA_VERSIONS==='1'?'published':'unpublished',liveDeploymentId:'live-fixture',deployments:process.env.HOSTING_QA_VERSIONS==='1'?[
+   {id:'ready-fixture',status:'ready',created_at:'2026-10-10T16:30:00Z',source_bytes:2457600,preview_token:'a'.repeat(32)},
+   {id:'live-fixture',status:'ready',created_at:'2026-10-09T16:30:00Z',source_bytes:2097152,preview_token:'b'.repeat(32)},
+   {id:'failed-fixture',status:'failed',created_at:'2026-10-08T16:30:00Z',source_bytes:10240,error_message:'Missing or incomplete upload: index.html'},
+  ]:[]};data=url.pathname==='/hosting'?{sites:[site],page:1,pageSize:25,total:1,totalPages:1}:{site:detail,page:1,pageSize:25,total:detail.deployments.length,totalPages:1};}
+  else if(/^\/hosting\/[^/]+\/deployments\/[^/]+$/.test(url.pathname)&&req.method==='GET')data={assets:{files:[{path:'index.html',size:10240},{path:'styles.css',size:2048}]}};
   else if(url.pathname.endsWith('/forms'))data={business:{tenantId:'demo',name:'Example Services'},connections:[]};
   else if(url.pathname.endsWith('/leads'))data={rows:[],total:0,totalPages:1};
-  else if(url.pathname==='/api/web-forms')data={canEdit:true,canManageAutomation:true,timeZone:'America/Denver',consentText:'Synthetic SMS consent',forms:[{public_id:'00000000-0000-4000-8000-000000000003',title:'Contact form',description:'',button_label:'Submit',fields:[],enabled:true}]};
+  else if(url.pathname==='/api/web-forms')data={canEdit:true,canManageAutomation:true,timeZone:'America/Denver',consentText:'Synthetic SMS consent',forms:previewForms};
+  else if(/^\/api\/web-forms\/[^/]+(?:\/(archive|restore))?$/.test(url.pathname)&&['POST','PUT'].includes(req.method)){
+   let raw='';for await(const chunk of req)raw+=chunk;const input=JSON.parse(raw||'{}');const form=previewForms.find(f=>f.public_id===url.pathname.split('/')[3]);
+   if(!form)throw new Error('Form not found');
+   if(url.pathname.endsWith('/archive'))Object.assign(form,{archived:true,enabled:false,automationEnabled:false});
+   else if(url.pathname.endsWith('/restore'))Object.assign(form,{archived:false,enabled:false});
+   else Object.assign(form,{title:input.title,description:input.description,fields:input.fields,button_label:input.buttonLabel,enabled:input.enabled,email_enabled:input.emailEnabled});
+   data={form};
+  }
   else if(url.pathname==='/api/automation-presets')data={presets:[]};
   else if(/^\/api\/web-forms\/[^/]+\/automation$/.test(url.pathname))data={draft:{steps:[]},enabled:false};
   else if(/^\/api\/web-forms\/[^/]+\/submissions$/.test(url.pathname))data={rows:[],total:0,totalPages:1};

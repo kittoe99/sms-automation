@@ -1,8 +1,6 @@
 # Business registration and service release
 
-Deployed October 1, 2026: both shared database migrations, CRM API version 37,
-CRM `0638dcf` and E2 `9581ea2` are live. Compare this CRM with `../E2local-main` (package
-`e2-local`) whenever changing registration, ownership or customer service access.
+Linking release verified **October 1, 2026 (America/Denver)**: CRM API **v38**, the canonical-access/shared-profile migrations and the read-only conversation guard are deployed. See [implementation, deployment and verification evidence](CRM_LINKING_RELEASE.md). Compare this CRM with `../E2local-main` (package `e2-local`) for registration, ownership or customer service changes.
 
 ## Customer to CRM workflow
 
@@ -103,7 +101,7 @@ PGlite checks do not replace Supabase deployment checks, provider integration
 verification or the authenticated pilot.
 
 
-## CRM access and shared profile contract (October 2 follow-up)
+## CRM access and shared profile contract (October 1 local / October 2 UTC)
 
 Apply CRM `20261002024327_sms_workspace_access_guards.sql` before E2
 `20261002024330_canonical_crm_access_profiles.sql`, after the October 1 lifecycle
@@ -139,7 +137,7 @@ verification evidence. These changes do not assign retained websites, release
 services or activate messaging.
 
 
-The October 2 release is applied and verified (see both project records). The
+The October 1 local-time release is applied and verified (see both project records). The
 additional CRM migration `20261002031422_read_only_conversation_lookup.sql`
 requires the CRM access guards and prevents phone-based GET lookups from creating
 conversations for read-only operators. It was separately compared, rehearsed and

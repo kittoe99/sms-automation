@@ -16,9 +16,9 @@ services:
       - key: SUPABASE_PUBLISHABLE_KEY
         sync: false
     routes:
-      - type: rewrite
+      - type: redirect
         source: /*
-        destination: /index.html
+        destination: /
     headers:
       - path: /assets/*
         name: Cache-Control
@@ -32,3 +32,35 @@ services:
       - path: /*
         name: Referrer-Policy
         value: strict-origin-when-cross-origin
+    # BEGIN GENERATED SECURITY HEADERS (npm run headers:generate)
+      - path: /*
+        name: Content-Security-Policy
+        value: "default-src 'self'; script-src 'self' 'sha256-LicstXC6JDmVTFFNkVw+a/ji8qMUDauLYei7Njr0lho=' https://clerk.crm.e2local.com https://challenges.cloudflare.com https://*.protect.clerk.com; style-src 'self' 'unsafe-inline'; img-src 'self' data: blob: https://img.clerk.com; font-src 'self'; connect-src 'self' https://wxamwhfmelxqahkdtcci.supabase.co wss://wxamwhfmelxqahkdtcci.supabase.co https://www.e2local.com https://clerk.crm.e2local.com https://*.protect.clerk.com:* https://clerk-telemetry.com https://*.clerk-telemetry.com https://*.r2.cloudflarestorage.com https://*.twilio.com; media-src 'self' blob: https://wxamwhfmelxqahkdtcci.supabase.co; worker-src 'self' blob:; frame-src 'self' https://challenges.cloudflare.com https://*.protect.clerk.com https://inquiry.withpersona.com https://*.twilio.com; object-src 'none'; base-uri 'none'; form-action 'self'; upgrade-insecure-requests"
+      - path: /
+        name: X-Frame-Options
+        value: "DENY"
+      - path: /index.html
+        name: X-Frame-Options
+        value: "DENY"
+      - path: /email-unsubscribe.html
+        name: X-Frame-Options
+        value: "DENY"
+      - path: /
+        name: Content-Security-Policy
+        value: "default-src 'self'; script-src 'self' 'sha256-LicstXC6JDmVTFFNkVw+a/ji8qMUDauLYei7Njr0lho=' https://clerk.crm.e2local.com https://challenges.cloudflare.com https://*.protect.clerk.com; style-src 'self' 'unsafe-inline'; img-src 'self' data: blob: https://img.clerk.com; font-src 'self'; connect-src 'self' https://wxamwhfmelxqahkdtcci.supabase.co wss://wxamwhfmelxqahkdtcci.supabase.co https://www.e2local.com https://clerk.crm.e2local.com https://*.protect.clerk.com:* https://clerk-telemetry.com https://*.clerk-telemetry.com https://*.r2.cloudflarestorage.com https://*.twilio.com; media-src 'self' blob: https://wxamwhfmelxqahkdtcci.supabase.co; worker-src 'self' blob:; frame-src 'self' https://challenges.cloudflare.com https://*.protect.clerk.com https://inquiry.withpersona.com https://*.twilio.com; object-src 'none'; base-uri 'none'; form-action 'self'; upgrade-insecure-requests; frame-ancestors 'none'"
+      - path: /index.html
+        name: Content-Security-Policy
+        value: "default-src 'self'; script-src 'self' 'sha256-LicstXC6JDmVTFFNkVw+a/ji8qMUDauLYei7Njr0lho=' https://clerk.crm.e2local.com https://challenges.cloudflare.com https://*.protect.clerk.com; style-src 'self' 'unsafe-inline'; img-src 'self' data: blob: https://img.clerk.com; font-src 'self'; connect-src 'self' https://wxamwhfmelxqahkdtcci.supabase.co wss://wxamwhfmelxqahkdtcci.supabase.co https://www.e2local.com https://clerk.crm.e2local.com https://*.protect.clerk.com:* https://clerk-telemetry.com https://*.clerk-telemetry.com https://*.r2.cloudflarestorage.com https://*.twilio.com; media-src 'self' blob: https://wxamwhfmelxqahkdtcci.supabase.co; worker-src 'self' blob:; frame-src 'self' https://challenges.cloudflare.com https://*.protect.clerk.com https://inquiry.withpersona.com https://*.twilio.com; object-src 'none'; base-uri 'none'; form-action 'self'; upgrade-insecure-requests; frame-ancestors 'none'"
+      - path: /email-unsubscribe.html
+        name: Content-Security-Policy
+        value: "default-src 'self'; script-src 'self' 'sha256-LicstXC6JDmVTFFNkVw+a/ji8qMUDauLYei7Njr0lho=' https://clerk.crm.e2local.com https://challenges.cloudflare.com https://*.protect.clerk.com; style-src 'self' 'unsafe-inline'; img-src 'self' data: blob: https://img.clerk.com; font-src 'self'; connect-src 'self' https://wxamwhfmelxqahkdtcci.supabase.co wss://wxamwhfmelxqahkdtcci.supabase.co https://www.e2local.com https://clerk.crm.e2local.com https://*.protect.clerk.com:* https://clerk-telemetry.com https://*.clerk-telemetry.com https://*.r2.cloudflarestorage.com https://*.twilio.com; media-src 'self' blob: https://wxamwhfmelxqahkdtcci.supabase.co; worker-src 'self' blob:; frame-src 'self' https://challenges.cloudflare.com https://*.protect.clerk.com https://inquiry.withpersona.com https://*.twilio.com; object-src 'none'; base-uri 'none'; form-action 'self'; upgrade-insecure-requests; frame-ancestors 'none'"
+      - path: /*
+        name: Permissions-Policy
+        value: "camera=(self \"https://inquiry.withpersona.com\"), microphone=(\"https://inquiry.withpersona.com\"), geolocation=(), payment=(), usb=()"
+      - path: /
+        name: Cache-Control
+        value: "no-cache"
+      - path: /index.html
+        name: Cache-Control
+        value: "no-cache"
+    # END GENERATED SECURITY HEADERS

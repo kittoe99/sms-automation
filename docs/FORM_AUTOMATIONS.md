@@ -1,8 +1,12 @@
 # Form-first SMS automation
 
-Forms own SMS follow-ups. Fixed SMS groups and AI-written replies are retired.
+Forms own SMS follow-ups. Fixed SMS groups and legacy AI-written replies are retired.
 The legacy groups, messages, intake records and AI settings remain available as
 historical data and for the separate email integration; they cannot dispatch SMS.
+
+The new [Inbound AI agent](INBOUND_AI.md) is a separate, default-off Opek pilot.
+It handles eligible inbound questions and new bookings. It never restarts a
+paused form reminder or legacy sequence; Pause/Continue still belongs to the form.
 
 ## Workflow
 
@@ -40,6 +44,34 @@ saved version. Presets are copied, so editing a form never edits other forms.
 Archiving stops its runs and disables collection; restoring returns the form as a
 disabled draft. New forms do not inherit the old category's email automation.
 
+## Deactivate, delete and restore a form
+
+Local October 10 frontend changes, not yet released: open **Forms → Open form**
+(or open its Automation tab). Editors now have **Deactivate form** for a live form
+and **Delete form** in the workspace header. Both show an inline confirmation with
+Cancel before changing saved state. Unsaved editor changes are discarded only
+when the action succeeds and reloads the form.
+
+- **Deactivate form** disables public collection, pauses active SMS runs and cancels
+  active email enrollments using the existing form-save transaction. It preserves
+  the saved fields, history and published sequence setting. To reactivate, enable
+  the form in Form settings and save; new submissions can enroll if the saved
+  sequence is enabled, but previously paused runs require individual resumption.
+- **Delete form** performs the existing recoverable archive. It disables collection
+  and the sequence, stops active/paused runs, and cancels active email enrollments.
+  Submissions, message history, sequence versions and website attribution remain
+  stored. Messages already handed to a provider cannot be recalled.
+- The default **Current forms** filter excludes deleted forms. Select **Deleted
+  forms**, open the form, then **Restore as draft**. Restoration does not enable
+  collection, enable the sequence, or restart stopped runs.
+
+History totals still include deleted forms. Inactive forms no longer count as
+active automations. Existing form-editor permissions apply; this adds no messaging
+or automation-management grant. Requests stay pinned to their original business,
+controls prevent duplicate actions, and errors leave the form available to retry.
+No migration, Edge API release or E2 runtime change is required; release the CRM
+frontend. Existing migration order below remains unchanged.
+
 ## Permissions and APIs
 
 - CRM staff configure/publish/enable rules, save presets and control runs.
@@ -54,12 +86,16 @@ disabled draft. New forms do not inherit the old category's email automation.
   performs staff actions. Publish/draft require the observed revision.
 - `GET /api/automation-presets` returns business presets; built-in starters ship
   with the editor. Legacy type-based form routes resolve only their original form.
-- Legacy SMS AI mutation endpoints return 410. The AI worker makes no model calls,
-  AI enqueue is disabled, and the send boundary rejects legacy AI outbox requests.
+- Legacy group/business SMS AI mutation endpoints return 410 and legacy AI
+  outbox requests are rejected. The current AI worker can process the separate
+  `sms-agent-v1` inbound agent when its off/shadow/live gates allow it; the
+  historical October 3 shutdown below does not disable the newer pilot.
 
-## Migration and release
+## Historical October 3 migration and release
 
-Apply only these forward migrations, in this order:
+These forward migrations were released in this order. This is the original
+cutover procedure, not an instruction to reapply them or turn off today's
+independently configured inbound agent:
 
 1. CRM `20261003143731_form_first_sms_automation.sql`.
 2. E2 `20261003145302_form_sequence_enquiries.sql`.
@@ -200,6 +236,8 @@ Verification commands: `node --test test/inboundCoordination.test.js`,
 validation proxy; synthetic local data only). Also run the existing CRM agent,
 form, booking and conversation suites and paired E2 enquiry/booking/access/cache
 suites. Read both project records for actual deployment and activation state.
+
+Release verified October 10: AI worker 38; remote migration `20261010184313`; CRM `56a83d3`, Render `dep-db58fv5ckfvc739auub0` live at 18:46:31 UTC. Opek coordination is shadow-only; other businesses remain off. Live activation has not occurred. See both PROJECT_RECORD files for validation scope and remaining operational gates.
 
 ## Automation activity reporting
 
