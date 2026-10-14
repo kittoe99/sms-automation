@@ -19,6 +19,10 @@ the workflow evidence. No new migrations, backend,
 worker, E2 application or provider-setting changes were needed. Original working
 trees and unrelated local changes were preserved. Both project records were updated.
 
+Build dependency audit also reported existing transitive advisories: axios (high)
+and proxy-addr (critical), both with fixes available. Dependency files are identical
+to the prior release; this frontend layout release did not alter them.
+
 ### October 14 — Simpler CRM navigation and daily-work layout (local only)
 
 Implemented the approved frontend arrangement while keeping the existing branding,
