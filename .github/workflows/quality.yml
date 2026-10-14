@@ -12,6 +12,7 @@ permissions:
   contents: read
 jobs:
   crm:
+    name: CRM source and build (paired tests run in E2)
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
@@ -21,7 +22,6 @@ jobs:
           cache: npm
       - run: npm ci
       - run: npm run check
-      - run: npm test
       - run: npm run build:frontend
         env:
           SUPABASE_PUBLISHABLE_KEY: sb_publishable_offline_build_fixture
@@ -50,5 +50,7 @@ jobs:
         working-directory: opek-sms
       - run: npm ci
         working-directory: E2local-main
+      - run: npm test
+        working-directory: opek-sms
       - run: npm run test:paired
         working-directory: opek-sms

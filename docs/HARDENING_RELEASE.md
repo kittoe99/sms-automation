@@ -126,8 +126,11 @@ review both diffs, run the relevant paired tests and explicitly run
 `npm run baseline:record`; never re-record an unexplained mismatch merely to
 make CI pass. Commit the baseline with the reviewed source changes.
 
-Pushes and pull requests run CRM checks, tests, an offline frontend build and
-Edge packaging. The manual paired-release workflow also requires an exact
+Pushes and pull requests run CRM source checks, an offline frontend build and
+Edge packaging. The complete CRM suite requires the private E2 migration fixtures;
+it runs in E2's paired workflow alongside E2's full release gate. This avoids
+granting a public-repository workflow access to private source. The optional
+manual CRM paired-release workflow also runs the full CRM suite and requires an exact
 40-character E2 commit SHA. For a private E2 repository, configure
 `PAIRED_REPO_TOKEN` with read-only access to that repository; it is a CI secret,
 not browser or runtime configuration. Neither workflow deploys the application.
