@@ -1,5 +1,46 @@
 # Opek SMS project record
 
+### October 14 — E2 dashboard layout production release
+
+Dashboard-only application changes are live at https://www.e2local.com/dashboard,
+from commit `349fba73acd6520dd3444b14046ccc2433864a1b` (implementation `f3f6dee`).
+Vercel production deployment `dpl_4DpKZZ2LNm3g8vXnQpm3hLjqUwwa` is READY and
+assigned to the production domain, confirmed October 14 at 15:23:34 UTC. The
+local-only status below is superseded. CRM runtime, public marketing pages,
+shared database, API contracts and delivery Worker are unchanged. No migrations
+were applied and no backend service was redeployed.
+
+Local checks passed: SQL-source consistency, lint, app/Worker TypeScript and
+production build; six Worker tests and 63 paired contract tests. The app suite
+ran 240 tests: 238 passed initially, with two outdated label assertions corrected;
+all 13 ownership tests passed on the targeted rerun. Synthetic desktop/mobile
+browser checks covered the reordered Home, filtered enquiry shortcuts, selected
+mobile navigation, and website drafts retained across tabs, with no console errors.
+The live dashboard correctly redirects unauthenticated visitors to sign-in; no
+signed-in production customer session was available for visual verification.
+The tested checkout and published dashboard source match after line-ending
+normalization; unrelated local changes were preserved. See E2's
+`docs/dashboard-layout.md` for navigation and current workflow details.
+
+GitHub E2 project checks passed for the deployed commit: run `38588798864`,
+including the full paired CRM suite and E2 `verify:release`.
+
+### October 14 — E2 dashboard layout simplification (local implementation)
+
+The signed-in E2 dashboard now groups Daily work and Services, uses Home,
+Enquiries, Text messages and Calls labels, leads with customer work/recent
+enquiries, and makes website change requests the first Website section. Secondary
+website and messaging details are expandable. Public pages, backend contracts,
+authentication, ownership and service visibility remain unchanged. Existing hash
+keys, filters, cache/session boundaries and retained drafts are preserved.
+No migrations or cross-project release prerequisites are introduced.
+
+Local browser checks with synthetic data covered desktop/mobile layout, enquiry
+filter shortcuts, selected mobile navigation and website draft retention. Release
+checks and production evidence will be recorded separately. See E2
+`docs/dashboard-layout.md`, `docs/business-services.md` and
+`docs/website-workspace.md` for the current workflow.
+
 ### October 14 — CRM layout production release
 
 The approved layout is live at https://crm.e2local.com. CRM source commit
