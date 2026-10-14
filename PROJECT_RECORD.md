@@ -1,5 +1,100 @@
 # Opek SMS project record
 
+### October 14 — Paired hardening production release
+
+The reviewed application changes are deployed. The earlier "local only" entries
+below describe their implementation stage; this entry supersedes their deployment
+status. Source publication was explicitly approved for the public CRM repository.
+Original local branches, indexes and unrelated working changes were preserved.
+
+| Component | Verified production release |
+| --- | --- |
+| E2 application | Commit `3bacc0e4a210f513eca1964def1597e48a4a2711`, Vercel `dpl_7PW1hj94SEMhYNGe9mCT7fjwWHiM`, [www.e2local.com](https://www.e2local.com) |
+| CRM frontend | Commit `76edfa0c1ee7ccf19e46c1b2fdf873033ee717bf`, Render `dep-db7oii2vcj2c73ecl0pg`, live at 13:53:24 UTC, [crm.e2local.com](https://crm.e2local.com) |
+| Delivery Worker | `e2-sites` version `dc8ad252-771c-49e6-b8ef-a1ffc8ea271d` (version 3), deployed 13:36:51 UTC; existing WEBSITES/R2 binding preserved |
+| CRM API | Supabase `crm-api` version 59, ACTIVE |
+| Knowledge worker | Supabase `knowledge-worker` version 15, ACTIVE |
+| Email worker | Supabase `email-worker` version 12, ACTIVE |
+
+Render's automatic deployment did not start after the production push. Both the
+dashboard and deploy API still showed only the old deployment, so the release was
+started through Render's deploy API. Future releases must confirm a new deployment
+exists instead of assuming that a successful Git push deployed the frontend.
+
+Only these five missing forward migrations were applied to the existing shared
+Supabase project `wxamwhfmelxqahkdtcci`. Both histories were reconciled; neither
+history was replayed. Each payload used a 5-second lock timeout and 60-second
+statement timeout. Remote stored-payload hashes exactly match the owning local
+SQL plus those two transaction-local guards.
+
+| Owner / source migration | Applied remote alias |
+| --- | --- |
+| CRM `20261014061007_queue_reporting_hardening.sql` | `20261014133038` |
+| E2 `20261014061728_hosting_read_indexes.sql` | `20261014133135` |
+| E2 `20261014065217_dashboard_scoped_reads.sql` | `20261014133140` |
+| E2 `20261014065602_contact_intake_limits.sql` | `20261014133147` |
+| E2 `20261014071224_hosting_operation_fencing.sql` | `20261014134017` |
+
+The CRM projection backfill was sized before application: six messages, two form
+runs and no email enrollments; it produced two first-contact rows. These small
+production volumes are not representative capacity evidence. Four new private
+tables have RLS enabled and no anonymous/authenticated SELECT grant. Contact and
+all six hosting operation RPCs allow service_role execution and deny anonymous
+and authenticated execution. No interrupted hosting operation existed at the
+post-migration check.
+
+Hosting POST/DELETE/PATCH/PUT requests were temporarily denied at Vercel's edge.
+The published pause was verified at 13:35:15 UTC; old 300-second invocations were
+given a full drain before the fencing migration at 13:40:17 UTC. The new E2
+production source and detail endpoint were verified before the CRM release.
+The pause was disabled and published by 13:52:26 UTC; the inactive rule
+`rule_e2_hosting_release_drain_20261014_Gd4CZf` remains for audit. Ordinary
+hosting authentication and database operation guards remain enforced.
+
+Production verification:
+
+- E2's 11 public pages passed metadata, canonical, schema, sitemap, social-image,
+  internal-link, real-404 and HTTP/HTTPS/www/apex redirect checks. The hosting
+  directory/detail reads return 401 without staff authentication.
+- CRM HTML and all eight referenced static assets exactly match the local build.
+  Render now serves the reviewed CSP, framing, MIME, referrer, permissions and
+  cache headers. Unknown paths redirect to the protected root; embed.html stays
+  available without a framing denial. Both production Clerk sign-in screens
+  rendered with no browser warnings/errors captured during the check.
+- The existing hosted customer website returned HTTP 200 after the Worker update.
+  CRM API returned 401 without authentication; worker GETs returned 405.
+- Deno 2.9.6 entrypoint checks passed for all three deployed functions. Real local
+  Deno TLS requests to public fixtures passed and loopback was rejected. This is
+  local runtime evidence, not an authenticated hosted ingestion test.
+- [Combined CI passed](https://github.com/kittoe99/E2local/actions/runs/38574671579)
+  on the deployed E2 revision against the exact deployed CRM revision: CRM
+  395 passed / 29 existing skips / 0 failures; E2 239 passed; Worker 6 passed;
+  paired contract suite 63 passed. SQL, lint, application/Worker type checks
+  and the credential-free production build passed. The separate
+  [CRM production-branch checks passed](https://github.com/kittoe99/sms-automation/actions/runs/38575382744).
+  Subsequent release-evidence commits change documentation only; the runtime
+  source above is the tested baseline.
+
+CI ownership was corrected: the public CRM workflow checks source/build/packaging;
+the private E2 workflow checks out an immutable public CRM revision and runs its
+complete suite before E2's release gate. Repository variable PAIRED_CRM_REF is
+configured to `76edfa0c1ee7ccf19e46c1b2fdf873033ee717bf`. No private E2 fixtures
+or cross-repository credentials were published. E2's account-unavailable page
+now follows the root layout's configured-authentication check before rendering
+UserButton; a production build with both Clerk keys explicitly empty passed.
+
+Remaining verification limits: no authenticated two-account/business switching,
+Persona/compliance, private Voice playback, R2 upload/publish/restore, forced
+hosting interruption, hosted public-HTTPS ingestion, representative PostgreSQL
+load/concurrency, or restore rehearsal was performed in production. Offline
+behavioral tests cover the implemented contracts but do not replace those checks.
+No real message, payment, service publication or customer content mutation was
+used as a smoke test. Security advisors retained their existing pg_net/public and
+SECURITY DEFINER warnings; no new warning category was introduced. Expected
+deny-by-default/RLS-without-policy informational entries increased from 61 to 65.
+Application rollback must retain the new fenced hosting contract; do not roll
+back to old unfenced hosting code or replay migrations.
+
 The paired main E2 review is now implemented locally; its final verification
 and three new unapplied E2 migrations are recorded in the appended
 [October 14 main E2 entry](#october-14--main-e2-reliability-review-verification-local-only).

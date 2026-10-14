@@ -1,11 +1,11 @@
 # October 14 architecture hardening
 
-This guide records local implementation from the project review on October 14,
-2026. It is a release checklist, not evidence that migrations were applied or
-services deployed. No live database, provider, sending, publication, DNS or
-deployment changes were performed for this work. The two
-[project](../PROJECT_RECORD.md) [records](../../E2local-main/PROJECT_RECORD.md)
-own the exact verification and release evidence.
+This guide describes the October 14, 2026 implementation and release procedure.
+The changes and five owning migrations are now deployed. The October 14 paired
+production-release entries in both [CRM](../PROJECT_RECORD.md) and
+[E2](../../E2local-main/PROJECT_RECORD.md) record exact runtime revisions, remote
+migration aliases, maintenance reopening and verification limits. The hosted
+checks below remain required for full operational acceptance where not yet recorded.
 
 The subsequent main-application review is documented in
 [E2 reliability and release](../../E2local-main/docs/reliability-release.md).
@@ -141,12 +141,12 @@ dependency walk includes relative imports under `supabase/functions/` and
 `src/`, plus the shared `public/phoneNormalization.js`, and fails for missing or
 unexpected imports. Ordinary packaging with secrets remains an operator action.
 
-## Evidence required before closing the release
+## Remaining operational acceptance checks
 
 Keep these checks separate from passing source tests:
 
-- Run Deno entrypoint checks and a hosted public-HTTPS transport smoke. Deno was
-  unavailable during the local security implementation.
+- Deno entrypoint and local TLS checks now pass. Authenticated hosted public-HTTPS
+  transport verification remains outstanding.
 - Use a real PostgreSQL environment with representative tenant/message/job
   volumes to inspect query plans, lock contention, fairness and queue progress.
   Check the one-time backfill duration separately from steady-state reporting.
