@@ -37,7 +37,10 @@ local tabs. Find a page searches all permitted pages and former labels. Visibili
 ## Implementation and verification
 
 `public/tabWorkspace.js` owns memory and the shell render queue. Navigation cancels
-obsolete reads before the next shell render. `public/app.js` owns the shared shell,
+obsolete token/transport waits, response-body reads and lazy module waits before
+the next shell render. Sidebar and sibling-tab buttons retain their DOM identity
+through loading and selection changes; only search or access changes rebuild
+the sidebar. Late navigation completions cannot update history or steal focus. `public/app.js` owns the shared shell,
 per-tab UI state and access-filtered navigation. Each `public/platform.js` instance
 owns a separate host and a `public/pageLifecycle.js` read scope. Leaving cancels its
 reads without awaiting provider requests, uploads or writes from every other tab.

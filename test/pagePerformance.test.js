@@ -99,3 +99,28 @@ test('Forms retries failed reads and an old in-flight tenant read cannot refill 
   old.resolve(Response.json({tenant:'alpha'}));await pending;
   assert.equal((await cache.read('/forms')).tenant,'beta');assert.equal(count,3);
 });
+
+
+test('one navigation cancels token/transport waits even when the transport ignores abort',async()=>{
+ const network=deferred(),started=deferred(),events=[],reads=createPageReads(()=>{started.resolve();return network.promise;});
+ const queue=createRenderQueue();
+ const old=queue.run(async()=>{const scope=reads.begin();try{await reads.fetch('/slow');events.push('old');}finally{reads.end(scope);}});
+ const rejected=assert.rejects(old,{name:'AbortError'});await started.promise;
+ reads.cancel();await queue.run(()=>events.push('new'));await rejected;
+ assert.deepEqual(events,['new']);network.resolve(Response.json({old:true}));
+});
+
+test('navigation cancels body decoding and module loading without a late paint',async()=>{
+ for(const phase of ['body','module']) {
+  const slow=deferred(),started=deferred(),events=[],reads=createPageReads(async()=>({ok:true,json:()=>{started.resolve();return slow.promise;}}));
+  const queue=createRenderQueue();
+  const old=queue.run(async()=>{const scope=reads.begin();try {
+   if(phase==='body')await (await reads.fetch('/slow-body')).json();
+   else {started.resolve();await reads.wait(slow.promise);}
+   events.push('old');
+  }finally{reads.end(scope);}});
+  const rejected=assert.rejects(old,{name:'AbortError'});await started.promise;reads.cancel();
+  await queue.run(()=>events.push('new'));await rejected;
+  slow.resolve({old:true});await new Promise(resolve=>setImmediate(resolve));assert.deepEqual(events,['new']);
+ }
+});

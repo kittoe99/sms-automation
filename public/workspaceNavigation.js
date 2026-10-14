@@ -29,3 +29,45 @@ export function navigationMarkup({view,staff,tenant,query='',expanded=[]}) {
   return `<details class="navigation-group" data-navigation-group="${group.id}" ${active||expanded.includes(group.id)?'open':''}><summary>${dashboardIcon(group.icon)}<span>${group.label}</span></summary>${group.views.map(item=>link(item)).join('')}${group.id==='admin'?'<div data-business-action></div>':''}</details>`;
  }).join('')||'<p class="muted navigation-empty">No matching pages.</p>';
 }
+
+// Keep pointer/focus targets mounted while async page loads update the shell.
+// Only permissions or search results change the navigation's structure.
+const navigationState = new WeakMap();
+export function syncNavigation(nav, options) {
+ const groups=permittedGroups(options.staff,options.tenant);
+ const key=JSON.stringify([groups,options.query?.trim().toLowerCase()||'']);
+ const previous=navigationState.get(nav);
+ const rebuilt=previous?.key!==key;
+ if(rebuilt) {
+  const expanded=[...nav.querySelectorAll('[data-navigation-group][open]')].map(node=>node.dataset.navigationGroup);
+  nav.innerHTML=navigationMarkup({...options,expanded});
+ }
+ const activeGroup=groupForView(options.view);
+ for(const node of nav.querySelectorAll('[data-view]')) {
+  const active=node.classList.contains('daily-link')
+   ? groupForView(node.dataset.view)?.id===activeGroup?.id : node.dataset.view===options.view;
+  node.classList.toggle('active',active);
+  if(active)node.setAttribute('aria-current','page');else node.removeAttribute('aria-current');
+ }
+ if(rebuilt||previous.view!==options.view) {
+  const group=nav.querySelector(`[data-navigation-group="${activeGroup?.id}"]`);
+  if(group)group.open=true;
+ }
+ navigationState.set(nav,{key,view:options.view});
+ return rebuilt;
+}
+
+const tabState = new WeakMap();
+export function syncNavigationTabs(tabs, group, view) {
+ const key=JSON.stringify(group?.views||[]);
+ tabs.hidden=!group||group.views.length<2;
+ if(tabState.get(tabs)!==key) {
+  tabs.innerHTML=tabs.hidden?'':group.views.map(item=>`<button type="button" role="tab" data-view="${item.view}" aria-controls="view-root">${item.label}</button>`).join('');
+  tabState.set(tabs,key);
+ }
+ tabs.setAttribute('aria-label',group?.label||'Workspace');
+ for(const node of tabs.querySelectorAll('[data-view]')) {
+  const active=node.dataset.view===view;
+  node.setAttribute('aria-selected',String(active));node.tabIndex=active?0:-1;
+ }
+}

@@ -1,4 +1,4 @@
-import {workspaceGroups,groupForView,permittedGroups,navigationMarkup} from './workspaceNavigation.js';
+import {workspaceGroups,groupForView,permittedGroups,syncNavigation,syncNavigationTabs} from './workspaceNavigation.js';
 import {readHome,homeMarkup} from './workspaceHome.js';
 import {mountContactAutomations} from './contactAutomations.js';
 import {mountFormDirectory} from './formDirectory.js';
@@ -120,7 +120,7 @@ function workspaceCompletionGuard(node) {
 
 let formWorkspace = null;
 const formBuilder = {async render() {
-  const {createFormWorkspace} = await import('./formWorkspace.js?v=20261004-live-test');
+  const {createFormWorkspace} = await pageReads.wait(import('./formWorkspace.js?v=20261004-live-test'));
   formWorkspace ||= createFormWorkspace({root:el.root,apiFetch,config:runtimeConfig,getTenantId,
     canReadSubmissions:()=>state.tenant?.smsRead!==false});
   const target=formBuilder.target;formBuilder.target=null;
@@ -329,7 +329,7 @@ for (const eventName of ['input', 'change']) {
 const defaultBookingSettings=()=>({enabled:false,version:0,slotDurationMinutes:60,capacityPerSlot:1,minimumNoticeMinutes:120,maximumAdvanceDays:90,followUpEnabled:false,followUpDelayHours:24,followUpIntervalHours:48,followUpMaxAttempts:2,weeklyAvailability:{0:[],1:[],2:[],3:[],4:[],5:[],6:[]},dateExceptions:[],extraFields:[]});
 
 async function renderBookingSetup(){
- const {mountBookingSetup}=await import('./bookingSetup.js');
+ const {mountBookingSetup}=await pageReads.wait(import('./bookingSetup.js'));
  setTitle('Booking setup','Hours, date exceptions and availability previews.');el.kpi.innerHTML='';el.pager.hidden=true;
  const read=async path=>{const response=await apiFetch(path),body=await response.json();if(!response.ok)throw new Error(body.error||'Could not load booking setup');return body;};
  const [settings,voice]=await Promise.all([state.bookingSettingsDraft||read('/api/booking-settings'),read('/api/voice-booking-rules')]);
@@ -1361,8 +1361,8 @@ document.querySelector('.dashboard-brand').addEventListener('click', (event) => 
 document.getElementById('nav').addEventListener('click', (e) => {
   const btn = e.target.closest('[data-view]');
   if (!btn) return;
-  switchView(btn.dataset.view, btn.dataset.view === 'automations' ? {categoryId: btn.dataset.category || null} : {}).then(() => {
-    if (matchMedia('(max-width: 900px)').matches) {
+  switchView(btn.dataset.view, btn.dataset.view === 'automations' ? {categoryId: btn.dataset.category || null} : {}).then(switched => {
+    if (switched && matchMedia('(max-width: 900px)').matches) {
       el.title.setAttribute('tabindex', '-1');
       el.title.focus({ preventScroll: true });
     }
@@ -1489,14 +1489,12 @@ const sectionHistory = new Map();
 const businessSetupButton = document.getElementById('add-business');
 function renderSectionNavigation() {
   const nav=document.getElementById('nav');
-  const focused=document.activeElement?.closest('#nav [data-view]')?.dataset.view;
-  const expanded=[...nav.querySelectorAll('[data-navigation-group][open]')].map(node=>node.dataset.navigationGroup);
-  businessSetupButton?.remove();
-  nav.innerHTML=navigationMarkup({view:state.view,staff:state.platformStaff,tenant:state.tenant,
-    query:document.getElementById('nav-find').value,expanded});
-  const destination=nav.querySelector('[data-business-action]');
-  if(destination&&businessSetupButton)destination.append(businessSetupButton);
-  if(focused)nav.querySelector(`[data-view="${focused}"]`)?.focus({preventScroll:true});
+  const rebuilt=syncNavigation(nav,{view:state.view,staff:state.platformStaff,tenant:state.tenant,
+    query:document.getElementById('nav-find').value});
+  if(rebuilt) {
+    const destination=nav.querySelector('[data-business-action]');
+    if(destination&&businessSetupButton)destination.append(businessSetupButton);
+  }
 }
 function tabGroupForView(view) {return groupForView(view);}
 function syncWorkspaceNavigation() {
@@ -1504,11 +1502,7 @@ function syncWorkspaceNavigation() {
   renderSectionNavigation();
   const group=permittedGroups(state.platformStaff,state.tenant).find(g=>g.views.some(v=>v.view===state.view));
   const tabs=document.getElementById('workspace-tabs');
-  const focused=tabs.contains(document.activeElement)?document.activeElement.dataset.view:null;
-  tabs.hidden=!group||group.views.length<2;
-  tabs.innerHTML=tabs.hidden?'':group.views.map(item=>`<button type="button" role="tab" data-view="${item.view}" aria-controls="view-root" aria-selected="${item.view===state.view}" tabindex="${item.view===state.view?'0':'-1'}">${item.label}</button>`).join('');
-  tabs.setAttribute('aria-label',group?.label||'Workspace');
-  if(focused)tabs.querySelector(`[data-view="${focused}"]`)?.focus({preventScroll:true});
+  syncNavigationTabs(tabs,group,state.view);
 }
 document.getElementById('workspace-tabs').addEventListener('click',event=>{
  const button=event.target.closest('[data-view]');if(button)switchView(button.dataset.view);
@@ -1516,7 +1510,7 @@ document.getElementById('workspace-tabs').addEventListener('click',event=>{
 document.getElementById('workspace-tabs').addEventListener('keydown',event=>{
  const tabs=[...event.currentTarget.querySelectorAll('[role="tab"]')],index=tabs.indexOf(event.target);
  if(index<0)return;const next=event.key==='ArrowRight'?(index+1)%tabs.length:event.key==='ArrowLeft'?(index+tabs.length-1)%tabs.length:event.key==='Home'?0:event.key==='End'?tabs.length-1:-1;
- if(next>=0){event.preventDefault();const view=tabs[next].dataset.view;switchView(view).then(()=>document.querySelector(`#workspace-tabs [data-view="${view}"]`)?.focus());}
+ if(next>=0){event.preventDefault();const view=tabs[next].dataset.view;switchView(view).then(switched=>{if(switched)document.querySelector(`#workspace-tabs [data-view="${view}"]`)?.focus();});}
 });
 
 function syncViewUrl() {
@@ -1572,14 +1566,17 @@ function switchView(view, options = {}) {
       if ('conversationId' in options) state.conversationId = options.conversationId;
       el.search.value = state.q; el.status.value = state.status;
       await renderWorkspace({force: options.force});
+      if(ticket!==navigationTicket)return;
       window.scrollTo({top: 0, behavior: 'instant'});
     }
+    if(ticket!==navigationTicket)return;
     if (changed && options.history !== false) {
       const url = new URL(location.href); url.searchParams.set('view', view);
       history.pushState({view}, '', url);
     }
     setActiveNav(); syncViewControls(); applyWorkspacePermissions();
     scheduleWorkspaceWarmup();
+    return true;
   });
 }
 
@@ -1754,7 +1751,7 @@ async function renderWorkspace(options = {}) {
   syncViewControls();
   try {
     if (state.view.startsWith('platform-')) {
-      ({createPlatform} = await import('./platform.js?v=20261003-directory'));
+      ({createPlatform} = await pageReads.wait(import('./platform.js?v=20261003-directory')));
       readScope.signal.throwIfAborted();
       el.search.closest('.search-wrap').hidden = true; el.status.hidden = true; el.kpi.innerHTML = '';
       el.toolbarTenant.textContent='CRM';
@@ -1782,7 +1779,7 @@ async function renderWorkspace(options = {}) {
     else if (state.view === 'business-context') await renderBusinessContext();
     else if (state.view === 'booking-setup') await renderBookingSetup();
     else if (state.view === 'automation-activity') {
-      const {mountAutomationActivity}=await import('./automationActivity.js');
+      const {mountAutomationActivity}=await pageReads.wait(import('./automationActivity.js'));
       const tenantId=getTenantId(),userId=getSession()?.user?.id||state.user?.id||'session';
       el.pager.hidden=true;el.kpi.innerHTML='';
       disposeActivity=await mountAutomationActivity(el.root,{apiFetch,embedded:true,initialFilters:state.activityFilters,initialRun:state.activityRun,identity:`${userId}:${tenantId}`,isCurrent:()=>state.view==='automation-activity'&&getTenantId()===tenantId&&(getSession()?.user?.id||state.user?.id||'session')===userId,
@@ -1792,7 +1789,7 @@ async function renderWorkspace(options = {}) {
       state.activityFilters=null;state.activityRun=null;
     }
     else if (state.view === 'inbound-ai') {
-      const {mountInboundAi}=await import('./inboundAi.js');
+      const {mountInboundAi}=await pageReads.wait(import('./inboundAi.js'));
       const tenantId=getTenantId();
       await mountInboundAi(el.root,{apiFetch,onKnowledge:()=>switchView('business-context'),onAvailability:()=>switchView('booking-setup'),isCurrent:()=>state.view==='inbound-ai'&&getTenantId()===tenantId});
     }
@@ -1849,7 +1846,7 @@ function openAutomationGroup(categoryId = null) {
 }
 
 async function renderVoiceWorkspace(){
- const {mountVoiceWorkspace}=await import('./voiceWorkspace.js');
+ const {mountVoiceWorkspace}=await pageReads.wait(import('./voiceWorkspace.js'));
  setTitle(...titles['voice-agent']);el.kpi.innerHTML='';el.pager.hidden=true;el.status.disabled=true;
  state.voiceWorkspace??={};
  const voiceTenant=getTenantId(),voiceSession=getSession()?.id;
@@ -1874,7 +1871,7 @@ async function renderCall() {
   const voiceHost=document.createElement('div'),legacyHost=document.createElement('div');
   el.root.replaceChildren(voiceHost,legacyHost);
   if(state.platformStaff){
-    const {mountVoiceWorkspace}=await import('./voiceWorkspace.js');
+    const {mountVoiceWorkspace}=await pageReads.wait(import('./voiceWorkspace.js'));
     state.inboundVoiceWorkspace??={};
     const voiceTenant=getTenantId(),voiceSession=getSession()?.id;
     disposeVoice=await mountVoiceWorkspace(voiceHost,{apiFetch,callsOnly:true,model:state.inboundVoiceWorkspace,

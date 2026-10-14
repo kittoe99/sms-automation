@@ -97,4 +97,4 @@ http.createServer(async(req,res)=>{
   const file=resolve(dir,'.'+decodeURIComponent(url.pathname));if(!file.startsWith(dir+sep)){res.writeHead(403);res.end();return;}
   res.setHeader('Content-Type',file.endsWith('.css')?'text/css':file.endsWith('.js')?'text/javascript':file.endsWith('.svg')?'image/svg+xml':'application/octet-stream');res.end(await readFile(file));
  }catch{res.writeHead(404);res.end('Not found');}
-}).listen(4319,'127.0.0.1',()=>console.log('Synthetic platform preview: http://127.0.0.1:4319'));
+}).listen(Number(process.env.CRM_TAB_QA_PORT)||4319,'127.0.0.1',()=>console.log('Synthetic platform preview ready'));

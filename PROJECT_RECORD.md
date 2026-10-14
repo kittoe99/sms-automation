@@ -1,5 +1,44 @@
 # Opek SMS project record
 
+### October 14 — CRM navigation responsiveness fix (local implementation)
+
+Sidebar buttons and sibling tabs now keep the same DOM nodes as reads complete;
+only permission/search structure changes rebuild navigation. This prevents a
+load finishing between pointer-down and pointer-up from discarding the clicked
+button. Selection updates in place and manually collapsed groups stay collapsed.
+Page reads race cancellation through token/transport waits and response decoding;
+lazy page imports also release the render queue on cancellation. Obsolete click
+completions cannot change history or move keyboard focus after a newer selection.
+Submitted writes and retained drafts keep their existing behavior.
+
+Local checks: 403 CRM tests passed, 29 skipped; four added regression tests cover
+stable click targets, sibling selection, ignored transport cancellation, and slow
+body/module waits. Source checks, frontend build, 63 paired-project tests and Edge bundle checks passed. Synthetic browser QA
+covered a six-second booking delay, single-click departure, rapid navigation,
+Back, keyboard tabs, mobile single-tap navigation and unsaved Text replies draft retention. No backend, auth,
+permission, shared contract or database change is included. Deployment is pending.
+
+### October 14 — Requested complete form cleanup (applied to production)
+
+The user explicitly requested deletion of all form designs, submissions and form
+automation history across the paired CRM/E2 system. A guarded transaction in the
+shared production database disabled and deleted all five form definitions, the
+one completed form test run, its two outbound test messages, four completed queue
+jobs, six delivery events, six activity events and two provider attempts, plus
+associated queue/archive and first-contact records. The inventory contained no
+saved submissions, form sequences/versions/presets, email enrollments or website
+form connections. No operational booking or lead was linked to the deleted data.
+
+An independent post-commit query verified zero forms, submissions, form runs,
+form messages, form jobs, matching activity and queue records. Existing dashboard
+cache invalidation triggers remained enabled. Form seeding is already a no-op,
+so loading the workspace does not recreate deleted designs. Existing form links
+are no longer usable; new forms require new definitions. Customer accounts,
+businesses, contacts, unrelated conversations, suppression/opt-out protections,
+provider webhook receipts and provider-side records were not removed.
+No schema migration, application code change or deployment was required. This
+was an explicitly requested database purge, not the UI's recoverable Archive.
+
 ### October 14 — E2 dashboard layout production release
 
 Dashboard-only application changes are live at https://www.e2local.com/dashboard,

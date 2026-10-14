@@ -1,6 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import {permittedGroups,navigationMarkup,groupForView} from '../public/workspaceNavigation.js';
+import {permittedGroups,navigationMarkup,groupForView,syncNavigation,syncNavigationTabs} from '../public/workspaceNavigation.js';
 import {readHome,homeMarkup} from '../public/workspaceHome.js';
 
 test('daily work stays directly accessible while permission-filtered siblings remain separate',()=>{
@@ -38,4 +38,46 @@ test('Home reads existing endpoints only, separates partial failure from zero an
 test('Home propagates cancellation and authorization failures instead of showing empty work',async()=>{
  for(const status of [401,403])await assert.rejects(readHome(async()=>new Response('',{status})),e=>e.status===status);
  await assert.rejects(readHome(async()=>{throw new DOMException('Navigation changed','AbortError');}),{name:'AbortError'});
+});
+
+
+// Minimal DOM model: replacing markup destroys the original pointer/focus target.
+class NavigationHost {
+ writes=0;nodes=[];groups=[];attributes={};
+ set innerHTML(html) {
+  this.writes++;this.nodes=[...html.matchAll(/<button([^>]+)>/g)].map(([,attrs])=>{
+   const classes=new Set((attrs.match(/class="([^"]+)"/)?.[1]||'').split(' '));
+   return {dataset:{view:attrs.match(/data-view="([^"]+)"/)?.[1]},attributes:{},
+    classList:{contains:key=>classes.has(key),toggle:(key,on)=>on?classes.add(key):classes.delete(key)},
+    setAttribute(key,value){this.attributes[key]=value;},removeAttribute(key){delete this.attributes[key];}};
+  });
+  this.groups=[...html.matchAll(/<details[^>]+data-navigation-group="([^"]+)"([^>]*)>/g)].map(([,id,attrs])=>({dataset:{navigationGroup:id},open:attrs.includes('open')}));
+ }
+ querySelectorAll(selector){return selector==='[data-view]'?this.nodes:this.groups.filter(g=>g.open);}
+ querySelector(selector){return this.groups.find(g=>selector===`[data-navigation-group="${g.dataset.navigationGroup}"]`);}
+ setAttribute(key,value){this.attributes[key]=value;}
+}
+
+test('async shell completion preserves click targets, active groups and manually collapsed navigation',()=>{
+ const nav=new NavigationHost(),options={view:'inbound-ai',staff:true,tenant:{smsRead:true},query:''};
+ assert.equal(syncNavigation(nav,options),true);
+ const target=nav.nodes.find(n=>n.dataset.view==='messages'),group=nav.groups.find(g=>g.dataset.navigationGroup==='ai');
+ group.open=false;
+ syncNavigation(nav,options);assert.equal(nav.writes,1);assert.equal(group.open,false);
+ assert.equal(nav.nodes.find(n=>n.dataset.view==='messages'),target);
+ syncNavigation(nav,{...options,view:'messages'});assert.equal(nav.writes,1);assert.equal(target.attributes['aria-current'],'page');
+ assert.equal(nav.groups.find(g=>g.dataset.navigationGroup==='reports').open,true);
+ syncNavigation(nav,{...options,view:'call'});assert.equal(nav.nodes.find(n=>n.dataset.view==='messaging').attributes['aria-current'],'page');
+ syncNavigation(nav,{...options,staff:false,tenant:{smsRead:false,formsManage:true}});
+ assert.equal(nav.writes,2);assert.deepEqual(nav.nodes.map(n=>n.dataset.view),['web-forms']);
+});
+
+test('sibling tabs keep their original targets while selection updates and search rebuilds only when needed',()=>{
+ const tabs=new NavigationHost(),group=groupForView('messages');
+ syncNavigationTabs(tabs,group,'messages');const target=tabs.nodes[1];
+ syncNavigationTabs(tabs,group,'deliverability');syncNavigationTabs(tabs,group,'deliverability');
+ assert.equal(tabs.writes,1);assert.equal(tabs.nodes[1],target);assert.equal(target.attributes['aria-selected'],'true');assert.equal(target.tabIndex,0);
+ const nav=new NavigationHost(),options={view:'messages',staff:true,tenant:{smsRead:true},query:'delivery'};
+ syncNavigation(nav,options);syncNavigation(nav,{...options,query:' DELIVERY '});assert.equal(nav.writes,1);
+ syncNavigation(nav,{...options,query:'forms'});assert.equal(nav.writes,2);
 });

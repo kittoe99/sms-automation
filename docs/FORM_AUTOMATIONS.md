@@ -272,3 +272,12 @@ Staff can assign versioned enquiry follow-ups without a form. Contact blocks
 apply to form and direct enquiry runs; appointment reminders stay separate.
 See [Direct contact automations](DIRECT_CONTACT_AUTOMATIONS.md) for controls,
 reply policies, attribution, rollout and rollback.
+
+
+### October 14 production form reset
+
+All five managed form definitions and their form test history were permanently
+removed at the user's explicit request. No submissions remained. Existing form
+links no longer collect data; create new forms before reconnecting collection or
+follow-ups. This one-time database purge does not change normal Archive/Restore
+behavior. See `PROJECT_RECORD.md` in each repository for verified scope.
