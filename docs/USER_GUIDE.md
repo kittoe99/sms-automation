@@ -17,37 +17,21 @@ Global **Users**, **Businesses** and **Websites** are staff management areas. Bu
 
 ## Navigation
 
-The October 11 redesign uses the same visual styling as the E2 customer
-Dashboard. Choose an area (Workspace, Voice Agent, Reports, Setup, Twilio or
-Platform); its available tools appear immediately beneath it. **Find a tool**
-searches across areas. On a narrow screen, use the menu button in the header.
-Only areas allowed by your existing permissions appear.
+Daily pages are directly available in the sidebar: **Home**, **Inbox**,
+**Contacts**, **Bookings**, **Follow-ups**, and **Forms**. **Find a page** also
+accepts former page names. On a narrow screen, open Menu.
 
-**Overview** contains conversation/message totals and shortcuts to Inbox,
-Contacts, Bookings and Forms & follow-ups. SMS connection details and the form
-directory remain below. This redesign was released to the production CRM on
-October 11 in commit `bea0d57`; see the project record for deployment evidence.
+Home puts paused follow-ups and requests needing help first. Inbox has Messages,
+Calls and a staff-only Needs your help tab. Follow-ups groups Activity, Form
+follow-ups, Contact templates and Email. Forms has Edit form, Follow-ups and
+Submissions tabs. Optional repeat settings and Preview & test are expandable.
 
-| Screen | Use |
-| --- | --- |
-| Overview | Review the selected business overview and follow-up work |
-| Contacts | Find people, inspect consent and start permitted messaging |
-| Inbox | Read scoped conversation threads, reply and manage AI pause state |
-| Bookings | Inspect operational appointments and supported cancellation actions |
-| Forms & follow-ups | Create forms, publish SMS template sequences and inspect runs |
-| Automation activity | Review enquiries, message outcomes, tags and booking attribution |
-| Inbound AI | Configure the separate off/shadow/live inbound agent |
-| Voice Agents | Create private drafts, manage connected agents and review calls |
-| Email | Configure independent email groups and inspect/resolve/retry email work |
-| Inbound calls | Review recorded call activity; this is not a universal dialer |
-| Message history | Inspect individual SMS records and their status history |
-| Delivery report | Review delivery/operational state and failures |
-| Opt-Outs | Review suppressed contacts and recorded opt-in actions |
-| AI instructions | Edit business-wide and group AI behavior |
-| Business setup | Review provider setup, number/registration and readiness |
-| Business context | Maintain business facts and knowledge used for AI |
-| Service availability | Configure booking availability and voice service rules |
-| Forms | Build public Contact, Quote Request and Booking forms |
+Open AI assistants for Text replies or Voice agents; Reports for Message history
+or Message delivery; Settings for Business information, Booking availability or
+SMS connection. Staff directories and Set up business are under Administration.
+Existing permissions still apply. See [navigation](CRM_NAVIGATION.md) for the full
+map and [project record](../PROJECT_RECORD.md) for release status. The October 14
+simplification is local until separately released.
 
 ## Contacts and consent
 
@@ -60,7 +44,7 @@ Record opt-in only when the customer actually granted it and supply the evidence
 1. Open **Inbox** and choose the intended conversation. A contact can have general and automation-group threads; check the group before replying.
 2. Read recent messages and the latest customer request. Use AI pause/resume when taking over or returning the thread to configured automation.
 3. Compose and submit a reply once. The CRM queues eligible outbound work; it cannot promise delivery at the moment you click Send.
-4. Inspect **Message history** or **Delivery report** for later provider status and errors. A queued message is not delivered, and a submitted message can still fail.
+4. Inspect **Message history** or **Message delivery** for later provider status and errors. A queued message is not delivered, and a submitted message can still fail.
 
 Inbound messages can be reassigned to a group where the UI allows it. This changes conversation context; it is not an enrollment or consent grant. The current send path enforces marketing-purpose eligibility; the historical API-key transactional send example does not describe this UI.
 
@@ -96,7 +80,7 @@ form/direct enquiry enrollment; **Allow future follow-ups** restarts nothing.
 Appointment reminders and AI have separate controls. See
 [Direct contact automations](DIRECT_CONTACT_AUTOMATIONS.md).
 
-**Automation activity** shows accepted/delivered messages, responses and outcomes.
+**Follow-ups → Activity** shows accepted/delivered messages, responses and outcomes.
 Tagging or linking an existing booking records attribution; it does not create a
 booking or grant consent. Sequence resume and AI resume are separate actions;
 neither overrides STOP. See [report definitions](AUTOMATION_ACTIVITY.md).
@@ -111,7 +95,7 @@ A public Booking form creates a submission and confirmed reminder intake. It doe
 
 ## Inbound AI and business knowledge
 
-Use **Inbound AI** for revision-checked off/shadow/live mode, business
+Use **Text replies** for revision-checked off/shadow/live mode, business
 instructions, approved knowledge and the separate booking permission. The
 recorded rollout has Opek in shadow; other businesses default off. Live mode
 requires the operator's validation gate and reviewed schedules. Check current

@@ -1,5 +1,9 @@
 # Direct contact automations
 
+Open **Follow-ups → Contact templates** for reusable templates. On a contact,
+use **Manage follow-ups** for that person’s runs. Existing enrollment and consent
+rules are unchanged.
+
 Contacts → Manage automations shows current form and direct sequences. Manage
  direct templates opens the reusable library and Add SMS contact. Saving a contact
 never grants consent. Staff can record existing consent with evidence, or use the

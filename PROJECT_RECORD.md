@@ -1,5 +1,46 @@
 # Opek SMS project record
 
+### October 14 — Simpler CRM navigation and daily-work layout (local only)
+
+Implemented the approved frontend arrangement while keeping the existing branding,
+URLs, role gates and backend operations. Daily pages are Home, Inbox, Contacts,
+Bookings, Follow-ups and Forms. Secondary groups contain AI assistants, Reports,
+Settings and staff Administration. Local tabs group messages/calls/help requests,
+contact unsubscribes, and the four follow-up tools. Legacy labels remain searchable.
+
+Home uses existing workload, activity, overview and SMS connection reads; unavailable
+counts are distinct from zero. Forms use a compact directory and expandable creation
+and detail controls. Editor tabs retain whole panels and listeners; Refresh checks
+retained form/message drafts. Messages and timing are separated, repeat controls
+and Preview & test are expandable, and save/publish/turn-on remain separate.
+Text replies explains Review only versus Automatic replies; form testing does not
+change the AI mode. Archive form reflects the existing recoverable operation.
+Inbox keeps customer/AI controls inside customer details. No schema, API, auth,
+ownership, shared contract, send-policy or provider configuration change was made.
+
+Validation: frontend build and project checks passed; CRM tests: 399 passed,
+29 skipped, zero failures; selected paired E2 cache, login realms, hosting access,
+ownership, enquiry and booking tests: 59 passed. Synthetic browser checks covered
+Home, mobile layout, filtered activity links, follow-up destinations and retained
+form draft/listener behavior. The preview browser became unresponsive at the native
+Refresh confirmation, so that dialog interaction could not be fully verified.
+Screenshot: `data/crm-layout-preview.jpg` (synthetic data). Updated navigation,
+user guide, tabbed-workspace and form workflow documentation. E2 application code
+is unchanged. No migration, source publication or deployment occurred; no migration
+ordering prerequisites were introduced.
+
+### October 14 — Requested SMS test-contact reset
+
+At the user's request, removed the Opek test contact ending 1409 and its two
+messages, completed form test run, three completed queue jobs, shadow AI result,
+conversation, test consent and dependent delivery/activity records from the
+shared production database. Scoped transactional guards verified the contact
+was test-created, had no opt-out/block, and had no linked booking or lead.
+Post-commit reads verified zero remaining contacts, messages, conversations,
+test runs, jobs and AI results for the inspected test. Provider webhook deduplication
+receipts and aggregate usage remain; no Twilio records were deleted. Inbound AI
+remains shadow. No migration, application change or release was required.
+
 ### October 14 — Paired hardening production release
 
 The reviewed application changes are deployed. The earlier "local only" entries

@@ -1,5 +1,9 @@
 # Inbound SMS agent
 
+Open **AI assistants → Text replies**. The mode labels are **Review only — no
+replies sent** (shadow) and **Automatic replies** (live). A form test does not
+change this mode or unlock its release gates.
+
 ## Release status — October 10, 2026
 
 The backend is deployed to WPacquisition (`wxamwhfmelxqahkdtcci`). Direct project

@@ -1,5 +1,8 @@
 # Email automation rollout
 
+Open **Follow-ups → Email**. Email retains its existing independent groups,
+consent rules and send controls.
+
 ## Queue hardening — local, not released
 
 CRM migration `20261014061007_queue_reporting_hardening.sql` and the updated

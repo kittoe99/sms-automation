@@ -7,9 +7,9 @@ the duplicate inner strip has been removed.
 Its separate access/revision validation and account-wide Refresh policy remain
 unchanged; see `../E2local-main/docs/dashboard-cache.md` from the CRM repository.
 
-The CRM uses one persistent shell with Workspace, Voice Agent, Reports, Setup, Twilio and Platform areas.
-Each area's tools are tabs. Find a tool in the sidebar also searches all permitted
-tools. Visibility follows the existing staff/operator/form permissions.
+The CRM uses one persistent shell with six direct daily pages and expandable
+AI assistants, Reports, Settings and Administration groups. Sibling tools use
+local tabs. Find a page searches all permitted pages and former labels. Visibility follows the existing staff/operator/form permissions.
 
 ## Navigation and refresh
 
@@ -18,10 +18,13 @@ tools. Visibility follows the existing staff/operator/form permissions.
   Agents, Calls and Automation activity remount their controls from retained models
   or scoped filters. Voice drafts survive navigation; audio and transcript details
   close on every departure, including when the destination is already cached.
+- Form editor tabs retain their actual panel elements and event handlers, including
+  unsaved message text. Explicit Refresh checks visible and retained form drafts.
+  Archive/restore/duplicate operations invalidate the affected workspace snapshots.
 - Website detail tabs also retain their panels and drafts. Their first opening may
   fetch the data needed for that section; revisiting does not repeat those reads.
 - Browser Back/Forward and existing `?view=` bookmarks work within the same shell.
-  Arrow keys, Home and End navigate the main tab strip.
+  Arrow keys, Home and End navigate the local tab strips.
 - Refresh reloads the active tab. If its visible form has unsaved edits, confirm before
   discarding them. Live signals flag other tabs for refresh; they do not repeatedly
   replace the screen. The Inbox retains guarded live updates while not editing.

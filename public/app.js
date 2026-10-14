@@ -1,3 +1,5 @@
+import {workspaceGroups,groupForView,permittedGroups,navigationMarkup} from './workspaceNavigation.js';
+import {readHome,homeMarkup} from './workspaceHome.js';
 import {mountContactAutomations} from './contactAutomations.js';
 import {mountFormDirectory} from './formDirectory.js';
 import {installPhoneFormatting,normalizePhoneInput} from './phoneInput.js?v=20261003-phone';
@@ -44,7 +46,7 @@ async function apiFetch(path, options = {}) {
 
 let disposeActivity,disposeVoice;
 let stopLive = () => {};
-const KNOWN_VIEWS = ['automation-activity','inbound-ai','voice-agent','overview','contacts','messaging','bookings','automations','email','call','messages','deliverability','optouts','ai-instructions','business-setup','business-context','booking-setup','web-forms','knowledge','platform-accounts','platform-businesses','platform-websites','platform-twilio'];
+const KNOWN_VIEWS = ['handoffs','form-followups','contact-templates','automation-activity','inbound-ai','voice-agent','overview','contacts','messaging','bookings','automations','email','call','messages','deliverability','optouts','ai-instructions','business-setup','business-context','booking-setup','web-forms','knowledge','platform-accounts','platform-businesses','platform-websites','platform-twilio'];
 function initialViewFromUrl() {
   const view = new URLSearchParams(location.search).get('view');
   if (['automations','ai-instructions'].includes(view)) return 'web-forms';
@@ -122,7 +124,7 @@ const formBuilder = {async render() {
   formWorkspace ||= createFormWorkspace({root:el.root,apiFetch,config:runtimeConfig,getTenantId,
     canReadSubmissions:()=>state.tenant?.smsRead!==false});
   const target=formBuilder.target;formBuilder.target=null;
-  return formWorkspace.render(target||{});
+  return formWorkspace.render(target?{...target,refresh:false}:{});
 }};
 let createPlatform;
 const platformInstances = new Map();
@@ -819,9 +821,9 @@ async function renderBusinessContext() {
       </div>
       <div class="card setup-hero">
         <div>
-          <span class="eyebrow">Business context · ${esc(state.tenant?.name || 'Business account')}</span>
+          <span class="eyebrow">Business information · ${esc(state.tenant?.name || 'Business account')}</span>
           <h2>Help SMS and AI sound like you.</h2>
-          <p class="muted">Keep your business profile and approved knowledge here. Automation texts use each group's own AI instructions and business details, which you can edit under AI instructions.</p>
+          <p class="muted">Keep your business profile and approved knowledge here. Text replies use your approved information. Set reply behavior under AI assistants; edit scheduled messages under Follow-ups.</p>
         </div>
         <dl class="setup-facts">
           <div><dt>Business context</dt><dd>${state.setupOnboarding.onboardingComplete ? 'saved' : 'required'}</dd></div>
@@ -1279,24 +1281,27 @@ async function renderAiInstructions() {
 }
 
 const titles = {
-  overview: ['Overview', 'Your conversations, customers, and follow-ups.'],
+  handoffs: ['Needs your help', 'Customer requests passed to your team.'],
+  'form-followups': ['Form follow-ups', 'Messages sent after a form submission.'],
+  'contact-templates': ['Contact templates', 'Reusable follow-ups you start from a contact.'],
+  overview: ['Home', 'Your conversations, customers, and follow-ups.'],
   messaging: ['Inbox', 'Read and reply to customer conversations.'],
   'voice-agent': ['Voice Agents', 'Create agents, manage deployments and release customer access.'],
   call: ['Inbound calls', 'Track inbound calls from your customers.'],
   messages: ['Messages', 'Searchable CRM log for every SMS'],
   contacts: ['Contacts', 'Find customers and manage your contacts.'],
-  optouts: ['Opt-Outs', 'Numbers that asked to stop receiving SMS'],
-  deliverability: ['Deliverability', 'Delivery outcomes across the message store'],
+  optouts: ['Unsubscribed from SMS', 'Numbers that asked to stop receiving SMS'],
+  deliverability: ['Message delivery', 'Delivery outcomes across the message store'],
   automations: ['Automations', 'Lifecycle-driven SMS sequences and enrollment rules'],
   email: ['Email', 'Manage opted-in email follow-ups through Resend.'],
   'ai-instructions': ['AI instructions', 'Set a separate prompt and context for each automation group, plus a business-wide prompt for general texts.'],
-  'business-setup': ['SMS activation', 'Connect a sender, test delivery and enable SMS.'],
-  'business-context': ['Business context', 'Business profile and approved knowledge for this business.'],
+  'business-setup': ['SMS connection', 'Connect a sender, test delivery and enable SMS.'],
+  'business-context': ['Business information', 'Business profile and approved knowledge for this business.'],
   knowledge: ['AI knowledge', 'Approve evidence, review leads, and resolve human handoffs.'],
   bookings: ['Bookings', 'Confirmed appointments created securely for this business.'],
-  'automation-activity': ['Automation activity','Responses, bookings and follow-up workload'],
-  'inbound-ai': ['Inbound AI', 'Answer incoming texts and book with shared service availability.'],
-  'booking-setup': ['Service availability', 'Shared service schedules for SMS and voice booking.'],
+  'automation-activity': ['Follow-up activity','Responses, bookings and follow-up workload'],
+  'inbound-ai': ['Text replies', 'Answer incoming texts and book with shared service availability.'],
+  'booking-setup': ['Booking availability', 'Shared service schedules for SMS and voice booking.'],
   'web-forms': ['Forms', 'Create and manage forms for your websites.'],
 };
 
@@ -1304,14 +1309,15 @@ function knowledgePanelMarkup(data) {
   const versions=data.sourceVersions||[],sources=data.sources||[],leads=data.leads||[],handoffs=data.handoffs||[];
   const rows=sources.map(source=>{const draft=versions.find(v=>v.source_id===source.id&&v.status==='ready'),archived=source.status==='archived';return `<tr><td><strong>${esc(source.title||source.type)}</strong><br><span class="muted">${esc(source.origin||source.storage_path||'Manual')}</span></td><td><span class="status ${esc(source.status)}">${esc(source.status)}</span></td><td>${source.active_version_id?'Approved':'Not live'}</td><td>${archived?'—':`${draft?`<button class="btn ghost" data-approve-version="${esc(draft.id)}">Review & approve v${esc(draft.version)}</button>`:`<button class="btn ghost" data-refresh-source="${esc(source.id)}">Refresh</button>`} <button class="btn ghost" data-archive-source="${esc(source.id)}">Archive</button>`}</td></tr>`;}).join('');
   const work=[...handoffs.map(x=>({...x,_type:'Handoff',_text:x.reason})),...leads.map(x=>({...x,_type:'Lead',_text:x.summary}))];
-  return `<div class="card setup-hero business-knowledge-hero"><div><span class="eyebrow">AI knowledge</span><h2>Ground every SMS answer.</h2><p class="muted">Import reference material here. Sources remain drafts until approved, while unsupported or conflicting questions create a human handoff.</p></div><dl class="setup-facts"><div><dt>Approved profile</dt><dd>${data.profile?'active':'required'}</dd></div><div><dt>Sources</dt><dd>${sources.length}</dd></div></dl></div>
+  return `<div class="card setup-hero business-knowledge-hero"><div><span class="eyebrow">AI knowledge</span><h2>Information your AI can use.</h2><p class="muted">Import reference material here. Sources remain drafts until approved, while unsupported or conflicting questions create a human handoff.</p></div><dl class="setup-facts"><div><dt>Approved profile</dt><dd>${data.profile?'active':'required'}</dd></div><div><dt>Sources</dt><dd>${sources.length}</dd></div></dl></div>
   <div class="setup-layout"><div class="setup-main"><section class="card"><div class="card-head"><div><span class="eyebrow">Sources</span><h2>Websites and private documents</h2></div></div><div class="setup-body"><form id="knowledge-url-form" class="setup-fetch-row"><label class="setup-fetch-url"><span class="compose-label">Public HTTPS website</span><input id="knowledge-url" type="url" required placeholder="https://example.com" /></label><button class="btn">Import draft</button></form><form id="knowledge-file-form" class="setup-fetch-row"><label class="setup-fetch-url"><span class="compose-label">PDF, DOCX, TXT, or Markdown · max 10 MB</span><input id="knowledge-file" type="file" required accept=".pdf,.docx,.txt,.md,application/pdf,application/vnd.openxmlformats-officedocument.wordprocessingml.document,text/plain,text/markdown" /></label><button class="btn">Upload draft</button></form><p id="knowledge-error" class="login-error" role="alert"></p><div class="table-wrap"><table><thead><tr><th>Source</th><th>Processing</th><th>Live</th><th></th></tr></thead><tbody>${rows||'<tr><td colspan="4" class="empty">No imported sources yet.</td></tr>'}</tbody></table></div></div></section>
-  <section class="card"><div class="card-head"><div><span class="eyebrow">CRM</span><h2>Open leads and handoffs</h2></div></div><div class="setup-body"><div class="table-wrap"><table><thead><tr><th>Type</th><th>Summary / reason</th><th>Priority</th><th>Status</th></tr></thead><tbody>${work.map(x=>`<tr><td>${esc(x._type)}</td><td>${esc(x._text||'Customer follow-up')}</td><td>${esc(x.priority)}</td><td>${esc(x.status)}</td></tr>`).join('')||'<tr><td colspan="4" class="empty">Nothing needs attention.</td></tr>'}</tbody></table></div></div></section></div>
-  <aside class="setup-side"><div class="card setup-card setup-help"><div class="card-head"><h2>Answer precedence</h2></div><ol class="setup-help-list"><li>Structured business profile</li><li>Admin-authored FAQs, pricing, policies</li><li>Approved imported content</li><li>Automation style instructions</li></ol><p class="muted">Scanned documents are intentionally rejected in v1.</p></div></aside></div>`;
+  <p><button type="button" class="btn ghost" data-knowledge-help>View customer requests in Inbox</button></p></div>
+  <aside class="setup-side"><div class="card setup-card setup-help"><div class="card-head"><h2>Which information AI uses first</h2></div><ol class="setup-help-list"><li>Structured business profile</li><li>Admin-authored FAQs, pricing, policies</li><li>Approved imported content</li><li>Automation style instructions</li></ol><p class="muted">Scanned documents are intentionally rejected in v1.</p></div></aside></div>`;
 }
 
 function bindKnowledgePanel(host,data) {
   const versions=data.sourceVersions||[],sources=data.sources||[];
+  host.querySelector('[data-knowledge-help]')?.addEventListener('click',()=>switchView('handoffs'));
   const error=host.querySelector('#knowledge-error'),reload=()=>mountKnowledgePanel().catch(console.error);
   host.querySelector('#knowledge-url-form')?.addEventListener('submit',async event=>{event.preventDefault();error.textContent='';const origin=host.querySelector('#knowledge-url').value.trim();try{const res=await apiFetch('/api/knowledge/sources',{method:'POST',body:JSON.stringify({type:'website',title:new URL(origin).hostname,origin})});const body=await res.json();if(!res.ok)throw new Error(body.error||'Import failed');await reload();}catch(e){error.textContent=e.message;}});
   host.querySelector('#knowledge-file-form')?.addEventListener('submit',async event=>{event.preventDefault();error.textContent='';const file=host.querySelector('#knowledge-file').files?.[0];if(!file)return;try{const sign=await apiFetch('/api/knowledge/uploads/sign',{method:'POST',body:JSON.stringify({fileName:file.name,size:file.size,contentType:file.type||'text/plain'})}),signed=await sign.json();if(!sign.ok)throw new Error(signed.error||'Upload could not start');const uploadUrl=/^https?:/.test(signed.signedUrl)?signed.signedUrl:`${runtimeConfig.supabaseUrl||''}${signed.signedUrl}`;const upload=await fetch(uploadUrl,{method:'PUT',headers:{'Content-Type':file.type||'text/plain'},body:file});if(!upload.ok)throw new Error('Private upload failed');const create=await apiFetch('/api/knowledge/sources',{method:'POST',body:JSON.stringify({type:'file',title:file.name,storagePath:signed.path})});const created=await create.json();if(!create.ok)throw new Error(created.error||'Import failed');await reload();}catch(e){error.textContent=e.message;}});
@@ -1409,7 +1415,7 @@ document.addEventListener('keydown', (event) => {
 });
 
 document.getElementById('refresh').addEventListener('click', () => {
-  if (el.root.querySelector('form[data-dirty="true"]') && !confirm('Refresh this tab and discard its unsaved changes?')) return;
+  if ((el.root.querySelector('form[data-dirty="true"]') || (state.view==='web-forms' && formWorkspace?.hasUnsavedDrafts())) && !confirm('Refresh this tab and discard its unsaved changes?')) return;
   load({ force: true });
 });
 document.getElementById('drawer-close').addEventListener('click', closeDrawer);
@@ -1478,69 +1484,40 @@ function setActiveNav() {
 
 // Contextual tab groups: related standalone pages become instant tabs
 // that share one URL (?view=) and switch without any page reload.
-const TAB_GROUPS = [
-  { id: 'work', label: 'Workspace', views: [
-    {view:'overview',label:'Overview'}, {view:'contacts',label:'Contacts'},
-    {view:'messaging',label:'Inbox'}, {view:'bookings',label:'Bookings'},
-    {view:'web-forms',label:'Forms'}, {view:'automation-activity',label:'Automation activity'}, {view:'email',label:'Email'},
-  ]},
-  { id: 'voice', label: 'Voice Agents', views: [{view:'voice-agent',label:'Voice Agents'}]},
-  { id: 'reports', label: 'Reports', views: [
-    { view: 'call', label: 'Inbound calls' },
-    { view: 'messages', label: 'Message history' },
-    { view: 'deliverability', label: 'Delivery report' },
-    { view: 'optouts', label: 'Opt-Outs' },
-  ]},
-  { id: 'setup', label: 'Setup', views: [
-    { view: 'business-setup', label: 'SMS activation' },
-    { view: 'business-context', label: 'Business context' },
-    { view: 'booking-setup', label: 'Service availability' },
-    { view: 'inbound-ai', label: 'Inbound AI' },
-
-  ]},
-  { id: 'twilio', label: 'Twilio', views: [{view:'platform-twilio',label:'Twilio accounts'}]},
-  { id: 'platform', label: 'Platform', views: [
-    { view: 'platform-accounts', label: 'Users' },
-    { view: 'platform-businesses', label: 'Businesses' },
-    { view: 'platform-websites', label: 'Websites' },
-  ]},
-];
-
+const TAB_GROUPS = workspaceGroups;
 const sectionHistory = new Map();
-function renderSectionNavigation(activeGroup) {
-  sectionHistory.set(activeGroup.id, state.view);
-  const toolsNav = document.getElementById('nav');
-  toolsNav.dataset.section = activeGroup.id === 'setup' ? 'settings' : activeGroup.id;
-  // Keep the existing controls and listeners; place tools beside their active area.
-  toolsNav.remove();
-  const nav = document.getElementById('section-nav');
-  nav.innerHTML = TAB_GROUPS.map(group => {
-    const allowed = group.views.filter(tab => canOpenWorkspace(tab.view, state.platformStaff, state.tenant));
-    if (!allowed.length) return '';
-    return `<button type="button" class="section-link ${group.id === activeGroup.id ? 'active' : ''}" data-section="${group.id}" ${group.id === activeGroup.id ? 'aria-current="true"' : ''}><span class="section-icon">${dashboardIcon(group.id === 'work' ? 'overview' : group.id)}</span><span>${group.label}</span></button>`;
-  }).join('');
-  const activeButton = nav.querySelector('.section-link.active');
-  if (activeButton) activeButton.after(toolsNav);
-  else nav.after(toolsNav);
+const businessSetupButton = document.getElementById('add-business');
+function renderSectionNavigation() {
+  const nav=document.getElementById('nav');
+  const focused=document.activeElement?.closest('#nav [data-view]')?.dataset.view;
+  const expanded=[...nav.querySelectorAll('[data-navigation-group][open]')].map(node=>node.dataset.navigationGroup);
+  businessSetupButton?.remove();
+  nav.innerHTML=navigationMarkup({view:state.view,staff:state.platformStaff,tenant:state.tenant,
+    query:document.getElementById('nav-find').value,expanded});
+  const destination=nav.querySelector('[data-business-action]');
+  if(destination&&businessSetupButton)destination.append(businessSetupButton);
+  if(focused)nav.querySelector(`[data-view="${focused}"]`)?.focus({preventScroll:true});
 }
-document.getElementById('section-nav').addEventListener('click', event => {
-  const button = event.target.closest('.section-link[data-section]');
-  if (!button) return;
-  const group = TAB_GROUPS.find(group => group.id === button.dataset.section);
-  const view = sectionHistory.get(group.id) || group.views.find(tab => canOpenWorkspace(tab.view, state.platformStaff, state.tenant))?.view;
-  if (view) switchView(view);
-});
-
-function tabGroupForView(view) {
-  return TAB_GROUPS.find(group => group.views.some(tab => tab.view === view)) || null;
-}
-
+function tabGroupForView(view) {return groupForView(view);}
 function syncWorkspaceNavigation() {
-  const group = tabGroupForView(state.view);
-  el.root.setAttribute('role', 'region');
-  el.root.setAttribute('aria-labelledby', 'page-title');
-  if (group) renderSectionNavigation(group);
+  el.root.setAttribute('role','region');el.root.setAttribute('aria-labelledby','page-title');
+  renderSectionNavigation();
+  const group=permittedGroups(state.platformStaff,state.tenant).find(g=>g.views.some(v=>v.view===state.view));
+  const tabs=document.getElementById('workspace-tabs');
+  const focused=tabs.contains(document.activeElement)?document.activeElement.dataset.view:null;
+  tabs.hidden=!group||group.views.length<2;
+  tabs.innerHTML=tabs.hidden?'':group.views.map(item=>`<button type="button" role="tab" data-view="${item.view}" aria-controls="view-root" aria-selected="${item.view===state.view}" tabindex="${item.view===state.view?'0':'-1'}">${item.label}</button>`).join('');
+  tabs.setAttribute('aria-label',group?.label||'Workspace');
+  if(focused)tabs.querySelector(`[data-view="${focused}"]`)?.focus({preventScroll:true});
 }
+document.getElementById('workspace-tabs').addEventListener('click',event=>{
+ const button=event.target.closest('[data-view]');if(button)switchView(button.dataset.view);
+});
+document.getElementById('workspace-tabs').addEventListener('keydown',event=>{
+ const tabs=[...event.currentTarget.querySelectorAll('[role="tab"]')],index=tabs.indexOf(event.target);
+ if(index<0)return;const next=event.key==='ArrowRight'?(index+1)%tabs.length:event.key==='ArrowLeft'?(index+tabs.length-1)%tabs.length:event.key==='Home'?0:event.key==='End'?tabs.length-1:-1;
+ if(next>=0){event.preventDefault();const view=tabs[next].dataset.view;switchView(view).then(()=>document.querySelector(`#workspace-tabs [data-view="${view}"]`)?.focus());}
+});
 
 function syncViewUrl() {
   try {
@@ -1589,6 +1566,8 @@ function switchView(view, options = {}) {
     if (snapshot && !explicitTarget) await restoreTab(snapshot);
     else if (changed || explicitTarget || lastRenderedView !== view) {
       if ('categoryId' in options) state.categoryId = options.categoryId;
+      if ('activityFilters' in options) state.activityFilters = options.activityFilters;
+      if ('activityRun' in options) state.activityRun = options.activityRun;
       if ('conversationPhone' in options) state.conversationPhone = options.conversationPhone;
       if ('conversationId' in options) state.conversationId = options.conversationId;
       el.search.value = state.q; el.status.value = state.status;
@@ -1645,24 +1624,7 @@ function initNavFind() {
   const input = document.getElementById('nav-find');
   if (!input || input.dataset.bound) return;
   input.dataset.bound = 'true';
-  input.addEventListener('input', () => {
-    const q = input.value.trim().toLowerCase();
-    document.getElementById('nav').classList.toggle('is-searching', Boolean(q));
-    document.querySelectorAll('#nav .nav-item').forEach((item) => {
-      const hay = `${item.textContent || ''} ${item.dataset.find || ''}`.toLowerCase();
-      item.hidden = !canOpenWorkspace(item.dataset.view,state.platformStaff,state.tenant) || (Boolean(q) && !hay.includes(q)) || (item.hasAttribute('data-platform-nav') && !state.platformStaff) || (state.tenant?.smsRead===false && item.dataset.view!=='web-forms' && !item.hasAttribute('data-platform-nav'));
-    });
-    document.querySelectorAll('#nav section').forEach((section) => {
-      const visible = [...section.querySelectorAll('.nav-item')].some((n) => !n.hidden);
-      section.hidden = !visible;
-    });
-    if (q && el.navAutomations && !el.navAutomations.hidden) {
-      el.navAutomations.querySelectorAll('.nav-item').forEach((item) => {
-        const hay = `${item.textContent || ''}`.toLowerCase();
-        item.hidden = !hay.includes(q);
-      });
-    }
-  });
+  input.addEventListener('input', renderSectionNavigation);
   document.addEventListener('keydown', (event) => {
     if (event.key.toLowerCase() !== 'f' || event.metaKey || event.ctrlKey || event.altKey) return;
     const tag = String(document.activeElement?.tagName || '').toLowerCase();
@@ -1759,7 +1721,7 @@ function load(options = {},isCurrent=()=>true) {
 }
 function syncViewControls() {
   document.getElementById('crm-app').dataset.view = state.view;
-  el.search.closest('.search-wrap').hidden = state.view.startsWith('platform-') || ['automation-activity','inbound-ai', 'overview', 'call', 'deliverability', 'ai-instructions', 'business-setup', 'business-context', 'booking-setup', 'knowledge', 'web-forms', 'email'].includes(state.view);
+  el.search.closest('.search-wrap').hidden = state.view.startsWith('platform-') || ['handoffs','form-followups','contact-templates','automation-activity','inbound-ai', 'overview', 'call', 'deliverability', 'ai-instructions', 'business-setup', 'business-context', 'booking-setup', 'knowledge', 'web-forms', 'email'].includes(state.view);
   el.status.hidden = !['messages', 'deliverability'].includes(state.view) && !(state.view === 'automations' && state.categoryId);
 }
 async function loadCategories() {
@@ -1823,10 +1785,11 @@ async function renderWorkspace(options = {}) {
       const {mountAutomationActivity}=await import('./automationActivity.js');
       const tenantId=getTenantId(),userId=getSession()?.user?.id||state.user?.id||'session';
       el.pager.hidden=true;el.kpi.innerHTML='';
-      disposeActivity=await mountAutomationActivity(el.root,{apiFetch,embedded:true,identity:`${userId}:${tenantId}`,isCurrent:()=>state.view==='automation-activity'&&getTenantId()===tenantId&&(getSession()?.user?.id||state.user?.id||'session')===userId,
+      disposeActivity=await mountAutomationActivity(el.root,{apiFetch,embedded:true,initialFilters:state.activityFilters,initialRun:state.activityRun,identity:`${userId}:${tenantId}`,isCurrent:()=>state.view==='automation-activity'&&getTenantId()===tenantId&&(getSession()?.user?.id||state.user?.id||'session')===userId,
        onConversation:(conversationId,conversationPhone)=>switchView('messaging',{conversationId,conversationPhone,force:true}),
        onForm:formId=>{formBuilder.target={formId,initialTab:'automation'};switchView('web-forms',{force:true});},
-       onBookings:()=>switchView('bookings'),onHandoffs:()=>switchView('business-context')});
+       onBookings:()=>switchView('bookings'),onHandoffs:()=>switchView('handoffs')});
+      state.activityFilters=null;state.activityRun=null;
     }
     else if (state.view === 'inbound-ai') {
       const {mountInboundAi}=await import('./inboundAi.js');
@@ -1839,6 +1802,9 @@ async function renderWorkspace(options = {}) {
       el.kpi.innerHTML = '';
       await formBuilder.render();
     }
+    else if (state.view === 'form-followups') await renderFormFollowups();
+    else if (state.view === 'contact-templates') {el.kpi.innerHTML='';el.pager.hidden=true;const tenant=getTenantId();await mountContactAutomations(el.root,{apiFetch,isCurrent:()=>state.view==='contact-templates'&&getTenantId()===tenant,onActivity:()=>switchView('automation-activity')});}
+    else if (state.view === 'handoffs') await renderHandoffs();
     else if (state.view === 'bookings') await renderBookings();
     else if (state.view === 'knowledge') await renderKnowledge();
     else await renderMessages();
@@ -1937,70 +1903,29 @@ async function renderCall() {
     </div>`;
 }
 
+async function renderFormFollowups() {
+ el.kpi.innerHTML='';el.pager.hidden=true;
+ const res=await apiFetch('/api/web-forms'),data=await res.json();if(!res.ok)throw new Error(data.error||'Could not load form follow-ups');
+ mountFormDirectory(el.root,data,{followupsOnly:true,onOpen:(formId)=>{formBuilder.target={formId,initialTab:'automation'};switchView('web-forms',{force:true});}});
+}
+async function renderHandoffs() {
+ el.kpi.innerHTML='';el.pager.hidden=true;
+ const res=await apiFetch('/api/crm'),data=await res.json();if(!res.ok)throw new Error(data.error||'Could not load customer requests');
+ const requests=(data.handoffs||[]).filter(row=>['open','assigned'].includes(row.status));
+ const leads=(data.leads||[]).filter(row=>!['closed','lost','converted'].includes(row.status));
+ el.root.innerHTML=`<section class="card home-recent"><div class="card-head"><h2>Requests for your team</h2><button class="btn ghost" data-open-inbox>Open messages</button></div><p class="muted">Open requests from the latest 100 handoffs. Full history remains in follow-up activity.</p><div class="table-scroll"><table class="data"><thead><tr><th>Request</th><th>Priority</th><th>Status</th></tr></thead><tbody>${requests.map(row=>`<tr><td>${esc(row.reason||'Customer needs help')}<details><summary>Record details</summary><p>Contact: ${esc(row.contact_id)} · Request: ${esc(row.id)}</p></details></td><td>${esc(row.priority||'Normal')}</td><td>${esc(row.status)}</td></tr>`).join('')||'<tr><td colspan="3">No open requests in the recent records.</td></tr>'}</tbody></table></div><details><summary>Recent leads</summary>${leads.map(row=>`<p>${esc(row.summary||'Customer enquiry')} · ${esc(row.status)}</p>`).join('')||'<p>No recent leads.</p>'}</details></section>`;
+ el.root.querySelector('[data-open-inbox]').onclick=()=>switchView('messaging');
+}
 async function renderOverview() {
-  setTitle(...titles.overview);
-  el.pager.hidden = true;
-  el.status.disabled = true;
-
-  const paintTotals = data => {
-    el.kpi.innerHTML = [
-      kpiCard('Conversations', data.conversationCount ?? data.contactCount ?? 0),
-      kpiCard('Total SMS', data.total ?? 0),
-      kpiCard('Delivery rate', data.deliveryRate == null ? '—' : `${data.deliveryRate}%`),
-    ].join('');
-  };
-  let result;
-  try {
-    result = await readDashboard(apiFetch, loadCategories, paintTotals);
-  } catch (error) {
-    if (error.status === 401 || error.status === 403) {
-      renderAccessScreen({ errorMessage: authFailureMessage(error), onRetry: openAuthenticatedWorkspace });
-      return;
-    }
-    throw error;
-  }
-  const {data, totalsAvailable, smsConnection} = result;
-  el.kpi.innerHTML = [
-    kpiCard('Conversations', totalsAvailable ? data.conversationCount ?? data.contactCount ?? 0 : '—'),
-    kpiCard('Total SMS', totalsAvailable ? data.total ?? 0 : '—'),
-    kpiCard('Delivery rate', data.deliveryRate == null ? '—' : `${data.deliveryRate}%`),
-  ].join('');
-  el.storeMeta.textContent = state.tenant?.name || 'Your workspace';
-
-  el.root.innerHTML = `
-    ${totalsAvailable ? '' : '<p class="muted" role="status">Message totals are unavailable. Select Refresh to try again.</p>'}
-    <section class="dashboard-services" aria-labelledby="dashboard-services-title">
-      <h2 id="dashboard-services-title" class="dashboard-section-title">Your workspace</h2>
-      <div class="dashboard-actions" aria-label="Quick actions">
-        <button type="button" class="dashboard-action" data-dashboard-view="messaging"><span class="dashboard-action-top">${dashboardIcon('messaging')}<span aria-hidden="true">↗</span></span><strong>Inbox</strong><span>${state.platformStaff ? 'Read and reply to customers' : 'Read customer conversations'}</span></button>
-        <button type="button" class="dashboard-action" data-dashboard-view="contacts"><span class="dashboard-action-top">${dashboardIcon('contacts')}<span aria-hidden="true">↗</span></span><strong>Contacts</strong><span>Find a customer or lead</span></button>
-        <button type="button" class="dashboard-action" data-dashboard-view="bookings"><span class="dashboard-action-top">${dashboardIcon('bookings')}<span aria-hidden="true">↗</span></span><strong>Bookings</strong><span>View scheduled appointments</span></button>
-        <button type="button" class="dashboard-action" data-dashboard-view="automations"><span class="dashboard-action-top">${dashboardIcon('forms')}<span aria-hidden="true">↗</span></span><strong>Forms &amp; follow-ups</strong><span>Review your automated messages</span></button>
-      </div>
-    </section>
-    ${smsConnection ? smsConnectionSummary(smsConnection) : '<p class="muted" role="status">SMS connection details are unavailable. Select Refresh to try again.</p>'}
-    ${smsSetupActionsHtml({staff:state.platformStaff,summary:smsConnection})}
-    <details class="card dashboard-details">
-      <summary>More message statistics</summary>
-      <dl class="dashboard-stats">
-        <div><dt>Delivered messages</dt><dd>${totalsAvailable ? fmt(data.counts?.delivered ?? 0) : '—'}</dd></div>
-        <div><dt>Opted-out contacts</dt><dd>${totalsAvailable ? fmt(data.optedOutTotal ?? 0) : '—'}</dd></div>
-      </dl>
-      <button type="button" class="btn ghost" data-dashboard-view="deliverability">View delivery report</button>
-      <button type="button" class="btn ghost" data-dashboard-view="optouts">View opt-outs</button>
-    </details>
-    <section class="card" aria-labelledby="dashboard-forms-title">
-      <div class="card-head"><div><h2 id="dashboard-forms-title">Forms and automations</h2><p class="muted">Every form, its submissions and its follow-up settings.</p></div><button type="button" class="btn ghost" data-dashboard-view="web-forms">Manage forms</button></div>
-      <div class="web-builder-body" data-dashboard-forms></div>
-    </section>
-  `;
-
-  const formsRoot=el.root.querySelector('[data-dashboard-forms]');
-  if(result.formsData)mountFormDirectory(formsRoot,result.formsData,{onOpen:(formId,initialTab)=>{
-    formBuilder.target={formId,initialTab};switchView('web-forms',{force:true});
-  }});
-  else formsRoot.innerHTML='<p role="status">Forms and submission counts are unavailable. Select Refresh to try again.</p>';
-
+ setTitle(...titles.overview);el.pager.hidden=true;el.kpi.innerHTML='';
+ const data=await readHome(apiFetch);el.root.innerHTML=homeMarkup(data,{staff:state.platformStaff});
+ el.root.querySelectorAll('[data-home-view]').forEach(button=>button.onclick=()=>switchView(button.dataset.homeView));
+ el.root.querySelectorAll('[data-attention]').forEach(button=>button.onclick=()=>{
+  const target=button.dataset.attention;
+  if(target==='help'&&state.platformStaff)return switchView('handoffs');
+  return switchView('automation-activity',{force:true,activityFilters:target==='all'?{page:1}:target==='help'?{page:1,handoff:'unresolved'}:{page:1,quick:target==='paused'?'paused':'attention'}});
+ });
+ el.root.querySelectorAll('[data-run]').forEach(button=>button.onclick=()=>switchView('automation-activity',{force:true,activityFilters:{page:1,quick:'attention'},activityRun:button.dataset.run}));
   if (state.platformStaff && globalThis.SMS_CONFIG?.apiBase) {
     el.root.insertAdjacentHTML('beforeend', '<details class="card automation-health" id="worker-status"><summary><span class="automation-health-dot" aria-hidden="true"></span><span><strong>Automation system</strong><small>Scheduler, queues, and worker health</small></span><span class="automation-health-action">View status</span></summary><div class="worker-status-content muted">Open to check automation status.</div></details>');
     const details = el.root.querySelector('#worker-status');
@@ -2807,12 +2732,12 @@ async function renderMessaging() {
                 thread.aiPausedAt ? ' · AI paused' : ' · AI follows business settings'
               }</p>
             </div>
-            <div class="thread-actions">
-              <button type="button" class="btn btn-ghost" id="ai-pause-btn">
-                ${thread.aiPausedAt ? 'Resume AI' : 'Pause AI'}
-              </button>
-            </div>
           </div>
+          <details class="thread-customer-details"><summary>Customer details · ${thread.optedOut?'Unsubscribed from SMS':thread.aiPausedAt?'AI paused':'AI follows business settings'}</summary>
+            <p>${esc(thread.name||'Customer')} · ${esc(thread.phone)} · ${esc(thread.groupName||'General')}</p>
+            <p>${thread.optedOut?'This contact has opted out of SMS.':'Sending still requires the existing SMS consent checks.'}</p>
+            <button type="button" class="btn ghost" id="ai-pause-btn">${thread.aiPausedAt?'Resume AI':'Pause AI'}</button>
+          </details>
           <div class="thread-scroll" id="thread-scroll">
             ${(thread.messages || [])
               .map(
@@ -2830,7 +2755,7 @@ async function renderMessaging() {
                   }</span>
                   ${
                     m.meta?.role === 'assistant'
-                      ? `<span class="ai-pill">Gradient</span>`
+                      ? `<span class="ai-pill">AI reply</span>`
                       : ''
                   }
                   <span>${esc(fmtTime(m.createdAt))}</span>
@@ -3044,7 +2969,7 @@ async function renderContacts() {
         </div>
       </div>
       <p class="muted directory-note">
-        Assign a saved automation directly to a contact, or customize it for their request. Marketing SMS requires recorded consent. <button class="btn ghost" data-direct-library>Manage direct templates</button>
+        Assign a saved automation directly to a contact, or customize it for their request. Marketing SMS requires recorded consent. <button class="btn ghost" data-direct-library>Contact templates</button>
       </p>
       ${
         data.configured === false
@@ -3085,7 +3010,7 @@ async function renderContacts() {
                       : '<span class="muted">n/a</span>'
                 }</td>
                 <td class="muted wrap">
-                  <button class="btn ghost" data-direct-contact="${esc(c.id)}">Manage automations</button>
+                  <button class="btn ghost" data-direct-contact="${esc(c.id)}">Manage follow-ups</button>
                   ${c.enquiry_blocked?'<small>Enquiry follow-ups blocked</small>':''}
                 </td>
                 <td>
@@ -3128,7 +3053,7 @@ async function renderContacts() {
   });
   const directHost=document.createElement('section');el.root.append(directHost);
   const openDirect=async contactId=>{const tenant=getTenantId(),user=getSession()?.user?.id;await mountContactAutomations(directHost,{apiFetch,contactId,isCurrent:()=>getTenantId()===tenant&&getSession()?.user?.id===user&&state.view==='contacts',onActivity:()=>switchView('automation-activity')});directHost.scrollIntoView({block:'start'});};
-  el.root.querySelector('[data-direct-library]')?.addEventListener('click',()=>openDirect(null));
+  el.root.querySelector('[data-direct-library]')?.addEventListener('click',()=>switchView('contact-templates'));
   el.root.querySelectorAll('[data-direct-contact]').forEach(button=>button.addEventListener('click',event=>{event.stopPropagation();openDirect(button.dataset.directContact);}));
   el.root.querySelectorAll('.message-btn').forEach((btn) => {
     btn.addEventListener('click', (e) => {
@@ -3865,7 +3790,7 @@ async function openAuthenticatedWorkspace() {
   assertCurrent();
   document.querySelectorAll('[data-platform-nav]').forEach(node => { node.hidden = !session.capabilities?.platformStaff; });
   state.platformStaff = Boolean(session.capabilities?.platformStaff);
-  document.getElementById('add-business').hidden = !state.platformStaff;
+  businessSetupButton.hidden = !state.platformStaff;
   await loadTenantContext(session,isCurrent);
   assertCurrent();
   if (!state.tenant && state.platformStaff && !state.view.startsWith('platform-')) { state.view = 'platform-accounts'; setActiveNav(); }

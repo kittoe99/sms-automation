@@ -75,6 +75,15 @@ http.createServer(async(req,res)=>{
    else Object.assign(form,{title:input.title,description:input.description,fields:input.fields,button_label:input.buttonLabel,enabled:input.enabled,email_enabled:input.emailEnabled});
    data={form};
   }
+  else if(url.pathname.startsWith('/api/automation-activity/')) {
+    const rows=[{id:'00000000-0000-4000-8000-000000000030',customer:'Alex Example',phone:'+12025550123',form_title:'Contact form',status:'paused',origin:'form',form_id:previewForms[0].public_id,version:1,tags:[],unresolved_handoffs:1,ai_paused:true,latest_response:'Could someone help with my booking?',confirmed_bookings:0,cancelled_bookings:0,handoffs:1}];
+    data={from:'2026-09-15',to:'2026-10-14',reportingAt:'2026-10-14T16:00:00Z',timeZone:'America/Denver',page:1,pageSize:25,total:1,rows,forms:[{id:previewForms[0].public_id,title:'Contact form'}],templates:[],tags:[],canManage:false,
+      workload:{paused:1,aiPaused:1,unresolvedHandoffs:1,active:2,quiet:0},activity:{delivered:5,responses:2,accepted:5,aiSent:0},funnel:{contacted:2,responded:1,booked:0,responseRate:.5,conversionRate:0},outcomes:{linkedBookings:0,handoffs:1},definitions:{activity:'Actual message activity in selected dates.',cohort:'First accepted message in selected dates.',conversion:'Confirmed linked bookings.',workload:'Current workload across all dates.'}};
+    if(url.pathname.endsWith('/timeline'))data={enquiry:rows[0],handoffs:[],bookings:[],canManage:false,events:[]};
+  }
+  else if(url.pathname==='/api/contact-automations/templates')data={templates:[],canManage:true};
+  else if(url.pathname==='/api/inbound-ai')data={mode:'shadow',pilot:true,liveValidated:false,systemPrompt:'Use approved business information.',bookingEnabled:false,revision:1,runs:[],coordination:[],coordinationEnabled:true};
+  else if(url.pathname==='/api/crm')data={leads:[],handoffs:[{id:'sample-request',contact_id:'sample-contact',reason:'Customer asked for a person.',status:'open',priority:'normal'}]};
   else if(url.pathname==='/api/automation-presets')data={presets:[]};
   else if(/^\/api\/web-forms\/[^/]+\/automation$/.test(url.pathname))data={draft:{steps:[]},enabled:false};
   else if(/^\/api\/web-forms\/[^/]+\/submissions$/.test(url.pathname))data={rows:[],total:0,totalPages:1};

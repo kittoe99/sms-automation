@@ -23,7 +23,7 @@ export function resetWorkspaceState(state) {
     businessContextDraft:null,bookingSettingsDraft:null,voiceBookingDrafts:{},
     voiceWorkspace:{},inboundVoiceWorkspace:{},conversationPhone:null,conversationId:null,
     automationBuilderOpen:false,automationPresetId:null,aiBuilderOpen:false,emailGroupId:null,
-    unreadOnly:false,contactStatus:'',sourceFilter:'',consentedOnly:false,bookingStatus:'',
+    activityFilters:null,activityRun:null,unreadOnly:false,contactStatus:'',sourceFilter:'',consentedOnly:false,bookingStatus:'',
   });
 }
 

@@ -3,6 +3,7 @@ import assert from 'node:assert/strict';
 import {readFileSync} from 'node:fs';
 
 const app=readFileSync(new URL('../public/app.js',import.meta.url),'utf8');
+const navigation=readFileSync(new URL('../public/workspaceNavigation.js',import.meta.url),'utf8');
 const html=readFileSync(new URL('../public/index.html',import.meta.url),'utf8');
 
 test('business context drafts survive realtime and polling refreshes',()=>{
@@ -37,5 +38,5 @@ test('business context and AI knowledge share one navigation destination',()=>{
   assert.match(app,/id="business-knowledge"/);
   assert.match(app,/mountKnowledgePanel\(\)/);
   assert.doesNotMatch(html,/data-view="knowledge"/);
-  assert.match(html,/data-view="business-context"[^>]+knowledge sources documents/);
+  assert.match(navigation,/item\('business-context','Business information','[^']*knowledge/);
 });

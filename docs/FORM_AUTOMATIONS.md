@@ -8,15 +8,28 @@ The new [Inbound AI agent](INBOUND_AI.md) is a separate, default-off Opek pilot.
 It handles eligible inbound questions and new bookings. It never restarts a
 paused form reminder or legacy sequence; Pause/Continue still belongs to the form.
 
+## Layout and drafts
+
+Create form is expandable. Form details are available on demand; the directory
+keeps submissions, follow-up status and main actions visible. **Archive form**
+retains history and supports Restore as draft. Switching inner tabs retains
+unsaved editor panels; explicit Refresh asks before discarding retained drafts.
+Save important work before reloading, signing out or changing businesses.
+
+The follow-up editor shows Messages, Timing, optional repeats and Preview & test.
+Save draft, Publish changes and Turn on follow-ups remain separate operations.
+No sending, enrollment or publication rules changed with this layout.
+
 ## Workflow
 
 1. Open **Forms**, create a named contact, quote or appointment form, and edit its fields.
 2. Save and enable the form when it is ready to collect submissions. Existing embeds
    retain their public IDs; multiple forms may share the same field starter.
-3. Open **Automation**. Copy a preset or add messages, choose a trigger and reply policy,
+3. Open **Follow-ups** (also available through **Follow-ups → Form follow-ups**). Copy a preset or add messages, choose a trigger and reply policy,
    and configure each message's delay, total sends and repeat interval.
 4. Review the message previews and sequence summary. Save a draft, publish a version,
-   then enable that published version for future submissions.
+   then **Turn on follow-ups** for future submissions. **Preview & test** is expandable;
+   a test does not switch Text replies into Automatic replies mode.
 5. Use **Submissions** to inspect answers and pause, resume or stop individual runs.
    Staff can explicitly start the published sequence for an eligible historical
    submission. Publishing alone never replays history.
@@ -186,6 +199,11 @@ pause tests and STOP ends them. Stop a paused test before starting a new one for
 that form/phone. Uncertain provider submissions require reconciliation first.
 Tests create consent/contact/message history, but no saved customer submission or
 E2 Lead. Existing opt-out/consent restrictions are preserved.
+
+Test replies use the business's current **Inbound AI** mode. Shadow records a
+proposed reply in **Inbound AI > Recent runs** without sending it. Starting a new
+test or clearing previous test history does not enable Live mode; the separate
+[Inbound AI validation gate](INBOUND_AI.md#forward-release-and-rollback) still applies.
 
 GET/POST /api/web-forms/:id/test-runs read/start tests;
 POST /api/web-forms/:id/test-runs/:runId/stop stops a test. Starting/stopping is

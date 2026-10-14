@@ -1,6 +1,6 @@
 // Reuse the existing form lifecycle contract; deleting is a recoverable archive.
 export const lifecycleConfirmation = action => action==='archive'
-  ? 'Delete this form? It will stop accepting submissions and stop its automation runs. Submission and message history will be kept. You can restore it as a draft from Deleted forms. Unsaved edits will be discarded.'
+  ? 'Archive this form? It will stop accepting submissions and stop its automation runs. Submission and message history will be kept. You can restore it as a draft from Archived forms. Unsaved edits will be discarded.'
   : 'Deactivate this form? It will stop accepting submissions, pause active SMS runs and cancel pending email enrollments. History will be kept. Unsaved edits will be discarded. Messages already sent cannot be recalled.';
 
 export async function changeFormLifecycle(request,id,action,{isCurrent=()=>true}={}) {
