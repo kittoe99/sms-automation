@@ -1,6 +1,6 @@
 # Direct contact automations
 
-Open **Follow-ups → Contact templates** for reusable templates. On a contact,
+Open **SMS → Automations → Contact messages** for reusable templates. On a contact,
 use **Manage follow-ups** for that person’s runs. Existing enrollment and consent
 rules are unchanged.
 
@@ -85,3 +85,7 @@ Frontend verified LIVE: commit `03b9754`, Render `dep-db5aroijnfac739r7rpg`,
 2026-10-10 21:28:14 UTC. Served source modules and app bundle match the tested
 release. No direct templates/runs were created in production; Opek AI remains
 shadow and all other businesses off.
+
+October 14: form and contact Continue enquiry messages share the 30-minute wait
+after customer/accepted AI replies in every AI mode. AI behavior is configured
+once under SMS → AI replies. See [unified SMS behavior](INBOUND_AI.md#october-14-unified-sms-behavior).

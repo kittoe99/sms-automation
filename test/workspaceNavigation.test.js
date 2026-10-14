@@ -1,15 +1,15 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import {permittedGroups,navigationMarkup,groupForView,syncNavigation,syncNavigationTabs} from '../public/workspaceNavigation.js';
+import {permittedGroups,navigationMarkup,groupForView,syncNavigation,syncNavigationTabs,navigationLevels} from '../public/workspaceNavigation.js';
 import {readHome,homeMarkup} from '../public/workspaceHome.js';
 
 test('daily work stays directly accessible while permission-filtered siblings remain separate',()=>{
  const staff=permittedGroups(true,{smsRead:true});
- assert.deepEqual(staff.filter(g=>g.daily).map(g=>g.label),['Home','Inbox','Contacts','Bookings','Follow-ups','Forms']);
+ assert.deepEqual(staff.filter(g=>g.daily).map(g=>g.label),['Home','SMS','Contacts','Bookings','Forms','Email']);
  const formsOnly=permittedGroups(false,{formsManage:true,smsRead:false});
  assert.deepEqual(formsOnly.flatMap(g=>g.views.map(v=>v.view)),['web-forms']);
  const reader=permittedGroups(false,{smsRead:true});
- assert.ok(!reader.some(g=>['ai','settings','admin'].includes(g.id)));
+ assert.ok(!reader.some(g=>['settings','admin'].includes(g.id)));
  assert.ok(!reader.flatMap(g=>g.views).some(v=>['handoffs','email'].includes(v.view)));
  assert.deepEqual(permittedGroups(true,null).map(g=>g.id),['admin']);
  assert.deepEqual(permittedGroups(false,null),[]);
@@ -18,7 +18,7 @@ test('legacy labels find their current destination and bookmarks retain their gr
  for(const [query,view] of [['shadow','inbound-ai'],['deliverability','deliverability'],['direct automation','contact-templates'],['opt-outs','optouts']]) {
   assert.match(navigationMarkup({view:'overview',staff:true,tenant:{},query}),new RegExp(`data-view="${view}"`));
  }
- assert.equal(groupForView('call').id,'inbox');
+ assert.equal(groupForView('call').id,'voice');
  assert.equal(groupForView('platform-twilio').id,'admin');
  assert.doesNotMatch(navigationMarkup({view:'overview',staff:false,tenant:{smsRead:true},query:'shadow'}),/data-view="inbound-ai"/);
 });
@@ -59,25 +59,38 @@ class NavigationHost {
 }
 
 test('async shell completion preserves click targets, active groups and manually collapsed navigation',()=>{
- const nav=new NavigationHost(),options={view:'inbound-ai',staff:true,tenant:{smsRead:true},query:''};
+ const nav=new NavigationHost(),options={view:'voice-agent',staff:true,tenant:{smsRead:true},query:''};
  assert.equal(syncNavigation(nav,options),true);
- const target=nav.nodes.find(n=>n.dataset.view==='messages'),group=nav.groups.find(g=>g.dataset.navigationGroup==='ai');
+ const target=nav.nodes.find(n=>n.dataset.view==='messaging'),group=nav.groups.find(g=>g.dataset.navigationGroup==='voice');
  group.open=false;
  syncNavigation(nav,options);assert.equal(nav.writes,1);assert.equal(group.open,false);
- assert.equal(nav.nodes.find(n=>n.dataset.view==='messages'),target);
+ assert.equal(nav.nodes.find(n=>n.dataset.view==='messaging'),target);
  syncNavigation(nav,{...options,view:'messages'});assert.equal(nav.writes,1);assert.equal(target.attributes['aria-current'],'page');
- assert.equal(nav.groups.find(g=>g.dataset.navigationGroup==='reports').open,true);
- syncNavigation(nav,{...options,view:'call'});assert.equal(nav.nodes.find(n=>n.dataset.view==='messaging').attributes['aria-current'],'page');
+ assert.equal(nav.groups.find(g=>g.dataset.navigationGroup==='voice').open,false);
+ syncNavigation(nav,{...options,view:'inbound-ai'});assert.equal(nav.nodes.find(n=>n.dataset.view==='messaging').attributes['aria-current'],'page');
  syncNavigation(nav,{...options,staff:false,tenant:{smsRead:false,formsManage:true}});
  assert.equal(nav.writes,2);assert.deepEqual(nav.nodes.map(n=>n.dataset.view),['web-forms']);
 });
 
 test('sibling tabs keep their original targets while selection updates and search rebuilds only when needed',()=>{
- const tabs=new NavigationHost(),group=groupForView('messages');
- syncNavigationTabs(tabs,group,'messages');const target=tabs.nodes[1];
+ const tabs=new NavigationHost(),group=navigationLevels(groupForView('messages'),'messages').secondary;
+ syncNavigationTabs(tabs,group,'messages');const target=tabs.nodes[2];
  syncNavigationTabs(tabs,group,'deliverability');syncNavigationTabs(tabs,group,'deliverability');
- assert.equal(tabs.writes,1);assert.equal(tabs.nodes[1],target);assert.equal(target.attributes['aria-selected'],'true');assert.equal(target.tabIndex,0);
+ assert.equal(tabs.writes,1);assert.equal(tabs.nodes[2],target);assert.equal(target.attributes['aria-selected'],'true');assert.equal(target.tabIndex,0);
  const nav=new NavigationHost(),options={view:'messages',staff:true,tenant:{smsRead:true},query:'delivery'};
  syncNavigation(nav,options);syncNavigation(nav,{...options,query:' DELIVERY '});assert.equal(nav.writes,1);
  syncNavigation(nav,{...options,query:'forms'});assert.equal(nav.writes,2);
+});
+
+test('SMS combines replies, automations and activity with permission-filtered sections',()=>{
+ const group=permittedGroups(true,{smsRead:true}).find(g=>g.id==='sms');
+ const {primary,secondary}=navigationLevels(group,'form-followups');
+ assert.deepEqual(primary.views.map(x=>x.label),['Inbox','Automations','AI replies','Activity']);
+ assert.deepEqual(secondary.views.map(x=>x.view),['contact-templates','form-followups']);
+ const tabs=new NavigationHost();syncNavigationTabs(tabs,primary,'form-followups');
+ assert.equal(tabs.nodes[1].attributes['aria-selected'],'true');
+ const reader=permittedGroups(false,{smsRead:true}).find(g=>g.id==='sms');
+ assert.ok(!navigationLevels(reader,'messaging').primary.views.some(x=>x.children.includes('inbound-ai')));
+ assert.ok(!reader.views.some(x=>x.view==='handoffs'));
+ for(const view of ['messaging','contact-templates','form-followups','inbound-ai','automation-activity','messages','deliverability'])assert.equal(groupForView(view).id,'sms');
 });

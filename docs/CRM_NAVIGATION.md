@@ -1,23 +1,22 @@
 # CRM navigation
 
-The sidebar opens daily work directly: **Home**, **Inbox**, **Contacts**,
-**Bookings**, **Follow-ups**, and **Forms**. Secondary tools live in expandable
-**AI assistants**, **Reports**, **Settings**, and staff-only **Administration**.
-**Find a page** searches permitted pages, including their former names. On mobile,
-open Menu. Navigation retains drafts and browser Back/Forward; existing `?view=`
-bookmarks remain valid. See [Tabbed workspace](TABBED_WORKSPACE.md).
+The sidebar opens **Home**, **SMS**, **Contacts**, **Bookings**, **Forms** and
+**Email**. **Calls & voice**, **Settings** and staff-only **Administration** hold
+the remaining tools. **Find a page** includes former labels and only permitted
+pages. Mobile Menu, retained drafts, browser Back/Forward and existing `?view=`
+bookmarks continue to work. See [Tabbed workspace](TABBED_WORKSPACE.md).
 
-| Page or group | Contents |
+| SMS tab | Contents |
 | --- | --- |
-| Home | Current paused follow-ups, paused AI conversations, requests needing help, recent attention rows, shortcuts, message totals and SMS connection |
-| Inbox | Messages, Calls, and staff-only Needs your help |
-| Contacts | Contact directory and Unsubscribed from SMS |
-| Follow-ups | Activity, Form follow-ups, Contact templates, Email |
-| Forms | Compact directory; Edit form, Follow-ups and Submissions tabs |
-| AI assistants | Text replies and Voice agents |
-| Reports | Message history and Message delivery |
-| Settings | Business information, Booking availability and SMS connection |
-| Administration | Users, Businesses, Websites, Twilio accounts and Set up business |
+| Inbox | Customer conversations and staff-only Needs your help |
+| Automations | Contact messages and Form messages; form message editors stay inside SMS |
+| AI replies | One business reply mode and instructions for every inbound SMS source |
+| Activity | Follow-up activity, Message history and Delivery |
+
+Forms remains the place to design forms and read submissions. Calls & voice holds
+Calls and Voice agents. Email remains separate. Settings contains Business
+information, Booking availability and SMS connection. Administration contains
+Users, Businesses, Websites, Twilio accounts and Set up business.
 
 Home workload counts are current totals; recent follow-ups use the displayed date
 range. The paused AI card opens the broader attention list. A failed read displays
@@ -31,13 +30,18 @@ Global Users, Businesses, Websites and Twilio account directories require staff
 access; business tools require their own grants. Forms-only users cannot read
 SMS/submissions simply because they can edit a form.
 
-Use **Forms → Follow-ups** or **Follow-ups → Form follow-ups** to configure,
-publish and turn on a versioned sequence. Use **Follow-ups → Contact templates**
+Use **Forms → Follow-ups** or **SMS → Automations → Form messages** to configure,
+publish and turn on a versioned sequence. Use **SMS → Automations → Contact messages**
 for reusable direct templates, **Contacts → Manage follow-ups** for a person's
-runs, and **Follow-ups → Activity** for outcomes. Email keeps its separate workflow.
+runs, and **SMS → Activity → Follow-up activity** for outcomes. Email keeps its separate workflow.
 The retired fixed-group SMS menu is not the setup path.
 
-**AI assistants → Text replies** controls the independent inbound agent.
+**SMS → AI replies** controls the business-wide inbound agent, including replies
+to form and contact automations. It reads recent accepted SMS across conversation
+groups for the same business/customer. Saving an enabled mode also enables
+automation context and coordination. Continue form/contact enquiry messages wait
+30 minutes after inbound or accepted AI messages even in Off/Review only mode.
+Pause/Stop policies, staff takeover and appointment reminders retain their rules.
 **Review only — no replies sent** is shadow mode; **Automatic replies** is live
 mode. Running a form test does not change the agent's mode or satisfy its release
 gates. **Voice agents** opens the existing connected/draft library.

@@ -1,4 +1,4 @@
-import {workspaceGroups,groupForView,permittedGroups,syncNavigation,syncNavigationTabs} from './workspaceNavigation.js';
+import {workspaceGroups,groupForView,permittedGroups,navigationLevels,syncNavigation,syncNavigationTabs} from './workspaceNavigation.js';
 import {readHome,homeMarkup} from './workspaceHome.js';
 import {mountContactAutomations} from './contactAutomations.js';
 import {mountFormDirectory} from './formDirectory.js';
@@ -119,6 +119,8 @@ function workspaceCompletionGuard(node) {
 }
 
 let formWorkspace = null;
+let smsFormWorkspace = null;
+let smsFormTarget = null;
 const formBuilder = {async render() {
   const {createFormWorkspace} = await pageReads.wait(import('./formWorkspace.js?v=20261004-live-test'));
   formWorkspace ||= createFormWorkspace({root:el.root,apiFetch,config:runtimeConfig,getTenantId,
@@ -228,6 +230,7 @@ function clearTabs() {
   syncOverlayLock();
   resetWorkspaceState(state);
   formWorkspace?.reset(); formWorkspace = null;
+  smsFormWorkspace?.reset(); smsFormWorkspace=null;smsFormTarget=null;
   for (const instance of platformInstances.values()) instance.dispose();
   tabMemory.clear(); platformInstances.clear(); sectionHistory.clear(); categoriesLoaded = false; lastRenderedView = null;
 }
@@ -823,7 +826,7 @@ async function renderBusinessContext() {
         <div>
           <span class="eyebrow">Business information · ${esc(state.tenant?.name || 'Business account')}</span>
           <h2>Help SMS and AI sound like you.</h2>
-          <p class="muted">Keep your business profile and approved knowledge here. Text replies use your approved information. Set reply behavior under AI assistants; edit scheduled messages under Follow-ups.</p>
+          <p class="muted">Keep your business profile and approved knowledge here. Text replies use your approved information. Manage AI replies and scheduled messages together under SMS.</p>
         </div>
         <dl class="setup-facts">
           <div><dt>Business context</dt><dd>${state.setupOnboarding.onboardingComplete ? 'saved' : 'required'}</dd></div>
@@ -1282,13 +1285,13 @@ async function renderAiInstructions() {
 
 const titles = {
   handoffs: ['Needs your help', 'Customer requests passed to your team.'],
-  'form-followups': ['Form follow-ups', 'Messages sent after a form submission.'],
-  'contact-templates': ['Contact templates', 'Reusable follow-ups you start from a contact.'],
+  'form-followups': ['Form messages', 'Scheduled SMS after a form submission. Customer replies use SMS → AI replies.'],
+  'contact-templates': ['Contact messages', 'Scheduled SMS you start from a contact. Customer replies use SMS → AI replies.'],
   overview: ['Home', 'Your conversations, customers, and follow-ups.'],
   messaging: ['Inbox', 'Read and reply to customer conversations.'],
   'voice-agent': ['Voice Agents', 'Create agents, manage deployments and release customer access.'],
   call: ['Inbound calls', 'Track inbound calls from your customers.'],
-  messages: ['Messages', 'Searchable CRM log for every SMS'],
+  messages: ['Message history', 'All customer, staff, AI, and automation SMS.'],
   contacts: ['Contacts', 'Find customers and manage your contacts.'],
   optouts: ['Unsubscribed from SMS', 'Numbers that asked to stop receiving SMS'],
   deliverability: ['Message delivery', 'Delivery outcomes across the message store'],
@@ -1300,7 +1303,7 @@ const titles = {
   knowledge: ['AI knowledge', 'Approve evidence, review leads, and resolve human handoffs.'],
   bookings: ['Bookings', 'Confirmed appointments created securely for this business.'],
   'automation-activity': ['Follow-up activity','Responses, bookings and follow-up workload'],
-  'inbound-ai': ['Text replies', 'Answer incoming texts and book with shared service availability.'],
+  'inbound-ai': ['AI replies', 'One reply mode for incoming texts, form enquiries, and contact automations.'],
   'booking-setup': ['Booking availability', 'Shared service schedules for SMS and voice booking.'],
   'web-forms': ['Forms', 'Create and manage forms for your websites.'],
 };
@@ -1415,7 +1418,7 @@ document.addEventListener('keydown', (event) => {
 });
 
 document.getElementById('refresh').addEventListener('click', () => {
-  if ((el.root.querySelector('form[data-dirty="true"]') || (state.view==='web-forms' && formWorkspace?.hasUnsavedDrafts())) && !confirm('Refresh this tab and discard its unsaved changes?')) return;
+  if ((el.root.querySelector('form[data-dirty="true"]') || (state.view==='web-forms' && formWorkspace?.hasUnsavedDrafts()) || (state.view==='form-followups' && smsFormWorkspace?.hasUnsavedDrafts())) && !confirm('Refresh this tab and discard its unsaved changes?')) return;
   load({ force: true });
 });
 document.getElementById('drawer-close').addEventListener('click', closeDrawer);
@@ -1501,17 +1504,20 @@ function syncWorkspaceNavigation() {
   el.root.setAttribute('role','region');el.root.setAttribute('aria-labelledby','page-title');
   renderSectionNavigation();
   const group=permittedGroups(state.platformStaff,state.tenant).find(g=>g.views.some(v=>v.view===state.view));
-  const tabs=document.getElementById('workspace-tabs');
-  syncNavigationTabs(tabs,group,state.view);
+  const levels=navigationLevels(group,state.view);
+  syncNavigationTabs(document.getElementById('workspace-tabs'),levels.primary,state.view);
+  syncNavigationTabs(document.getElementById('workspace-subtabs'),levels.secondary,state.view);
 }
-document.getElementById('workspace-tabs').addEventListener('click',event=>{
+for(const tabId of ['workspace-tabs','workspace-subtabs']) {
+document.getElementById(tabId).addEventListener('click',event=>{
  const button=event.target.closest('[data-view]');if(button)switchView(button.dataset.view);
 });
-document.getElementById('workspace-tabs').addEventListener('keydown',event=>{
+document.getElementById(tabId).addEventListener('keydown',event=>{
  const tabs=[...event.currentTarget.querySelectorAll('[role="tab"]')],index=tabs.indexOf(event.target);
  if(index<0)return;const next=event.key==='ArrowRight'?(index+1)%tabs.length:event.key==='ArrowLeft'?(index+tabs.length-1)%tabs.length:event.key==='Home'?0:event.key==='End'?tabs.length-1:-1;
- if(next>=0){event.preventDefault();const view=tabs[next].dataset.view;switchView(view).then(switched=>{if(switched)document.querySelector(`#workspace-tabs [data-view="${view}"]`)?.focus();});}
+ if(next>=0){event.preventDefault();const view=tabs[next].dataset.view;switchView(view).then(switched=>{if(switched)document.querySelector(`#${tabId} [data-view="${view}"]`)?.focus();});}
 });
+}
 
 function syncViewUrl() {
   try {
@@ -1784,7 +1790,7 @@ async function renderWorkspace(options = {}) {
       el.pager.hidden=true;el.kpi.innerHTML='';
       disposeActivity=await mountAutomationActivity(el.root,{apiFetch,embedded:true,initialFilters:state.activityFilters,initialRun:state.activityRun,identity:`${userId}:${tenantId}`,isCurrent:()=>state.view==='automation-activity'&&getTenantId()===tenantId&&(getSession()?.user?.id||state.user?.id||'session')===userId,
        onConversation:(conversationId,conversationPhone)=>switchView('messaging',{conversationId,conversationPhone,force:true}),
-       onForm:formId=>{formBuilder.target={formId,initialTab:'automation'};switchView('web-forms',{force:true});},
+       onForm:formId=>{smsFormTarget=formId;switchView('form-followups',{force:true});},
        onBookings:()=>switchView('bookings'),onHandoffs:()=>switchView('handoffs')});
       state.activityFilters=null;state.activityRun=null;
     }
@@ -1902,8 +1908,10 @@ async function renderCall() {
 
 async function renderFormFollowups() {
  el.kpi.innerHTML='';el.pager.hidden=true;
- const res=await apiFetch('/api/web-forms'),data=await res.json();if(!res.ok)throw new Error(data.error||'Could not load form follow-ups');
- mountFormDirectory(el.root,data,{followupsOnly:true,onOpen:(formId)=>{formBuilder.target={formId,initialTab:'automation'};switchView('web-forms',{force:true});}});
+ const {createFormWorkspace}=await pageReads.wait(import('./formWorkspace.js?v=20261004-live-test'));
+ smsFormWorkspace ||= createFormWorkspace({root:el.root,apiFetch,config:runtimeConfig,getTenantId,canReadSubmissions:()=>true,automationOnly:true});
+ const target=smsFormTarget;smsFormTarget=null;
+ await smsFormWorkspace.render(target?{formId:target,initialTab:'automation',refresh:false}:{});
 }
 async function renderHandoffs() {
  el.kpi.innerHTML='';el.pager.hidden=true;
@@ -2740,20 +2748,20 @@ async function renderMessaging() {
               .map(
                 (m) => `
               <div class="bubble ${m.direction === 'inbound' ? 'in' : 'out'}${
-                  m.meta?.role === 'assistant' ? ' ai' : ''
+                  (m.meta?.role === 'assistant'||m.meta?.agent_version === 'sms-agent-v1') ? ' ai' : ''
                 }">
                 <div class="bubble-meta">
                   <span>${
                     m.direction === 'inbound'
                       ? 'Customer'
-                      : m.meta?.role === 'assistant'
+                      : (m.meta?.role === 'assistant'||m.meta?.agent_version === 'sms-agent-v1')
                         ? 'AI'
                         : esc(state.tenant?.shortName || state.tenant?.name || 'Business')
                   }</span>
                   ${
-                    m.meta?.role === 'assistant'
+                    (m.meta?.role === 'assistant'||m.meta?.agent_version === 'sms-agent-v1')
                       ? `<span class="ai-pill">AI reply</span>`
-                      : ''
+                      : m.meta?.form_run_id ? '<span class="ai-pill">Automation</span>' : ''
                   }
                   <span>${esc(fmtTime(m.createdAt))}</span>
                   ${m.direction === 'inbound' ? `<select class="message-route" data-reassign-message="${esc(m.id)}" aria-label="Move message to conversation">

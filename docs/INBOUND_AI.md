@@ -1,6 +1,6 @@
 # Inbound SMS agent
 
-Open **AI assistants → Text replies**. The mode labels are **Review only — no
+Open **SMS → AI replies**. The mode labels are **Review only — no
 replies sent** (shadow) and **Automatic replies** (live). A form test does not
 change this mode or unlock its release gates.
 
@@ -211,3 +211,29 @@ Staff can assign versioned enquiry follow-ups without a form. Contact blocks
 apply to form and direct enquiry runs; appointment reminders stay separate.
 See [Direct contact automations](DIRECT_CONTACT_AUTOMATIONS.md) for controls,
 reply policies, attribution, rollout and rollback.
+
+## October 14 unified SMS behavior
+
+CRM migration `20261014210130_unified_sms_workspace.sql` follows the applied
+October 14 shared baseline and direct-contact automation functions. Apply this
+new CRM migration once before the frontend; no E2 migration or API change is
+needed. The paired fixture fingerprint includes it. Do not replay either history.
+
+AI reads the latest 30 inbound/accepted outbound messages for the verified
+business and phone across old conversation groups, bounded at the incoming
+message's timestamp. Queued/unaccepted, future, other-business and other-contact
+messages are excluded. This does not merge or delete stored conversations.
+Saving an enabled reply mode enables automation context/coordination as part of
+that setting. Existing modes, approval flags and booking permissions are retained.
+Continue form and contact enquiry runs use the same 30-minute wait after inbound
+or accepted AI replies, including Off/Review only. Appointment policies, STOP,
+manual takeover, explicit resume and immutable published versions are unchanged.
+
+Local validation: 407 CRM tests passed (29 skipped), 63 paired tests passed,
+18 follow-up targeted checks passed after final SQL/editor refinements. Build,
+source checks and Edge bundle passed. Production release status is recorded in
+both project records; the UI refactor alone does not enable live replies.
+
+Applied mapping: local `20261014210130` = remote `20261014210940`. The three
+function source hashes and API-only grants match the tested source. Do not apply
+the local timestamp again. Opek remains Review only and unapproved.

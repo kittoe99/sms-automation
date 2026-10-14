@@ -25,7 +25,7 @@ No sending, enrollment or publication rules changed with this layout.
 1. Open **Forms**, create a named contact, quote or appointment form, and edit its fields.
 2. Save and enable the form when it is ready to collect submissions. Existing embeds
    retain their public IDs; multiple forms may share the same field starter.
-3. Open **Follow-ups** (also available through **Follow-ups → Form follow-ups**). Copy a preset or add messages, choose a trigger and reply policy,
+3. Open **Follow-ups** (also available through **SMS → Automations → Form messages**). Copy a preset or add messages, choose a trigger and reply policy,
    and configure each message's delay, total sends and repeat interval.
 4. Review the message previews and sequence summary. Save a draft, publish a version,
    then **Turn on follow-ups** for future submissions. **Preview & test** is expandable;
@@ -281,3 +281,7 @@ removed at the user's explicit request. No submissions remained. Existing form
 links no longer collect data; create new forms before reconnecting collection or
 follow-ups. This one-time database purge does not change normal Archive/Restore
 behavior. See `PROJECT_RECORD.md` in each repository for verified scope.
+
+October 14: form and contact Continue enquiry messages share the 30-minute wait
+after customer/accepted AI replies in every AI mode. AI behavior is configured
+once under SMS → AI replies. See [unified SMS behavior](INBOUND_AI.md#october-14-unified-sms-behavior).

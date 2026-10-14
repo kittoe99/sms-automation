@@ -309,6 +309,8 @@ body { font-family: "Plus Jakarta Sans", Arial, sans-serif; font-size: 14px; lin
 .crm .navigation-empty { padding:12px; }
 .workspace-local-tabs { display:flex; flex-wrap:wrap; gap:4px; width:calc(100% - 2 * var(--dashboard-gutter)); max-width:1200px; margin:18px auto 0; border-bottom:1px solid var(--border); }
 .workspace-local-tabs[hidden] { display:none; }
+.workspace-subtabs { margin-top:4px; border-bottom:0; }
+.workspace-subtabs button { padding:8px 12px; }
 .workspace-local-tabs button { border:0; border-bottom:3px solid transparent; background:transparent; padding:12px 14px; min-height:44px; color:var(--muted); font:600 13px 'Plus Jakarta Sans',sans-serif; cursor:pointer; }
 .workspace-local-tabs button[aria-selected=true] { border-bottom-color:var(--brand); color:var(--brand-deep); }
 .crm .page-heading { padding-top:18px; gap:16px; }

@@ -21,17 +21,15 @@ Daily pages are directly available in the sidebar: **Home**, **Inbox**,
 **Contacts**, **Bookings**, **Follow-ups**, and **Forms**. **Find a page** also
 accepts former page names. On a narrow screen, open Menu.
 
-Home puts paused follow-ups and requests needing help first. Inbox has Messages,
-Calls and a staff-only Needs your help tab. Follow-ups groups Activity, Form
-follow-ups, Contact templates and Email. Forms has Edit form, Follow-ups and
-Submissions tabs. Optional repeat settings and Preview & test are expandable.
+Home puts paused follow-ups and requests needing help first. **SMS** holds
+**Inbox**, **Automations**, **AI replies** and **Activity**. Inbox includes staff
+requests. Automations holds contact and form messages; Activity holds follow-up
+outcomes, message history and delivery. Forms remains for design/submissions.
 
-Open AI assistants for Text replies or Voice agents; Reports for Message history
-or Message delivery; Settings for Business information, Booking availability or
-SMS connection. Staff directories and Set up business are under Administration.
-Existing permissions still apply. See [navigation](CRM_NAVIGATION.md) for the full
-map and [project record](../PROJECT_RECORD.md) for release status. The October 14
-simplification is local until separately released.
+Calls & voice holds call records and Voice agents. Settings contains Business
+information, Booking availability and SMS connection. Staff directories and Set up
+business are under Administration. Permissions still apply. See
+[navigation](CRM_NAVIGATION.md) and [project record](../PROJECT_RECORD.md).
 
 ## Contacts and consent
 
@@ -80,7 +78,7 @@ form/direct enquiry enrollment; **Allow future follow-ups** restarts nothing.
 Appointment reminders and AI have separate controls. See
 [Direct contact automations](DIRECT_CONTACT_AUTOMATIONS.md).
 
-**Follow-ups → Activity** shows accepted/delivered messages, responses and outcomes.
+**SMS → Activity → Follow-up activity** shows accepted/delivered messages, responses and outcomes.
 Tagging or linking an existing booking records attribution; it does not create a
 booking or grant consent. Sequence resume and AI resume are separate actions;
 neither overrides STOP. See [report definitions](AUTOMATION_ACTIVITY.md).
@@ -95,7 +93,7 @@ A public Booking form creates a submission and confirmed reminder intake. It doe
 
 ## Inbound AI and business knowledge
 
-Use **Text replies** for revision-checked off/shadow/live mode, business
+Use **SMS → AI replies** for revision-checked off/shadow/live mode, business
 instructions, approved knowledge and the separate booking permission. The
 recorded rollout has Opek in shadow; other businesses default off. Live mode
 requires the operator's validation gate and reviewed schedules. Check current

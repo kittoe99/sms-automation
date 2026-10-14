@@ -7,9 +7,9 @@ the duplicate inner strip has been removed.
 Its separate access/revision validation and account-wide Refresh policy remain
 unchanged; see `../E2local-main/docs/dashboard-cache.md` from the CRM repository.
 
-The CRM uses one persistent shell with six direct daily pages and expandable
-AI assistants, Reports, Settings and Administration groups. Sibling tools use
-local tabs. Find a page searches all permitted pages and former labels. Visibility follows the existing staff/operator/form permissions.
+The CRM uses one persistent shell. SMS contains Inbox, Automations, AI replies
+and Activity, with a second row only for the selected section’s tools. Calls &
+voice, Settings and Administration remain separate. Sibling tools use local tabs. Find a page searches all permitted pages and former labels. Visibility follows the existing staff/operator/form permissions.
 
 ## Navigation and refresh
 

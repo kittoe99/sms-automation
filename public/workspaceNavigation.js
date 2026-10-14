@@ -4,17 +4,29 @@ import {dashboardIcon} from './dashboardIcons.js';
 const item=(view,label,aliases='')=>({view,label,aliases});
 export const workspaceGroups = [
  {id:'home',label:'Home',icon:'overview',daily:true,views:[item('overview','Home','overview dashboard')]},
- {id:'inbox',label:'Inbox',icon:'messaging',daily:true,views:[item('messaging','Messages','inbox conversations sms'),item('call','Calls','inbound calls recordings'),item('handoffs','Needs your help','handoffs leads requests')]},
+ {id:'sms',label:'SMS',icon:'messaging',daily:true,views:[item('messaging','Inbox','messages conversations sms'),item('handoffs','Needs your help','handoffs leads requests'),item('contact-templates','Contact messages','direct automation templates follow-ups'),item('form-followups','Form messages','form follow-ups automations'),item('inbound-ai','AI replies','text replies inbound ai shadow live'),item('automation-activity','Follow-up activity','automation activity sequences enquiries'),item('messages','Message history','sms log reports'),item('deliverability','Delivery','deliverability delivery report')]},
  {id:'contacts',label:'Contacts',icon:'contacts',daily:true,views:[item('contacts','Contacts','customers directory'),item('optouts','Unsubscribed from SMS','opt-outs stop suppressed')]},
  {id:'bookings',label:'Bookings',icon:'bookings',daily:true,views:[item('bookings','Bookings','appointments')]},
- {id:'followups',label:'Follow-ups',icon:'forms',daily:true,views:[item('automation-activity','Activity','automation activity sequences enquiries'),item('form-followups','Form follow-ups','form automations'),item('contact-templates','Contact templates','direct automation templates'),item('email','Email','email groups campaigns')]},
  {id:'forms',label:'Forms',icon:'forms',daily:true,views:[item('web-forms','Forms','form builder submissions')]},
- {id:'ai',label:'AI assistants',icon:'voice',views:[item('inbound-ai','Text replies','inbound ai shadow live'),item('voice-agent','Voice agents','voice agent configuration')]},
- {id:'reports',label:'Reports',icon:'reports',views:[item('messages','Message history','sms log'),item('deliverability','Message delivery','deliverability delivery report')]},
+ {id:'voice',label:'Calls & voice',icon:'voice',views:[item('call','Calls','inbound calls recordings'),item('voice-agent','Voice agents','voice agent configuration ai assistants')]},
+ {id:'email',label:'Email',icon:'messaging',daily:true,views:[item('email','Email','email groups campaigns')]},
  {id:'settings',label:'Settings',icon:'setup',views:[item('business-context','Business information','business context knowledge profile'),item('booking-setup','Booking availability','service availability schedules'),item('business-setup','SMS connection','sms activation business setup phone sender')]},
  {id:'admin',label:'Administration',icon:'platform',views:[item('platform-accounts','Users','platform accounts'),item('platform-businesses','Businesses','platform ownership'),item('platform-websites','Websites','hosting deployments domains'),item('platform-twilio','Twilio accounts','provider phone accounts')]},
 ];
 export const groupForView=view=>workspaceGroups.find(group=>group.views.some(item=>item.view===view));
+const smsSections = [
+ {label:'Inbox',children:['messaging','handoffs']},
+ {label:'Automations',children:['contact-templates','form-followups']},
+ {label:'AI replies',children:['inbound-ai']},
+ {label:'Activity',children:['automation-activity','messages','deliverability']},
+];
+export function navigationLevels(group,view) {
+ if(group?.id!=='sms')return {primary:group,secondary:null};
+ const sections=smsSections.map(section=>({...section,views:group.views.filter(entry=>section.children.includes(entry.view))})).filter(section=>section.views.length);
+ const selected=sections.find(section=>section.children.includes(view));
+ return {primary:{label:'SMS',views:sections.map(section=>({view:section.views[0].view,label:section.label,children:section.views.map(entry=>entry.view)}))},
+  secondary:selected?{label:`SMS ${selected.label}`,views:selected.views}:null};
+}
 export function permittedGroups(staff,tenant) {
  return workspaceGroups.map(group=>({...group,views:group.views.filter(item=>
   (tenant||item.view.startsWith('platform-'))&&canOpenWorkspace(item.view,staff,tenant))})).filter(group=>group.views.length);
@@ -67,7 +79,8 @@ export function syncNavigationTabs(tabs, group, view) {
  }
  tabs.setAttribute('aria-label',group?.label||'Workspace');
  for(const node of tabs.querySelectorAll('[data-view]')) {
-  const active=node.dataset.view===view;
+  const entry=group?.views.find(item=>item.view===node.dataset.view);
+  const active=node.dataset.view===view||Boolean(entry?.children?.includes(view));
   node.setAttribute('aria-selected',String(active));node.tabIndex=active?0:-1;
  }
 }

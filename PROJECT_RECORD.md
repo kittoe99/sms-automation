@@ -1,5 +1,27 @@
 # Opek SMS project record
 
+### October 14 — Unified SMS workspace and reply behavior (local implementation)
+
+SMS now groups Inbox, Automations, AI replies and Activity, including form message
+editing in place. Calls/voice and Email remain separate. Existing links, permission
+filters, stable click targets and retained drafts remain supported. AI history now
+covers the same business/customer across conversation groups, using only inbound
+and accepted outbound SMS up to the current input. Form and direct Continue runs
+share the 30-minute wait in every mode; enabled reply settings also enable their
+automation context. Existing Off/Review/Live values, pilot approval, booking
+permissions, consent, STOP, manual takeover and appointment policies are retained.
+
+CRM owns `20261014210130_unified_sms_workspace.sql`, after the October 14 paired
+baseline. No E2 schema/API/application change. Existing production function hashes
+match the local baseline. Tests: 407 passed / 29 skipped; 63 paired tests; 18 final
+focused checks after the history query/editor refinements. Source, frontend and
+Edge bundle checks passed. Migration applied as remote `20261014210940`
+(`unified_sms_workspace`); all three function hashes and scoped grants match
+the tested build. Opek remains shadow, unapproved, revision 1. Frontend release
+is pending. Security advisor findings are unchanged from the pre-release baseline
+(existing RLS-without-policy information, pg_net placement and existing public
+function grants); this migration adds no exposed functions or table grants.
+
 ### October 14 — CRM navigation responsiveness fix (released)
 
 Sidebar buttons and sibling tabs now keep the same DOM nodes as reads complete;

@@ -78,7 +78,7 @@ test('a newer accepted outbound question invalidates an uncommitted confirmation
  }finally{await db.close();}
 });
 
-test('quiet window prevents scheduling; appointment reminders and shadow schedules are unchanged',async()=>{
+test('quiet window prevents enquiry scheduling in live and review modes; appointment reminders are unchanged',async()=>{
  for(const mode of ['live','shadow']) {
   const db=await setupCoordination({mode});try {
    const enquiry=await addRun(db),appt=await addRun(db,{appointment:true});
@@ -87,7 +87,7 @@ test('quiet window prevents scheduling; appointment reminders and shadow schedul
    assert.ok(new Date(context.automation.quietUntil)>new Date());
    await call(db,'enqueue_due_automations');
    const jobs=(await db.query("select payload->>'form_run_id' id from sms_private.jobs where queue='automation_jobs'")).rows.map(x=>x.id);
-   assert.ok(jobs.includes(appt.id));assert.equal(jobs.includes(enquiry.id),mode==='shadow');
+   assert.ok(jobs.includes(appt.id));assert.equal(jobs.includes(enquiry.id),false);
    assert.equal((await runState(db,enquiry)).status,'active');
   }finally{await db.close();}
  }
