@@ -1,5 +1,24 @@
 # Opek SMS project record
 
+### October 14 — CRM layout production release
+
+The approved layout is live at https://crm.e2local.com. CRM source commit
+`7156b5cd5caeb54014db5d9c7b866d3e0e17539e` deployed through Render
+`dep-db7plstg1s2s73bdan8g`, confirmed live at 15:08:48 UTC. This supersedes the
+local-only status of the layout entry below. Render auto-deploy did not start;
+the existing service was deployed manually without changing service settings.
+GitHub Project checks passed (run `38586568010`).
+
+Release validation passed: 399 CRM tests (29 skipped), 63 paired contract tests,
+source/security checks, paired baseline fingerprints, frontend build and complete
+Edge packaging checks. Production HTML and all 17 generated assets match local
+SHA-256 hashes; production configuration matches. The live Clerk sign-in screen
+loads, and no Render errors were returned for the release window. Authenticated
+production UI checks require a signed-in browser; local synthetic UI checks remain
+the workflow evidence. No new migrations, backend,
+worker, E2 application or provider-setting changes were needed. Original working
+trees and unrelated local changes were preserved. Both project records were updated.
+
 ### October 14 — Simpler CRM navigation and daily-work layout (local only)
 
 Implemented the approved frontend arrangement while keeping the existing branding,
