@@ -1,5 +1,41 @@
 # Form-first SMS automation
 
+Local MCP step 5 adds run inspection/activity (`automation_activity`), pause/stop
+(`automation_run_pause_stop`) and resume (`automation_run_resume`). Controls use
+explicit business/run IDs, current generation and transactional retry keys;
+resume also checks current contactRevision, consent/STOP, business sending,
+form/follow-up state, appointment time and unresolved provider sends. Terminal
+runs cannot resume. Existing published snapshots and other runs stay intact.
+Activity pages expose state/delivery facts without submission answers or bodies.
+Pausing/stopping cannot recall already submitted SMS. All five SMS migrations
+remain local, unapplied and unreleased. See [CRM MCP](CRM_MCP.md).
+
+Local MCP steps 1–2 add scoped reads (`automation_read`), first-draft creation and
+replacement (`automation_draft`), and simulation (`automation_preview`). Drafts
+require current sequence/form revisions and retry keys. Preview accepts saved
+drafts, published rules or unsaved rules with explicit business-local time and
+sample answers. The shared simulation observes Continue's 30-minute wait and
+existing enquiry blocks. It creates no leads, contacts, runs or sends. Public
+form creation remains in the CRM workflow; publication and enabling are separate.
+Step 3 now adds saved-draft publication (`automation_publish`) and form follow-up
+state changes (`automation_enable`), both with sequence/form revisions and retry
+keys. Publication preserves enabled state: an enabled form uses the new version
+for future submissions, while existing runs retain their version. Enabling
+requires published rules and a collecting form; it does not enroll history or
+resume paused runs. Disabling pauses active runs for that form. These increments
+are not released. See [CRM MCP](CRM_MCP.md).
+
+Local MCP step 4 adds historical submission enrollment under
+`automation_run_start`. Read fresh run-start context, then provide sequence/form
+and contact revisions, the submission fingerprint and explicit overlap choice.
+Recorded consent, STOP, enquiry blocks, enabled form/follow-ups, business sending
+and appointment cutoffs are checked. Already-enrolled submissions return their
+existing run without resuming/restarting it. Replacing selected overlaps also
+requires `automation_run_pause_stop`; stops and enrollment commit together.
+The CRM enrollment wrapper now takes the phone lock before the form lock, matching
+public submissions/MCP. This increment is local only and sends no messages during
+verification; production scheduling/sending remains with the existing workers.
+
 Forms own SMS follow-ups. Fixed SMS groups and legacy AI-written replies are retired.
 The legacy groups, messages, intake records and AI settings remain available as
 historical data and for the separate email integration; they cannot dispatch SMS.

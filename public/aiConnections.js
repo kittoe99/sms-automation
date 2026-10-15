@@ -1,5 +1,6 @@
 const esc=value=>String(value??'').replaceAll('&','&amp;').replaceAll('<','&lt;').replaceAll('>','&gt;').replaceAll('"','&quot;').replaceAll("'",'&#39;');
-export const connectionPermissions=[['read','Read permitted businesses and customers'],['draft','Edit business drafts'],['review','Approve business profiles'],['service_add','Add services (SMS may start provider setup)'],['visibility','Release or hide customer service access'],['global_customer_lookup','Look up customers across the platform']];
+import {connectionPermissions} from './mcpPermissions.js';
+export {connectionPermissions} from './mcpPermissions.js';
 export async function mountAiConnections(root,{read,write,isCurrent=()=>true}) {
  let page=1,selected=null,activityPage=1,generation=0;
  const current=()=>isCurrent()&&root.querySelector('[data-ai-connections]');

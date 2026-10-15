@@ -1,5 +1,15 @@
 # Automation activity
 
+The pending local MCP step 5 exposes `crm_list_sms_runs`, `crm_get_sms_run` and
+`crm_get_sms_run_activity` under the independent automation_activity grant.
+Reads require an explicit business, scope related IDs/counts, cap pages at 100
+and project event/state facts without message bodies or raw details. The event
+timeline marks historical/simulated evidence; lifetime provider-accepted and
+delivered counts remain distinct. Unlinked activity, cohort reports, tags and
+attribution editing remain in the CRM UI. Separate resume and pause/stop grants
+control runs with generation/retry checks and fresh consent checks on resume.
+No migration, grants or release were applied. See [CRM MCP](CRM_MCP.md).
+
 Staff reporting lives at `?view=automation-activity`, beside Forms. SMS readers
 can inspect reports; existing CRM management permission is required for tags,
 attribution and sequence controls. No customer E2 page or service grant changes.

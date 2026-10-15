@@ -1,5 +1,224 @@
 # Opek SMS project record
 
+### October 14 — SMS MCP database rollout (release in progress)
+
+Reconciled both histories: 81 exact entries, 35 documented aliases and exactly
+the five new SMS MCP migrations missing. Canonical function definitions matched
+after newline normalization. All five passed a rollback rehearsal, then applied
+in order as 20261015054022, 20261015054030, 20261015054032, 20261015054034 and
+20261015054036. Source-to-remote mapping is in docs/CRM_MCP.md. No replay or
+history repair occurred. Final function hashes match the local paired fixture;
+no MCP private helper is executable by the restricted role. Runs/messages/jobs
+remain 0/2/9; security findings are unchanged. The 58 focused tests passed again.
+MCP/frontend releases and Codex no-send verification are in progress. The owner
+authorized all nine SMS grants for the existing all-business connection.
+
+### October 14 — SMS MCP step 5 run controls and activity (local only)
+
+Added six tools: crm_list_sms_runs, crm_get_sms_run and crm_get_sms_run_activity
+under automation_activity; crm_pause_sms_run/crm_stop_sms_run under
+automation_run_pause_stop; crm_resume_sms_run under automation_run_resume.
+The catalog contains 26 tools. Existing grants remain unchanged. Controls require
+explicit business/run IDs, generation and transactional retry keys; resume also
+requires current contactRevision and a paused run. Canonical operations retain
+immutable rules/message position, increment generations and check consent/STOP,
+enquiry blocks, sending, source state and unresolved sends. Past appointments and
+terminal resumes are rejected. Pause/stop need no current consent/sending grant.
+Phone/contact/source/run locks avoid stale changes and form-state lock inversion.
+
+Bounded activity reads scope IDs and counts before projection, distinguish
+provider acceptance from delivery and expose historical/simulated markers without
+raw details, bodies, answers or recipient context. In-flight provider work is
+reported, never canceled or mislabeled as delivered. Audit includes target run
+and affected generation; denied targets also use the supplied run ID. Helpers
+remain private and grants are checked before retry replay. No settings, consent,
+other runs, customer permissions or E2 cache contracts change implicitly.
+
+CRM owns pending 20261015052336_crm_mcp_sms_run_controls_activity.sql after pending
+20261015043000, 20261015043001, 20261015045955 and 20261015050856. The offline
+paired manifest includes all five. All remain unapplied/unreleased. No production
+grant changes or SMS sends occurred. Reconcile live aliases before applying only
+these new forward migrations, then release CRM API/frontend/MCP. No E2 migration
+or runtime release is needed. Both records and affected workflow docs updated;
+the main CRM record points here, preserving unrelated checkout work.
+
+Local verification: 58 focused MCP tests; 465 CRM tests passed (29 existing skips);
+244 E2 tests; 63 paired tests; six E2 Worker tests; both source checks/builds and
+65-file CRM Edge packaging. All 27 disposable PostgreSQL concurrency checks passed,
+including duplicate pause/stop, rollback resume, consent/reconciliation races,
+browser form pause and revocation. CLI security advisors found no issues on the
+disposable paired fixture. Tests use synthetic paused fixtures to isolate guards
+after STOP triggers; no production terminal run is reset. No live pilot was run.
+
+### October 14 — SMS MCP step 4 run starts (local only)
+
+Added crm_get_sms_run_start_context under automation_read and
+crm_start_sms_automation_run under automation_run_start. Starts use published
+rules for existing contacts or recorded historical form submissions, explicit
+business/target IDs, source/contact/form revisions, submission fingerprints,
+complete overlap generations and transactional retry keys. Direct starts accept
+bounded request context and a timezone-qualified start timestamp; form starts
+use the recorded submission and canonical timing. Neither accepts sequence or
+consent overrides. Context reads expose references/revisions, not answers/phones.
+
+Business sending/active state, published/non-archived sources, current consent,
+STOP, enquiry blocks, direct runtime and form collection/follow-up prerequisites
+are checked. Past appointment starts are rejected. Existing submission runs
+return already_enrolled and are never restarted/resumed. Explicit keep preserves
+overlaps; stop_selected also requires automation_run_pause_stop and stops only
+selected scoped runs atomically with the new enrollment. Grants/scope (including
+replacement permission) are checked before replay. Output identifies scheduling,
+run version/generation and stopped generations, not delivery. Audits attribute
+each affected run/generation without message, recipient or request content.
+
+CRM owns pending 20261015050856_crm_mcp_sms_run_start.sql after pending
+20261015043000, 20261015043001 and 20261015045955. It also aligns canonical CRM
+historical enrollment's phone-before-form lock order with public submissions and
+MCP to prevent inversion. Existing consent/enrollment semantics remain canonical.
+The offline paired manifest includes all four pending migrations. No production
+migrations, deployments, grants or messaging were changed. Future rollout must
+reconcile live aliases, then apply only these new forward migrations in order
+and release CRM API/frontend/MCP. E2 ownership/access/services/readers/caches are
+unchanged and need no E2 schema/runtime release. Standalone run resume/pause/stop
+and activity tools remain next. Workflow guides and both project records updated.
+
+Verification: 48 focused MCP tests passed; full CRM 455 passed/29 existing skips;
+244 E2 tests, 63 paired contract tests and six E2 Worker tests passed. Both source
+checks/builds and 65-file CRM Edge packaging passed (synthetic publishable key for
+the local CRM build). Twenty disposable PostgreSQL concurrency checks passed,
+including duplicate starts, STOP changes, rollback/retry, browser historical
+enrollment, stale overlap generations and revocation before replay. CLI security
+advisors reported no issues on the disposable paired fixture, not production.
+New tests cover all three form types, actual submission-details changes, scoped
+replacement, immutable snapshots, fractional start timestamps, no implicit sends
+and redacted audit. Past appointments are modeled by aging a synthetic fixture
+with triggers disabled only inside its local transaction; runtime guards remain
+enabled. The concurrency harness now preserves failures across PostgreSQL cleanup.
+
+### October 14 — SMS MCP step 3 publication and enabling (local only)
+
+Added crm_publish_sms_automation under automation_publish and
+crm_set_form_followups_enabled under automation_enable. Publication uses only
+the saved form/contact draft and accepts no content/name override. Both tools
+use explicit business/target IDs, current sequence/template revisions and retry
+keys; form operations also check formRevision under the canonical form lock.
+They call the existing publication/state operations. Direct retry keys remain
+connection-scoped. Identical retries return the committed result, reusing a key
+with changed input conflicts, and current grants/scope are checked before replay.
+
+Publication increments the immutable version pointer without changing enabled
+state or existing run snapshots. Already-enabled forms use the new version for
+future eligible submissions. Enable requires a collecting, non-archived form
+with published rules; it neither enables collection/business sending nor enrolls
+history/resumes paused runs. Disable preserves the canonical behavior of pausing
+active runs for that form and incrementing their generations. Other form/direct
+runs are unaffected. Output identifies the committed effect and resulting
+automation revision; audit records omit message/customer content. The private
+helper has no client execution grant. AI connections labels describe both grants.
+
+CRM owns pending 20261015045955_crm_mcp_sms_publish_enable.sql, after pending
+20261015043000 reads and 20261015043001 drafts/preview. The offline paired
+manifest includes the new migration. No live migration, deployment or grant
+change was performed. Future rollout must reconcile live aliases, apply only
+these three forward migrations in order, then release CRM API/frontend/MCP.
+E2 ownership, service visibility, customer reader/cache and sending contracts
+are unchanged; no E2 migration/runtime change is needed. MCP/form/direct guides
+and both project records describe this local-only scope. Run lifecycle and
+activity inspection remain future increments.
+
+Verification: 39 focused MCP tests passed; full CRM 446 passed/29 existing skips;
+E2 244; paired contracts 63; E2 Worker tests six. Both source checks/builds and
+65-file CRM Edge packaging passed. The CRM frontend used a synthetic local
+publishable key. Fourteen disposable PostgreSQL concurrency checks passed,
+including duplicate form/direct publication, concurrent browser draft/form
+edits, enable rollback/retry and publication revocation fencing. Tests also
+verify independent grants, scoped IDs, archived/invalid rules, enabled-state/run
+snapshot preservation, disable scope, no implicit sends and audit redaction.
+All verification used this managed worktree and local combined fixtures.
+Supabase CLI security advisors reported no issues on the disposable PostgreSQL
+fixture. This is a local schema check, not a production advisor assessment.
+
+### October 14 — SMS MCP step 2 drafts and simulation (local only)
+
+Added crm_create_sms_automation and crm_save_sms_automation_draft under
+automation_draft, and crm_preview_sms_automation under automation_preview.
+Creation supports unpublished contact templates and first follow-up drafts on
+existing forms. Saves use canonical operations, current template/sequence and
+form revisions, and transactional idempotency. Direct operation keys are scoped
+to the connection. Published versions, enabled flags and existing runs survive
+draft edits unchanged. Strict schemas and the 512 KiB authenticated body limit
+bound requests. AI connections labels now mark draft/preview as implemented.
+
+Preview supports draft/published/unsaved rules, explicit business-local start,
+typed samples or scoped direct contacts with revisions, source fingerprints and
+bounded schedules (200 form rows/50 direct rows). The shared pure scheduler
+preserves sending windows, calendar/DST behavior, repeats, appointment cutoffs,
+missing-field holds and pause/continue/stop scenarios. Continue simulates the
+30-minute enquiry wait; consent, STOP and enquiry blocks cannot be overridden
+by sample answers. Preview writes no contacts, leads, runs, jobs, messages or
+retry records; only normal MCP access/audit bookkeeping occurs. Audit excludes
+sample, context and message content. Direct validation now accepts the existing
+runtime {{request}} token while preserving the original message length bound.
+The ordinary form preview shares the corrected quiet-wait/block behavior.
+
+CRM owns pending 20261015043001_crm_mcp_sms_drafts_preview.sql after pending
+20261015043000_crm_mcp_sms_reads.sql. The CLI-created migration was sequenced
+immediately after that pending prerequisite; applied history is untouched.
+The offline paired manifest records both files. Future rollout must reconcile
+live aliases, apply only these forward migrations in order, then release CRM
+API/frontend/MCP. No live migration, deployment or grant change occurred here.
+Publishing, enabling, run lifecycle and activity tools remain later increments.
+E2 ownership/customer/service/cache contracts are unchanged; no E2 runtime or
+schema change is needed. Updated MCP, form and direct workflow documentation.
+
+Verification: 43 focused MCP/form/direct tests passed (including 31 MCP tests).
+The final full CRM suite passed 438 tests with 29 existing skips; E2 passed 244,
+paired contracts 63, and E2 Worker tests six. Both source checks and production
+builds passed; CRM used a synthetic local publishable key and packaged 65 Edge
+files. Nine disposable PostgreSQL concurrency checks passed, including duplicate
+direct creation, nested retry rollback, concurrent form-field edits and preview
+revocation fencing. Later length-bound, enabled-state and sending-window test
+additions passed in the final full suites. Tests use this managed CRM checkout
+and combined local migration fixtures; they do not contact production.
+
+### October 14 — SMS MCP step 1 (local only; not applied or released)
+
+Implemented nine opt-in automation permission names in AI connections and the
+access schema, plus four tools: crm_list_sms_automations, crm_get_sms_automation,
+crm_search_sms_contacts and crm_list_form_submissions. Only automation_read
+unlocks these tools; the other eight grants reserve separate later capabilities.
+Existing grants are preserved. Explicit business/type/ID references, bounded
+pagination, safe projections and scoped counts/joins prevent cross-business
+disclosure. Contact accounts are separate from CRM customer identities. Saved
+drafts/versions, supported fields and partial readiness blockers are exposed;
+readiness never substitutes for recipient/final-send checks. Reads only update
+MCP access/audit bookkeeping and never start messaging.
+
+CRM owns pending forward migration 20261015043000_crm_mcp_sms_reads.sql after
+20261015035649 and the paired October 14 baseline. Existing applied migrations
+were not edited. The offline paired fingerprint manifest includes the new file.
+E2 customer/service/access/cache contracts and messaging workers are unchanged;
+no E2 migration or runtime release is needed. Reconcile live aliases before
+applying only this new migration in a future rollout. No production migration,
+deployment or connection grant change was performed in this step.
+
+Verification: 21 focused MCP tests passed; full CRM 428 passed/29 existing skips;
+E2 244 passed; 63 paired tests passed with this worktree's migration history;
+six E2 Worker tests passed. CRM/E2 source checks, CRM Edge packaging (65 files),
+CRM frontend build and E2 production build passed. The isolated CRM checkout
+lacked the frontend publishable-key environment variable; its local build was
+rerun successfully with a synthetic publishable key, not production credentials.
+Tests cover all submission types, same-phone cross-business joins, future
+businesses, independent grants, revocation/suspension, safe audit, bounded inputs
+and unchanged contacts/runs/jobs/sending state. Protocol tests also exposed SDK
+argument stripping; passing the strict Zod object directly now rejects unknown
+fields before invoking the gateway. See docs/CRM_MCP.md for the step contract.
+
+Disposable PostgreSQL also passed five concurrency checks: duplicate writes
+commit once, disable fences a waiting mutation, rollback permits a safe retry,
+stale concurrent edits conflict, and disable fences a waiting SMS read. This
+used the existing local embedded runtime; no production database was contacted.
+
 ### October 14 — CRM MCP business setup (released; Codex pilot active)
 
 Implemented an independent Node/Express Streamable HTTP MCP service with CRM

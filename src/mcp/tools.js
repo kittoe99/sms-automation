@@ -1,4 +1,10 @@
 import {z} from 'zod';
+import {connectionPermissionNames} from '../../public/mcpPermissions.js';
+import {smsReadTools,smsReadOutputs} from './smsSchemas.js';
+import {smsDraftTools,smsDraftOutputs} from './smsDraftSchemas.js';
+import {smsReleaseTools,smsReleaseOutputs} from './smsReleaseSchemas.js';
+import {smsRunTools,smsRunOutputs} from './smsRunSchemas.js';
+import {smsActivityTools,smsActivityOutputs} from './smsActivitySchemas.js';
 import {McpServer} from '@modelcontextprotocol/sdk/server/mcp.js';
 
 const id=z.string().min(1).max(255), uuid=z.string().uuid();
@@ -7,6 +13,11 @@ const business={businessId:id};
 const write={...business,idempotencyKey:z.string().min(8).max(128)};
 const profile={...write,revision:z.number().int().nonnegative(),profile:z.record(z.unknown())};
 export const toolDefinitions=[
+ ...smsReadTools,
+ ...smsDraftTools,
+ ...smsReleaseTools,
+ ...smsRunTools,
+ ...smsActivityTools,
  ['crm_get_access','Read connection status, grants and permitted businesses. Pending connections have no CRM data access.',{}],
  ['crm_search_customers','Search customers associated with allowed businesses. Global lookup requires a separate administrator grant.',{...page,q:z.string().max(100).default('')}],
  ['crm_get_customer','Read a customer and only their permitted businesses.',{accountId:uuid}],
@@ -27,7 +38,12 @@ const providerSetup=z.object({state:z.string(),jobs:z.array(z.object({id:uuid,st
 const mutation=record=>z.object({record,businessId:id,databaseStatus:z.literal('committed'),providerSetup});
 const paging={total:z.number().int().nonnegative(),page:z.number().int().positive(),pageSize:z.number().int().min(1).max(100)};
 export const toolOutputs={
- crm_get_access:z.object({connectionId:uuid,status:z.enum(['pending','active','disabled','revoked']),permissions:z.array(z.enum(['read','draft','review','service_add','visibility','global_customer_lookup'])),businessScope:z.enum(['none','selected','all']),businesses:z.array(summary)}),
+ ...smsReadOutputs,
+ ...smsDraftOutputs,
+ ...smsReleaseOutputs,
+ ...smsRunOutputs,
+ ...smsActivityOutputs,
+ crm_get_access:z.object({connectionId:uuid,status:z.enum(['pending','active','disabled','revoked']),permissions:z.array(z.enum(connectionPermissionNames)),businessScope:z.enum(['none','selected','all']),businesses:z.array(summary)}),
  crm_search_customers:z.object({customers:z.array(customer),...paging}),
  crm_get_customer:z.object({customer}),
  crm_list_businesses:z.object({businesses:z.array(summary.extend({timeZone:z.string()})),...paging}),
@@ -43,7 +59,7 @@ export function createMcpServer({invoke,identity,requestId}) {
  for(const [name,description,inputSchema,writing=false] of toolDefinitions) {
   const schema=z.object(inputSchema).strict();
   const outputSchema={...resultShape,data:toolOutputs[name].optional()};
-  server.registerTool(name,{description,inputSchema,outputSchema,annotations:{readOnlyHint:!writing,destructiveHint:writing,idempotentHint:true,openWorldHint:name==='crm_add_business_service'}},async input=>{
+  server.registerTool(name,{description,inputSchema:schema,outputSchema,annotations:{readOnlyHint:!writing,destructiveHint:writing,idempotentHint:true,openWorldHint:name==='crm_add_business_service'}},async input=>{
    const data=await invoke(identity,name,schema.parse(input),requestId);
    const result=z.object(outputSchema).parse({...data,requestId});
    return {content:[{type:'text',text:JSON.stringify(result)}],structuredContent:result,...(!result.ok?{isError:true}:{})};

@@ -1,5 +1,41 @@
 # Direct contact automations
 
+Local MCP step 5 adds scoped run inspection/activity (`automation_activity`),
+pause/stop (`automation_run_pause_stop`) and resume (`automation_run_resume`).
+Every control requires explicit business/run IDs, current generation and a retry
+key. Resume also requires current contactRevision and rechecks consent/STOP,
+enquiry blocks, business sending, direct runtime and unresolved sends. It retains
+the original version, message position and overlaps; finished runs require new
+enrollment. Activity distinguishes provider acceptance from delivery and omits
+bodies/customer context. Provider-submitted SMS may still arrive after pause or
+stop. All SMS increments remain unapplied and unreleased. See [CRM MCP](CRM_MCP.md).
+
+Local MCP steps 1–2 expose discovery (`automation_read`), unpublished template
+creation and draft editing (`automation_draft`), and simulation
+(`automation_preview`). Draft writes require retry keys and edits require current
+revisions. Preview supports draft, published or unsaved rules, explicit local
+time, and either sample data or a scoped contact with its current revision.
+Optional request context renders `{{request}}`; validation now accepts this
+existing runtime token. Simulations return at most 50 sends and observe consent,
+STOP, enquiry blocks and reply policies without creating contacts or runs.
+Step 3 adds `crm_publish_sms_automation` under the independent automation_publish
+grant. It publishes only the saved draft using its current revision and a retry
+key; no edit payload is accepted. Existing runs retain their snapshots and
+publication never starts a run. Steps 4–5 add separate start/resume/pause-stop tools.
+These increments leave existing grants and production unchanged. See
+[CRM MCP](CRM_MCP.md).
+
+Local MCP step 4 adds `crm_get_sms_run_start_context` (automation_read) and
+`crm_start_sms_automation_run` (automation_run_start). Starts pin a published
+template and existing contact using current revisions, complete overlap
+ID/generation references, explicit keep/stop_selected choice and a retry key.
+Optional context and timezone-qualified startAt are supported; unsaved sequence
+overrides are not. Consent/STOP, enquiry blocks, business sending and direct
+runtime checks apply. stop_selected additionally requires automation_run_pause_stop
+and only stops selected scoped overlaps, atomically with the new enrollment.
+The response distinguishes scheduling from delivery. Both tools remain local and
+unreleased; existing runs retain their immutable snapshots.
+
 Open **SMS → Automations → Contact messages** for reusable templates. On a contact,
 use **Manage follow-ups** for that person’s runs. Existing enrollment and consent
 rules are unchanged.

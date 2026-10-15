@@ -24,7 +24,8 @@ export function createMcpApp({config,metadata,verify,invoke,log=event=>console.l
   try {if(!raw)throw new Error('Missing token');req.identity=await verify(raw);next();}
   catch(error){const status=error.status>=500?503:401;res.set('WWW-Authenticate',`Bearer resource_metadata="${origin}/.well-known/oauth-protected-resource/mcp", error="invalid_token"`);res.status(status).json({error:status===503?'temporarily_unavailable':'invalid_token'});}
  });
- app.use('/mcp',express.json({limit:'64kb'}));
+ // Bounded for 50 messages plus sample answers, including multi-byte text.
+ app.use('/mcp',express.json({limit:'512kb'}));
  app.post('/mcp',async(req,res)=>{
   const requestId=randomUUID();
   const server=createMcpServer({identity:req.identity,requestId,invoke:async(...args)=>{

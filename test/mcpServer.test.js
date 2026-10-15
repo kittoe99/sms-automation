@@ -32,7 +32,7 @@ test('configuration and discovery fail closed when CRM realm or PKCE/CIMD are mi
 test('Streamable HTTP initializes, lists, calls, reconnects and validates every request',async()=>{
  const calls=[],seen=[],logs=[];let reject=false;
  const app=createMcpApp({config,metadata:{issuer:config.issuer},verify:async raw=>{seen.push(raw);if(reject)throw new Error('Revoked');return {subject:'user_staff',clientId:'verified-client',issuer:config.issuer};},
-  invoke:async(...args)=>{calls.push(args);return {ok:true,data:{connectionId:'00000000-0000-4000-8000-000000000001',status:'pending',permissions:[],businessScope:'none',businesses:[]}};},log:e=>logs.push(e)});
+  invoke:async(...args)=>{calls.push(args);if(args[1]==='crm_create_sms_automation')return {ok:false,error:{code:'VALIDATION_ERROR',message:'Synthetic result',retryable:false}};return {ok:true,data:{connectionId:'00000000-0000-4000-8000-000000000001',status:'pending',permissions:[],businessScope:'none',businesses:[]}};},log:e=>logs.push(e)});
  const server=app.listen(0,'127.0.0.1');await new Promise(resolve=>server.once('listening',resolve));
  const base=`http://127.0.0.1:${server.address().port}`;
  const headers={host:'mcp.example.test',authorization:'Bearer token-one',accept:'application/json, text/event-stream','content-type':'application/json'};
@@ -41,11 +41,28 @@ test('Streamable HTTP initializes, lists, calls, reconnects and validates every 
   const unauth=await localFetch(base+'/mcp',{method:'POST',headers:{host:'mcp.example.test'}});assert.equal(unauth.status,401);assert.match(unauth.headers.get('www-authenticate'),/oauth-protected-resource/);
   assert.equal((await localFetch(base+'/.well-known/oauth-protected-resource/mcp',{headers:{host:'mcp.example.test'}})).status,200);
   assert.equal((await rpc('initialize',{protocolVersion:'2025-03-26',capabilities:{},clientInfo:{name:'test',version:'1'}})).status,200);
-  const listed=await (await rpc('tools/list')).json();assert.equal(listed.result.tools.length,9);
+  const listed=await (await rpc('tools/list')).json();assert.equal(listed.result.tools.length,26);
+  for(const name of ['crm_list_sms_automations','crm_get_sms_automation','crm_search_sms_contacts','crm_list_form_submissions','crm_get_sms_run_start_context','crm_list_sms_runs','crm_get_sms_run','crm_get_sms_run_activity']){
+   const tool=listed.result.tools.find(x=>x.name===name);assert.ok(tool);
+   assert.equal(tool.annotations.readOnlyHint,true);assert.equal(tool.annotations.destructiveHint,false);assert.equal(tool.annotations.openWorldHint,false);
+   assert.ok(tool.inputSchema.required.includes('businessId'));assert.equal(tool.inputSchema.additionalProperties,false);
+   assert.ok(tool.outputSchema.properties.data);
+  }
   assert.equal(listed.result.tools.find(t=>t.name==='crm_review_business_profile').annotations.readOnlyHint,false);
+  for(const name of ['crm_create_sms_automation','crm_save_sms_automation_draft','crm_preview_sms_automation','crm_publish_sms_automation','crm_set_form_followups_enabled','crm_start_sms_automation_run','crm_pause_sms_run','crm_resume_sms_run','crm_stop_sms_run']){
+   const tool=listed.result.tools.find(t=>t.name===name);assert.ok(tool);assert.equal(tool.annotations.readOnlyHint,name==='crm_preview_sms_automation');
+   assert.equal(tool.annotations.idempotentHint,true);assert.equal(tool.annotations.openWorldHint,false);
+  }
   const result=await (await rpc('tools/call',{name:'crm_get_access',arguments:{}})).json();assert.equal(result.result.structuredContent.data.status,'pending');assert.equal(calls[0][0].clientId,'verified-client');
   await rpc('tools/call',{name:'crm_get_access',arguments:{}},{authorization:'Bearer refreshed-token'});assert.ok(seen.includes('refreshed-token'));
   const before=calls.length;const invalid=await (await rpc('tools/call',{name:'crm_set_service_visibility',arguments:{businessId:'a'}})).json();assert.ok(invalid.error||invalid.result.isError);assert.equal(calls.length,before);
+  for(const args of [{},{businessId:'a',pageSize:101},{businessId:'a',tenantId:'b'}]){
+   const r=await (await rpc('tools/call',{name:'crm_list_sms_automations',arguments:args})).json();assert.ok(r.error||r.result.isError);assert.equal(calls.length,before);
+  }
+  const largeDraft={businessId:'a',kind:'contact',name:'Large draft',idempotencyKey:'large-request',sequence:{trigger:'submission',leadHours:24,replyPolicy:'pause',startHour:0,endHour:24,
+   steps:Array.from({length:50},()=>({body:'x'.repeat(1600),delayCount:0,delayUnit:'day',sendCount:1,intervalCount:1,intervalUnit:'day'}))}};
+  assert.equal((await rpc('tools/call',{name:'crm_create_sms_automation',arguments:largeDraft})).status,200);assert.equal(calls.length,before+1);
+  assert.equal((await rpc('tools/call',{name:'crm_create_sms_automation',arguments:{...largeDraft,name:'x'.repeat(512*1024)}})).status,413);assert.equal(calls.length,before+1);
   assert.equal((await rpc('tools/list',{}, {origin:'https://evil.example.test'})).status,403);
   assert.equal((await rpc('tools/list',{}, {host:'evil.example.test'})).status,403);
   reject=true;assert.equal((await rpc('tools/list')).status,401);
