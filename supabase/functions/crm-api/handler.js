@@ -38,6 +38,9 @@ export function createCrmHandler(db,verify=authenticate,{platform=false,provisio
      ? value:db.call('general_conversation',user,tenant,phone(value));
    const params=Object.fromEntries(url.searchParams); const method=request.method;
    if(path.startsWith('/platform/')) {
+    if(path==='/platform/ai-connections'&&method==='GET')return json(await db.call('mcp_admin',user,'list',params),200,headers);
+    if(path==='/platform/ai-connections/activity'&&method==='GET')return json(await db.call('mcp_admin',user,'activity',params),200,headers);
+    if(path==='/platform/ai-connections'&&method==='POST')return json(await db.call('mcp_admin',user,'save',await readJson(request)),200,headers);
     if(method==='GET'&&path==='/platform/voice-setup')return json(await db.call('voice_setup',user,params.tenantId),200,headers);
     if(method==='GET'&&path==='/platform/twilio/accounts')return json(await twilioConnections.accounts(db,user),200,headers);
     if(method==='GET'&&path==='/platform/twilio/profiles')return json(await twilioConnections.profiles(db,user,params.accountSid,params.tenantId),200,headers);

@@ -95,7 +95,8 @@
     "20261012195517_staff_voice_overview.sql": "84eb5c2e581ffd30295f2cc609b3af963fed3067f01732ebef9b99cea82aaab8",
     "20261012200816_voice_setup_flow.sql": "d36b2fe65af33304056b253787952c4c7ed080ddd963b0103f8dbeb3dd21a7df",
     "20261014061007_queue_reporting_hardening.sql": "daf6fa4dd21017e40a9f0f3e501b345c0fa8a11707763fe7deb87e1a0a80f90d",
-    "20261014210130_unified_sms_workspace.sql": "8fcb9e2409aa8e0f8d18ace3af79c3befc47bb75095c986ac4afbf674621ce5d"
+    "20261014210130_unified_sms_workspace.sql": "8fcb9e2409aa8e0f8d18ace3af79c3befc47bb75095c986ac4afbf674621ce5d",
+    "20261015031114_crm_mcp_business_setup.sql": "c7f3e5b50ce9d92781f9fa93937dfdaefdebb011c41277ebcca326b6afda93f7"
   },
   "e2": {
     "20260922000000_create_contact_submissions.sql": "9a94bdadaabf0253d21529984d86bec5aafb1cfe80b454796d9ea9835b0463a5",

@@ -7,6 +7,8 @@ const membership={account_id:accountId,tenant_id:'demo',role:'owner',enabled:tru
 const site={id:siteId,slug:'example-preview',name:'Example Website',sms_tenant_id:'demo',owner_account_id:accountId,business_name:'Example Services',revision:0,created_at:'2026-09-29T12:00:00Z',details:{businessName:'Example Services',services:['Home repairs'],serviceAreas:['Denver']}};
 const records={accounts:[{id:accountId,clerk_display_name:'Example Owner',clerk_primary_email:'owner@example.test',status:'active',created_at:site.created_at,onboarding_completed_at:site.created_at,memberships:[membership],websites:[site],identityMapped:true,personal_info:{firstName:'Example',lastName:'Owner'},business_profile:{businessName:'Example Services'}}],businesses:[{tenant_id:'demo',name:'Example Services',time_zone:'America/Denver',owner_account_id:accountId,memberships:[membership],sites:[site]}],websites:[site]};
 const business=records.businesses[0];
+const aiConnection={id:'00000000-0000-4000-8000-000000000099',staff_name:'Example Staff',subject:'user_example',client_id:'https://chatgpt.com/oauth/codex/example/client.json',status:'pending',permissions:[],business_ids:[],revision:0,created_at:'2026-10-14T12:00:00Z',last_used_at:null};
+const aiActivity=[];
 const previewForms=[{public_id:'00000000-0000-4000-8000-000000000003',title:'Contact form',description:'Website enquiries',button_label:'Submit',fields:[],enabled:true,archived:false,preset:'contacts',submissionCount:3,automationEnabled:true,publishedVersion:1,email_enabled:false}];
 const websiteRequests=[{id:'00000000-0000-4000-8000-000000000020',title:'Refresh the homepage',category:'content',page:'Home',description:'Please update our homepage introduction.',status:'received',response:'',revision:0,created_at:'2026-10-08T12:00:00Z',updated_at:'2026-10-08T12:00:00Z'}];
 business.registration={accountId,profile:{businessName:'Example Services',timeZone:'America/Denver',contactEmail:'owner@example.test',contactPhone:'+13035550123',summary:'Home repairs and maintenance for Denver customers.',services:['Home repairs'],locations:['Denver']}};
@@ -41,6 +43,11 @@ http.createServer(async(req,res)=>{
   else if(url.pathname==='/api/platform/twilio/connect'){
    let raw='';for await(const chunk of req)raw+=chunk;const input=JSON.parse(raw);if(!input.confirmedBusinessIdentity)throw new Error('Identity confirmation required');
    business.services=[...business.services.filter(s=>s.kind!=='sms'),{id:'sms',tenant_id:'demo',kind:'sms',visibility:'draft',revision:0,providerState:'configured',phoneNumber:'+18775550180'}];data={connected:true,sendingEnabled:false};
+  }
+  else if(url.pathname==='/api/platform/ai-connections/activity')data={activity:aiActivity,page:1,total:aiActivity.length,totalPages:1};
+  else if(url.pathname==='/api/platform/ai-connections'){
+   if(req.method==='POST'){let raw='';for await(const chunk of req)raw+=chunk;const input=JSON.parse(raw);if(input.revision!==aiConnection.revision){res.writeHead(409,{'Content-Type':'application/json'});res.end(JSON.stringify({error:'Connection changed; refresh and retry'}));return;}Object.assign(aiConnection,{status:input.status,permissions:input.permissions,business_ids:input.businessIds,all_businesses:input.allBusinesses,revision:aiConnection.revision+1});aiActivity.unshift({created_at:new Date().toISOString(),tool:'connection_'+input.status,target:aiConnection.id,outcome:'success',request_id:crypto.randomUUID()});data={connection:aiConnection};}
+   else data={connections:[aiConnection],page:1,total:1,totalPages:1};
   }
   else if(url.pathname.startsWith('/api/platform/')){const type=url.pathname.split('/')[3];if(req.method==='GET'){let rows=records[type]||[];const id=url.searchParams.get('id');if(id)rows=rows.filter(x=>(x.id||x.tenant_id)===id);data={rows,total:rows.length,page:1,pageSize:25,totalPages:1};}else {
    let body='';for await(const chunk of req)body+=chunk;const input=JSON.parse(body||'{}');

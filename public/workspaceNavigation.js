@@ -11,7 +11,7 @@ export const workspaceGroups = [
  {id:'voice',label:'Calls & voice',icon:'voice',views:[item('call','Calls','inbound calls recordings'),item('voice-agent','Voice agents','voice agent configuration ai assistants')]},
  {id:'email',label:'Email',icon:'messaging',daily:true,views:[item('email','Email','email groups campaigns')]},
  {id:'settings',label:'Settings',icon:'setup',views:[item('business-context','Business information','business context knowledge profile'),item('booking-setup','Booking availability','service availability schedules'),item('business-setup','SMS connection','sms activation business setup phone sender')]},
- {id:'admin',label:'Administration',icon:'platform',views:[item('platform-accounts','Users','platform accounts'),item('platform-businesses','Businesses','platform ownership'),item('platform-websites','Websites','hosting deployments domains'),item('platform-twilio','Twilio accounts','provider phone accounts')]},
+ {id:'admin',label:'Administration',icon:'platform',views:[item('platform-accounts','Users','platform accounts'),item('platform-businesses','Businesses','platform ownership'),item('platform-websites','Websites','hosting deployments domains'),item('platform-twilio','Twilio accounts','provider phone accounts'),item('platform-ai-connections','AI connections','mcp agents permissions audit')]},
 ];
 export const groupForView=view=>workspaceGroups.find(group=>group.views.some(item=>item.view===view));
 const smsSections = [

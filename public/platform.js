@@ -1,4 +1,5 @@
 import {deploymentMarkup} from './websiteDeployments.js';
+import {mountAiConnections} from './aiConnections.js';
 import {createRenderQueue} from './tabWorkspace.js?v=20261002-workspace';
 import {dashboardLoader} from './dashboardLoader.js';
 import {mountTwilioAccounts} from './twilioAccounts.js?v=20261003-directory';
@@ -301,6 +302,6 @@ export function createPlatform({root,title,subtitle,pager,onNavigate,onWorkspace
   async openRecord(resource,id){view=resource;selected=id;deploymentPage=1;tab=resource==='websites'?'assets':'dashboard';siteCache=null;await run(detail);},
   async openBusiness(id){view='businesses';selected=id;siteCache=null;await run(detail);},
   async openRegistration(){await run(registration);},
-  async render(nextView){const resource=nextView.replace('platform-','');if(resource!==view){view=resource;selected=null;siteCache=null;page=1;q='';deploymentPage=1;}await (selected?detail():directory());},
+  async render(nextView){const resource=nextView.replace('platform-','');if(resource!==view){view=resource;selected=null;siteCache=null;page=1;q='';deploymentPage=1;}if(resource==='ai-connections'){lifecycle.begin();title.textContent='AI connections';subtitle.textContent='Manage agent access and inspect activity.';pager.hidden=true;await mountAiConnections(root,{read,write,isCurrent:()=>lifecycle.current()&&view==='ai-connections'});return;}await (selected?detail():directory());},
  };
 }

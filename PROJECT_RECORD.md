@@ -1,5 +1,39 @@
 # Opek SMS project record
 
+### October 14 — CRM MCP business setup (local implementation; pilot pending)
+
+Implemented an independent Node/Express Streamable HTTP MCP service with CRM
+Clerk OAuth/resource validation, nine business-setup tools, and Administration →
+AI connections. Connections start pending with no grants. Administrators assign
+individual actions and either selected businesses or all current/future businesses.
+The requested Codex pilot uses all businesses and all six first-milestone grants.
+Agents cannot manage their own grants; canonical staff checks run on every call.
+
+CRM owns `20261015031114_crm_mcp_business_setup.sql`, after the October 14 paired
+baseline. The dedicated role can execute only the `crm_mcp.invoke` gateway and
+cannot access `sms_private`, including its historical PUBLIC function grants.
+Mutations reuse the existing E2-owned platform actions, preserve revisions and
+service boundaries, and commit retry results atomically. Private activity records
+exclude credentials and profile bodies. No new E2 schema or runtime is required.
+
+Local verification: final full CRM suite 419 passed/29 skipped; focused MCP
+suite 12 passed. E2 suite 244 passed;
+63 paired tests passed in each repository; six E2 Worker tests passed. CRM/E2
+source checks, CRM frontend/Edge packaging, and E2 production build passed.
+Disposable PostgreSQL proved concurrent duplicate writes, revocation fencing,
+rollback retry recovery and conflicting edits. Synthetic browser QA verified
+grant editing, business selection and audit display.
+
+Production read-only preflight confirmed latest migration alias
+`20261014210940 unified_sms_workspace`; four paired authorization/profile action
+hashes match the tested fixture. A rollback-only migration rehearsal passed and
+verified gateway access without private-schema access. **No new migration has
+been applied, no service deployed and no live connection authorized.** Production
+CRM OAuth does not currently advertise CIMD; a production CRM Clerk secret and
+dedicated MCP database login must be supplied to Render before the Codex pilot.
+Available local Clerk credentials belong to development and were not reused.
+See `docs/CRM_MCP.md` for contracts, deployment order and the pilot handoff.
+
 ### October 14 — Unified SMS workspace and reply behavior (released)
 
 SMS now groups Inbox, Automations, AI replies and Activity, including form message

@@ -46,7 +46,7 @@ async function apiFetch(path, options = {}) {
 
 let disposeActivity,disposeVoice;
 let stopLive = () => {};
-const KNOWN_VIEWS = ['handoffs','form-followups','contact-templates','automation-activity','inbound-ai','voice-agent','overview','contacts','messaging','bookings','automations','email','call','messages','deliverability','optouts','ai-instructions','business-setup','business-context','booking-setup','web-forms','knowledge','platform-accounts','platform-businesses','platform-websites','platform-twilio'];
+const KNOWN_VIEWS = ['handoffs','form-followups','contact-templates','automation-activity','inbound-ai','voice-agent','overview','contacts','messaging','bookings','automations','email','call','messages','deliverability','optouts','ai-instructions','business-setup','business-context','booking-setup','web-forms','knowledge','platform-accounts','platform-businesses','platform-websites','platform-twilio','platform-ai-connections'];
 function initialViewFromUrl() {
   const view = new URLSearchParams(location.search).get('view');
   if (['automations','ai-instructions'].includes(view)) return 'web-forms';
@@ -146,7 +146,7 @@ function currentPlatform() {
           lastRenderedView = view;
         }
         state.view=view;el.toolbarTenant.textContent='CRM';
-        el.toolbarSection.textContent={'platform-accounts':'Users','platform-businesses':'Businesses','platform-websites':'Websites','platform-twilio':'Twilio accounts'}[view];
+        el.toolbarSection.textContent={'platform-accounts':'Users','platform-businesses':'Businesses','platform-websites':'Websites','platform-twilio':'Twilio accounts','platform-ai-connections':'AI connections'}[view];
         setActiveNav();
       },
     });
@@ -1761,7 +1761,7 @@ async function renderWorkspace(options = {}) {
       readScope.signal.throwIfAborted();
       el.search.closest('.search-wrap').hidden = true; el.status.hidden = true; el.kpi.innerHTML = '';
       el.toolbarTenant.textContent='CRM';
-      el.toolbarSection.textContent={ 'platform-accounts':'Users','platform-businesses':'Businesses','platform-websites':'Websites','platform-twilio':'Twilio accounts' }[state.view];
+      el.toolbarSection.textContent={ 'platform-accounts':'Users','platform-businesses':'Businesses','platform-websites':'Websites','platform-twilio':'Twilio accounts','platform-ai-connections':'AI connections' }[state.view];
       el.root.classList.add('platform-root');
       currentPlatform().mount(el.root);
       await platform.render(state.view);readScope.signal.throwIfAborted();lastRenderedView = state.view;currentTabLoadedAt=Date.now();tabStatus();return;

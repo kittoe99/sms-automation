@@ -1,5 +1,29 @@
 services:
   - type: web
+    name: e2-crm-mcp
+    runtime: node
+    plan: free
+    region: oregon
+    autoDeployTrigger: off
+    buildCommand: npm ci
+    startCommand: npm run start:mcp
+    healthCheckPath: /health
+    envVars:
+      - key: NODE_ENV
+        value: production
+      - key: MCP_RESOURCE_URL
+        sync: false
+      - key: CRM_CLERK_ISSUER
+        value: https://clerk.crm.e2local.com
+      - key: E2_CLERK_ISSUER
+        value: https://clerk.e2local.com
+      - key: CRM_CLERK_SECRET_KEY
+        sync: false
+      - key: MCP_DATABASE_URL
+        sync: false
+      - key: MCP_ALLOWED_ORIGINS
+        value: https://crm.e2local.com
+  - type: web
     name: wpacquisition-crm
     runtime: static
     buildCommand: npm ci && npm run build:frontend

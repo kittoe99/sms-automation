@@ -1,5 +1,16 @@
 # API reference
 
+## Staff MCP integration (local implementation)
+
+The separate hosted MCP service and its nine business-setup tools are documented
+in [CRM MCP](CRM_MCP.md). The browser API adds staff-only
+`GET/POST /platform/ai-connections` and
+`GET /platform/ai-connections/activity?connectionId=...&page=...`.
+Connection updates require the expected revision and explicit grants/business
+scope; `allBusinesses` includes future registrations. These routes require the
+CRM-owned MCP migration before deployment. Browser and MCP OAuth validation are
+separate; customer sessions cannot authorize either staff interface.
+
 This reference covers the checked-in Edge interfaces. There is no separately versioned OpenAPI schema. The authoritative adapters are [CRM handler](../supabase/functions/crm-api/handler.js), [HTTP/auth helpers](../supabase/functions/_shared/http.js), the function-specific handlers and the latest SQL definitions in the owning repository. Examples use synthetic identifiers; mutation examples are illustrative and must not be sent to production as smoke tests.
 
 ## Bases and authentication
