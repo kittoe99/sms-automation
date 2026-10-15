@@ -1,6 +1,6 @@
 # Opek SMS project record
 
-### October 14 — CRM MCP business setup (local implementation; pilot pending)
+### October 14 — CRM MCP business setup (released; staff pilot pending)
 
 Implemented an independent Node/Express Streamable HTTP MCP service with CRM
 Clerk OAuth/resource validation, nine business-setup tools, and Administration →
@@ -27,12 +27,29 @@ grant editing, business selection and audit display.
 Production read-only preflight confirmed latest migration alias
 `20261014210940 unified_sms_workspace`; four paired authorization/profile action
 hashes match the tested fixture. A rollback-only migration rehearsal passed and
-verified gateway access without private-schema access. **No new migration has
-been applied, no service deployed and no live connection authorized.** Production
-CRM OAuth does not currently advertise CIMD; a production CRM Clerk secret and
-dedicated MCP database login must be supplied to Render before the Codex pilot.
-Available local Clerk credentials belong to development and were not reused.
+verified gateway access without private-schema access. The user then supplied the
+production CRM Clerk key through a local file; development keys were not reused.
 See `docs/CRM_MCP.md` for contracts, deployment order and the pilot handoff.
+
+Production rollout (October 14, 2026, America/Denver): applied CRM migration
+`20261015031114` and recorded it transactionally after the reconciled October 14
+baseline. The dedicated `crm_mcp_login` has only `crm_mcp` membership; live
+checks rejected nonstaff access and confirmed private-schema denial. Existing
+public trigger helpers are not directly callable. Security advisors are unchanged
+(five existing findings). CRM Clerk production now advertises CIMD, enforces S256
+PKCE, and issues resource audience claims; dynamic-client default scope is profile.
+
+Released `crm-api`, CRM frontend commit `3f2b313` (Render
+`dep-db84q2e89jmc73c7c3g0`), and independent MCP service
+`srv-db84ogivcj2c73874e20` (deploy `dep-db84oh2vcj2c73874g4g`).
+Service URL: https://e2-crm-mcp.onrender.com/mcp. Health, discovery and unauthenticated
+401 checks passed. Render did not start a frontend auto-deploy after the push;
+the explicit retry reached live. No E2 runtime release was needed.
+
+Codex is configured as `e2-crm`; interactive staff sign-in is pending. The pilot
+connection has not yet been activated. Its requested scope remains all current
+and future businesses with all six first-milestone grants. Live staff login,
+refresh/reconnect and authenticated tool checks remain pending.
 
 ### October 14 — Unified SMS workspace and reply behavior (released)
 

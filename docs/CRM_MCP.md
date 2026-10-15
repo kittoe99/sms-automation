@@ -2,18 +2,25 @@
 
 ## Implementation and release state
 
-October 14, 2026 (America/Denver): implemented locally; not released. The SQL
-forward migration passed a rollback-only rehearsal on the configured shared
-project `wxamwhfmelxqahkdtcci`. No migration is applied by that rehearsal.
-Production's latest recorded migration is `20261014210940 unified_sms_workspace`.
-The paired `platform_actor`, `platform_staff`, `save_business_setup`, and
-`platform_action` definitions matched the local tested definitions.
+Production rollout (October 14, 2026, America/Denver): applied CRM migration
+`20261015031114` and recorded it transactionally after the reconciled October 14
+baseline. The dedicated `crm_mcp_login` has only `crm_mcp` membership; live
+checks rejected nonstaff access and confirmed private-schema denial. Existing
+public trigger helpers are not directly callable. Security advisors are unchanged
+(five existing findings). CRM Clerk production now advertises CIMD, enforces S256
+PKCE, and issues resource audience claims; dynamic-client default scope is profile.
 
-Live pilot prerequisites remain: production CRM Clerk OAuth must advertise CIMD,
-the new Render service needs its CRM production Clerk secret and dedicated
-database login, and a staff member must complete Codex's interactive OAuth login.
-The local `.env.local` Clerk credentials identify a development instance and
-must not be substituted. Never paste secret keys into chat or commit them.
+Released `crm-api`, CRM frontend commit `3f2b313` (Render
+`dep-db84q2e89jmc73c7c3g0`), and independent MCP service
+`srv-db84ogivcj2c73874e20` (deploy `dep-db84oh2vcj2c73874g4g`).
+Service URL: https://e2-crm-mcp.onrender.com/mcp. Health, discovery and unauthenticated
+401 checks passed. Render did not start a frontend auto-deploy after the push;
+the explicit retry reached live. No E2 runtime release was needed.
+
+Codex is configured as `e2-crm`; interactive staff sign-in is pending. The pilot
+connection has not yet been activated. Its requested scope remains all current
+and future businesses with all six first-milestone grants. Live staff login,
+refresh/reconnect and authenticated tool checks remain pending.
 
 The requested pilot is **all current and future businesses**, with `read`,
 `draft`, `review`, `service_add`, `visibility`, and `global_customer_lookup`.
@@ -117,7 +124,7 @@ Only canonical staff can manage grants. Agents have no grant-management tool.
    rejection of tokens intended for another resource before authorizing writes.
 7. Add the URL in Codex and complete OAuth as the intended CRM staff user.
    `codex mcp add e2-crm --url <MCP_RESOURCE_URL>` followed by
-   `codex mcp login e2-crm` uses Codex's OAuth flow. Do not copy a browser session.
+   `codex mcp login e2-crm --scopes profile,offline_access --oauth-client-registration cimd` uses Codex's OAuth flow. Do not copy a browser session.
 8. Call `crm_get_access` to create the pending connection. In CRM, inspect its
    staff/client identity, select All businesses and the six pilot grants above,
    then activate it. Verify read/refresh/reconnect and a designated test record
