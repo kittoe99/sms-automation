@@ -26,6 +26,8 @@ test('MCP enforces paired business permissions, revisions, retries, release and 
   const invoke=async(tool,input={},user='user_staff')=>{const result=await call(db,'mcp_invoke',user,'https://client.example.test/codex.json',tool,input,crypto.randomUUID());if(result.ok)toolOutputs[tool].parse(result.data);return result;};
   const access=await invoke('crm_get_access');assert.equal(access.ok,true,JSON.stringify(access));
   const connectionId=access.data.connectionId;
+  const pendingList=await call(db,'mcp_admin','user_staff','list',{});
+  assert.equal(pendingList.total,1);assert.equal(pendingList.connections[0].id,connectionId);
   let revision=0;
   const grant=async(permissions,status='active')=>{const result=await call(db,'mcp_admin','user_staff','save',{connectionId,revision,status,permissions,businessIds:[a]});revision=result.connection.revision;return result;};
   await t.test('pending, nonstaff and wrong realm are denied without leaking business data',async()=>{
@@ -39,6 +41,8 @@ test('MCP enforces paired business permissions, revisions, retries, release and 
   });
   await t.test('scoped reads filter before pagination and nested projections exclude unrelated businesses',async()=>{
    await grant(['read']);
+   const directory=await call(db,'mcp_admin','user_staff','list',{});
+   assert.equal(directory.connections[0].business_labels[a],'Allowed business');
    const listed=await invoke('crm_list_businesses',{pageSize:1});assert.equal(listed.data.total,1);assert.equal(listed.data.businesses[0].id,a);
    assert.equal((await invoke('crm_get_business',{businessId:b})).error.code,'PERMISSION_DENIED');
    const customers=await invoke('crm_search_customers');assert.equal(customers.data.total,1);assert.equal(customers.data.customers[0].id,owner);

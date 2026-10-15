@@ -1,6 +1,6 @@
 # API reference
 
-## Staff MCP integration (local implementation)
+## Staff MCP integration (released October 14)
 
 The separate hosted MCP service and its nine business-setup tools are documented
 in [CRM MCP](CRM_MCP.md). The browser API adds staff-only

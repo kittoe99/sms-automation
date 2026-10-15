@@ -1,13 +1,13 @@
 # Shared staff CRM and customer dashboard
 
-## AI connections (local implementation)
+## AI connections (released October 14)
 
 Administration → AI connections manages staff MCP clients, their action grants,
 selected or all-business scope, status and audit activity. New clients start
 pending; activating a connection does not grant staff status. All-business access
 includes future registrations. Agents execute granted actions directly and cannot
 change their own grants. See [CRM MCP](CRM_MCP.md) for the nine first-milestone
-tools and release prerequisites; this interface has not yet been deployed.
+tools, active pilot and release procedure.
 
 ## October 12 production rollout status
 

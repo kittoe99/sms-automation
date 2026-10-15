@@ -17,10 +17,25 @@ Service URL: https://e2-crm-mcp.onrender.com/mcp. Health, discovery and unauthen
 401 checks passed. Render did not start a frontend auto-deploy after the push;
 the explicit retry reached live. No E2 runtime release was needed.
 
-Codex is configured as `e2-crm`; interactive staff sign-in is pending. The pilot
-connection has not yet been activated. Its requested scope remains all current
-and future businesses with all six first-milestone grants. Live staff login,
-refresh/reconnect and authenticated tool checks remain pending.
+Codex `e2-crm` is authenticated through production CRM Clerk as the verified
+active staff user. Connection `dd79bf79-c164-4493-a099-35654f7f7c12` was activated
+at revision 1 for all current/future businesses and all six first-milestone grants,
+following the owner’s explicit request. Bootstrap used the staff-only admin
+function; the MCP surface has no grant-management operation.
+
+Live Codex client sessions verified nine-tool discovery, pending no-data denial,
+reconnect, active access context, business listing/profile reads and customer
+lookup. All four successful calls and the pending denial were attributed correctly
+in private audit. These were direct protocol checks in ephemeral sessions, with
+no model run or persistent extra chat. No live customer facts/services were changed
+for testing. Expiry-driven OAuth refresh has not yet been observed live; refreshed
+bearer requests and invalid/expired tokens are covered by local acceptance tests.
+
+
+Final live UI verification found an ambiguous connection-list SQL alias. Applied
+CRM forward fix `20261015035649_crm_mcp_admin_directory_alias.sql` after a successful
+rollback rehearsal; the original applied migration was not edited. Added pending
+and active directory regression assertions. The real staff directory now loads.
 
 The requested pilot is **all current and future businesses**, with `read`,
 `draft`, `review`, `service_add`, `visibility`, and `global_customer_lookup`.
@@ -105,8 +120,9 @@ Only canonical staff can manage grants. Agents have no grant-management tool.
    Edge packaging checks. Run E2 checks/tests/paired checks, Worker tests and build.
    `node scripts/test-mcp-concurrency.js` uses the optional disposable embedded
    PostgreSQL runtime documented in `scripts/test-inbound-concurrency.js`.
-2. Reconcile both histories against the live project. Apply only CRM's new
-   `20261015031114_crm_mcp_business_setup.sql`, after the October 14 baseline;
+2. Reconcile both histories against the live project. Apply CRM's
+   `20261015031114_crm_mcp_business_setup.sql` then
+   `20261015035649_crm_mcp_admin_directory_alias.sql`, after the October 14 baseline;
    no new E2 migration is required. Rehearse transactionally, compare function
    guards, and compare security advisors before/after. Never replay histories.
 3. Provision a dedicated LOGIN with only `crm_mcp` membership. Store its SSL
