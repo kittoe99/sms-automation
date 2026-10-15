@@ -1,6 +1,6 @@
 # Opek SMS project record
 
-### October 14 — Unified SMS workspace and reply behavior (migration applied; frontend pending)
+### October 14 — Unified SMS workspace and reply behavior (released)
 
 SMS now groups Inbox, Automations, AI replies and Activity, including form message
 editing in place. Calls/voice and Email remain separate. Existing links, permission
@@ -20,13 +20,14 @@ Edge bundle checks passed. Migration applied as remote `20261014210940`
 the tested build. Opek remains shadow, unapproved, revision 1. Desktop/mobile
 SMS tabs and retained AI/form-message drafts passed browser checks without console
 errors. GitHub Project checks passed (run `38638227815`). Frontend commit
-`5fb1f2a586bad3c131575a0500b57f0ae304bb84` is pushed to deploy-crm. Render
-deployment `dep-db7v060473hc73844sj0` remains build_in_progress with no logs.
-Render reports builds failing to start across all regions (October 14, 20:57 UTC):
-https://status.render.com/incidents/8tsd93r1wbmz
-The frontend is NOT verified live; served assets still reflect the earlier
-release. Keep the pending deployment and verify all 18 assets plus runtime
-configuration after recovery. Security advisor findings are unchanged from the pre-release baseline
+`5fb1f2a586bad3c131575a0500b57f0ae304bb84` is released through docs-only
+successor `4919779d3b6ee5d5cf799bf94fd9d7581a9c9a4b`. Render deployment
+`dep-db7v8asf7cus73ftt890` became live October 14 at 15:54 MDT
+(21:54 UTC), after the Render outage recovered. Production verification at
+20:53 MDT matched all 18 assets and runtime configuration to the tested build;
+evidence: `data/unified-sms-production-verification.json`. No migration was
+reapplied and no live AI approval or reply mode was changed by deployment.
+Security advisor findings are unchanged from the pre-release baseline
 (existing RLS-without-policy information, pg_net placement and existing public
 function grants); this migration adds no exposed functions or table grants.
 
