@@ -16,8 +16,33 @@ to the shared production database. No historical migration was replayed.
 Post-apply function hashes match the tested definitions; restricted helper access
 remains denied. Runs/messages/jobs remain 0/2/9. Security advisors are unchanged:
 68 informational private/default-deny RLS findings and five warning findings.
-MCP/frontend release and no-send Codex verification are in progress. The owner
-authorized all nine SMS permissions for the existing all-business admin connection.
+Release commit `0e0728c230f00b253212e25985b9d38704511508` is live on MCP deploy
+`dep-db86fc2j9qps73brcung` and frontend deploy `dep-db86g9ivcj2c738dd92g`.
+The frontend received no automatic deploy event after the push; an explicit deploy
+of the verified commit completed successfully. Its served grant module includes
+all nine SMS permission labels. CRM API source/routes are unchanged and already
+support these grants, so no redundant Edge/API or E2 runtime deploy was performed.
+
+The owner authorized all nine SMS permissions for the existing all-business admin
+connection; canonical admin save advanced it to revision 2 with 15 total grants.
+New connections still start pending without grants. Two fresh Codex app-server
+sessions verified OAuth connection/reconnection, all 26 tool names, write/read
+annotations, retry-key schemas, access context and scoped reads. Missing source,
+submission and run references returned permission errors without data. The live
+tools also appeared in this chat; access, run list and automation list succeeded.
+All audit records have the correct actor/connection/request attribution. Health
+and discovery returned 200; unauthenticated MCP returned 401 with its challenge;
+recent Render error logs were empty. No customer content was printed in the
+verification reports.
+
+Verification invoked only reads. No mutations, enrollments, pauses, resumes,
+publications or enabling actions were used as live tests. Runs/forms/templates
+remain zero; existing messages/jobs remain 2/9; MCP mutation retry records remain
+zero. Successful write/preview workflows and consent/concurrency behavior retain
+their local acceptance coverage. There was no live expiry-driven refresh test.
+Security warnings predate this release: [extension placement](https://supabase.com/docs/guides/database/database-linter?lint=0014_extension_in_public),
+[anonymous function execution](https://supabase.com/docs/guides/database/database-linter?lint=0028_anon_security_definer_function_executable),
+and [authenticated function execution](https://supabase.com/docs/guides/database/database-linter?lint=0029_authenticated_security_definer_function_executable).
 The implementation notes below retain their historical local-only status; this
 section records the current rollout state. No E2 runtime release is required.
 
@@ -481,9 +506,9 @@ and idempotency records and the additive schema; rollback must not delete histor
 Monitor authentication errors, denied calls, conflicts, database availability,
 and provider setup separately. Queued work is not proof of provider completion.
 
-## Next milestone
+## Remaining boundaries
 
-SMS automation creation, preview, publishing, enabling and activity inspection
-will receive separate tools and grants. Staff-access changes, ownership transfers,
-website reassignment/publication, deletion, sends and unattended credentials are
-not part of this business-setup tool set.
+The SMS milestone above is released. Staff-access changes, ownership transfers,
+website reassignment/publication, deletion, arbitrary one-off sends and unattended
+credentials remain outside this tool set. Production sending is possible only
+through separately granted start/resume/enable workflows and their existing checks.

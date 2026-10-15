@@ -1,5 +1,10 @@
 # Direct contact automations
 
+Release update (October 14): the full SMS MCP milestone is deployed and its 26-tool
+catalog verified through Codex. Independent grants are available in AI connections.
+No live run or message was created for verification. See [CRM MCP](CRM_MCP.md)
+for applied migration aliases and release IDs; local-only notes below are historical.
+
 Local MCP step 5 adds scoped run inspection/activity (`automation_activity`),
 pause/stop (`automation_run_pause_stop`) and resume (`automation_run_resume`).
 Every control requires explicit business/run IDs, current generation and a retry

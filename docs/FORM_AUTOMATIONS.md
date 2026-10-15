@@ -1,5 +1,10 @@
 # Form-first SMS automation
 
+Release update (October 14): all five SMS MCP increments are deployed, with
+independent grants available in AI connections. Codex verification used reads
+only and sent no SMS. Applied aliases and releases are in [CRM MCP](CRM_MCP.md);
+the local-only notes below describe the earlier implementation checkpoints.
+
 Local MCP step 5 adds run inspection/activity (`automation_activity`), pause/stop
 (`automation_run_pause_stop`) and resume (`automation_run_resume`). Controls use
 explicit business/run IDs, current generation and transactional retry keys;

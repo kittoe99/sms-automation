@@ -1,6 +1,6 @@
 # Opek SMS project record
 
-### October 14 — SMS MCP database rollout (release in progress)
+### October 14 — SMS MCP production release and no-send Codex verification
 
 Reconciled both histories: 81 exact entries, 35 documented aliases and exactly
 the five new SMS MCP migrations missing. Canonical function definitions matched
@@ -10,8 +10,26 @@ in order as 20261015054022, 20261015054030, 20261015054032, 20261015054034 and
 history repair occurred. Final function hashes match the local paired fixture;
 no MCP private helper is executable by the restricted role. Runs/messages/jobs
 remain 0/2/9; security findings are unchanged. The 58 focused tests passed again.
-MCP/frontend releases and Codex no-send verification are in progress. The owner
-authorized all nine SMS grants for the existing all-business connection.
+Released commit 0e0728c230f00b253212e25985b9d38704511508 to MCP Render deploy
+dep-db86fc2j9qps73brcung and frontend dep-db86g9ivcj2c738dd92g; both are live.
+Frontend automatic deployment did not trigger, so a verified manual deploy was
+used. Its served bundle contains all nine SMS grant labels. Existing CRM API
+routes/source were unchanged; no redundant API or E2 release was required.
+
+At the owner's explicit request, the canonical staff admin function added all nine
+SMS grants to the existing all-business Codex connection (revision 2; 15 total
+permissions). Two fresh Codex app-server sessions discovered all 26 tools and
+verified schemas, annotations, authenticated scope, reads and missing-ID denials.
+The live tools also loaded into this chat and passed direct read calls. Audits
+attribute calls to the verified actor/connection/request. Health/discovery 200,
+unauthenticated MCP 401 with challenge, and recent Render error logs empty.
+
+No mutation tool was called. Final runs/forms/templates remain 0, messages 2,
+jobs 9 and mutation retry records 0. Successful preview/write workflows retain
+local coverage; live expiry-triggered OAuth refresh was not exercised. Security
+advisors retain 68 informational RLS findings and five existing warning findings;
+remediation links and release mappings are documented in docs/CRM_MCP.md. Main
+CRM/E2 records and workflow docs distinguish implementation, migrations and release.
 
 ### October 14 — SMS MCP step 5 run controls and activity (local only)
 

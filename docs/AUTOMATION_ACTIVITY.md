@@ -1,5 +1,9 @@
 # Automation activity
 
+Release update (October 14): the SMS MCP milestone is now deployed and verified
+through Codex using reads only. All five migrations are applied under the remote
+aliases in [CRM MCP](CRM_MCP.md). The implementation notes below are historical.
+
 The pending local MCP step 5 exposes `crm_list_sms_runs`, `crm_get_sms_run` and
 `crm_get_sms_run_activity` under the independent automation_activity grant.
 Reads require an explicit business, scope related IDs/counts, cap pages at 100
