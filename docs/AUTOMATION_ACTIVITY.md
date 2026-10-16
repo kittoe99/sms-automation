@@ -1,5 +1,46 @@
 # Automation activity
 
+## MCP reply takeover and delivery — October 16, 2026 (local only)
+
+crm_reply_to_conversation uses canonical staff reply queuing and pauses AI on the
+explicit general/group conversation. It does not start/stop runs, change consent,
+enroll contacts or mark inbound messages read. Its database/queue receipt is atomic
+with revision and audit; queued does not mean provider-accepted or delivered.
+An identical retry returns the original receipt without another job or takeover.
+The worker still rechecks dispatch eligibility, including consent changes after
+queuing. Preview remains side-effect-free apart from gateway audit/use records.
+
+## MCP reply preview and workflow state — October 16, 2026 (local only)
+
+crm_preview_conversation_reply reads eligibility under conversation_reply without
+creating messages, jobs, attempts, runs or retry receipts. It never changes
+generation, shared revision, read timestamps, AI pause or consent. aiWillPause
+describes the effect of a future successful staff reply, not an effect of preview.
+Consent/worker changes invalidate stale thread revisions. Business/sender readiness
+is checked afresh. Transactional staff replies remain distinct from campaign consent
+and automation sending hours. Private audits omit the proposed reply and phone.
+
+## MCP selected-message read state — October 16, 2026 (local only)
+
+crm_mark_conversation_messages_read changes only selected inbound read_at values
+and their shared conversation revision. It never changes generation, AI pause,
+consent, run state or queued SMS. New inbound messages after selection stay unread.
+Worker changes invalidate stale requests; a busy selected-message row returns a
+temporary failure that can be retried with the identical key/payload. The private
+audit includes previous/result revisions and changed IDs/count, without bodies.
+Migrations 20261016180739 then 20261016181809 remain pending; no live changes here.
+
+## Conversation revisions — October 16, 2026 (local only)
+
+The pending MCP action foundation exposes shared conversation revisions and
+records them in private detail-read audits. Message, read-state, contact/group
+and conversation changes invalidate snapshots. Automation generation remains a
+separate workflow fence: marking read must not invalidate an otherwise eligible
+queued send. Reserved reply/mark-read grants and strict contracts do not expose
+executable tools yet. No run, consent, delivery or activity state was changed live.
+See [CRM MCP](CRM_MCP.md) and the project records for pending migration
+20261016180739 and local checks.
+
 ## Conversation-read MCP released — October 16, 2026
 
 CRM migration 20261016174527 is applied; MCP and frontend commit eaae604 are live.

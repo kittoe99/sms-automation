@@ -41,21 +41,29 @@ test('Streamable HTTP initializes, lists, calls, reconnects and validates every 
   const unauth=await localFetch(base+'/mcp',{method:'POST',headers:{host:'mcp.example.test'}});assert.equal(unauth.status,401);assert.match(unauth.headers.get('www-authenticate'),/oauth-protected-resource/);
   assert.equal((await localFetch(base+'/.well-known/oauth-protected-resource/mcp',{headers:{host:'mcp.example.test'}})).status,200);
   assert.equal((await rpc('initialize',{protocolVersion:'2025-03-26',capabilities:{},clientInfo:{name:'test',version:'1'}})).status,200);
-  const listed=await (await rpc('tools/list')).json();assert.equal(listed.result.tools.length,46);
-  for(const name of ['crm_list_conversations','crm_get_conversation','crm_list_leads','crm_get_lead','crm_list_handoffs','crm_get_handoff','crm_get_enquiry_status','crm_list_enquiries','crm_get_enquiry','crm_preview_form','crm_list_forms','crm_get_form','crm_list_sms_automations','crm_get_sms_automation','crm_search_sms_contacts','crm_list_form_submissions','crm_get_sms_run_start_context','crm_list_sms_runs','crm_get_sms_run','crm_get_sms_run_activity']){
+  const listed=await (await rpc('tools/list')).json();assert.equal(listed.result.tools.length,49);
+  for(const name of ['crm_preview_conversation_reply','crm_list_conversations','crm_get_conversation','crm_list_leads','crm_get_lead','crm_list_handoffs','crm_get_handoff','crm_get_enquiry_status','crm_list_enquiries','crm_get_enquiry','crm_preview_form','crm_list_forms','crm_get_form','crm_list_sms_automations','crm_get_sms_automation','crm_search_sms_contacts','crm_list_form_submissions','crm_get_sms_run_start_context','crm_list_sms_runs','crm_get_sms_run','crm_get_sms_run_activity']){
    const tool=listed.result.tools.find(x=>x.name===name);assert.ok(tool);
    assert.equal(tool.annotations.readOnlyHint,true);assert.equal(tool.annotations.destructiveHint,false);assert.equal(tool.annotations.openWorldHint,false);
    assert.ok(tool.inputSchema.required.includes('businessId'));assert.equal(tool.inputSchema.additionalProperties,false);
    assert.ok(tool.outputSchema.properties.data);
   }
   assert.equal(listed.result.tools.find(t=>t.name==='crm_review_business_profile').annotations.readOnlyHint,false);
-  for(const name of ['crm_assign_lead','crm_set_lead_status','crm_assign_handoff','crm_set_handoff_status','crm_set_form_collection_enabled','crm_apply_form_draft','crm_create_form','crm_save_form_draft','crm_create_sms_automation','crm_save_sms_automation_draft','crm_preview_sms_automation','crm_publish_sms_automation','crm_set_form_followups_enabled','crm_start_sms_automation_run','crm_pause_sms_run','crm_resume_sms_run','crm_stop_sms_run']){
+  const markRead=listed.result.tools.find(t=>t.name==='crm_mark_conversation_messages_read');
+  assert.deepEqual([...markRead.inputSchema.required].sort(),['businessId','conversationId','revision','messageIds','idempotencyKey'].sort());
+  assert.equal(markRead.inputSchema.additionalProperties,false);
+  assert.equal(markRead.inputSchema.properties.messageIds.minItems,1);assert.equal(markRead.inputSchema.properties.messageIds.maxItems,100);
+  for(const name of ['crm_reply_to_conversation','crm_mark_conversation_messages_read','crm_assign_lead','crm_set_lead_status','crm_assign_handoff','crm_set_handoff_status','crm_set_form_collection_enabled','crm_apply_form_draft','crm_create_form','crm_save_form_draft','crm_create_sms_automation','crm_save_sms_automation_draft','crm_preview_sms_automation','crm_publish_sms_automation','crm_set_form_followups_enabled','crm_start_sms_automation_run','crm_pause_sms_run','crm_resume_sms_run','crm_stop_sms_run']){
    const tool=listed.result.tools.find(t=>t.name===name);assert.ok(tool);assert.equal(tool.annotations.readOnlyHint,name==='crm_preview_sms_automation');
-   assert.equal(tool.annotations.idempotentHint,true);assert.equal(tool.annotations.openWorldHint,false);
+   assert.equal(tool.annotations.idempotentHint,true);assert.equal(tool.annotations.openWorldHint,name==='crm_reply_to_conversation');
   }
   const result=await (await rpc('tools/call',{name:'crm_get_access',arguments:{}})).json();assert.equal(result.result.structuredContent.data.status,'pending');assert.equal(calls[0][0].clientId,'verified-client');
   await rpc('tools/call',{name:'crm_get_access',arguments:{}},{authorization:'Bearer refreshed-token'});assert.ok(seen.includes('refreshed-token'));
   const before=calls.length;const invalid=await (await rpc('tools/call',{name:'crm_set_service_visibility',arguments:{businessId:'a'}})).json();assert.ok(invalid.error||invalid.result.isError);assert.equal(calls.length,before);
+  const markArgs={businessId:'a',conversationId:crypto.randomUUID(),revision:1,messageIds:[crypto.randomUUID()],idempotencyKey:'mark-read-test'};
+  for(const patch of [{revision:undefined},{idempotencyKey:undefined},{markAll:true},{messageIds:[]},{messageIds:[...markArgs.messageIds,...markArgs.messageIds]}]){
+   const r=await (await rpc('tools/call',{name:'crm_mark_conversation_messages_read',arguments:{...markArgs,...patch}})).json();assert.ok(r.error||r.result.isError);assert.equal(calls.length,before);
+  }
   for(const args of [{},{businessId:'a',pageSize:101},{businessId:'a',tenantId:'b'}]){
    const r=await (await rpc('tools/call',{name:'crm_list_sms_automations',arguments:args})).json();assert.ok(r.error||r.result.isError);assert.equal(calls.length,before);
   }

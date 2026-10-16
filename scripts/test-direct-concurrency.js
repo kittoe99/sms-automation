@@ -2,7 +2,7 @@
 import {resolve} from 'node:path';import {pathToFileURL} from 'node:url';import assert from 'node:assert/strict';
 import {call} from '../test/helpers/database.js';import {setupCoordination,queuedForm,tenant,phone} from '../test/helpers/coordination.js';
 const {default:EmbeddedPostgres}=await import(pathToFileURL(resolve('data/inbound-postgres/node_modules/embedded-postgres/dist/index.js')));
-const pg=new EmbeddedPostgres({databaseDir:resolve('data/inbound-postgres/direct-'+Date.now()),user:'postgres',password:crypto.randomUUID(),port:55442,persistent:true,postgresFlags:['-h','127.0.0.1'],onLog:()=>{},onError:()=>{}});
+const pg=new EmbeddedPostgres({databaseDir:resolve('data/inbound-postgres/direct-'+Date.now()),user:'postgres',password:crypto.randomUUID(),port:55442,persistent:true,initdbFlags:['--encoding=UTF8','--locale=C'],postgresFlags:['-h','127.0.0.1'],onLog:()=>{},onError:()=>{}});
 const clients=[],adapter=c=>({exec:s=>c.query(s),query:(s,p)=>c.query(s,p),close:async()=>{}});
 const sequence={trigger:'submission',replyPolicy:'pause',startHour:0,endHour:24,leadHours:24,steps:[{body:'Do you need help?',delayCount:0,delayUnit:'minute',sendCount:2,intervalCount:1,intervalUnit:'day'}]};
 try{

@@ -1,5 +1,202 @@
 # Opek SMS project record
 
+## MCP conversation replies — October 16, 2026 (local only)
+
+Implemented crm_reply_to_conversation under the existing opt-in conversation_reply
+grant. Local catalog: 49 tools, 33 possible permissions. Metadata/message reads and
+mark-read remain separate. No live grants change. Strict input uses explicit
+business/thread IDs, current revision, trimmed body bounded to 1600 UTF-16 units
+and an 8–128 character idempotency key; no recipient/purpose/actor overrides.
+Discovery marks this as an idempotent write with external effects.
+
+The helper reuses scoped preview validation and the shared revision guard, locks
+contact/business/provider/credential metadata, then rechecks eligibility before
+the canonical conversation_action reply. Related-row NOWAIT locks safely reject
+worker contention instead of creating lock cycles. Opt-outs, inactive/disabled
+sending and missing sender configuration/credential metadata block new replies.
+Transactional consent matches CRM; marketing consent remains independent.
+
+The canonical operation queues one message and pauses AI for the exact selected
+general/group thread. It never marks inbound messages read, changes consent or
+starts/stops/enrolls automations. Queued message/job target invariants are checked.
+Worker dispatch checks remain authoritative. Mutation, AI takeover, revisions,
+receipt and audit commit together; receipt/audit failures roll everything back.
+Outbox retry keys are namespaced by verified connection and hashed request key.
+Identical retries return the original receipt, changed payloads conflict, and
+permission/scope/staff revocation is rechecked before replay. Replays do not
+enqueue again or reapply takeover, even after a later consent change.
+
+Receipts contain message/job IDs, previous/result revisions, committed database
+status, queued delivery status and aiPaused:true. Queued is not acceptance or
+delivery; cached receipts describe the original commit. Audits include actor,
+connection, request, target, outcome, revisions and affected message ID/count.
+MCP receipts/audits omit text, phone and credentials; reply content exists only
+in normal operational message/outbox storage. Private helper execution is denied
+to application roles. Both records and CRM/E2 workflow documentation are updated.
+
+Local verification: full CRM 608 passed with 29 existing skips and no failures;
+focused conversation/revision/HTTP tests 31 passed; relevant E2 tests 26 passed;
+paired contracts 63 passed. Both required checks, frontend build using a synthetic
+local key, 65-file Edge bundle and whitespace checks passed. Local security
+advisors found no issues. Disposable UTF-8 loopback PostgreSQL verified concurrent
+identical retries (one job), competing revisions, consent/provider contention,
+concurrent opt-out and interrupted transaction rollback/retry. Integration tests
+cover strict schemas, isolation, consent/sending gates, exact group targeting,
+cross-connection dedupe, receipt/audit failure rollback and redaction. No provider
+was called, no live data changed, and no SMS was sent. Verification receipts:
+ignored data/conversation-reply-*.log/json.
+
+Applied migrations: none. Releases/pushes/live grant changes: none. CRM-owned new
+20261016183855_crm_mcp_conversation_reply.sql follows pending 20261016180739 revision
+foundation, 20261016181809 mark-read and 20261016183011 preview. Released baseline
+remains 20261016174527. Reconcile live aliases before a later deployment and apply
+only new forward migrations, never either full history. No E2 migration/runtime
+release is required; service/enquiry/cache contracts and unrelated work are preserved.
+
+## MCP conversation reply preview — October 16, 2026 (local only)
+
+Implemented crm_preview_conversation_reply under the existing opt-in
+conversation_reply permission. Local catalog: 48 tools, 33 possible permissions.
+Actual reply sending remains reserved; no existing connection grants change.
+Strict input requires explicit business/conversation IDs, current positive safe
+revision and trimmed text bounded to 1600 UTF-16 units. The recipient is derived
+from the scoped conversation/contact; caller phone/purpose/actor overrides and
+idempotency keys are rejected. Private SQL also validates raw input.
+
+Preview uses the shared revision guard and a single eligibility snapshot. It
+rejects stale revisions, blocks opted-out recipients and inactive/disabled business
+sending, and checks configured provider/account/credential metadata/sender route.
+Consent matches the existing transactional staff-reply path; marketing consent
+remains independent. Business/provider state is freshly checked even if conversation
+revision is unchanged. No credential is decrypted and no provider is called.
+Output includes recipient, proposed body, worker-compatible GSM/UTF-16 segment
+estimate, eligibility/blockers, revision, aiWillPause and queued:false. Eligibility
+is not a reservation or delivery guarantee; future sends must recheck it.
+aiWillPause describes a future successful reply, not a preview side effect.
+
+No messages, outbox jobs, retry receipts, AI pause, read marks, consent changes or
+automation changes occur. Only normal gateway connection-use/audit records are
+written. Audits identify actor/connection/request/target/outcome/revision and omit
+reply text, phone and credentials. Application roles cannot call private helpers.
+Both project records and affected CRM/E2 workflow docs are updated. E2 runtime,
+service visibility, enquiry and cache contracts remain unchanged.
+
+Local verification: full CRM 597 passed, 29 existing skips, no failures; focused
+preview/revision/HTTP suite 20 passed; relevant E2 tests 26 passed; paired contracts
+63 passed. Both required project checks, frontend build with a synthetic local
+key, 65-file Edge bundle and whitespace checks passed. Local security advisors
+reported no issues. Disposable loopback PostgreSQL verified consent-update waits
+and stale conflicts, concurrent previews with no domain writes and no SMS jobs.
+Unicode tests match the worker for GSM basic/extensions, BMP and surrogate pairs.
+Windows disposable concurrency databases now explicitly initialize as UTF-8 with
+C locale; the previous WIN1252 default could not load the Unicode SMS estimator.
+This setup correction applies to local concurrency runners only. Receipts/logs:
+ignored data/reply-preview-*.log/json.
+
+Applied migrations: none. Releases/pushes/live grants: none. No live data or SMS
+changed. New CRM-owned 20261016183011_crm_mcp_conversation_reply_preview.sql follows
+pending 20261016180739 revision foundation and 20261016181809 mark-read, after
+released baseline 20261016174527. Reconcile live aliases before a later release
+and apply only new forward migrations; never replay either repository history.
+No E2 migration/runtime release is required. Unrelated local work is preserved.
+
+## MCP selected-message mark read — October 16, 2026 (local only)
+
+Implemented crm_mark_conversation_messages_read under the independent opt-in
+conversation_mark_read grant. Local catalog: 47 executable tools, 33 possible
+permissions; reply/preview contracts remain reserved. No existing grants change.
+Strict schemas require explicit business/conversation IDs, current safe-integer
+revision, 1–100 distinct message UUIDs and an 8–128 character idempotency key.
+SQL independently validates inputs and exact business/thread/contact-phone scope.
+Any missing, foreign, mismatched or outbound message rejects the whole selection.
+Already-read timestamps are preserved; selecting only read messages is a no-op.
+
+The shared revision guard serializes against CRM/worker changes. Selected message
+locks use NOWAIT after the parent lock to avoid a parent/message lock cycle with
+workers. Contention returns a temporary same-key retry; stale snapshots conflict.
+Receipt and operation commit atomically; identical retries return the original
+receipt, while changed payloads conflict. Current staff, connection, permission
+and business scope are rechecked before replay. Results contain changed IDs/count,
+previous/result revisions and scoped unread count. Receipt counts are historical
+on replay, so read the thread again when fresh state is needed.
+
+Private audits record actor, connection, request ID, target, outcome, revisions
+and affected message IDs/count, without customer bodies/phones or credentials.
+The private helper is denied to application roles. No generation, AI pause,
+consent, automation/run or send-queue changes occur. Concurrent inbound arrivals
+remain unread. CRM/E2 workflow docs and paired records have been updated.
+
+Local verification: CRM 589 passed, 29 existing skips, zero failures; focused
+conversation/schema/isolation suite 30 passed, plus updated HTTP discovery and
+strict-validation tests 4 passed. E2 relevant tests 26 passed; paired contracts
+63 passed. Both required project checks, frontend build with a synthetic local
+publishable key, and 65-file Edge bundle passed. Local security advisors reported
+no issues. Disposable loopback PostgreSQL checks covered simultaneous same-key
+retries, competing revisions, message-lock contention, worker commits, new inbound
+arrival during mark-read and no SMS jobs. Integration fixtures cover atomic rollback
+on receipt failure, audit attribution/redaction, denial, no-ops and revocation.
+Verification logs: ignored data/mark-read-*.log/json.
+
+Applied migrations: none. Releases/pushes/live permission changes: none. No live
+data was changed or SMS sent. CRM-owned new forward migration is
+20261016181809_crm_mcp_conversation_mark_read.sql, after pending
+20261016180739_crm_mcp_conversation_revisions.sql and released conversation reads
+20261016174527. Reconcile live migration aliases before a later deployment and
+apply only these new forward migrations, never either repository's history.
+No E2 migration/runtime change is required. Unrelated local work is preserved.
+
+## MCP conversation action foundation — October 16, 2026 (local only)
+
+Added independent conversation_reply and conversation_mark_read permissions,
+explicitly reserved in AI connections. The local catalog remains 46 executable
+tools and now has 33 possible opt-in permissions. No existing grants changed.
+Strict input/output contracts for reply preview, one reply and selected-message
+mark-read require explicit business/conversation IDs and a positive safe-integer
+revision. Mutations require an 8–128 character retry key; reply text is trimmed
+and bounded to 1600 characters; mark-read selects 1–100 distinct message UUIDs.
+No recipient/purpose/actor override or mark-all option. These contracts are not
+registered tools; transactional retries, preview eligibility and mutations come
+in subsequent increments. Reply receipts distinguish queued work from delivery.
+
+CRM-owned pending 20261016180739_crm_mcp_conversation_revisions.sql introduces a
+database-managed safe-bigint revision, initially 1, without changing historical
+conversation fields. It remains separate from generation. Triggers cover all
+conversation changes, message inserts/status/content/read-state/deletes and both
+ends of reassignment, plus scoped contact/group changes. Identical updates and
+timestamp-only message/contact/group updates do not advance it. Revisions are
+opaque, not event counts; existing generation triggers can cause multiple bumps.
+The new triggers never alter workflow generation or enqueue messages.
+
+CRM and MCP list/detail expose revision. MCP detail pins the parent revision
+across metadata/message-page reads; private detail audits record the shared
+revision instead of generation. A private scoped lock_conversation_revision
+primitive rejects malformed/stale versions and locks the target for a future
+transactional mutation. Application roles cannot call it directly. Future MCP
+wrappers must check connection/action grants before using it in the same
+transaction as the operation. Existing CRM mutations keep their behavior but now
+invalidate MCP snapshots; no new revision argument is required on legacy routes
+in this step. Consistent mutation lock ordering and retry receipts remain part
+of the next write increments. E2 service/enquiry contracts are unchanged.
+
+Local verification: full CRM 580 passed/29 existing skips/zero failures; focused
+revision/conversation isolation tests 17 passed; E2 relevant tests 26 passed;
+paired contracts 63 passed. Both required project checks, frontend build with a
+synthetic local publishable key, 65-function Edge bundle, baseline and whitespace
+checks passed. Disposable loopback PostgreSQL verified stale checks waiting for
+worker commits, serialized increments without lost updates, rollback and detail
+snapshot consistency. Local security advisors reported no issues. Fixtures cover
+existing-row backfill, no-ops, counter ownership, strict schemas, separate reserved
+grants, tenant/thread substitution, application-role denial and audit attribution.
+No SMS jobs were created by the concurrency checks; no provider was called.
+Receipts: ignored data/conversation-revisions-*.log/json.
+
+Applied migrations: none. Releases/pushes/live grant changes: none. No live data
+or SMS was touched. The new migration follows released CRM 20261016174527;
+reconcile both histories and live aliases before applying only this forward
+migration and releasing matching MCP/frontend code. No E2 migration/runtime
+change is needed. Both project records and workflow docs are updated; unrelated
+main-checkout work is preserved.
+
 ## Conversation-read MCP production release — October 16, 2026
 
 Applied only CRM migration 20261016174527_crm_mcp_conversation_reads.sql after

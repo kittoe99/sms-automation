@@ -1,5 +1,209 @@
 # CRM MCP business setup
 
+## Conversation replies — October 16, 2026 (local only)
+
+crm_reply_to_conversation now implements the existing opt-in conversation_reply
+grant. The local catalog has 49 tools and 33 permissions. The grant covers preview
+and reply; it does not imply metadata/message-read or mark-read access. No existing
+grants change in this step. Discovery marks reply as a write with external effects,
+idempotent retries and a strict input/output schema.
+
+Input: businessId, conversationId, current positive safe-integer revision, trimmed
+body (1–1600 UTF-16 units), and idempotencyKey (8–128 characters). There is no caller
+recipient, purpose, actor or scheduling override. Read/review the latest thread,
+optionally preview, then submit explicitly. A prior preview never authorizes a send.
+The operation rechecks exact scope and revision, locks contact/business/provider/
+credential metadata, and reruns current eligibility before invoking the canonical
+CRM conversation reply. NOWAIT on related rows prevents lock cycles with workers;
+contention safely rolls back with TEMPORARY_FAILURE. Opt-outs and inactive/disabled
+sending are denied, as is an unconfigured sender or missing credential metadata.
+The transactional consent rules match CRM; marketing consent remains separate.
+
+The canonical operation queues one outbound message and pauses AI for exactly the
+chosen general/group thread. It does not mark inbound messages read, change consent,
+start/stop automations or enroll contacts. Existing worker dispatch checks remain
+authoritative when asynchronous sending begins. Recipient and group are derived
+from the scoped thread, and the queued result is checked against that exact target.
+
+Outbox dedupe keys are namespaced by verified connection and a hash of the retry
+key; different OAuth connections cannot accidentally share a job. Mutation,
+revision, AI takeover, retry receipt and audit commit together. An uncertain
+response must be retried with the identical normalized payload/key. A changed
+payload conflicts. On revision conflict, reread and review before issuing a new
+request/key. Cached retries recheck staff/connection/permission/business access and
+return the original committed receipt without requeuing or reapplying takeover.
+Later consent/status changes do not turn a receipt replay into a new send.
+
+Receipt: business/conversation IDs, previous/result revisions, databaseStatus:
+committed, messageId, jobId, deliveryStatus:queued, aiPaused:true. Queued is an
+enqueue receipt, not provider acceptance/delivery; retries return historical receipt
+state. Use scoped conversation/activity reads to inspect later delivery status.
+Audit includes actor, connection, target, request, outcome, revisions and affected
+message ID/count. Reply text and recipient are stored only in the normal operational
+message/outbox records, not MCP audits or retry receipts. No credentials are exposed.
+Application roles cannot call the private helper directly.
+
+Local verification covers permission/scope denial, body limits, sender/consent gates,
+stale revisions, exact group targeting, retry collisions, rollback on receipt/audit
+failure, no read marks and audit redaction. Disposable PostgreSQL covers simultaneous
+retries, competing revisions, consent/provider contention and interrupted transactions.
+No provider is called by these tests. See project records for full verification.
+
+Pending CRM order after released 20261016174527: 20261016180739 revision foundation,
+20261016181809 mark-read, 20261016183011 preview, then
+20261016183855_crm_mcp_conversation_reply.sql. No E2 migration/runtime change.
+Reconcile live aliases before a later release; apply only new forward migrations,
+never either full history. No migration, release, live grant change or SMS occurred
+in this local implementation step.
+
+## Conversation reply preview — October 16, 2026 (local only)
+
+crm_preview_conversation_reply is now registered as read-only, idempotent and
+closed-world under the opt-in conversation_reply permission. The local catalog
+has 48 tools and 33 permissions. Sending a reply is still unimplemented; no live
+grants change. Metadata and message-body reads retain their separate permissions.
+
+Strict input: businessId, conversationId, current positive safe-integer revision
+and body. Text is trimmed using JavaScript whitespace semantics and limited to
+1600 UTF-16 units. No phone, purpose, actor, scheduling or idempotency override is
+accepted. The recipient comes only from the scoped conversation/contact. Missing,
+foreign or malformed thread relationships fail closed. Stale revisions return
+CONFLICT and require rereading; they never return a sendable stale preview.
+
+The result contains the trimmed body, recipientPhone, revision, estimatedSegments,
+eligible, blockers, aiWillPause and queued:false. Segment estimates match the SMS
+worker's GSM basic/extension and UTF-16 calculations; they are not billing quotes.
+Consent follows the existing CRM transactional staff-reply path: opted_out blocks
+the reply; marketing_consent is a separate campaign rule and is not bypassed for
+campaigns. This preview does not grant or change consent. A paused/inactive
+business or disabled sending produces BUSINESS_SENDING_DISABLED. Missing configured
+provider, account, stored credential metadata or sender route produces
+SENDER_NOT_READY. CONTACT_OPTED_OUT is independent, so all applicable blockers are
+returned. No credential is decrypted or exposed and no provider is contacted.
+
+The shared conversation guard waits for related committed changes before checking
+revision. Eligibility fields are then read together in one database snapshot.
+Business/provider readiness is freshly checked each time even when the thread's
+revision has not changed. Eligibility is a local snapshot, not a reservation or a
+delivery guarantee. Provider health, rate limiting and actual delivery remain
+send-time concerns. Any future reply tool must recheck revision and eligibility.
+aiWillPause means a future successful reply would newly pause this thread's AI;
+it is false if AI is already paused. The preview itself never pauses AI, marks
+messages read, creates an outbox/job/receipt, or changes consent or automations.
+
+The normal gateway records connection use and an audit of actor, target, request,
+outcome and revision. Reply text, recipient phone and credentials are excluded
+from audit storage. Application roles cannot directly execute private helpers.
+Local isolation, eligibility, no-side-effect, Unicode-parity and concurrent-consent
+tests cover these contracts; project records contain the broader verification.
+
+Pending CRM migration order: 20261016180739 revision foundation, 20261016181809
+selected-message mark-read, then 20261016183011_crm_mcp_conversation_reply_preview.sql.
+Released baseline remains 20261016174527. No E2 migration/runtime change is needed.
+Reconcile live aliases before a later release and apply only forward migrations.
+No migration is applied and no live data or SMS is changed by this local step.
+
+## Selected conversation messages: mark read — October 16, 2026 (local only)
+
+The local catalog now exposes 47 tools and 33 possible permissions. The opt-in
+conversation_mark_read grant enables crm_mark_conversation_messages_read; reply
+and reply preview remain reserved. Existing connection grants are unchanged.
+Mark-read does not imply conversation_read or conversation_messages_read. To
+inspect a thread before selecting messages, grant those read permissions separately.
+
+Input is strict: businessId, conversationId, current positive safe-integer revision,
+1–100 distinct messageIds and an 8–128 character idempotencyKey. Only selected
+inbound messages in the exact business/thread/contact phone can be marked. Any
+missing, foreign, mismatched or outbound ID rejects the whole request. There is
+no mark-all option. Already-read messages keep their original timestamps; an
+all-read selection is a successful no-op with an unchanged revision.
+
+Read the latest thread, select explicit IDs, then submit once. On CONFLICT,
+reread and review the selection before making a new request with a new key.
+After an uncertain response or TEMPORARY_FAILURE, retry the identical payload
+with the same key. Receipts are committed atomically with the read updates and
+revisions; changed payloads with the same key conflict. Identical retries return
+the original receipt (including its original unread count), not a fresh snapshot.
+Connection/staff/action/business grants are rechecked even for a cached receipt.
+
+The result reports committed database status, previous/current revisions,
+changedMessageIds, changedCount and scoped unreadCount. Only read_at changes
+(plus existing timestamp/revision triggers); generation, AI pause, consent,
+automations and send queues are untouched. Messages arriving after the selection
+remain unread. Parent-first locking matches CRM; selected message locks use
+NOWAIT to safely roll back contention with message-first worker updates.
+
+Private activity records include actor, connection, request ID, target, outcome,
+previous/result revisions and changed message IDs/count. Receipts and audits
+contain no message body, phone, credentials or arbitrary payload. Application
+roles cannot call the private mutation helper directly.
+
+Pending order: released 20261016174527 conversation reads, then local
+20261016180739 conversation revision foundation, then local
+20261016181809_crm_mcp_conversation_mark_read.sql. Both pending migrations belong
+to CRM; no E2 schema/runtime change. Reconcile live aliases before a future release
+and apply only new forward migrations, never either complete history. This step
+does not apply migrations, release code, grant live permissions or change messages.
+
+Local tests: test/mcpConversationMarkRead.test.js exercises grants, strict input,
+scope substitution, stale revisions, no-ops, retries, rollback and audit redaction.
+scripts/test-conversation-mark-read-concurrency.js uses disposable loopback
+PostgreSQL to verify concurrent retries/edits, worker contention and late inbound
+messages. See project records for the completed broader verification.
+
+## Conversation action foundation — October 16, 2026 (local only)
+
+The catalog still exposes 46 tools. Two new opt-in permissions bring the local
+permission catalog to 33: `conversation_reply` and `conversation_mark_read`.
+Both are labeled reserved in AI connections. They do not imply metadata/content
+access, and no reply, preview or mark-read MCP tool is executable in this step.
+Existing grants are unchanged.
+
+Strict input/output contracts are defined for the next increments:
+
+| Contract | Required inputs beyond explicit business/conversation IDs |
+| --- | --- |
+| crm_preview_conversation_reply | positive safe-integer revision; trimmed body, 1–1600 characters |
+| crm_reply_to_conversation | same revision/body; 8–128 character idempotencyKey |
+| crm_mark_conversation_messages_read | revision; 1–100 distinct message UUIDs; idempotencyKey |
+
+Caller-selected recipients, senders, purpose, scheduling, mark-all, actor and
+generation substitutions are rejected. Preview output is explicitly unqueued;
+reply output describes a committed queued receipt with message/job IDs and the
+canonical AI-pause effect, not delivery. Mark-read output identifies changed IDs,
+their count and remaining unread count. These contracts do not implement retry
+storage, enqueueing, preview eligibility or read-state mutation yet.
+
+CRM-owned pending migration `20261016180739_crm_mcp_conversation_revisions.sql`
+follows released `20261016174527`. Existing conversations gain revision 1 without
+changing their historical fields. The revision is a database-managed safe bigint,
+separate from automation `generation`. Conversation changes and message inserts,
+updates, deletes and reassignment bump it; reassignment touches both scoped
+threads. Contact and group changes invalidate only their related conversations.
+Timestamp-only message/contact/group updates and identical conversation updates
+do not bump it. Multiple existing triggers may advance it more than once; treat
+it as an opaque version, not an event count. The new triggers never alter generation.
+
+CRM list/detail and MCP list/detail expose the shared revision. Detail MCP reads
+pin the parent row while fetching metadata and messages, preventing a mixed
+revision/page. Private MCP detail audits now record revision instead of generation.
+The private `lock_conversation_revision` primitive validates staff/scope and a
+strict expected revision, locks the parent and returns CONFLICT on stale input.
+Application roles cannot call it directly. Future mutation wrappers must check
+connection/action grants first and use the guard and mutation in one transaction.
+
+Existing CRM actions keep their current behavior; their changes now invalidate
+MCP snapshots. This step does not retrofit revision arguments into legacy CRM
+actions or provide MCP writes. The next mark-read/reply increments must integrate
+the guard, atomic retry receipts, bounded message selection, audits and consistent
+mutation lock ordering. Worker delivery/consent fencing continues to use existing
+generation and eligibility checks; a read-state revision must not cancel a send.
+
+No migration, live grant or release was applied. Before a later release reconcile
+both repositories' live migration aliases, apply only this forward migration,
+then release matching MCP/frontend code. No E2 migration/runtime change is needed.
+See both project records for local isolation and PostgreSQL concurrency results.
+
 ## Conversation-read MCP production release — October 16, 2026
 
 Applied only CRM migration 20261016174527_crm_mcp_conversation_reads.sql after

@@ -4,7 +4,7 @@ import {pathToFileURL} from 'node:url';
 import assert from 'node:assert/strict';
 import {testDatabase,call} from '../test/helpers/database.js';
 const {default:EmbeddedPostgres}=await import(pathToFileURL(resolve('data/inbound-postgres/node_modules/embedded-postgres/dist/index.js')));
-const pg=new EmbeddedPostgres({databaseDir:resolve('data/inbound-postgres/lead-revisions-'+Date.now()),user:'postgres',password:crypto.randomUUID(),port:55442,persistent:true,postgresFlags:['-h','127.0.0.1'],onLog:()=>{},onError:()=>{}});
+const pg=new EmbeddedPostgres({databaseDir:resolve('data/inbound-postgres/lead-revisions-'+Date.now()),user:'postgres',password:crypto.randomUUID(),port:55442,persistent:true,initdbFlags:['--encoding=UTF8','--locale=C'],postgresFlags:['-h','127.0.0.1'],onLog:()=>{},onError:()=>{}});
 const clients=[],adapter=c=>({exec:s=>c.query(s),query:(s,p)=>c.query(s,p),close:async()=>{}});
 try{
  await pg.initialise();await pg.start();const a=pg.getPgClient(),b=pg.getPgClient();await a.connect();await b.connect();clients.push(a,b);

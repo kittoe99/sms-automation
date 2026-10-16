@@ -1,5 +1,5 @@
 import {z} from 'zod';
-import {conversationTools,conversationOutputs} from './conversationSchemas.js';
+import {conversationTools,conversationOutputs,conversationMarkReadTools,conversationMarkReadOutputs,conversationReplyPreviewTools,conversationReplyPreviewOutputs,conversationReplyTools,conversationReplyOutputs} from './conversationSchemas.js';
 import {leadHandoffTools,leadHandoffOutputs,leadHandoffWriteTools,leadHandoffWriteOutputs} from './leadHandoffSchemas.js';
 import {enquiryReadTools,enquiryReadOutputs} from './enquirySchemas.js';
 import {enquiryStatusTools,enquiryStatusOutputs} from './enquiryStatusSchemas.js';
@@ -20,6 +20,9 @@ const write={...business,idempotencyKey:z.string().min(8).max(128)};
 const profile={...write,revision:z.number().int().nonnegative(),profile:z.record(z.unknown())};
 export const toolDefinitions=[
  ...conversationTools,
+ ...conversationMarkReadTools,
+ ...conversationReplyPreviewTools,
+ ...conversationReplyTools,
  ...leadHandoffTools,
  ...leadHandoffWriteTools,
  ...enquiryReadTools,
@@ -55,6 +58,9 @@ const mutation=record=>z.object({record,businessId:id,databaseStatus:z.literal('
 const paging={total:z.number().int().nonnegative(),page:z.number().int().positive(),pageSize:z.number().int().min(1).max(100)};
 export const toolOutputs={
  ...conversationOutputs,
+ ...conversationMarkReadOutputs,
+ ...conversationReplyPreviewOutputs,
+ ...conversationReplyOutputs,
  ...leadHandoffOutputs,
  ...leadHandoffWriteOutputs,
  ...enquiryReadOutputs,
@@ -85,7 +91,7 @@ export function createMcpServer({invoke,identity,requestId}) {
  for(const [name,description,inputSchema,writing=false] of toolDefinitions) {
   const schema=z.object(inputSchema).strict();
   const outputSchema={...resultShape,data:toolOutputs[name].optional()};
-  server.registerTool(name,{description,inputSchema:schema,outputSchema,annotations:{readOnlyHint:!writing,destructiveHint:writing,idempotentHint:true,openWorldHint:name==='crm_add_business_service'}},async input=>{
+  server.registerTool(name,{description,inputSchema:schema,outputSchema,annotations:{readOnlyHint:!writing,destructiveHint:writing,idempotentHint:true,openWorldHint:['crm_add_business_service','crm_reply_to_conversation'].includes(name)}},async input=>{
    const data=await invoke(identity,name,schema.parse(input),requestId);
    const result=z.object(outputSchema).parse({...data,requestId});
    const content=[{type:'text',text:JSON.stringify(result)}];

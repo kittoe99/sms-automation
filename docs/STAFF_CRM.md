@@ -1,5 +1,47 @@
 # Shared staff CRM and customer dashboard
 
+## MCP conversation replies — October 16, 2026 (local only)
+
+The conversation_reply grant now covers preview and asynchronous reply sending.
+Reply requires an explicit scoped thread, current revision and retry key; recipient
+and transactional purpose come from CRM. It rechecks opt-out/business/sender
+eligibility and pauses AI on that exact thread when queued, without marking messages
+read. Reuse identical payload/key after an uncertain response; reread after a stale
+revision. Receipts report queued, never accepted/delivered. Audit history contains
+IDs and revisions without reply text or credentials. No live grants change here.
+
+## MCP conversation reply preview — October 16, 2026 (local only)
+
+The conversation_reply grant now enables preview only; sending remains unavailable.
+Preview uses an explicit conversation and its current revision, derives the
+recipient, checks transactional opt-out and business/sender readiness, and returns
+trimmed text plus a segment estimate. Separate conversation-read grants are needed
+to inspect history. No live permissions change. The preview is not a send or a
+delivery guarantee; it does not mark messages read or pause AI. Audit history
+records the target/revision but omits reply text, recipient and credentials.
+
+## MCP selected-message read state — October 16, 2026 (local only)
+
+AI connections now labels conversation_mark_read as an implemented opt-in grant.
+It authorizes only marking explicit inbound message IDs read, with a current
+conversation revision and retry key. Metadata and message content require their
+own read grants; replying remains reserved. No existing grants change. A stale
+revision requires rereading; a transient or uncertain response uses the identical
+request/key. Already-read timestamps and unselected messages remain unchanged.
+Audit history includes changed IDs/count and previous/result revisions without
+message content. This is local implementation only; no live messages are marked.
+
+## Conversation action foundation — October 16, 2026 (local only)
+
+AI connections adds reserved `conversation_reply` and `conversation_mark_read`
+permissions. Neither enables a tool yet or implies message-history access. CRM
+conversation list/detail now carry a shared revision that tracks message,
+read-state, AI-control, contact, group and reassignment changes. Existing CRM
+actions retain their behavior; the new MCP mutation contracts are not registered.
+The new revision is separate from generation and must not be used as a worker
+send fence. Pending migration 20261016180739 follows released 20261016174527.
+See [CRM MCP](CRM_MCP.md) for the exact local-only scope and next steps.
+
 ## Conversation-read MCP released — October 16, 2026
 
 CRM migration 20261016174527 is applied; MCP and frontend commit eaae604 are live.
