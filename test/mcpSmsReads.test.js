@@ -19,7 +19,7 @@ test('SMS read input schemas require business context, typed references and boun
   assert.equal(schema.safeParse(p).success,true,name);
   for(const extra of [{tenantId:'other'},{actor:'forged'},{pageSize:101},{page:0},{kind:'legacy'},{businessId:''}])assert.equal(schema.safeParse({...p,...extra}).success,false,name);
  }
- assert.equal(new Set(connectionPermissionNames).size,21);
+ assert.equal(new Set(connectionPermissionNames).size,23);
  assert.deepEqual(connectionPermissions.map(([key])=>key),connectionPermissionNames);
 });
 

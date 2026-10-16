@@ -1,5 +1,7 @@
 // Shared by the administrator editor and MCP output validation. New grants are opt-in.
 export const connectionPermissions = [
+ ['enquiry_read','Read scoped form submissions and saved answers'],
+ ['enquiry_status_read','Read enquiry SMS state and linked booking/handoff summaries'],
  ['read','Read permitted businesses and customers'],
  ['draft','Edit business drafts'],
  ['review','Approve business profiles'],

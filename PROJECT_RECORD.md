@@ -1,5 +1,66 @@
 # Opek SMS project record
 
+## Enquiry MCP step 2 — October 16, 2026 (local only)
+
+Added crm_get_enquiry_status under the independent enquiry_status_read grant in
+the existing MCP worktree. The local catalog now has 36 tools. Explicit business,
+form and submission IDs are mandatory; strict input/output projections expose
+recorded intake, current form-run/legacy SMS state, and separate attributed
+response/booking/handoff counts. No sales stage is inferred. Only active SMS has
+a nextRunAt. Booking cancellations, attribution corrections and handoff changes
+are read from current canonical records. No answer, contact content, message
+body, raw reason or AI proposal is exposed. Zero linked outcomes means no recorded
+link, not proof none exist. Existing permissions are not expanded or auto-granted.
+
+CRM owns new forward migration 20261016063330_crm_mcp_enquiry_status.sql, after
+the still-unapplied 20261016061921 enquiry-read migration and paired E2 baseline.
+No E2 contract/schema/runtime change. Both enquiry migrations remain unapplied;
+reconcile live aliases before any future forward-only release. Nothing was pushed,
+deployed or granted live. No live data change or SMS occurred.
+
+Local validation: 537 CRM tests passed, 29 existing skips, zero failures; 20 focused
+MCP checks; 26 E2 enquiry/customer-lead/cache tests; 63 paired contract tests;
+both required checks, production frontend build, 65-file Edge packaging and diff
+checks passed. Tests cover independent grants, corrupt cross-business attribution,
+same-contact unrelated enquiries, unlinked/simulated/test outcomes, cancellations,
+handoff states, legacy fallback, direct-role denial, revocation, audit redaction
+and unchanged domain/job/message/cache snapshots. The one-open-handoff fixture
+constraint was respected by making the unlinked fixture closed.
+
+Updated CRM_MCP, FORM_AUTOMATIONS and AUTOMATION_ACTIVITY documentation, paired
+business-services documentation, and both project records. Unrelated main checkout
+and E2 changes are preserved.
+
+## Enquiry MCP step 1 — October 16, 2026 (local only)
+
+Implemented in C:/Users/kofik/.codex/worktrees/crm-mcp/opek-sms: independent
+enquiry_read and enquiry_status_read grants (the latter reserved), strict
+crm_list_enquiries/crm_get_enquiry schemas and private scoped read wrappers.
+Local discovery now has 35 tools. Lists filter before counts/pages; details use
+explicit business/form/submission identity and canonical preset, saved historical
+answer labels, bounded scalar answers with truncation flags, recorded consent,
+and requested appointment time. No SMS status or booking outcome is inferred.
+Existing form/automation permissions and outputs are unchanged. Successful and
+denied reads are audited without customer content; only audit/last-use changes.
+
+New CRM migration: 20261016061921_crm_mcp_enquiry_reads.sql, following instant
+acknowledgment and the paired E2 baseline. Existing grants remain unchanged;
+no E2 schema/runtime edits. Paired manifest was updated for disposable local
+fixtures only. Reconcile live migration aliases before a future forward release.
+
+Validation: 529 CRM tests passed, 29 existing skips, zero failures; 21 focused
+MCP tests; 26 E2 enquiry/customer-lead/cache tests; 63 paired contract tests.
+Both required checks, production frontend build, 65-file Edge packaging and
+diff whitespace checks passed. Tests include grant independence, same-contact
+cross-business isolation, ID substitution, dates/counts/pages, archived history,
+historical labels, truncation, direct-role denial, audit redaction, revocation,
+and unchanged domain/cache/job/message snapshots. An immutable-field fixture
+error was corrected before the final full test pass.
+
+Not applied, deployed, pushed, or granted in production. No live data was changed
+and no SMS was sent. Unrelated main CRM/E2 changes were preserved. See docs/CRM_MCP.md
+and docs/FORM_AUTOMATIONS.md; lead-status reads remain the next increment.
+
 ## Instant acknowledgment released and Opek draft configured — October 16, 2026
 
 **Applied:** only CRM migration `20261016055448_form_instant_acknowledgment.sql`

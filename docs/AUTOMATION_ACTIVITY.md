@@ -1,5 +1,16 @@
 # Automation activity
 
+Enquiry MCP step 2 (October 16, local only) adds crm_get_enquiry_status under
+enquiry_status_read. It returns separate SMS state and recorded response, booking
+and handoff counts for an explicit business/form/submission. Counts use existing
+canonical attribution, including current booking cancellation and handoff status;
+unlinked data, test/direct runs and simulated event proposals do not contribute.
+Zero linked outcomes is not a claim that none exist. Status-only permission grants
+neither answers nor automation_activity timeline access; message bodies are excluded. No
+attribution edit, enrollment, scheduling, consent change or message send occurs.
+The CRM migration 20261016063330_crm_mcp_enquiry_status.sql is local/unapplied,
+following the enquiry-read migration. See [CRM MCP](CRM_MCP.md) for the contract.
+
 Release update (October 14): the SMS MCP milestone is now deployed and verified
 through Codex using reads only. All five migrations are applied under the remote
 aliases in [CRM MCP](CRM_MCP.md). The implementation notes below are historical.

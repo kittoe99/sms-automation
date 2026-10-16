@@ -1,4 +1,6 @@
 import {z} from 'zod';
+import {enquiryReadTools,enquiryReadOutputs} from './enquirySchemas.js';
+import {enquiryStatusTools,enquiryStatusOutputs} from './enquiryStatusSchemas.js';
 import {connectionPermissionNames} from '../../public/mcpPermissions.js';
 import {smsReadTools,smsReadOutputs} from './smsSchemas.js';
 import {smsDraftTools,smsDraftOutputs} from './smsDraftSchemas.js';
@@ -15,6 +17,8 @@ const business={businessId:id};
 const write={...business,idempotencyKey:z.string().min(8).max(128)};
 const profile={...write,revision:z.number().int().nonnegative(),profile:z.record(z.unknown())};
 export const toolDefinitions=[
+ ...enquiryReadTools,
+ ...enquiryStatusTools,
  ...formReadTools,
  ...formDraftTools,
  ...formPreviewTools,
@@ -45,6 +49,8 @@ const providerSetup=z.object({state:z.string(),jobs:z.array(z.object({id:uuid,st
 const mutation=record=>z.object({record,businessId:id,databaseStatus:z.literal('committed'),providerSetup});
 const paging={total:z.number().int().nonnegative(),page:z.number().int().positive(),pageSize:z.number().int().min(1).max(100)};
 export const toolOutputs={
+ ...enquiryReadOutputs,
+ ...enquiryStatusOutputs,
  ...formReadOutputs,
  ...formDraftOutputs,
  ...formPreviewOutputs,

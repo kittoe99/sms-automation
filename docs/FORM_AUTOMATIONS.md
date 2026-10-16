@@ -1,5 +1,22 @@
 # Form-first SMS automation
 
+Enquiry MCP step 2 (October 16, local only) activates the separate
+enquiry_status_read capability through crm_get_enquiry_status. Exact submission
+identity scopes intake and SMS state plus recorded response/booking/handoff counts.
+Those facts remain independent: stopped SMS is not a declined enquiry, and an
+appointment request is not a confirmed booking. Only active SMS exposes a next
+send time. Status reads expose no answers or message bodies and never enroll/send.
+Both enquiry migrations remain unapplied. See [CRM MCP](CRM_MCP.md).
+
+Enquiry MCP step 1 (October 16, local only) adds separately granted
+`crm_list_enquiries` and `crm_get_enquiry`. They expose scoped saved submission
+summaries and historical answers through `enquiry_read`, including retained
+inactive/archived form history. Recorded consent and requested appointment time
+are facts, not sending eligibility or confirmed bookings. `enquiry_status_read`
+is reserved for the next increment. Existing SMS submission-reference tools keep
+their permissions and output. Reads do not enroll, send or alter domain data.
+See [CRM MCP](CRM_MCP.md) for schemas, bounds and release prerequisites.
+
 ## Forms MCP production release — October 15, 2026, 11:19 PM Denver
 
 The forms milestone is deployed. This release record supersedes the historical

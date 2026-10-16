@@ -1,5 +1,99 @@
 # CRM MCP business setup
 
+## Enquiry milestone step 2 — local implementation, October 16, 2026
+
+`crm_get_enquiry_status` now uses the independent `enquiry_status_read` grant;
+it is no longer reserved. Local discovery contains 36 tools. No existing
+connection gains a permission. `enquiry_read` alone cannot read status, and
+status-only access cannot read submission answers, SMS timelines, or control runs.
+
+Required inputs: businessId, formId and submissionId. Extra keys, including
+runId, expected revisions and mutation retry keys, are rejected. Each request
+rechecks active CRM staff, connection, permission and business scope. Missing
+and inaccessible references use the same `Enquiry unavailable` error. The private
+helper is not executable by MCP, API, browser or service roles directly.
+
+The strict output has one reportingAt and business timeZone, with an enquiryStatus
+object containing source IDs, preset, submittedAt, saved submittedFormVersion and
+requestedAppointmentAt. Facts remain separate:
+
+- `intake`: canonical intake state and an allowlisted skip reason. Unknown states
+  become unknown; arbitrary error/reason text is excluded.
+- `sms`: exact form-run state takes precedence over the tenant-scoped legacy
+  enrollment, then intake skipped/received. Source, run/enrollment ID, generation,
+  published version and nextRunAt are explicit. Only active runs/enrollments
+  expose nextRunAt; paused records may retain an internal due timestamp but are
+  not scheduled to send. Requested appointments are never confirmed bookings.
+- `responses.linked`: inbound responses with recorded run attribution.
+- `bookings`: linked, confirmed, cancelled and requested counts from current
+  booking records. Cancellation and attribution corrections affect subsequent reads.
+- `handoffs`: linked, open, assigned, resolved and closed counts from current
+  handoff records. These do not change or infer SMS or booking state.
+
+All related links and source rows must match the permitted business and exact
+run. No outcome is inferred from a shared phone/email. Test runs, direct-contact
+runs, unlinked outcomes and simulated activity events are excluded. Zero means
+no recorded link, not proof that no response, booking or handoff exists. Historical
+canonical attribution may contribute counts; no transition time is invented.
+Answers, names, phones, emails, message bodies, booking metadata, handoff reasons,
+raw run errors and AI proposals are not returned. No sales-pipeline stage is added.
+
+Reads perform no enrollment, send, consent change, attribution correction or cache
+invalidation. Successful/denied calls are audited without customer content; audit
+revision uses the selected run/enrollment generation, falling back to the saved
+form version when no run exists. Read retries reauthorize and fetch current state.
+
+CRM owns `20261016063330_crm_mcp_enquiry_status.sql`, following the unapplied
+`20261016061921_crm_mcp_enquiry_reads.sql` and the existing paired E2 baseline.
+No E2 contract/schema changes. Both enquiry migrations are local only; reconcile
+live aliases before a future forward release, never replay migration history.
+Nothing is deployed or granted in production by this implementation.
+
+## Enquiry milestone step 1 — local implementation, October 16, 2026
+
+Two opt-in connection permissions are registered in AI connections: `enquiry_read`
+and `enquiry_status_read`. Only `enquiry_read` has tools in this increment; the
+status permission is explicitly labeled reserved. Existing grants are unchanged.
+The local catalog contains 35 tools. `automation_read` retains its lightweight
+`crm_list_form_submissions` contract and does not gain answer access.
+
+`crm_list_enquiries` requires businessId and accepts formId, preset (contacts,
+quote_requests, bookings), submittedFrom (inclusive), submittedBefore (exclusive),
+page (1–100000), and pageSize (1–100, default 25). Dates require ISO timestamps
+with timezone. It returns scoped contact summaries, canonical form references,
+form names, submission times, exact filtered totals and reportingAt/timeZone.
+Ordering is submittedAt descending, ID descending, preset, then form ID. Inactive
+and archived forms retain their history. Custom answers, SMS state, website
+metadata, contact joins, booking results and handoffs are not returned.
+
+`crm_get_enquiry` requires businessId, formId and submissionId. The canonical
+form preset selects the source table. Detail returns the submitted contact data,
+recorded SMS/email consent (null if unavailable), requested appointment time,
+current formRevision, historical submittedFormVersion (nullable for legacy rows),
+and answers with saved historical labels. A requested appointment is not a booking;
+recorded consent is not current sending eligibility. Answers are untrusted data.
+Missing historical labels fall back to the saved answer key. Nested values and
+keys over 200 characters are omitted; at most 100 scalar answers are returned,
+labels cap at 500 characters and strings at 4000. Per-answer `truncated` and
+aggregate `answersTruncated` explicitly report clipping/omission. Current draft
+labels and arbitrary snapshot metadata are never exposed.
+
+Both tools have strict input/output schemas and read-only, non-destructive,
+idempotent annotations. No mutation retry key or expected revision is accepted.
+Every retry rechecks identity, active staff, connection, permission and scope;
+the gateway audits successful/denied requests without answers or contact content.
+Detail audit revision is the saved form version, not a submission revision.
+Missing and inaccessible detail IDs share `Enquiry unavailable`.
+Only audit and last-use bookkeeping may change. Reads cannot enroll, send,
+change consent, mark an enquiry read, or invalidate customer caches.
+
+CRM owns `20261016061921_crm_mcp_enquiry_reads.sql`, after instant acknowledgment
+and the paired E2 access/cache baseline. No E2 function or customer contract is
+changed. The local paired manifest includes the new migration for disposable
+tests only. Reconcile live aliases before applying this one forward migration;
+never replay either history. This increment is not applied or deployed and no
+live connection receives new permissions. Status/outcome reads are the next step.
+
 ## Forms MCP production release — October 15, 2026, 11:19 PM Denver
 
 The forms milestone is deployed. This release record supersedes the historical
