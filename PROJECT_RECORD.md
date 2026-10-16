@@ -1,5 +1,23 @@
 # Opek SMS project record
 
+## Booking MCP release — October 16, 2026
+
+Stage 4 is LIVE at 3fd85efee2c8539abcf9ce78f65957bc7c0c94a7. Only migration
+20261016194340 was applied after reconciling 140 previous entries and rollback
+rehearsal. Live history: 141; ten expected function hashes match; private helper
+execution remains denied. MCP dep-db984k0m7kps73bgq14g finished 20:01:11 UTC;
+frontend dep-db984lom7kps73bgq99g finished 20:00:59 UTC (explicit trigger after no
+automatic push event). Admin connection revision 11: 63 grants, all businesses.
+
+Fresh Codex discovery found 91 tools. Fifteen allowlisted reads/previews passed,
+with 15 attributed audit records and no mutation receipts. Booking/intake/schedule
+isolation checks returned denied for nonexistent records. Full domain snapshots
+and security-advisor findings are unchanged. Opek collection and SMS v1 remain
+enabled, both canary runs stopped, and one reply remains unread at revision 1.
+No live customer changes, mark-read operations or sends occurred. Local CRM 642
+passed / 29 existing skips, paired 63, relevant E2 13; checks/builds and real
+PostgreSQL concurrency passed. No E2 runtime release needed. Stages 5–9 remain.
+
 ## Booking MCP — October 16, 2026 (local)
 
 Stage 4 adds twelve tools and eight independent permissions for existing bookings,
