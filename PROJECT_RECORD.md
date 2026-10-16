@@ -1,5 +1,17 @@
 # Opek SMS project record
 
+## Website MCP — October 16, 2026 (released)
+
+Applied only CRM 20261016204900 and E2 20261016204903 after alias reconciliation,
+rollback rehearsal and guarded dry-run (144 to 146 history entries; 19 function
+hashes matched). E2 4b41268 is READY at e2local-90da0esth-redhawk.vercel.app.
+CRM 66623ea is live: MCP dep-db9950ks728c73ffo5o0 (21:10:01 UTC), frontend
+dep-db9954eq1p3s739lhun0 (21:09:50 UTC). The hosting adapter URL points to E2.
+Fresh Codex discovered 142 tools and 98 admin grants (connection revision 15).
+All 39 read/preview calls were attributed, with zero mutation receipts; domain
+snapshots and security advisors were unchanged. Publication inspection succeeded.
+No customer publication, collection changes, mark-read, activation or sends occurred.
+
 ## Website MCP — October 16, 2026 (local)
 
 Stage 8 adds fifteen tools and ten grants (142 tools / 98 permissions). Reads scope
