@@ -1,5 +1,63 @@
 # Opek SMS project record
 
+## Conversation MCP production release — October 16, 2026
+
+Applied migrations: reconciled all 133 existing shared-database entries against
+both repositories and recorded aliases, retaining two historical remote-only
+entries. A guarded rollback rehearsal matched all 13 resulting function hashes;
+the isolated CLI dry run selected exactly these four CRM-owned forward migrations:
+
+- 20261016180739_crm_mcp_conversation_revisions.sql
+- 20261016181809_crm_mcp_conversation_mark_read.sql
+- 20261016183011_crm_mcp_conversation_reply_preview.sql
+- 20261016183855_crm_mcp_conversation_reply.sql
+
+All four are now applied to wxamwhfmelxqahkdtcci. Live history has 137 entries;
+the prior 133 entries are unchanged. No migration repair, history replay, seed,
+vault update or E2 migration was performed. Live helper definitions match the
+tested fixture and private helper execution remains denied to application roles.
+Security advisors are unchanged from before release; existing warnings remain.
+The applied revision migration retains its harmless trailing blank line.
+
+Releases: implementation commit 7ea1dc8fe1d1e2abc366d6dc9f76bdfb295c937c
+was pushed to codex/crm-mcp-business-setup and deploy-crm. Micah's workspace
+reports e2-crm-mcp deploy dep-db975muk1f9s738mjn20 LIVE at 18:55:03 UTC
+and CRM frontend deploy dep-db97623l550s73d022kg LIVE at 18:55:27 UTC.
+The frontend required an explicit trigger after no automatic deploy/event was
+recorded. MCP health and the served permissions module return HTTP 200. No E2
+runtime, Edge function or worker release was required.
+
+Using the standing authorization for all-business admin control, the existing
+verified admin connection was updated through the audited canonical admin path,
+adding only conversation_reply and conversation_mark_read. It remains active,
+all-business, with 33 permissions and connection revision 7. Other connections
+were not changed. Grants remain independent from metadata/message-read access.
+
+Production verification: a fresh authenticated Codex app-server discovered all
+49 tools, including strict revision/retry schemas and correct read/write/external
+effect annotations. Thirteen allowlisted read/preview calls verified Opek metadata,
+messages, scoped searches, reply eligibility, stale revision CONFLICT, invalid
+target PERMISSION_DENIED, and both stopped canary runs with no next send. Preview
+returned eligible:true, blockers:[], queued:false. The conversation remains at
+revision 1 with five messages and one unread reply. All 13 requests have matching
+actor/connection attribution, outcomes and redacted activity; successful preview
+records revision 1. No reply/mark-read invocation or new retry receipt occurred.
+
+Before/after whole-domain hashes match for messages and read timestamps, send
+jobs, conversations excluding the newly added revision, contacts, forms,
+submissions, sequences, runs, leads, handoffs, bookings and email enrollments.
+No SMS was sent or queued by verification, no message was marked read, and no
+enquiry/consent/automation state changed. No error-level MCP service logs were
+returned for the verification interval. Receipts are retained locally under
+ignored data/conversation-actions-release-*.
+
+Local verification is separate from production evidence: the focused release
+suite passed 49/49. Previously recorded full CRM 608 passed/29 existing skips,
+relevant E2 26, paired contracts 63, required checks/builds, and disposable
+PostgreSQL contention/retry tests remain the implementation evidence; they were
+not rerun or represented as live mutation tests. Both project records and affected
+workflow documentation now record this release. Unrelated local work is preserved.
+
 ## MCP conversation replies — October 16, 2026 (local only)
 
 Implemented crm_reply_to_conversation under the existing opt-in conversation_reply

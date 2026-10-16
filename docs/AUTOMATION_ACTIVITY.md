@@ -1,5 +1,23 @@
 # Automation activity
 
+## Conversation actions production status — October 16, 2026
+
+The four CRM migrations 20261016180739, 20261016181809, 20261016183011 and
+20261016183855 are applied. MCP and the CRM permissions UI are live at commit
+7ea1dc8fe1d1e2abc366d6dc9f76bdfb295c937c, with 49 discoverable tools.
+conversation_reply grants preview/reply; conversation_mark_read separately grants
+selected-message read updates. Neither implies metadata/message-read permission.
+The existing all-business admin connection has both grants (revision 7).
+
+Fresh Codex verification used only reads and preview: Opek remains at conversation
+revision 1, five messages and one unread reply; preview queued nothing and both
+test runs remain stopped with no next send. No messages were marked read or sent.
+Read the current revision before any explicitly requested mutation and reuse the
+same payload/idempotency key after an uncertain response. A queued reply receipt
+is not proof of provider acceptance or delivery. Earlier local-only entries below
+describe implementation-time state; the production release is now recorded in
+PROJECT_RECORD.md. No E2 migration or runtime release is needed.
+
 ## MCP reply takeover and delivery — October 16, 2026 (local only)
 
 crm_reply_to_conversation uses canonical staff reply queuing and pauses AI on the
