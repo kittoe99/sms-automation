@@ -1,5 +1,24 @@
 # Automation activity
 
+## Conversation/activity MCP release — October 16, 2026
+
+Stage 2 is LIVE at d60dd359f498ec730c304a6e47589a2ff200eebc. Only migration
+20261016191603 was applied after reconciling 138 prior entries and a guarded
+rollback rehearsal; live history is now 139. Six function hashes match, private
+execution remains denied, and domain snapshots/security-advisor findings are
+unchanged. MCP deploy dep-db97nggn74is738nqhv0 completed 19:33:02 UTC; frontend
+dep-db97nt2jnfac739mhttg completed 19:33:31 UTC (manual trigger after no automatic
+push event). Canonical admin grants are revision 9, 49 permissions, all-business.
+
+Fresh Codex discovery: 72 tools; eleven allowlisted reads passed, including the
+activity report, tags and four attribution candidate types. Opek's conversation
+remains revision 1 with one unread reply, both canary runs remain stopped with
+no next send, and no mutation receipts were created. No live messages were
+marked read or sent and no customer data changed. CRM 628 passed / 29 existing
+skips, paired 63, relevant E2 27; both checks and frontend/Edge builds passed.
+Disposable PostgreSQL concurrency checks passed. No E2 runtime release needed.
+Earlier local-only entries are historical. Stages 3–9 remain in progress/pending.
+
 ## Conversation controls and activity MCP — October 16, 2026 (local)
 
 Stage 2 adds 13 tools and seven separate grants: AI pause/resume, same-contact
