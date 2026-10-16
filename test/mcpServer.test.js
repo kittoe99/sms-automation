@@ -41,15 +41,15 @@ test('Streamable HTTP initializes, lists, calls, reconnects and validates every 
   const unauth=await localFetch(base+'/mcp',{method:'POST',headers:{host:'mcp.example.test'}});assert.equal(unauth.status,401);assert.match(unauth.headers.get('www-authenticate'),/oauth-protected-resource/);
   assert.equal((await localFetch(base+'/.well-known/oauth-protected-resource/mcp',{headers:{host:'mcp.example.test'}})).status,200);
   assert.equal((await rpc('initialize',{protocolVersion:'2025-03-26',capabilities:{},clientInfo:{name:'test',version:'1'}})).status,200);
-  const listed=await (await rpc('tools/list')).json();assert.equal(listed.result.tools.length,36);
-  for(const name of ['crm_get_enquiry_status','crm_list_enquiries','crm_get_enquiry','crm_preview_form','crm_list_forms','crm_get_form','crm_list_sms_automations','crm_get_sms_automation','crm_search_sms_contacts','crm_list_form_submissions','crm_get_sms_run_start_context','crm_list_sms_runs','crm_get_sms_run','crm_get_sms_run_activity']){
+  const listed=await (await rpc('tools/list')).json();assert.equal(listed.result.tools.length,44);
+  for(const name of ['crm_list_leads','crm_get_lead','crm_list_handoffs','crm_get_handoff','crm_get_enquiry_status','crm_list_enquiries','crm_get_enquiry','crm_preview_form','crm_list_forms','crm_get_form','crm_list_sms_automations','crm_get_sms_automation','crm_search_sms_contacts','crm_list_form_submissions','crm_get_sms_run_start_context','crm_list_sms_runs','crm_get_sms_run','crm_get_sms_run_activity']){
    const tool=listed.result.tools.find(x=>x.name===name);assert.ok(tool);
    assert.equal(tool.annotations.readOnlyHint,true);assert.equal(tool.annotations.destructiveHint,false);assert.equal(tool.annotations.openWorldHint,false);
    assert.ok(tool.inputSchema.required.includes('businessId'));assert.equal(tool.inputSchema.additionalProperties,false);
    assert.ok(tool.outputSchema.properties.data);
   }
   assert.equal(listed.result.tools.find(t=>t.name==='crm_review_business_profile').annotations.readOnlyHint,false);
-  for(const name of ['crm_set_form_collection_enabled','crm_apply_form_draft','crm_create_form','crm_save_form_draft','crm_create_sms_automation','crm_save_sms_automation_draft','crm_preview_sms_automation','crm_publish_sms_automation','crm_set_form_followups_enabled','crm_start_sms_automation_run','crm_pause_sms_run','crm_resume_sms_run','crm_stop_sms_run']){
+  for(const name of ['crm_assign_lead','crm_set_lead_status','crm_assign_handoff','crm_set_handoff_status','crm_set_form_collection_enabled','crm_apply_form_draft','crm_create_form','crm_save_form_draft','crm_create_sms_automation','crm_save_sms_automation_draft','crm_preview_sms_automation','crm_publish_sms_automation','crm_set_form_followups_enabled','crm_start_sms_automation_run','crm_pause_sms_run','crm_resume_sms_run','crm_stop_sms_run']){
    const tool=listed.result.tools.find(t=>t.name===name);assert.ok(tool);assert.equal(tool.annotations.readOnlyHint,name==='crm_preview_sms_automation');
    assert.equal(tool.annotations.idempotentHint,true);assert.equal(tool.annotations.openWorldHint,false);
   }

@@ -1,5 +1,27 @@
 # Shared staff CRM and customer dashboard
 
+## MCP lead/handoff edits (local implementation, October 16, 2026)
+
+AI connections now exposes the four previously reserved assignment/status grants.
+Each resource and action is independent. Assignment changes only a text owner
+label (null clears it); status changes only open/assigned/resolved/closed. Agents
+must use a current shared revision and an idempotency key. Conflicts require
+rereading/review, and a lost response must reuse the identical request/key.
+Permissions do not authorize reading record contents. Audit receipts include
+before/after revisions and changed field names, with no owner/customer content.
+No SMS, booking or alert retry is implied. See docs/CRM_MCP.md for the three pending
+CRM migrations and separate release/grant steps; none were applied by this work.
+
+Local lead/handoff revision protection (October 16) requires a positive current
+revision on PATCH /leads/:id and PATCH /handoffs/:id. Only supplied status/owner
+fields are changed; owner null clears the label. Stale edits return 409 and do
+not overwrite worker/staff updates. Revision counters advance on all meaningful
+record changes at the database layer, including worker alert updates. The Voice
+Agent editor sends the revision and keeps failed edits for review. Apply pending
+CRM migrations 20261016164055 then 20261016165709 before frontend/MCP release;
+old unversioned clients need refreshing. No E2 schema/runtime changes or live
+actions occurred. See [CRM MCP](CRM_MCP.md) for scope and local validation.
+
 ## AI connections (released October 14)
 
 Administration → AI connections manages staff MCP clients, their action grants,

@@ -1,5 +1,30 @@
 # Automation activity
 
+## MCP lead/handoff edits (local implementation, October 16, 2026)
+
+Independent assignment/status tools update existing leads or handoffs through the
+canonical revision-checked operation. They preserve SMS runs, consent, bookings
+and the other resource. Native handoff status events occur once on an actual
+transition; identical retries return the transactional receipt. Private MCP audit
+adds previous_revision and changed_fields beside the resulting revision, actor,
+connection, target, request and outcome. It excludes owner labels and customer
+content. This does not authorize alert retries or message sending. See CRM_MCP.md
+for the forward-only release order; this increment remains local/unapplied.
+
+Local revision protection (October 16) supersedes the null-revision checkpoint
+below: scoped MCP lead/handoff reads now expose canonical record counters and
+audit the detail revision. Worker and staff updates advance the same counter;
+stale CRM saves return conflicts. No attribution, alert retry, run/AI control or
+new MCP mutation is introduced. Both pending CRM migrations remain unapplied.
+
+Local lead/handoff MCP reads (October 16) add scoped list/detail tools under
+independent lead_read and handoff_read grants. Explicit enquiry references are
+validated at both ends; phone matches never create links. Existing statuses and
+owner labels are read without changing attribution, SMS/AI state or alerts.
+Revision is null until the future shared write-protection step. Four assignment
+and status grants are reserved with no callable writes. CRM migration
+20261016164055 remains unapplied. See [CRM MCP](CRM_MCP.md).
+
 ## Enquiry MCP released — October 16, 2026
 
 Both enquiry migrations (20261016061921, 20261016063330) are applied and CRM

@@ -1,5 +1,11 @@
 // Shared by the administrator editor and MCP output validation. New grants are opt-in.
 export const connectionPermissions = [
+ ['lead_read','Read scoped existing leads'],
+ ['lead_status_update','Update lead status'],
+ ['lead_assign','Assign lead owner labels'],
+ ['handoff_read','Read scoped existing handoffs'],
+ ['handoff_status_update','Update handoff status'],
+ ['handoff_assign','Assign handoff owner labels'],
  ['enquiry_read','Read scoped form submissions and saved answers'],
  ['enquiry_status_read','Read enquiry SMS state and linked booking/handoff summaries'],
  ['read','Read permitted businesses and customers'],

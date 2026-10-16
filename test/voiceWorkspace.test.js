@@ -44,7 +44,7 @@ test('call retry, qualified leads and repeated callers preserve staff work and c
   assert.equal((await workspace(db,'leads')).total,0);
   const request={outcome:'quote_request',summary:'Requested removal quote',name:'Caller',phone,service:'junk_removal',location:'Denver',request:'Remove sofa'};
   const lead=await runtime(db,'outcome',request);assert.ok(lead.leadId);
-  await call(db,'update_lead_handoff','admin',tenant,'lead',lead.leadId,{status:'assigned',owner:'Staff'});
+  await call(db,'update_lead_handoff','admin',tenant,'lead',lead.leadId,{status:'assigned',owner:'Staff',revision:1});
   await start(db,'phone-job-two');assert.equal((await runtime(db,'outcome',request,'phone-job-two')).leadId,lead.leadId);
   let leads=(await workspace(db,'leads')).leads;assert.equal(leads.length,1);assert.equal(leads[0].status,'assigned');assert.equal(leads[0].owner,'Staff');assert.equal(leads[0].calls.length,2);
   await runtime(db,'finish',{status:'completed',duration:90,transcript:[{role:'user',text:'Hello'}],audio:true});

@@ -1,5 +1,13 @@
 # Voice Agent workspace
 
+Local update (October 16): lead edits now submit the displayed record revision.
+Worker or staff changes make stale saves return HTTP 409; the editor retains
+entered values and asks staff to refresh/review rather than retrying automatically.
+Missing revisions fail closed. Status and owner remain separate from SMS consent,
+AI state and follow-up runs. CRM migration 20261016165709 follows the pending
+lead/handoff read migration and must precede the matching frontend release.
+These changes remain local and unapplied; no voice/provider release was made.
+
 CRM staff use **Voice Agent** to inspect the Opek phone agent, edit its configuration,
 read calls and recordings, and work qualified leads. The customer Voice projection
 requires an explicitly released service and active owner; see [Customer Voice](CUSTOMER_VOICE.md).

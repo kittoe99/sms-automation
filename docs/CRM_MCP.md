@@ -1,5 +1,159 @@
 # CRM MCP business setup
 
+## Lead/handoff assignment and status — October 16, 2026 (local only)
+
+The catalog now has 44 tools and 29 opt-in permissions. This supersedes the
+reserved-write/next-increment notes in earlier checkpoints below.
+
+| Tool | Required permission | Editable field |
+| --- | --- | --- |
+| crm_assign_lead | lead_assign | owner |
+| crm_set_lead_status | lead_status_update | status |
+| crm_assign_handoff | handoff_assign | owner |
+| crm_set_handoff_status | handoff_status_update | status |
+
+All require explicit businessId, the resource UUID (leadId or handoffId), current
+positive safe-integer revision and an 8–128 character idempotencyKey. Assignment
+accepts a text owner label of at most 200 characters, trims it, and clears it with
+null or whitespace. It does not establish staff identity or change status. Status
+is open, assigned, resolved or closed; changing it preserves the owner. Strict
+schemas reject other fields. Reads remain independently granted. The result is
+only businessId, databaseStatus committed, record id/revision/updatedAt,
+previousRevision and changedFields (owner/status or empty for a no-op).
+
+The gateway checks active CRM staff, current connection, action grant and business
+scope before mutation or replay. The private helper locks the scoped record,
+checks its contact belongs to that business, and invokes update_lead_handoff.
+Shared triggers cover worker and CRM edits. Stale revisions and conflicting
+reopens return CONFLICT; reread and review before choosing a new request. No
+automatic overwrites. Missing and foreign references share the same denial.
+
+Retry keys are per connection and bound to tool plus the entire payload excluding
+the key. The change and receipt commit together. Identical retries return the
+original receipt, even after a later edit; they do not reapply the old change.
+Changed payload/tool conflicts. Current grants and revocation still gate replays.
+Failed writes leave no retry receipt or domain change. Identical fresh edits keep
+revision and timestamp unchanged; they still receive an audited receipt.
+
+Private activity records retain actor, connection, tool, target, request ID, time,
+success/denial/replay, resulting revision, previous_revision and changed_fields.
+They contain no owner labels, answers, message bodies, credentials or raw payloads.
+The administrator activity endpoint includes these fields. Native handoff status
+events remain authoritative; retries do not duplicate the domain transition.
+
+These edits manage existing leads/handoffs. They do not create a sales stage for
+every submission, change SMS runs or consent, change bookings or another resource,
+retry alerts, or enqueue messages. Existing workers retain their field ownership.
+
+Forward release order after the already-reconciled paired baseline:
+20261016164055_crm_mcp_lead_handoff_reads.sql,
+20261016165709_lead_handoff_revisions.sql,
+20261016170649_crm_mcp_lead_handoff_writes.sql, then matching CRM frontend/MCP
+release. All three remain local/unapplied. No E2 migration/runtime change is
+required. Reconcile live aliases before any future deployment; never replay either
+history. Grant changes remain a separate administrator action.
+
+Local verification includes database isolation, independent grants, strict direct
+gateway inputs, revision and uniqueness conflicts, receipt-failure rollback,
+revocation even on retries, audit redaction, and unchanged messaging state.
+scripts/test-mcp-lead-handoff-concurrency.js uses disposable loopback PostgreSQL
+with two clients for simultaneous retries, competing edits, worker conflicts and
+transaction rollback. It never accepts a production database URL.
+
+## Shared lead/handoff revisions — October 16, 2026 (local only)
+
+CRM migration 20261016165709_lead_handoff_revisions.sql follows the pending
+20261016164055 read migration. Both remain unapplied. No new MCP mutation tools
+or permission grants are introduced; the local catalog remains 40 tools.
+
+Existing leads/handoffs start at revision 1 without changing their saved content
+or timestamps. A shared BEFORE INSERT/UPDATE trigger owns the counter: every
+meaningful row change increments it, including worker summary/fields, handoff
+reason/priority and alert status/error changes. INSERT sets revision 1; UPDATE
+cannot supply a different revision. Identical values and timestamp-only updates
+keep both revision and updated_at unchanged. Revisions are positive JS-safe
+integers; exceeding the bound aborts the transaction.
+
+The canonical update_lead_handoff operation now requires revision and at least
+one of status/owner, rejects extra/invalid fields and checks staff/business scope.
+It locks the scoped row, compares the expected revision and applies only supplied
+fields. Missing/foreign IDs share Record unavailable. A stale snapshot is SQLSTATE
+40001 / HTTP 409; a conflicting reopen remains a 409 through the existing unique
+open-record constraint. No silent retry or overwrite. Owner remains a text label.
+
+The Voice Agent lead editor sends the rendered revision, retains entered values
+on errors and requires a refresh/review after conflict. Existing voice and general
+record readers include the counter. MCP list/detail outputs and detail read audit
+records now contain the actual counter; the null-revision checkpoint below is
+historical. updatedAt remains informational. Worker SQL keeps its existing field
+ownership and atomic merges/upserts; database triggers cover all those writers.
+
+No new SMS/AI/run/booking/consent/alert action is introduced. Revision triggers
+do not enqueue work or invalidate customer caches. Existing status events remain
+in place. MCP mutation idempotency and independent assignment/status tools remain
+the next increment. This is not an editable sales stage for every submission.
+
+Release must apply the two pending CRM migrations in order before the matching
+frontend and MCP service; old clients lacking revisions fail closed and need a
+refresh. E2 schema/runtime is unchanged. Never replay either migration history.
+Local conflict/isolation tests include disposable real PostgreSQL with two clients
+racing staff/staff and worker/staff updates for both record types; stale writes
+fail after the lock holder commits and a freshly read revision succeeds.
+
+## Lead and handoff reads — October 16, 2026 (local only)
+
+The local catalog adds four read-only tools, bringing it to 40:
+
+| Tool | Permission | Inputs |
+| --- | --- | --- |
+| crm_list_leads | lead_read | businessId; optional status, contactId, q, page, pageSize |
+| crm_get_lead | lead_read | businessId, leadId |
+| crm_list_handoffs | handoff_read | businessId; optional status, contactId, q, page, pageSize |
+| crm_get_handoff | handoff_read | businessId, handoffId |
+
+The four future grants lead_status_update, lead_assign, handoff_status_update and
+handoff_assign are registered but expose no write tools. All six grants are
+opt-in; existing connection grants are preserved. Neither read implies the other,
+submission answers/status access, automation activity, consent changes or SMS.
+
+These are existing lead/handoff records, not new statuses for every submission.
+Outputs contain status (open/assigned/resolved/closed), priority, owner text label,
+createdAt/updatedAt, scoped contact id/name/phone, and summary/reason. Owner is not
+a verified staff assignment. Canonical revision counters do not exist yet:
+revision is explicitly null, including in read audits. updatedAt is not a lock
+token. Write protection remains a separate increment for all canonical writers.
+
+Strict schemas reject unknown fields. Pages default to 25, cap at 100 and page at
+100000; q caps at 100 and uses literal case-insensitive substring matching.
+Tenant/contact/status/search filters precede totals and deterministic pagination
+(createdAt descending, id ascending). Foreign/missing detail IDs share Record
+unavailable. Contact joins include tenant. Text caps: owner/name 200, phone 32,
+lead summary 4000, handoff reason 1000; textTruncated signals clipping. Raw fields,
+message bodies, consent evidence, job/alert internals and related lead contents
+are excluded.
+
+Detail enquiry references use only explicit source-message response or handoff
+attribution. Both endpoints must match business/customer. Form references require
+the exact canonical form/submission; direct references have null form/submission
+IDs. Unlinked, malformed, foreign, test and appointment-run references return
+null. Phone matching alone never establishes a link. No nested run state or
+answers are exposed.
+
+CRM owns 20261016164055_crm_mcp_lead_handoff_reads.sql, after 20261016063330 and
+the paired E2 baseline. Application roles cannot execute the private helper;
+only the connection-authorized gateway invokes it. Staff, connection, business
+and action checks run each call. Successes and denials audit actor/connection,
+tool, target and request ID, without customer content. Reads change only
+audit/last-use bookkeeping. No E2 schema/runtime change is required.
+
+Local tests: CRM 545 passed/29 existing skips, 12 focused MCP checks, 26 E2
+enquiry/customer-lead/cache checks, 63 paired contracts, both required project
+checks, frontend build (synthetic local publishable key) and 65-function Edge
+packaging passed. Isolation tests cover grants, counts/pages/search, malformed
+nested links, direct/test references, revocation, private roles, redaction and
+unchanged domain/cache/queue/message snapshots. No live grants/data/deployment.
+The migration remains unapplied; reconcile aliases before any forward-only release.
+
 ## Enquiry MCP released — October 16, 2026
 
 Both enquiry migrations (20261016061921, 20261016063330) are applied and CRM

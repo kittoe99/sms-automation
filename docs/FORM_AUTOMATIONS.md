@@ -1,5 +1,12 @@
 # Form-first SMS automation
 
+Local MCP lead/handoff reads (October 16) inspect existing operational records
+through independent lead_read and handoff_read permissions. They do not create a
+lead or handoff from a submission, invent a submission sales stage, grant consent
+or start follow-ups. Only validated explicit run associations appear; submission
+answers remain controlled by enquiry_read. Migration 20261016164055 is local and
+unapplied. See [CRM MCP](CRM_MCP.md) for schemas and permission boundaries.
+
 ## Enquiry MCP released — October 16, 2026
 
 Both enquiry migrations (20261016061921, 20261016063330) are applied and CRM

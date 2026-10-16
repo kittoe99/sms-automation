@@ -1,5 +1,12 @@
 import {dashboardLoader} from './dashboardLoader.js';
 import {mountVoiceSetup} from './voiceSetup.js';
+export async function saveLeadEdit(apiFetch,id,revision,fields){
+ if(!Number.isSafeInteger(revision)||revision<1)throw new Error('Refresh the lead before saving.');
+ const response=await apiFetch(`/api/leads/${encodeURIComponent(id)}`,{method:'PATCH',body:JSON.stringify({status:fields.status,owner:fields.owner,revision})});
+ const body=await response.json();
+ if(!response.ok)throw new Error(body.error||'Could not update lead');
+ return body;
+}
 const esc=value=>String(value??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
 export function voiceTime(value,timeZone='UTC'){return value?new Date(value).toLocaleString(undefined,{timeZone}):'Not observed';}
 export const recordingAvailable=(c,now=Date.now())=>c.media_state==='ready'&&!c.deleted_at&&Date.parse(c.expires_at)>now;
@@ -85,8 +92,8 @@ export async function mountVoiceWorkspace(root,{apiFetch,model={},onAvailability
    if(model.focusCall){const id=model.focusCall;delete model.focusCall;await detail(id);}
   }else{
    const [data,context]=await Promise.all([api(`/leads?page=${model.page}`),api('')]);if(ticket!==generation||!active())return;overview=context;
-   node.innerHTML=`<p class="muted">Qualified service interest from calls. Contact numbers are unverified until the caller completes verification. Requests without contact details remain in Calls.</p>${data.leads.map(l=>`<form class="voice-lead" data-lead="${esc(l.id)}"><h3>${esc(l.name||l.phone)}</h3><p>${esc(l.phone)} · ${esc(l.summary)}</p><label>Status<select name="status">${['open','assigned','resolved','closed'].map(s=>`<option ${s===l.status?'selected':''}>${s}</option>`).join('')}</select></label><label>Assigned to<input name="owner" value="${esc(l.owner||'')}" maxlength="200"></label><button class="btn">Save</button><div>${l.calls.map(c=>`<button type="button" class="btn ghost" data-call="${esc(c.id)}">Call ${esc(time(c.startedAt))}</button>`).join('')}</div></form>`).join('')||'<div class="empty">No qualified voice leads yet.</div>'}`;
-   node.querySelectorAll('[data-lead]').forEach(form=>form.onsubmit=async e=>{e.preventDefault();const input=Object.fromEntries(new FormData(form));form.querySelectorAll('input,select,button').forEach(x=>x.disabled=true);try{const r=await apiFetch(`/api/leads/${form.dataset.lead}`,{method:'PATCH',body:JSON.stringify(input)});if(!r.ok)throw new Error((await r.json()).error||'Could not update lead');await paint();}catch(err){if(!active())return;error(err.message);root.querySelectorAll('.voice-tabs button,[data-refresh],[data-agent]').forEach(x=>x.disabled=false);form.querySelectorAll('input,select,button').forEach(x=>x.disabled=false);}});
+   node.innerHTML=`<p class="muted">Qualified service interest from calls. Contact numbers are unverified until the caller completes verification. Requests without contact details remain in Calls.</p>${data.leads.map(l=>`<form class="voice-lead" data-lead="${esc(l.id)}" data-revision="${esc(l.revision)}"><h3>${esc(l.name||l.phone)}</h3><p>${esc(l.phone)} · ${esc(l.summary)}</p><label>Status<select name="status">${['open','assigned','resolved','closed'].map(s=>`<option ${s===l.status?'selected':''}>${s}</option>`).join('')}</select></label><label>Assigned to<input name="owner" value="${esc(l.owner||'')}" maxlength="200"></label><button class="btn">Save</button><div>${l.calls.map(c=>`<button type="button" class="btn ghost" data-call="${esc(c.id)}">Call ${esc(time(c.startedAt))}</button>`).join('')}</div></form>`).join('')||'<div class="empty">No qualified voice leads yet.</div>'}`;
+   node.querySelectorAll('[data-lead]').forEach(form=>form.onsubmit=async e=>{e.preventDefault();const input={...Object.fromEntries(new FormData(form)),revision:Number(form.dataset.revision)};form.querySelectorAll('input,select,button').forEach(x=>x.disabled=true);try{await saveLeadEdit(apiFetch,form.dataset.lead,input.revision,input);await paint();}catch(err){if(!active())return;error(err.message);root.querySelectorAll('.voice-tabs button,[data-refresh],[data-agent]').forEach(x=>x.disabled=false);form.querySelectorAll('input,select,button').forEach(x=>x.disabled=false);}});
    node.querySelectorAll('[data-call]').forEach(b=>b.onclick=()=>detail(b.dataset.call));pageControls(data,node);
   }
  }catch(err){if(ticket===generation&&active()){node.textContent='Unable to load voice workspace. Refresh to retry.';error(err.message);}}}
