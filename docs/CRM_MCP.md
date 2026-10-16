@@ -910,4 +910,3 @@ from sending hours, never repeats or subsequent messages. Consent is still requi
 Use the normal draft-save revision/idempotency protections, then preview a time
 outside sending hours with and without consent. Publication and enablement remain
 separate actions. Publishing preserves existing run snapshots.
-

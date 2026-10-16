@@ -1,5 +1,34 @@
 # Opek SMS project record
 
+## Instant acknowledgment released and Opek draft configured — October 16, 2026
+
+**Applied:** only CRM migration `20261016055448_form_instant_acknowledgment.sql`
+after reconciling 126 live migrations/aliases. All ten live function hashes match
+the locally tested definitions. Security advisor results are unchanged. Migration
+did not change forms, sequences, business settings, runs, messages, jobs or email
+enrollments. No E2 schema/runtime release and no unrelated AI-default migration.
+
+**Released:** commit `cb8aff3029ccd54bfb8025a0e9d46bcb4eb7ce52`; MCP deployment
+`dep-db8rs7nf3r2c73f6opug` and frontend deployment `dep-db8rst3l550s73evve1g` are
+live in the confirmed Micah workspace. Frontend auto-deploy produced no deployment
+or event after the push, so a single explicit deploy was used. Health is 200;
+served frontend contains the control/validator and MCP has no application errors.
+
+**Configured through Codex MCP:** Opek quote form
+`cf1eb32e-db50-4a3f-b1fa-74147701bdc3` SMS draft revision 2 -> 3 now has
+`instantAcknowledgment: true`; text, zero first delay, second-message two-day delay,
+9 AM-6 PM Denver hours and pause-on-reply stay unchanged. It remains unpublished
+and disabled. Form collection remains active at revision 4. An opted-in simulation
+at October 16 10 PM Denver yields first send at that instant and the later send at
+October 19 9 AM. No-consent simulation yields no message rows. The existing real
+test submission still has consent false and no run. Only draft sequence state
+changed: totals remain one historical run, four messages/two outbound and two
+historical SMS-send jobs. No SMS was sent and no enrollment started.
+
+Local checks and migration rehearsal details follow in the preflight entry.
+Operational receipts are stored in ignored `data/instant-ack-*` and
+`data/opek-instant-ack-*` files; no credentials are included in project records.
+
 ## Instant form acknowledgment — October 16, 2026 (release preflight)
 
 Implemented optional `instantAcknowledgment` across form editor, MCP sequence

@@ -488,4 +488,3 @@ CRM owns forward migration `20261016055448_form_instant_acknowledgment.sql`.
 Requires the five released forms MCP migrations and the current paired E2 baseline;
 no E2 contract migration is needed. Never replay migration history. Deployment and
 Opek draft configuration status are recorded separately in `PROJECT_RECORD.md`.
-
