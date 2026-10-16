@@ -10,7 +10,7 @@ is released or its agreed exclusion is documented.
 | --- | --- | --- |
 | 1 | Contacts, SMS consent, automation blocking, marketing SMS preview/send | Released c3d717a; 59 tools / 42 grants; read-only verification passed |
 | 2 | Conversation AI controls, reassignment, enquiry edits, alerts, reporting, tags and attribution | Released d60dd35; 72 tools / 49 grants; read-only verification passed |
-| 3 | Form duplication/archive/restore, template archive and saved presets | Implemented locally; release checks in progress |
+| 3 | Form duplication/archive/restore, template archive and saved presets | Released 95b6c36; 79 tools / 55 grants; read-only verification passed |
 | 4 | Existing bookings, availability/settings, intake edits and cancellation | Pending |
 | 5 | Knowledge sources/uploads/versions and AI configuration/activation | Pending |
 | 6 | Existing email groups, enrollment/job activity, preview, enablement and recovery | Pending |

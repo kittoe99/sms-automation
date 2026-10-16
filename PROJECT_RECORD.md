@@ -1,5 +1,25 @@
 # Opek SMS project record
 
+## Form lifecycle/preset MCP release — October 16, 2026
+
+Stage 3 is LIVE at 95b6c36cbc0e9d8643a9aa9165d07d0bd6ead1ff. Migration
+20261016193231 alone was applied after reconciling 139 prior entries and a guarded
+rollback rehearsal (140 now live). Five expected function hashes match; private
+helpers remain denied. MCP dep-db97sidg1s2s73caj66g completed 19:43:48 UTC;
+frontend dep-db97t1bodcbs739lfj4g completed 19:44:27 UTC. The frontend required an
+explicit trigger after no automatic push event appeared. Admin connection:
+revision 10, 55 grants, all-business scope.
+
+Fresh Codex discovery found 79 tools. Nine read/preview checks passed, including
+Opek's form, inert saved-draft preview, published enabled SMS v1 and preset scope.
+All nine audit records are attributed; zero mutation receipts were created.
+Opek collection/follow-ups stay enabled, both canary runs stay stopped, and the
+conversation still has one unread reply at revision 1. Full domain snapshots and
+existing security-advisor findings are unchanged. No messages were marked read,
+queued or sent. CRM 635 passed / 29 existing skips, paired 63, relevant E2 23;
+both checks and frontend/Edge builds passed. No E2 release was needed.
+Stages 4–9 remain in progress/pending; see docs/MCP_ROLLOUT.md.
+
 ## Form lifecycle and preset MCP — October 16, 2026 (local)
 
 Stage 3 implements seven tools and six independent permissions: inactive form
