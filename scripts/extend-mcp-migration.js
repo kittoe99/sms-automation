@@ -26,7 +26,7 @@ gateway=gateway.replace("coalesce(p->>'contactId'","coalesce(p->>'tagId',p->>'ev
 gateway=gateway.replace("coalesce(data->>'contactId'","coalesce(data->>'tagId',data->>'runId',data->>'handoffId',data->>'conversationId',data->>'contactId'");
 gateway=gateway.replace("case when error_code is null and tool in (","case when error_code is null and tool in ("+list(writes)+',');
 const base=prior.slice(prior.indexOf('create or replace function sms_private.mcp_admin'));let admin=base.slice(0,base.indexOf('end $$;')+7);
-const grants=Object.values(permissions);const newGrants=[...new Set(grants)];
+const grants=Object.values(permissions);const newGrants=[...new Set([...grants,...labels.map(x=>x[0])])];
 admin=admin.replace('if not perms <@ array[','if not perms <@ array['+list(newGrants)+',');
 const all=[...admin.matchAll(/if not perms <@ array\[([^\]]+)\]/g)][0][1];
 const constraints=`alter table sms_private.mcp_connections drop constraint mcp_connections_permissions_check;\nalter table sms_private.mcp_connections add constraint mcp_connections_permissions_check check(permissions <@ array[${all}]::text[]);`;

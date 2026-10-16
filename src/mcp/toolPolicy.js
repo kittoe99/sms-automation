@@ -1,5 +1,17 @@
 // Tool authorization metadata. SQL parity is tested against the latest gateway.
 export const toolPermissions={
+ "crm_set_form_email_enabled":"email_form_enable",
+ "crm_list_email_groups":"email_read",
+ "crm_get_email_group":"email_read",
+ "crm_list_email_enrollments":"email_read",
+ "crm_get_email_enrollment":"email_read",
+ "crm_list_email_jobs":"email_read",
+ "crm_get_email_job":"email_read",
+ "crm_preview_email_schedule":"email_preview",
+ "crm_save_email_group":"email_config_edit",
+ "crm_set_email_group_enabled":"email_enable",
+ "crm_resolve_email_enrollment":"email_resolve",
+ "crm_retry_email_job":"email_retry",
  "crm_list_knowledge_sources":"knowledge_read",
  "crm_get_knowledge_source":"knowledge_read",
  "crm_list_knowledge_versions":"knowledge_read",
@@ -103,4 +115,4 @@ export const toolPermissions={
  "crm_add_business_service": "service_add",
  "crm_set_service_visibility": "visibility"
 };
-export const externalTools=new Set(['crm_prepare_knowledge_upload','crm_create_knowledge_source','crm_refresh_knowledge_source','crm_add_business_service','crm_reply_to_conversation','crm_send_contact_sms','crm_retry_handoff_alert']);
+export const externalTools=new Set(['crm_retry_email_job','crm_prepare_knowledge_upload','crm_create_knowledge_source','crm_refresh_knowledge_source','crm_add_business_service','crm_reply_to_conversation','crm_send_contact_sms','crm_retry_handoff_alert']);

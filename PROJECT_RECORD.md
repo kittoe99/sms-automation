@@ -1,5 +1,30 @@
 # Opek SMS project record
 
+## Email MCP — October 16, 2026 (local)
+
+Stage 6 adds twelve tools and eight separate grants (115 tools / 80 permissions).
+Scoped group, enrollment and job reads keep content behind email_content_read;
+no unsubscribe credentials, provider payloads or leases are exposed. Deterministic
+schedule preview creates no AI draft or enrollment. Configuration preserves
+activation; browser and MCP edits share revisions. Enablement uses a one-use,
+payload-bound CRM Edge ticket to retain provider/AI readiness checks. Secrets stay
+in Edge. Resolution fences existing work; retry requires current job/enrollment
+revisions, generation, recorded and current source consent, no suppression/overlap,
+and the provider retry window. Frozen content/provider idempotency are preserved.
+
+The separately granted form email-consent switch applies only to existing legacy
+email-connected forms, preserves collection/SMS settings and creates no backfill.
+Disabling cancels email enrollments and audits their revisions. Draft bases advance
+only when previously current. All mutations use transactional receipts and audits.
+
+Local verification: CRM 659 passed / 29 existing skips, paired 63, relevant E2 7;
+both checks, frontend and 67-file Edge bundle passed. Disposable PostgreSQL verifies
+concurrent retries, browser conflicts, interrupted transactions and one-use ticket
+races. Migration 20261016202046 alone reconciles against 142 live entries; rollback
+rehearsal matches twelve function hashes. Not yet applied/released. Release order:
+CRM migration, CRM Edge adapter, MCP/frontend, admin grants, read-only verification.
+No E2 runtime change. No customer records or sending workers used in verification.
+
 ## Knowledge and AI MCP release — October 16, 2026
 
 Stage 5 is LIVE at c204b753ba46674d8ad2499cab057793e8545f1b. Migration

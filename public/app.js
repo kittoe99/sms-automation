@@ -1694,6 +1694,7 @@ async function renderEmailGroups() {
     button.disabled = true; error.textContent = '';
     try {
       const saved = await apiFetch(`/api/email/groups/${encodeURIComponent(current.group_id)}`, { method: 'PUT', body: JSON.stringify({
+        revision: current.revision,
         enabled: field('enabled').checked, rule, intent: field('intent').value.trim(),
         systemPrompt: field('systemPrompt').value.trim(), businessContext: field('businessContext').value.trim(),
         mailingAddress: field('mailingAddress').value.trim(),

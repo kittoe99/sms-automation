@@ -18,6 +18,14 @@ export function createMcpDatabase(config) {
     return row.ticket;
    });
   },
+  async emailActionTicket(identity,tool,input,requestId){
+   if(identity.issuer!==config.issuer)throw new Error('Invalid actor issuer');
+   return sql.begin(async tx=>{
+    await tx`select set_config('platform.actor_issuer',${config.issuer},true)`;
+    const [row]=await tx`select crm_mcp.email_action_ticket(${identity.subject},${identity.clientId},${tool},${tx.json(input)},${requestId}::uuid) result`;
+    return row.result;
+   });
+  },
   close:()=>sql.end({timeout:5}),
  };
 }

@@ -7,6 +7,7 @@ export async function emailOverview(db, user, tenant) {
 }
 
 export async function saveEmailGroup(db, user, tenant, groupId, input) {
+  if (!Number.isSafeInteger(input?.revision) || input.revision < 1) throw Object.assign(new Error('Reload email settings before saving'), {status:409});
   if (input?.enabled && (!env('OPENAI_API_KEY') || !await db.call('email_provider_ready', user, tenant))) {
     throw Object.assign(new Error('Configure Resend and OpenAI before activating email'), { status: 409 });
   }

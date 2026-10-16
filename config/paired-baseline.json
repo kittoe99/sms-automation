@@ -123,7 +123,8 @@
     "20261016191603_crm_mcp_conversation_activity.sql": "d42a293b9ecda56ab3a31a2bb7affe66d81172fce56c47d702214e9324e1dc68",
     "20261016193231_crm_mcp_form_lifecycle.sql": "c637b23727030a88c938abedff22d5b03fa24c75701dee87825e104e43eb4589",
     "20261016194340_crm_mcp_booking_management.sql": "4b4ba9a13a191ef149aed1c05e3915f4612d28345953a010341bcd10be1ff3c6",
-    "20261016200143_crm_mcp_knowledge_ai.sql": "3e3f20dff420330869badd00208b9b8cbb20a9ba1eef2396e86323bb99f247b2"
+    "20261016200143_crm_mcp_knowledge_ai.sql": "3e3f20dff420330869badd00208b9b8cbb20a9ba1eef2396e86323bb99f247b2",
+    "20261016202046_crm_mcp_email_automation.sql": "a2f927c55b0dd90aa9c35ec2f7e79747619dc1912b477ab9fb91e33b84d5bf99"
   },
   "e2": {
     "20260922000000_create_contact_submissions.sql": "9a94bdadaabf0253d21529984d86bec5aafb1cfe80b454796d9ea9835b0463a5",

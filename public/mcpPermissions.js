@@ -1,5 +1,13 @@
 // Shared by the administrator editor and MCP output validation. New grants are opt-in.
 export const connectionPermissions = [
+ ["email_form_enable","Offer or remove email consent on existing legacy email forms"],
+ ["email_read","Read email groups, enrollments and job status"],
+ ["email_content_read","Read existing email job subject and body"],
+ ["email_preview","Preview deterministic email schedules"],
+ ["email_config_edit","Edit existing email group configuration"],
+ ["email_enable","Enable or disable existing email groups"],
+ ["email_resolve","Resolve existing email enrollments"],
+ ["email_retry","Retry eligible failed email jobs"],
  ["knowledge_read","Read scoped knowledge sources and versions"],
  ["knowledge_create","Create knowledge sources for indexing"],
  ["knowledge_refresh","Refresh existing knowledge sources"],
