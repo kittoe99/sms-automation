@@ -1,5 +1,17 @@
 # Automation activity
 
+## Conversation-read MCP released — October 16, 2026
+
+CRM migration 20261016174527 is applied; MCP and frontend commit eaae604 are live.
+The existing all-business admin connection has the separate conversation_read
+and conversation_messages_read grants, preserving all other grants. Codex
+discovered 46 tools and verified Opek's one conversation, five messages and one
+unread message through ten read-only calls. Read state and domain hashes are
+unchanged; both test SMS runs remain stopped with no next send. No SMS was sent.
+E2 runtime/schema is unchanged. See both project records and CRM_MCP.md for
+separate local checks, migration and release receipts. Earlier local-only notes
+are historical checkpoints.
+
 ## MCP conversation reads — October 16, 2026 (local only)
 
 Conversation metadata and explicitly requested message pages now have separate

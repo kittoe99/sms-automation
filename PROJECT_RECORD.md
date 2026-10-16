@@ -1,5 +1,53 @@
 # Opek SMS project record
 
+## Conversation-read MCP production release — October 16, 2026
+
+Applied only CRM migration 20261016174527_crm_mcp_conversation_reads.sql after
+reconciling both repositories against all 132 live entries, including aliases and
+documented historical remote-only entries. Guarded rollback rehearsal matched
+the local function hashes; isolated CLI dry run selected exactly one migration
+with no role/seed/vault changes. Live history now has 133 entries with the previous
+132 unchanged. All three function hashes match; the private helper denies direct
+execution to all five application roles. Security advisors are unchanged. No
+history repair/replay, unrelated pending migration, E2 migration or Edge release.
+
+Released code eaae604a54c816df080b2d3c2232eebf603afd0c to the existing services in
+the previously confirmed Micah workspace. MCP deploy dep-db96bdrbc2fs738g51ng
+and CRM frontend deploy dep-db96buc9v7es73963740 are live. MCP health is HTTP 200,
+and served permission assets contain both conversation grants. The frontend
+produced no automatic deployment/event after the push; one explicit deployment
+released it. No MCP runtime errors appeared in the post-release log check. The
+Supabase connector required reauthentication; the existing authenticated CLI
+performed reconciliation, migration and verification. E2 runtime is unchanged.
+
+The verified all-business admin connection received only conversation_read and
+conversation_messages_read under the user's standing admin-control request.
+All existing grants/scope were preserved; revision advanced 5 -> 6 through the
+canonical audited administrator operation. Other connections received no grants.
+
+A fresh authenticated Codex MCP session discovered 46 tools and checked both
+new tools' strict schemas and read-only annotations. Ten read-only calls passed
+(nine successful, one correctly denied missing-record probe). Opek has one
+conversation with five messages and one unread message. Metadata excluded bodies;
+explicit detail returned the scoped message page. Contact/unread/search filters
+and audit actor/connection/request attribution were verified. The two successful
+detail audits identify the exact conversation and generation. Both existing test
+runs remain stopped with next send null. No mutation tool was invoked.
+
+Before/after hashes match for conversation state, every message's read state,
+messages, contacts, submissions, forms, sequences, runs, bookings, lead/handoff
+content and email enrollments. SMS send-job hashes/counts and outbound-message
+counts are unchanged. Only expected migration, connection grant/last-use and
+private audit writes occurred. No messages were marked read and no SMS was sent.
+
+Local verification remains separate: CRM 572 passed/29 existing skips, E2 relevant
+tests 26 passed, paired tests 63 passed, both project checks, frontend build and
+65-function Edge bundling passed. Release-time focused conversation/discovery
+tests passed 13/13 and the CRM required check passed again. Receipts are ignored
+data/conversation-release-*. Both project records and affected workflow docs are
+updated; unrelated main-checkout work is preserved. Earlier local-only notes are
+historical implementation checkpoints.
+
 ## MCP conversation reads — October 16, 2026 (local only)
 
 Implemented crm_list_conversations and crm_get_conversation with strict input
