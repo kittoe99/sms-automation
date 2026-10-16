@@ -3,8 +3,8 @@
 This is the execution record for the approved nine-stage rollout. The starting
 production baseline is 49 tools and 33 permissions (conversation release
 7ea1dc8). New capabilities are released by domain; production verification uses
-reads and previews only. Implementation is not complete until every stage below
-is released or its agreed exclusion is documented.
+reads and previews only. All nine stages below are now released; the catalog has 153 tools and 104 grants.
+Agreed exclusions remain documented below.
 
 | Stage | Deliverable | State |
 | --- | --- | --- |
@@ -16,7 +16,7 @@ is released or its agreed exclusion is documented.
 | 6 | Existing email groups, enrollment/job activity, preview, enablement and recovery | Released a0ce383; 115 tools / 80 grants; read-only verification passed |
 | 7 | Voice configuration/drafts/publication, calls, transcripts and media | Released 42e8293; 127 tools / 88 grants; read-only verification passed |
 | 8 | Existing-site details/deployments, form connections, update requests and publication | Released 66623ea / E2 4b41268; 142 tools / 98 grants; read-only verification passed |
-| 9 | Operational diagnostics, sanitized provider readiness, refresh/reconciliation and eligible recovery | Locally implemented; verification/release in progress |
+| 9 | Operational diagnostics, sanitized provider readiness, refresh/reconciliation and eligible recovery | Released 8a724e1; 153 tools / 104 grants; read-only verification passed |
 
 ## Common contract
 
@@ -75,3 +75,17 @@ staff-send path. As in CRM, a successful staff send pauses AI on its resulting
 conversation without marking messages read. Preview has no such effect. SMS
 receipt replay does not requeue or reapply takeover. Suppression cannot recall
 messages already submitted to a provider.
+
+## Final verification — October 16, 2026
+
+The final operations migration was the only new migration applied in stage 9
+(146 to 147 reconciled history entries). Nine live function hashes matched the
+rollback rehearsal and no private helper grants leaked. Final CRM checks: 686
+passed / 29 existing skips; E2: 248 tests plus six worker tests; both paired
+suites: 63; builds and real PostgreSQL concurrency passed.
+
+Fresh Codex discovered 153 tools with 104 admin grants and completed 52 scoped
+reads/previews, each audited, with zero mutation receipts. Domain snapshots and
+security advisors were unchanged. Both test runs remain stopped with no next
+send, and the existing unread reply remains unread. No live send, publication,
+activation, enrollment or customer edit was used to verify the rollout.

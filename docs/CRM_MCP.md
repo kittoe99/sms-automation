@@ -1861,3 +1861,30 @@ Reconciled 146 live migrations including aliases. Rehearsed and applied only
 function hashes and no private helper execute grants. No E2 migration or worker
 runtime release was needed. MCP/frontend deployment and read-only verification
 follow; this entry does not claim that release is complete.
+
+## Nine-stage MCP rollout complete — October 16, 2026
+
+All nine planned stages are implemented and released. The final catalog has
+153 tools and 104 independent permissions, compared with 49 tools / 33 grants at
+the starting baseline. The authorized all-business admin connection is active at
+revision 16 with all released grants; new connections still receive no grants.
+The exclusions in docs/MCP_ROLLOUT.md remain explicit.
+
+Final implementation commit 8a724e1c0d6f8443158d4a256092b8cd6d0a9eca is live on
+MCP dep-db99bcrbc2fs73ert380 (21:23:39 UTC) and frontend
+dep-db99begpd3as73be8pi0 (21:23:19 UTC). Migration 20261016211044 alone advanced
+history from 146 to 147 after reconciliation/rehearsal; nine function hashes
+matched and private helper execution stayed denied. E2 hosting runtime remains
+the verified 4b41268 release; this stage needed no E2 runtime or worker redeploy.
+
+Fresh Codex discovered all 153 tools and completed 52 allowlisted read/preview
+calls by 21:24:23 UTC. All 52 had attributed audit records and zero mutation
+receipts. Domain snapshots and security advisors were unchanged. Opek's two
+canary runs remain stopped with no next run; its reply remains unread. No customer
+record changes, publication, activation, enrollment, mark-read or SMS/email sends
+were performed during release verification.
+
+Final local verification: CRM verify:release 686 passed / 29 existing skips;
+E2 verify:release 248 passed plus six worker tests; paired suites 63 passed;
+checks/builds and disposable PostgreSQL concurrency passed. Local checks, applied
+migrations and live deployments are separate evidence, recorded above.
