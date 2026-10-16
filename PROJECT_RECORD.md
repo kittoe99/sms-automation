@@ -1,5 +1,20 @@
 # Opek SMS project record
 
+## October 16 — CRM cross-chat rollout completed; E2 dashboard held
+
+Runtime commit `db4fbe9859e2f9fe3144c53eea82b1cc25dd122c` is live on both CRM services. MCP deployment `dep-db9aoq8m7kps73clsfgg` completed at 23:00:28 UTC; frontend `dep-db9apnm7bikc73fb1ud0` completed at 23:02:03 UTC. Render emitted no automatic frontend event after the push, so the existing dashboard's Deploy latest commit action was used; auto-deploy settings were not changed.
+
+Only CRM forward migration `20261016225239_automation_ai_reply_defaults_rollout.sql` was applied, after reconciling 150 existing entries and verifying a rollback rehearsal. There are now 151 entries; expected function hashes match. No untouched defaults existed, so existing business settings were unchanged. The old unpublished `20261016035447_automation_ai_reply_defaults.sql` is superseded and must not be applied. E2 dashboard migration `20261016224415` was explicitly excluded and remains absent from live history.
+
+All 21 tracked CRM Edge functions were deployed from this tested source with their existing JWT verification settings. Active versions: sms-worker 21, automation-worker 32, ai-worker 40, provisioning-worker 25, crm-api 64, twilio-webhook 22, business-events 21, knowledge-worker 16, embedding-worker 15, handoff-worker 15, compliance-worker 18, compliance-session 17, web-form 15, email-worker 13, email-webhook 12, voice-agent 10, soni-voice-inbound 11, voice-lookup 6, voice-booking 5, voice-runtime 4, voice-maintenance 4. Remote-only inbound-ai-validation remains v4. The suspended legacy Render forms service remains suspended.
+
+Verification: 717 CRM tests passed/29 existing skips; 63 released-E2 paired contract tests passed; project checks, frontend build and 68-file Edge bundle passed. Fresh Codex discovery has 155 tools/106 permissions; 16 read-only calls all have correct audit attribution and zero mutation receipts. Opek's published form follow-up remains version 1, enabled, instant acknowledgment true, effective AI replies true. Both test runs remain stopped with no next sends; provider readiness is true; conversation revision 31/four unread messages is unchanged. Public quote form rendered with SMS consent unchecked, without submitting it. Served changed frontend modules match the release; CRM root, MCP health and Clerk configuration return 200. Render error logs are empty.
+
+Full before/after domain hashes, settings, queued AI/SMS counts and security-advisor findings match. No messages were marked read, created or sent, and no form/contact/run/consent record changed. An existing dependency audit warning remains for transitive Axios (<1.20.0); this release did not change dependencies. Track that separately from deployed application edits.
+
+E2 Local dashboard code, migrations and deployments were intentionally held at the user's request while its other chat continues editing. No E2 push, Vercel release or Cloudflare deployment was performed. Primary dirty checkouts and other chats' changes remain preserved. Release evidence is in ignored `data/all-edits-*`; deployment screenshot: `data/all-edits-crm-live.png`.
+
+
 ## October 16 — Cross-chat CRM release reconciliation (prepared locally)
 
 User requested all outstanding CRM edits, then explicitly held the ongoing E2 Local dashboard deployment. E2 dashboard files and migration 20261016224415 remain excluded. The clean CRM release worktree is authoritative; the primary deploy-crm checkout is preserved.

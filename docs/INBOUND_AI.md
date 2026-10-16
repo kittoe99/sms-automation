@@ -2,6 +2,8 @@
 
 ## Automation defaults rollout (October 16, 2026)
 
+Released at CRM `db4fbe9`; migration `20261016225239` is applied. Both CRM services and all 21 tracked Edge functions are live. E2 dashboard work remains held. See the project record for verification and deployment IDs.
+
 New business settings default to live AI replies and coordination. A future real inbound text initializes missing settings; no historical messages are replayed. Explicit Off and legacy shadow settings are preserved. Only untouched Off rows (revision zero, empty instructions, no validation) qualify for the forward backfill.
 
 Form and contact sequences have an **AI replies** toggle, checked by default. `aiRepliesEnabled: false` persists in drafts, published versions, presets and enrolled snapshots. An overlapping active/paused opt-out or the last accepted outbound from an opted-out run suppresses AI replies for that business/phone, including late replies to completed/stopped runs. Scheduled pause/continue/stop policy stays separate. The opt-out is rechecked before provider submission, including already queued AI work.
