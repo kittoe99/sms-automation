@@ -1,3 +1,4 @@
+import {formLifecycleTools,formLifecycleOutputs} from './formLifecycleSchemas.js';
 import {z} from 'zod';
 import {externalTools} from './toolPolicy.js';
 import {contactTools,contactOutputs} from './contactSchemas.js';
@@ -22,7 +23,7 @@ const business={businessId:id};
 const write={...business,idempotencyKey:z.string().min(8).max(128)};
 const profile={...write,revision:z.number().int().nonnegative(),profile:z.record(z.unknown())};
 export const toolDefinitions=[
- ...activityTools,
+ ...activityTools,...formLifecycleTools,
  ...contactTools,
  ...conversationTools,
  ...conversationMarkReadTools,
@@ -62,7 +63,7 @@ const providerSetup=z.object({state:z.string(),jobs:z.array(z.object({id:uuid,st
 const mutation=record=>z.object({record,businessId:id,databaseStatus:z.literal('committed'),providerSetup});
 const paging={total:z.number().int().nonnegative(),page:z.number().int().positive(),pageSize:z.number().int().min(1).max(100)};
 export const toolOutputs={
- ...activityOutputs,
+ ...activityOutputs,...formLifecycleOutputs,
  ...contactOutputs,
  ...conversationOutputs,
  ...conversationMarkReadOutputs,

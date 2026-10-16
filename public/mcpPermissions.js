@@ -1,5 +1,11 @@
 // Shared by the administrator editor and MCP output validation. New grants are opt-in.
 export const connectionPermissions = [
+ ["form_duplicate","Duplicate an applied form into inactive collection"],
+ ["form_archive","Archive forms and stop associated follow-ups"],
+ ["form_restore","Restore forms with collection disabled"],
+ ["automation_archive","Archive direct SMS templates"],
+ ["automation_preset_read","Read saved SMS sequence presets"],
+ ["automation_preset_save","Save an existing form SMS draft as a preset"],
  ["conversation_ai_pause","Pause AI for one conversation"],
  ["conversation_ai_resume","Resume eligible conversation AI"],
  ["conversation_message_reassign","Reassign selected inbound messages"],

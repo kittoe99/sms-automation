@@ -48,6 +48,9 @@ test('saved drafts apply atomically with scope, revisions, retries and no collec
   await grant(['form_create','form_edit']);
   const inactive=await save(await create('inactive-form')),active=await save(await create('active-form','quote_requests')),booking=await save(await create('booking-form','bookings'));
   await db.query('update public.sms_web_form_definitions set enabled=true,email_enabled=true,legacy_form=true where public_id=$1',[active.id]);
+  active.revision=(await db.query('select version from public.sms_web_form_definitions where public_id=$1',[active.id])).rows[0].version;
+  // This fixture deliberately starts with a draft reviewed against the seeded state.
+  await db.query('update sms_private.mcp_form_drafts set base_revision=$2 where form_id=$1',[active.id,active.revision]);
   // Local-only historic submission: no SMS consent, workers, or provider calls.
   const history=await call(db,'submit_web_form',active.id,{submissionId:crypto.randomUUID(),name:'Test',phone:'+17208429167',email:'test@example.test',smsOptIn:false,details:{items:'Historical answer',obsolete:'Retain this answer'}});
   assert.ok(history.submissionId);
@@ -82,8 +85,8 @@ test('saved drafts apply atomically with scope, revisions, retries and no collec
    for(const f of [inactive,active,booking]){
     const p=input(f),r=await invoke('crm_apply_form_draft',p);assert.equal(r.ok,true,JSON.stringify(r));requests.push([p,r]);
     const result=r.data.form;assert.deepEqual(result.definition,definition);assert.deepEqual(result.draft,definition);
-    assert.equal(result.revision,3);assert.equal(result.draftRevision,3);assert.equal(result.draftBaseRevision,3);assert.equal(result.draftStale,false);
-    assert.equal(r.data.previousRevision,2);assert.equal(r.data.appliedDraftRevision,2);
+    assert.equal(result.revision,f.revision+1);assert.equal(result.draftRevision,3);assert.equal(result.draftBaseRevision,f.revision+1);assert.equal(result.draftStale,false);
+    assert.equal(r.data.previousRevision,f.revision);assert.equal(r.data.appliedDraftRevision,2);
     assert.equal(result.collectionEnabled,f.id===active.id);assert.equal(result.emailConsentEnabled,f.id===active.id);assert.equal(result.preset,f.preset);
     const publicForm=await call(db,'public_web_form',f.id);
     if(f.id===active.id){assert.equal(publicForm.title,definition.title);assert.deepEqual(publicForm.fields,definition.fields);assert.equal(publicForm.emailEnabled,true);}
@@ -93,7 +96,7 @@ test('saved drafts apply atomically with scope, revisions, retries and no collec
    const cacheAfter=(await db.query('select revision from public.dashboard_cache_versions where scope=$1',['tenant:'+a])).rows[0].revision;
    assert.ok(cacheAfter>cacheBefore,'Canonical E2 cache invalidation must remain intact');
    const historical=(await db.query('select field_snapshot,form_version,details from public.sms_web_form_quote_request_submissions where id=$1',[history.submissionId])).rows[0];
-   assert.deepEqual(historical.field_snapshot,old.fields);assert.equal(historical.form_version,2);assert.equal(historical.details.obsolete,'Retain this answer');
+   assert.deepEqual(historical.field_snapshot,old.fields);assert.equal(historical.form_version,active.revision);assert.equal(historical.details.obsolete,'Retain this answer');
   });
   await t.test('identical retries return the original snapshot; changed keys and competing stale apply requests conflict',async()=>{
    const [p,r]=requests[0],before=await snapshot();

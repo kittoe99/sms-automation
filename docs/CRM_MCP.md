@@ -1,5 +1,29 @@
 # CRM MCP business setup
 
+## Form lifecycle and preset MCP — October 16, 2026 (local)
+
+Stage 3 implements seven tools and six independent permissions: inactive form
+duplication, archive, inactive restore, direct-template archive, preset list/detail
+and saving a reviewed form SMS draft as an immutable preset. Local catalog:
+79 tools / 55 grants. Shared form revisions now advance for every browser/worker
+row update; identity cannot change. Strict wrappers require current revisions,
+transactional retry receipts and audits. Duplication copies applied fields and
+the saved SMS draft but no published version, enabled collection or runs.
+
+Canonical form archive disables collection/follow-ups, stops associated active or
+paused SMS runs, and cancels active/paused email enrollments. Each affected ID and
+resulting generation is audited. Restore remains inactive and does not resume
+work. Template archive preserves existing direct runs. Preset creation returns
+the exact inserted ID rather than looking up a nonunique name or timestamp.
+All new tools leave ownership, customer visibility and website links unchanged.
+
+Local CRM 635 passed / 29 existing skips; relevant E2 23 passed; both project checks
+passed. Disposable PostgreSQL verified duplicate retries, browser conflicts,
+locked-run exclusion, competing archives and interrupted restore rollback.
+Paired checks passed (63 tests); frontend and 65-file Edge bundle built. Migration 20261016193231
+is reconciled against 139 live entries and rollback-rehearsed, NOT yet applied.
+No E2 migration/runtime release is required; release verification is read-only.
+
 ## Conversation/activity MCP release — October 16, 2026
 
 Stage 2 is LIVE at d60dd359f498ec730c304a6e47589a2ff200eebc. Only migration

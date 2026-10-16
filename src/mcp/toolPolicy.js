@@ -1,5 +1,12 @@
 // Tool authorization metadata. SQL parity is tested against the latest gateway.
 export const toolPermissions={
+ "crm_duplicate_form":"form_duplicate",
+ "crm_archive_form":"form_archive",
+ "crm_restore_form":"form_restore",
+ "crm_archive_sms_template":"automation_archive",
+ "crm_list_sms_presets":"automation_preset_read",
+ "crm_get_sms_preset":"automation_preset_read",
+ "crm_save_sms_preset":"automation_preset_save",
  "crm_pause_conversation_ai":"conversation_ai_pause",
  "crm_resume_conversation_ai":"conversation_ai_resume",
  "crm_reassign_conversation_message":"conversation_message_reassign",

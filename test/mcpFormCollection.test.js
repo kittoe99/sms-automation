@@ -96,6 +96,7 @@ test('collection changes are scoped, independently granted, atomic and never sta
   let pausedRun,emailId,disabled;
   await t.test('deactivation preserves canonical pause/cancel safeguards, generation fences and in-flight reporting',async()=>{
    const live=await create('quote_requests');await db.query('update public.sms_web_form_definitions set enabled=true,email_enabled=true,legacy_form=true where public_id=$1',[live.id]);
+   live.revision=(await db.query('select version from public.sms_web_form_definitions where public_id=$1',[live.id])).rows[0].version;
    const other=await create();
    for(const target of [live,other]){
     await db.query('insert into sms_private.form_sequences(tenant_id,form_id,enabled,published_version) values($1,$2,true,1)',[a,target.id]);
@@ -130,6 +131,7 @@ test('collection changes are scoped, independently granted, atomic and never sta
   await t.test('retry persistence failures roll back state, safeguards, draft metadata, effect audits and cache',async()=>{
    const fresh=await create();
    await db.query('update public.sms_web_form_definitions set enabled=true where public_id=$1',[fresh.id]);
+   fresh.revision=(await db.query('select version from public.sms_web_form_definitions where public_id=$1',[fresh.id])).rows[0].version;
    await db.query('insert into sms_private.form_sequences(tenant_id,form_id,published_version) values($1,$2,1)',[a,fresh.id]);
    await db.query("insert into sms_private.form_sequence_versions(tenant_id,form_id,version,sequence) values($1,$2,1,'{}')",[a,fresh.id]);
    await db.query("insert into sms_private.form_runs(tenant_id,form_id,version,submission_id,phone,context) values($1,$2,1,gen_random_uuid(),'+17208429167','{}')",[a,fresh.id]);

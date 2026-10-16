@@ -25,7 +25,7 @@ test('form schemas reject unknown keys, invalid IDs, filters, page bounds and ne
  const definition={title:'Test',description:'',buttonLabel:'Send',fields};
  assert.ok(formDefinitionSchema.safeParse(definition).success);
  for(const f of [{...fields[0],private:'secret'},{...fields[0],options:['x']},{...fields[1],options:[]},{...fields[0],type:'script'}])assert.equal(formDefinitionSchema.safeParse({...definition,fields:[f]}).success,false);
- assert.deepEqual(connectionPermissionNames.filter(x=>x.startsWith('form_')),['form_read','form_create','form_edit','form_preview','form_publish','form_activate']);
+ assert.deepEqual(connectionPermissionNames.filter(x=>x.startsWith('form_')),['form_duplicate','form_archive','form_restore','form_read','form_create','form_edit','form_preview','form_publish','form_activate']);
 });
 
 test('form reads enforce grants and tenant isolation through the restricted database gateway',async t=>{
@@ -94,7 +94,7 @@ test('form reads enforce grants and tenant isolation through the restricted data
   });
   await t.test('detail projects current definition, type-specific fixed fields and no staged draft or SMS data',async()=>{
    const r=await invoke('crm_get_form',{businessId:a,formId:fa.public_id});assert.equal(r.ok,true,JSON.stringify(r));
-   const f=r.data.form;assert.equal(f.revision,3);assert.equal(f.collectionEnabled,true);
+   const f=r.data.form;assert.equal(f.revision,4);assert.equal(f.collectionEnabled,true);
    assert.equal(r.data.timeZone,'America/Denver');assert.deepEqual(f.definition.fields,fields);
    assert.equal(f.draft,null);assert.equal(f.draftRevision,null);
    for(const key of ['submissions','submissionCount','contacts','automation','sequence','tenant_id'])assert.equal(key in f,false);
@@ -121,7 +121,7 @@ test('form reads enforce grants and tenant isolation through the restricted data
    const snapshot=async()=>{const out={};for(const table of ['public.sms_web_form_definitions','public.sms_contacts','public.sms_businesses','sms_private.form_sequences','sms_private.form_runs','sms_private.jobs','sms_private.mcp_requests'])out[table]=(await db.query(`select coalesce(jsonb_agg(to_jsonb(x) order by to_jsonb(x)::text),'[]') value from ${table} x`)).rows[0].value;return out;};
    const before=await snapshot();for(const [tool,p] of inputs)assert.equal((await invoke(tool,p)).ok,true);assert.deepEqual(await snapshot(),before);
    const audit=(await db.query('select * from sms_private.mcp_activity where connection_id=$1',[connectionId])).rows;
-   assert.ok(audit.some(x=>x.tool==='crm_get_form'&&x.target===fa.public_id&&x.revision===3));
+   assert.ok(audit.some(x=>x.tool==='crm_get_form'&&x.target===fa.public_id&&x.revision===4));
    assert.ok(audit.some(x=>x.outcome==='denied'));assert.ok(audit.every(x=>x.actor_id===staff&&x.request_id));
    for(const value of ['secret-field-value','Definition only','7208429167'])assert.equal(JSON.stringify(audit).includes(value),false);
   });

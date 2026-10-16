@@ -86,6 +86,7 @@ test('form previews enforce independent grants, tenant isolation and zero domain
   // Existing collection/automation data provides a nonempty no-side-effect fixture.
   await db.query('update public.sms_web_form_definitions set enabled=true where public_id=$1',[contact.id]);
   await db.query('update public.sms_web_form_definitions set legacy_form=true,email_enabled=true where public_id=$1',[quote.id]);
+  for(const f of forms){f.revision=(await db.query('select version from public.sms_web_form_definitions where public_id=$1',[f.id])).rows[0].version;await db.query('update sms_private.mcp_form_drafts set base_revision=$2 where form_id=$1',[f.id,f.revision]);}
   await db.query('insert into sms_private.form_sequences(tenant_id,form_id,published_version,enabled) values($1,$2,1,true)',[a,contact.id]);
   await db.query("insert into sms_private.form_sequence_versions(tenant_id,form_id,version,sequence) values($1,$2,1,'{}')",[a,contact.id]);
   await db.query("insert into sms_private.form_runs(tenant_id,form_id,version,submission_id,phone,context,status,next_run_at) values($1,$2,1,gen_random_uuid(),'+17208429167','{}','active',now()+interval '1 day')",[a,contact.id]);
@@ -98,7 +99,7 @@ test('form previews enforce independent grants, tenant isolation and zero domain
    for(const f of forms){
     const r=await invoke('crm_preview_form',inputs(f));assert.equal(r.ok,true,JSON.stringify(r));
     assert.deepEqual(r.data.form.definition,definition);assert.equal(r.data.submittable,false);assert.deepEqual(r.data.warnings,[]);
-    assert.equal(r.data.form.draftRevision,1);assert.equal(r.data.form.draftBaseRevision,2);
+    assert.equal(r.data.form.draftRevision,1);assert.equal(r.data.form.draftBaseRevision,f.revision);
     assert.deepEqual(r.data.fixedFields.map(x=>x.key),['name','phone','email',...(f.preset==='bookings'?['appointment_at']:[])]);
     const business=(await db.query('select name from public.sms_businesses where tenant_id=$1',[a])).rows[0].name;
     assert.deepEqual(r.data.consent.sms,{text:await call(db,'web_form_consent_text',business),checked:false,required:false});
@@ -121,15 +122,15 @@ test('form previews enforce independent grants, tenant isolation and zero domain
    for(const patch of [{sample:{phone:'+17208429167'}},{contactId:crypto.randomUUID()},{definition},{enabled:true},{idempotencyKey:'extra-key'},{revision:null},{revision:'2'},{revision:0},{revision:1.1},{revision:1e100},{draftRevision:0},{draftRevision:null},{formId:'invalid'}]){
     const r=await invoke('crm_preview_form',{...inputs(contact),...patch});assert.equal(r.error.code,'VALIDATION_ERROR',JSON.stringify(patch));
    }
-   for(const patch of [{revision:3},{draftRevision:2}])assert.equal((await invoke('crm_preview_form',{...inputs(contact),...patch})).error.code,'CONFLICT');
+   for(const patch of [{revision:contact.revision+1},{draftRevision:2}])assert.equal((await invoke('crm_preview_form',{...inputs(contact),...patch})).error.code,'CONFLICT');
    assert.deepEqual(await snapshot(),before);
   });
   await t.test('stale bases and archived forms can be inspected with explicit warnings, never applied or reconciled',async()=>{
    await call(db,'form_workspace','staff',a,'save',contact.id,{...definition,title:'Applied edit',enabled:true});
    await call(db,'form_workspace','staff',a,'archive',contact.id,{});
-   const state=await snapshot(),r=await invoke('crm_preview_form',{...inputs(contact),revision:3});
+   const state=await snapshot(),r=await invoke('crm_preview_form',{...inputs(contact),revision:(await db.query('select version from public.sms_web_form_definitions where public_id=$1',[contact.id])).rows[0].version});
    assert.equal(r.ok,true,JSON.stringify(r));assert.equal(r.data.form.draftStale,true);
-   assert.equal(r.data.form.draftBaseRevision,2);assert.equal(r.data.form.definition.title,definition.title);
+   assert.equal(r.data.form.draftBaseRevision,contact.revision);assert.equal(r.data.form.definition.title,definition.title);
    assert.deepEqual(r.data.warnings,['DRAFT_BASE_CHANGED','FORM_ARCHIVED']);
    assert.match(formPreviewResource(r.data).resource.text,/Reconciliation is required/);
    assert.deepEqual(await snapshot(),state);
