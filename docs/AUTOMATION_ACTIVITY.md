@@ -1,5 +1,15 @@
 # Automation activity
 
+## Lead/handoff MCP release — October 16, 2026
+
+CRM migrations 20261016164055 (reads), 20261016165709 (shared revisions) and
+20261016170649 (assignment/status writes) are now applied. CRM frontend and MCP
+commit 0fe6b40 are live; the existing all-business admin connection has the six
+independent lead/handoff grants. Codex discovery and ten read-only calls verified
+the release. No enquiry record edit or SMS occurred; both test runs remain stopped.
+E2 runtime/schema is unchanged. Earlier local-only notes are historical. See both
+project records and CRM_MCP.md for separate migration, deployment and test receipts.
+
 ## MCP lead/handoff edits (local implementation, October 16, 2026)
 
 Independent assignment/status tools update existing leads or handoffs through the

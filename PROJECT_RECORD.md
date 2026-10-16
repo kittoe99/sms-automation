@@ -1,5 +1,63 @@
 # Opek SMS project record
 
+## Lead/handoff MCP production release — October 16, 2026
+
+**Applied migrations:** reconciled both repositories against all 129 live entries,
+including documented aliases and unchanged historical remote-only entries. A
+guarded rollback rehearsal matched the tested function definitions. An isolated
+forward-only CLI catalog applied exactly these three CRM migrations:
+
+- 20261016164055_crm_mcp_lead_handoff_reads.sql
+- 20261016165709_lead_handoff_revisions.sql
+- 20261016170649_crm_mcp_lead_handoff_writes.sql
+
+Live history now has 132 entries; the original 129 are unchanged. Six live function
+hashes match local tested definitions. All three new private helpers/triggers deny
+direct execution to all five application roles. Two revision triggers and two
+private audit columns are present. The existing lead gained initial revision 1
+without changing its content/timestamps. Security advisors are unchanged. No
+history repair/replay, unrelated pending migration, E2 migration or Edge release.
+
+**Released:** implementation commit 0fe6b40113da9d63074f22f594d810b86118ff2d.
+MCP deploy dep-db961keq1p3s73cvdvqg and CRM frontend deploy
+dep-db962eg473hc73b5hl30 are live in the previously confirmed Micah workspace.
+MCP health returns HTTP 200; served CRM assets contain the separate permission
+labels and revision-aware lead editor. Frontend auto-deploy produced no deployment
+or event after the push, so one explicit deploy released it. E2 runtime unchanged.
+The Supabase connector required reauthentication; the already-authenticated CLI
+performed the release. Git SSH host verification failed, so the existing HTTPS
+repository URL was used without changing SSH security settings.
+
+**Connection:** the existing verified all-business admin connection received only
+lead_read, lead_assign, lead_status_update, handoff_read, handoff_assign and
+handoff_status_update, consistent with the user's standing admin-control request.
+Its revision advanced 4 -> 5; all prior grants and scope were preserved. The
+canonical administrator operation recorded the grant change. Permissions remain
+independently controllable in AI connections.
+
+**Live verification through Codex:** a fresh authenticated app-server MCP session
+discovered 44 tools, checked strict input schemas and accurate read/write,
+idempotency and external-effect annotations for all eight lead/handoff tools, and
+made ten read-only calls. Eight succeeded; two missing-record detail probes were
+correctly denied. Opek returned one lead with its actual shared revision and zero
+handoffs. No handoff record was created to test detail success; that path was
+covered locally. All ten calls have matching actor/connection/request attribution;
+the successful lead detail audit identifies its exact record and revision.
+No assignment/status mutation tool was invoked. Both existing test SMS runs remain
+stopped with next send null. Final content hashes/counts match the pre-migration
+snapshot for leads/handoffs (excluding the new revision metadata), submissions,
+contacts, forms, sequences, runs, bookings, messages and email enrollments. SMS send
+job and outbound-message counts are unchanged. Only expected migration metadata,
+permission, audit and connection-last-use writes occurred; no SMS was sent.
+
+**Local verification before release:** CRM 563 passed/29 existing skips; final
+focused discovery/write tests 14 passed; E2 relevant tests 26 passed; paired tests
+63 passed; both required project checks, frontend build, Edge bundle and real
+PostgreSQL concurrency checks passed. These local results are separate from the
+production checks above. Receipts: ignored data/lead-release-* and data/lead-writes-*.
+Both project records and affected workflow docs are updated. Unrelated local
+main-checkout work is preserved. Earlier local-only notes are historical checkpoints.
+
 ## MCP lead/handoff assignment and status — October 16, 2026 (local only)
 
 Implemented four tools: crm_assign_lead, crm_set_lead_status, crm_assign_handoff

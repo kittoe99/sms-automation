@@ -1,5 +1,15 @@
 # Voice Agent workspace
 
+## Lead/handoff MCP release — October 16, 2026
+
+CRM migrations 20261016164055 (reads), 20261016165709 (shared revisions) and
+20261016170649 (assignment/status writes) are now applied. CRM frontend and MCP
+commit 0fe6b40 are live; the existing all-business admin connection has the six
+independent lead/handoff grants. Codex discovery and ten read-only calls verified
+the release. No enquiry record edit or SMS occurred; both test runs remain stopped.
+E2 runtime/schema is unchanged. Earlier local-only notes are historical. See both
+project records and CRM_MCP.md for separate migration, deployment and test receipts.
+
 Local update (October 16): lead edits now submit the displayed record revision.
 Worker or staff changes make stale saves return HTTP 409; the editor retains
 entered values and asks staff to refresh/review rather than retrying automatically.
