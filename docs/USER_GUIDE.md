@@ -2,7 +2,7 @@
 
 ## Registration and service visibility
 
-After an E2 customer completes onboarding, open their owner-linked record under **Businesses**. Extend the prefilled information and **Save reviewed profile**, then explicitly add/link services and **Set live** individually. Draft services remain hidden from the customer. **Hide from customer** reverses visibility; website publication and SMS activation are separate. Administrative setup requires an existing completed customer registration. See [Business lifecycle](BUSINESS_LIFECYCLE.md) for transfers, existing records and rollout. The owner-linked lifecycle was released October 1; see the dated project record for evidence.
+After an E2 customer completes onboarding, open their owner-linked record under **Businesses**. Extend the prefilled information and **Save business info**, then explicitly add/link services and **Set live** individually. Draft services remain hidden from the customer. **Hide from customer** reverses visibility; website publication and SMS activation are separate. Administrative setup requires an existing completed customer registration. See [Business lifecycle](BUSINESS_LIFECYCLE.md) for transfers, existing records and rollout. The owner-linked lifecycle was released October 1; see the dated project record for evidence.
 
 Use the CRM to manage business conversations, automation, appointments and website enquiries. This guide follows the current sidebar labels. Available workspaces and actions depend on your permissions; a missing management control is not a reason to use another person's login.
 
@@ -93,25 +93,25 @@ A public Booking form creates a submission and confirmed reminder intake. It doe
 
 ## Inbound AI and business knowledge
 
-Use **SMS → AI replies** for revision-checked off/shadow/live mode, business
-instructions, approved knowledge and the separate booking permission. The
-recorded rollout has Opek in shadow; other businesses default off. Live mode
-requires the operator's validation gate and reviewed schedules. Check current
-settings rather than assuming a dated rollout statement is live state.
+Use **SMS → AI replies** for a revision-checked on/off switch, optional reply
+style and the separate booking permission. On uses reviewed Business Info for
+future eligible incoming messages. It requires an active business and a ready SMS
+connection with sending enabled. No shadow/pilot phase or separate validation
+stamp is required. Turning on does not reply to old messages or start follow-ups.
 
-Shadow records proposals without sending AI replies, creating bookings or
-performing agent mutations. The ordinary inbound webhook still records messages
-and applies consent and sequence reply policies. In live mode, a manual staff
-reply pauses the conversation until explicitly resumed. STOP, stale revisions,
-new messages and disabled sending fence tools and final submission.
+A manual staff reply pauses the conversation until explicitly resumed. STOP,
+consent, stale revisions, new messages and disabled sending fence tools and final
+submission. Booking still needs configured availability and customer confirmation.
 
 The agent uses verified inbound identity and explicit confirmation for new
 bookings. Cancellation, rescheduling and requests for a person go to staff.
 It does not restart paused follow-ups. See [Inbound AI](INBOUND_AI.md).
 
-Use **Business context** to maintain reviewed services, areas, hours and business
-facts. Enrichment and knowledge extraction create drafts: approve a version
-before it becomes active knowledge. Uploads accept text PDF, DOCX, TXT and
+Use **Settings → Business information** to write or paste one Business Info
+document. Pricing is optional: missing prices use a saved phone or website for
+an accurate quote, or staff help if neither is available. Save draft keeps work
+private; Save business info makes it the reviewed reference. Additional knowledge
+extraction still creates drafts requiring approval. Uploads accept text PDF, DOCX, TXT and
 Markdown up to 10 MiB. Shared **Service availability** controls operational
 booking; written opening hours alone do not configure capacity.
 

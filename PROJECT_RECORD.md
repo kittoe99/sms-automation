@@ -28,7 +28,28 @@ coverage; no new real-model conversation evaluation was performed in this releas
 
 Live reconciliation found 148 applied migrations and only the new CRM migration
 pending. A guarded rollback rehearsal passed with both expected function hashes.
-Production application and releases are recorded separately below when verified.
+Production: applied only 20261016220003_unified_business_info; shared history is
+149 entries. Both deployed function hashes match the rehearsed source, security
+advisors are unchanged, and migration-only domain preservation hashes match.
+Runtime commit da12485dc73baa2452fea60bfb74c8d00f70e709 is live in Render MCP deploy
+dep-db9a2j61egvs73efhcag and frontend deploy dep-db9a35fbtjjs73auls0g. The frontend
+needed an explicit clean rebuild after the push produced no deployment event.
+Supabase ai-worker version 39 is ACTIVE. Served document/on-off assets match,
+MCP health returns 200 and unsupported worker GET requests return 405.
+
+At 22:14:02 UTC, the verified administrator used Codex MCP to review Opek's
+existing facts as a 412-character document (setup revision 6→7) and set AI mode
+to live (AI revision 1→2). Existing prices were preserved; their presence is not
+required. The booking switch was preserved, with no availability configured or
+appointments promised. MCP returned messageQueued=false. This enables future
+eligible inbound replies, not historical replies or new automation enrollments.
+
+Post-activation hashes confirm other businesses' settings/profiles, provider
+state, contacts, submissions, forms, sequences, both stopped test runs,
+conversations/read states, messages, bookings and jobs are unchanged. There are
+still five messages (three outbound) and three historical SMS send jobs. No SMS
+was sent or queued by this release. Only the authorized Opek document/settings,
+review metadata, cache invalidation and attributed audit records changed.
 
 ## Compliance operation repair and archive — October 16, 2026
 

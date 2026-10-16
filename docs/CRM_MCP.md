@@ -1702,8 +1702,10 @@ expiry is 24 hours. Lost signing responses recover the same intent with the same
 idempotency key and a fresh URL. No OAuth token is forwarded as a browser session.
 
 AI reads do not insert defaults. Instruction edits preserve mode/booking activation;
-activation is separately granted and retains canonical pilot, reviewed-profile and
-live-validation prerequisites. No tool sets the private validation flag or queues
+activation is separately granted and requires a reviewed profile plus an active,
+sending-enabled business with a ready SMS connection. The October 16 Business Info
+release removed the pilot/live-validation prerequisite; legacy shadow and
+liveValidated fields remain historical compatibility data. No tool sets the private validation flag or queues
 an SMS. AI instruction content is excluded from mutation receipts and audit.
 
 Local CRM 651 passed / 29 existing skips; paired 63; relevant E2 15; both project
