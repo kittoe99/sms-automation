@@ -8,7 +8,7 @@ is released or its agreed exclusion is documented.
 
 | Stage | Deliverable | State |
 | --- | --- | --- |
-| 1 | Contacts, SMS consent, automation blocking, marketing SMS preview/send | Implemented locally; release verification pending |
+| 1 | Contacts, SMS consent, automation blocking, marketing SMS preview/send | Released c3d717a; 59 tools / 42 grants; read-only verification passed |
 | 2 | Conversation AI controls, reassignment, enquiry edits, alerts, reporting, tags and attribution | Pending |
 | 3 | Form duplication/archive/restore, template archive and saved presets | Pending |
 | 4 | Existing bookings, availability/settings, intake edits and cancellation | Pending |

@@ -1,5 +1,36 @@
 # Opek SMS project record
 
+## Contacts MCP production release — October 16, 2026
+
+Stage 1 of the approved remaining-tool rollout is released. After reconciling
+137 existing entries and a guarded rollback rehearsal, only CRM migration
+20261016190248_crm_mcp_contacts_consent.sql was applied (138 entries total).
+All four expected function hashes match; private helper grants remain denied.
+Domain hashes and existing security-advisor findings are unchanged.
+
+Implementation c3d717aa28a71f9dd3ff1f626d394c270b1db153 is LIVE on Render:
+MCP dep-db97epqjnfac739lh6e0 (19:14:28 UTC), frontend
+dep-db97f2qjnfac739li6hg (19:14:42 UTC). Frontend was explicitly triggered after
+no automatic event appeared. The existing authorized admin connection received
+the nine independent grants via canonical audited administration: revision 8,
+42 permissions, all-business scope. Other connections were unchanged.
+
+Fresh authenticated Codex discovery found 59 tools. Eleven allowlisted
+read/preview calls validated contact/consent reads, an eligible non-queued SMS
+preview, stale-revision and invalid-target errors, one unchanged unread reply,
+and both stopped canary runs with no next send. All requests have attributable,
+redacted audits and no new mutation receipts. No message, consent, contact,
+enquiry, form, run, read timestamp or send-queue change occurred. Health and
+served permission-module checks returned HTTP 200.
+
+Local verification: full CRM 619 passed / 29 existing skips; paired contracts
+63 passed; relevant E2 27 passed; both required checks passed. Frontend built
+with a synthetic publishable key after the default local build correctly
+rejected missing configuration; the 65-file Edge bundle passed. Disposable
+PostgreSQL concurrency tests passed without provider calls. No E2 runtime or
+Edge release was needed. Receipts: ignored data/contacts-release-*.
+Stages 2–9 remain pending; see CRM docs/MCP_ROLLOUT.md.
+
 ## Remaining MCP rollout: contacts and consent — October 16, 2026 (local)
 
 Implemented the first approved stage: ten tools and nine independent grants for

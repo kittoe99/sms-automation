@@ -1,5 +1,13 @@
 # CRM MCP business setup
 
+## Contacts MCP release — October 16, 2026
+
+CRM migration 20261016190248 and commit c3d717a are live. Codex discovered
+59 tools; contact/consent reads and a non-queued preview passed. Admin grants
+are active at connection revision 8. No messages were read/sent or domain records
+changed during verification. Earlier local-only entries are historical. See
+both project records and CRM MCP_ROLLOUT.md for remaining stages.
+
 ## Contacts and consent MCP stage — October 16, 2026 (local)
 
 CRM adds independent contact/consent and marketing-message tools, with revisions,
