@@ -1,5 +1,17 @@
 // Tool authorization metadata. SQL parity is tested against the latest gateway.
 export const toolPermissions={
+ "crm_list_bookings":"booking_read",
+ "crm_get_booking":"booking_read",
+ "crm_list_booking_intakes":"booking_intake_read",
+ "crm_get_booking_intake":"booking_intake_read",
+ "crm_list_booking_schedules":"booking_schedule_read",
+ "crm_get_booking_schedule":"booking_schedule_read",
+ "crm_create_booking_schedule":"booking_schedule_edit",
+ "crm_update_booking_schedule":"booking_schedule_edit",
+ "crm_set_booking_schedule_enabled":"booking_schedule_enable",
+ "crm_preview_booking_availability":"booking_preview",
+ "crm_update_booking_intake":"booking_intake_edit",
+ "crm_cancel_booking":"booking_cancel",
  "crm_duplicate_form":"form_duplicate",
  "crm_archive_form":"form_archive",
  "crm_restore_form":"form_restore",

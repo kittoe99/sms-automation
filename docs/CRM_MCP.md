@@ -1657,3 +1657,26 @@ from sending hours, never repeats or subsequent messages. Consent is still requi
 Use the normal draft-save revision/idempotency protections, then preview a time
 outside sending hours with and without consent. Publication and enablement remain
 separate actions. Publishing preserves existing run snapshots.
+
+## MCP booking operations (stage 4)
+
+Stage 4 adds twelve tools and eight independent permissions for existing bookings,
+intake requests, availability schedules and cancellation. Local catalog: 91 tools /
+63 grants. Shared booking/intake revisions and schedule versions cover browser and
+worker updates. Schedule creation is inactive; editing and enablement are separate.
+Availability preview creates no reservation. Intake edits do not create or
+reschedule operational bookings. Canonical cancellation and intake lifecycle hooks
+remain authoritative; affected record IDs and generations are audited.
+
+Canonical mirroring can update shared contact names/email, so wrappers additionally
+require current contact revisions and contact_edit when those fields change.
+Denied calls roll back all effects. Strict database schemas, scoped joins/counts,
+atomic receipts/audits and current grants on replay protect every operation.
+Legacy disabled SMS booking configuration remains excluded.
+
+Local CRM: 642 passed / 29 existing skips; paired 63; relevant E2 13. Both project
+checks, frontend and 65-file Edge bundle pass. Disposable PostgreSQL confirms
+concurrent retries, browser conflicts and interrupted cancellation rollback.
+Migration 20261016194340 is reconciled against 140 live entries and rollback-
+rehearsed, not yet applied. No E2 runtime release is required. Production smoke
+checks will use reads/previews only, with no customer edits or SMS.

@@ -1,5 +1,13 @@
 // Shared by the administrator editor and MCP output validation. New grants are opt-in.
 export const connectionPermissions = [
+ ["booking_read","Read existing operational bookings"],
+ ["booking_intake_read","Read booking intake requests"],
+ ["booking_schedule_read","Read booking availability schedules"],
+ ["booking_schedule_edit","Create inactive schedules and edit schedule configuration"],
+ ["booking_schedule_enable","Enable or disable booking schedules"],
+ ["booking_preview","Preview booking availability"],
+ ["booking_intake_edit","Edit existing booking intake requests"],
+ ["booking_cancel","Cancel confirmed operational bookings"],
  ["form_duplicate","Duplicate an applied form into inactive collection"],
  ["form_archive","Archive forms and stop associated follow-ups"],
  ["form_restore","Restore forms with collection disabled"],
