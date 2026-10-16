@@ -1,5 +1,14 @@
 // Shared by the administrator editor and MCP output validation. New grants are opt-in.
 export const connectionPermissions = [
+ ['contact_read','Read scoped contact identities'],
+ ['contact_create','Create contacts without consent or enrollment'],
+ ['contact_edit','Edit contact names and email addresses'],
+ ['consent_read','Read SMS consent and evidence history'],
+ ['consent_opt_in','Record evidenced SMS marketing opt-in'],
+ ['contact_suppress','Suppress SMS and stop affected work'],
+ ['contact_automation_block','Block or unblock contact enquiry automations'],
+ ['sms_message_preview','Preview individual marketing SMS eligibility'],
+ ['sms_message_send','Queue individual marketing SMS'],
  ['conversation_read','Read scoped SMS conversation metadata and counts'],
  ['conversation_messages_read','Read SMS message text (also requires conversation_read)'],
  ['conversation_reply','Preview and send conversation replies'],

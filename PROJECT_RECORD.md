@@ -1,5 +1,26 @@
 # Opek SMS project record
 
+## Remaining MCP rollout: contacts and consent — October 16, 2026 (local)
+
+Implemented the first approved stage: ten tools and nine independent grants for
+contact list/detail/create/edit, SMS consent history and evidence-backed opt-in,
+suppression, enquiry-automation blocking, and individual marketing SMS preview/send.
+The local catalog has 59 tools and 42 permissions. Existing-contact creation
+conflicts rather than overwriting, including a racing browser insert. Shared
+contact revisions, scoped canonical edits/suppression, transactional retry
+receipts and redacted audits protect writes. Preview does not queue; canonical
+staff sending queues marketing SMS and pauses the resulting thread's AI without
+marking messages read. Unblocking/opt-in never enrolls or resumes automations.
+
+Focused isolation/permission/schema/retry/audit tests and disposable PostgreSQL
+concurrency checks passed. These cover duplicate creates/sends, competing edits,
+concurrent browser creation, opt-out races and interrupted rollback/retry with
+synthetic records and no provider calls. Broader release checks are in progress.
+Migration 20261016190248 is CRM-owned and pending; no E2 schema/runtime change is
+required. A live rolled-back rehearsal matched the four expected function
+definitions; no live migration or domain mutation has yet been applied.
+See CRM docs/MCP_ROLLOUT.md for all nine stages and agreed exclusions.
+
 ## Conversation MCP production release — October 16, 2026
 
 Applied migrations: reconciled all 133 existing shared-database entries against

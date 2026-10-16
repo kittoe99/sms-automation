@@ -1,8 +1,8 @@
 # API reference
 
-## Staff MCP integration (released October 14)
+## Staff MCP integration
 
-The separate hosted MCP service and its nine business-setup tools are documented
+The separate hosted MCP service and its current tool catalog are documented
 in [CRM MCP](CRM_MCP.md). The browser API adds staff-only
 `GET/POST /platform/ai-connections` and
 `GET /platform/ai-connections/activity?connectionId=...&page=...`.

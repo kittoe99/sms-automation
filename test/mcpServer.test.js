@@ -41,7 +41,7 @@ test('Streamable HTTP initializes, lists, calls, reconnects and validates every 
   const unauth=await localFetch(base+'/mcp',{method:'POST',headers:{host:'mcp.example.test'}});assert.equal(unauth.status,401);assert.match(unauth.headers.get('www-authenticate'),/oauth-protected-resource/);
   assert.equal((await localFetch(base+'/.well-known/oauth-protected-resource/mcp',{headers:{host:'mcp.example.test'}})).status,200);
   assert.equal((await rpc('initialize',{protocolVersion:'2025-03-26',capabilities:{},clientInfo:{name:'test',version:'1'}})).status,200);
-  const listed=await (await rpc('tools/list')).json();assert.equal(listed.result.tools.length,49);
+  const listed=await (await rpc('tools/list')).json();assert.equal(listed.result.tools.length,59);
   for(const name of ['crm_preview_conversation_reply','crm_list_conversations','crm_get_conversation','crm_list_leads','crm_get_lead','crm_list_handoffs','crm_get_handoff','crm_get_enquiry_status','crm_list_enquiries','crm_get_enquiry','crm_preview_form','crm_list_forms','crm_get_form','crm_list_sms_automations','crm_get_sms_automation','crm_search_sms_contacts','crm_list_form_submissions','crm_get_sms_run_start_context','crm_list_sms_runs','crm_get_sms_run','crm_get_sms_run_activity']){
    const tool=listed.result.tools.find(x=>x.name===name);assert.ok(tool);
    assert.equal(tool.annotations.readOnlyHint,true);assert.equal(tool.annotations.destructiveHint,false);assert.equal(tool.annotations.openWorldHint,false);
@@ -86,5 +86,6 @@ test('AI connection management uses browser identity and remains staff navigatio
  }
  assert.ok(permittedGroups(true,null).flatMap(x=>x.views).some(x=>x.view==='platform-ai-connections'));
  assert.equal(permittedGroups(false,{smsRead:true}).flatMap(x=>x.views).some(x=>x.view==='platform-ai-connections'),false);
- assert.equal(toolDefinitions.some(([name])=>name.includes('grant')||name.includes('send')),false);
+ assert.equal(toolDefinitions.some(([name])=>name.includes('grant')),false);
+ assert.deepEqual(toolDefinitions.filter(([name])=>name.includes('send')).map(([name])=>name),['crm_send_contact_sms']);
 });

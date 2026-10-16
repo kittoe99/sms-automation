@@ -118,7 +118,8 @@
     "20261016180739_crm_mcp_conversation_revisions.sql": "0b22f15487135a1fc15b2800e8b59087654f6685bf04803b0230dd39c750614b",
     "20261016181809_crm_mcp_conversation_mark_read.sql": "390e0c6ed8b3cd8aa61cb92fff29fa714e8e8f9ab897b8a1bdcfa1625b9e0de2",
     "20261016183011_crm_mcp_conversation_reply_preview.sql": "6ae7923e341e52ea89d25daf9e363e044aec0f6b61251f1d85fd83eaaaddc330",
-    "20261016183855_crm_mcp_conversation_reply.sql": "5191108f1843d07a83005823017abd79f82241b6b6d0415d9f5d71124ca0fb63"
+    "20261016183855_crm_mcp_conversation_reply.sql": "5191108f1843d07a83005823017abd79f82241b6b6d0415d9f5d71124ca0fb63",
+    "20261016190248_crm_mcp_contacts_consent.sql": "42b4579d0f296b7d31995537940403f4d0647678dc688dae7dd3c6a35ab8efa0"
   },
   "e2": {
     "20260922000000_create_contact_submissions.sql": "9a94bdadaabf0253d21529984d86bec5aafb1cfe80b454796d9ea9835b0463a5",

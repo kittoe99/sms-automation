@@ -1,5 +1,14 @@
 # CRM MCP business setup
 
+## Contacts and consent MCP stage — October 16, 2026 (local)
+
+CRM adds independent contact/consent and marketing-message tools, with revisions,
+retry receipts and redacted audits. Preview does not send; successful canonical
+staff sending pauses AI on the resulting thread without marking read. Contact
+creation never grants consent; opt-in/unblocking never enrolls or resumes runs.
+CRM migration 20261016190248 is pending. No E2 release is needed. See the CRM
+MCP_ROLLOUT.md and both project records for progress and release evidence.
+
 ## Conversation actions production status — October 16, 2026
 
 The four CRM migrations 20261016180739, 20261016181809, 20261016183011 and

@@ -1,0 +1,77 @@
+# Remaining CRM MCP rollout
+
+This is the execution record for the approved nine-stage rollout. The starting
+production baseline is 49 tools and 33 permissions (conversation release
+7ea1dc8). New capabilities are released by domain; production verification uses
+reads and previews only. Implementation is not complete until every stage below
+is released or its agreed exclusion is documented.
+
+| Stage | Deliverable | State |
+| --- | --- | --- |
+| 1 | Contacts, SMS consent, automation blocking, marketing SMS preview/send | Implemented locally; release verification pending |
+| 2 | Conversation AI controls, reassignment, enquiry edits, alerts, reporting, tags and attribution | Pending |
+| 3 | Form duplication/archive/restore, template archive and saved presets | Pending |
+| 4 | Existing bookings, availability/settings, intake edits and cancellation | Pending |
+| 5 | Knowledge sources/uploads/versions and AI configuration/activation | Pending |
+| 6 | Existing email groups, enrollment/job activity, preview, enablement and recovery | Pending |
+| 7 | Voice configuration/drafts/publication, calls, transcripts and media | Pending |
+| 8 | Existing-site details/deployments, form connections, update requests and publication | Pending |
+| 9 | Operational diagnostics, sanitized provider readiness, refresh/reconciliation and eligible recovery | Pending |
+
+## Common contract
+
+Explicit business and record IDs, independent grants, strict schemas, bounded
+pagination and scoped related records/counts apply to every tool. Mutations use
+current shared revisions and connection-scoped idempotency fingerprints/receipts.
+Permissions are rechecked before retry replay. Provider work is durably queued;
+queued, accepted and delivered remain distinct. Audit contains identities,
+targets, requests, outcomes and revisions, never credentials or message content.
+Existing browser/worker operations remain authoritative. Add missing revision
+protection before exposing a write; do not invent a generic SQL/RPC/job gateway.
+
+The executable catalog is exposed by `src/mcp/manifest.js`; SQL permission parity,
+schema coverage and permission labels are checked in tests. The existing
+AI connections editor uses the shared permission catalog. New grants default off.
+Only the previously authorized all-business admin connection receives released
+grants through the audited canonical admin path.
+
+## Verification and deployment
+
+Each domain requires local schema/isolation/permission/retry/audit tests and real
+PostgreSQL concurrency tests for its writes, plus relevant CRM and paired E2
+checks. Reconcile live aliases against both repositories and apply only the new
+forward migrations. Release owning database/API contracts before dependent MCP
+and UI code; E2 owns hosting and customer contracts. Record local tests, applied
+migrations and deployed commits separately in both project records.
+
+Use fresh Codex discovery and allowlisted reads/previews for live smoke checks.
+Compare domain snapshots, read timestamps and send jobs. Do not mark read, send,
+publish, activate, enroll or change customer records merely to verify a release.
+Any later SMS pilot is separately requested and uses only +17208429167.
+
+## Agreed exclusions
+
+Staff access and grant administration, ownership transfers, credentials,
+permanent deletion, paid purchases, legal attestations, sender binding, manual
+registration reconciliation and unattended-agent credentials stay in the UI.
+Do not add new appointment creation/rescheduling or one-off email composition.
+Website creation, uploads/builds and domain changes are deferred. Legacy disabled
+workflows, webhooks and internal maintenance/worker endpoints are not MCP tools.
+Customer consent cannot be inferred from creation, enquiries or caller ID.
+
+## Stage 1 implementation notes
+
+Ten tools add nine separate grants. Contact creation inserts a new normalized
+phone and conflicts on existing contacts, including concurrent browser inserts;
+it never uses the legacy overwrite-on-conflict upsert. Contact revisions already
+advance through database triggers for browser and worker updates. Name/email edits
+and automation blocking reuse the canonical contact operations. Unblocking and
+recording SMS opt-in never start or resume automations. Evidence/provenance remain
+in consent history, not MCP receipts/audits. Email consent stays a separate domain.
+
+Individual SMS is marketing-purpose, derives its recipient from the scoped
+contact, rechecks consent/business/sender state and queues through the existing
+staff-send path. As in CRM, a successful staff send pauses AI on its resulting
+conversation without marking messages read. Preview has no such effect. SMS
+receipt replay does not requeue or reapply takeover. Suppression cannot recall
+messages already submitted to a provider.
