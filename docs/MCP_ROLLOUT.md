@@ -18,6 +18,14 @@ Agreed exclusions remain documented below.
 | 8 | Existing-site details/deployments, form connections, update requests and publication | Released 66623ea / E2 4b41268; 142 tools / 98 grants; read-only verification passed |
 | 9 | Operational diagnostics, sanitized provider readiness, refresh/reconciliation and eligible recovery | Released 8a724e1; 153 tools / 104 grants; read-only verification passed |
 
+## Follow-on: AI reply diagnostics (local only)
+
+`crm_list_ai_reply_runs` and `crm_get_ai_reply_run` add scoped job/result/delivery
+reads with separate `ai_reply_read` and `ai_reply_content_read` grants. Local
+catalog: 155 tools / 106 grants. No live grants, migrations or releases changed.
+See [AI reply diagnostics](AI_REPLY_DIAGNOSTICS.md) for the strict contract,
+isolation coverage and the one new CRM migration, 20261016222634.
+
 ## Common contract
 
 Explicit business and record IDs, independent grants, strict schemas, bounded

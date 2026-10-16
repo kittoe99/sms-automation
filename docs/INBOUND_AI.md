@@ -13,6 +13,15 @@ does not backfill old messages or enable form follow-ups. Legacy shadow values
 and liveValidated fields remain readable as historical evidence; they are not
 activation prerequisites. See [Business Info](BUSINESS_PROFILE_FORM.md).
 
+## MCP diagnostics (local implementation)
+
+Scoped run list/detail reads are documented in
+[AI reply diagnostics](AI_REPLY_DIAGNOSTICS.md). Diagnostics and message content
+have separate grants; reads do not mark messages read or operate the agent.
+Run completion, recorded reply and linked SMS delivery remain distinct.
+The current agent does not record a Business Info version for each reply, so
+historical provenance is explicitly unavailable. No worker behavior changes.
+
 ## Historical release — October 10, 2026
 
 The backend is deployed to WPacquisition (`wxamwhfmelxqahkdtcci`). Direct project

@@ -1,5 +1,12 @@
 # CRM MCP business setup
 
+## AI reply diagnostics — local, October 16, 2026
+
+Two new read tools and two default-off permissions are implemented locally.
+See [AI reply diagnostics](AI_REPLY_DIAGNOSTICS.md) for scope, content access,
+redaction, missing historical profile provenance and release prerequisites.
+Migration 20261016222634 is not applied; these tools are not yet deployed.
+
 ## Form lifecycle/preset MCP release — October 16, 2026
 
 Stage 3 is LIVE at 95b6c36cbc0e9d8643a9aa9165d07d0bd6ead1ff. Migration

@@ -1,5 +1,39 @@
 # Opek SMS project record
 
+## AI reply diagnostics through MCP — October 16, 2026 (local)
+
+Implemented `crm_list_ai_reply_runs` and `crm_get_ai_reply_run` with explicit
+business scope, strict input/output schemas, bounded pagination and nested data,
+and separate default-off `ai_reply_read` / `ai_reply_content_read` permissions.
+The detail tool separates AI job completion from linked SMS acceptance/delivery;
+content requires the additional grant and explicit `includeContent`. Raw prompts,
+provider payloads, credentials and tool arguments/results are never returned.
+The current agent does not persist historical Business Info provenance; diagnostics
+report it as not recorded rather than infer it from the current profile.
+
+The local catalog is 155 tools / 106 grants. CRM owns the single new migration
+`20261016222634_crm_mcp_ai_reply_diagnostics.sql`, after the existing operations,
+archive and unified Business Info migrations. It adds indexes, private helpers,
+schemas and audited gateway/grant routing without data/grant backfills. Existing
+E2 business/profile/ownership/cache contracts are unchanged; no E2 migration or
+runtime release is needed. Reconcile aliases before a future forward-only apply.
+
+Local verification: focused diagnostics/protocol/manifest tests passed (14).
+CRM verify:release passed: 709 tests, 29 existing skips, 63 paired checks,
+frontend build and 68-file Edge bundle. Isolation fixtures cover same-phone
+businesses, substituted IDs, corrupt related links, content grants, revocation,
+redaction, bounded results, audit attribution and unchanged domain/queue state.
+E2 verify:release passed in the isolated `e2-mcp-hosting` worktree: 248
+application tests, six Worker tests, 63 paired checks, lint/type checks and
+production build. The initial run in the concurrently edited E2 main checkout
+reported three unrelated dashboard overview test failures (bookings, enquiries,
+site counts); no main-checkout files were changed to address them. The isolated
+worktree has the same release runtime and all three tests pass there.
+
+Applied migrations: none in this task. Releases: none in this task. Live grants,
+settings, message read state, consent, jobs and SMS were not changed. See CRM
+`docs/AI_REPLY_DIAGNOSTICS.md` for tool contracts and release prerequisites.
+
 ## Unified Business Info and live AI controls — October 16, 2026
 
 CRM now uses one reviewed Business Info document in workspace settings and

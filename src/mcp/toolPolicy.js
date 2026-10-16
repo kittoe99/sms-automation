@@ -1,5 +1,7 @@
 // Tool authorization metadata. SQL parity is tested against the latest gateway.
 export const toolPermissions={
+ "crm_list_ai_reply_runs":"ai_reply_read",
+ "crm_get_ai_reply_run":"ai_reply_read",
  "crm_get_operations_summary":"operations_read",
  "crm_list_operational_jobs":"operations_read",
  "crm_get_operational_job":"operations_read",
