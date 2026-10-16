@@ -137,13 +137,14 @@ test('sent AI replies extend quiet time; paused runs remain paused after expiry 
  }finally{await db.close();}
 });
 
-test('shadow records proposed closure, association and quiet time without changing run or session',async()=>{
+test('shadow records activity without changing SMS lifecycle or session',async()=>{
  const db=await setupCoordination({mode:'shadow'});try {
   const r=await addRun(db);const j=await incoming(db,'No thanks, not interested');
   const before=await runState(db,r);
   const result=await invoke(db,j,'close_enquiry',{requestRef:r.id,declineQuote:'not interested'});assert.equal(result.coordination.simulated,true);
   await call(db,'complete_inbound_ai',j.id,j.lease_token,{reply:'unused'});
-  assert.deepEqual(await runState(db,r),before);
+  const after=await runState(db,r);assert.ok(after.activity_revision>before.activity_revision);
+  assert.deepEqual({...after,activity_revision:before.activity_revision},before);
   assert.equal((await db.query('select count(*) n from sms_private.inbound_ai_sessions')).rows[0].n,0);
   const record=(await db.query('select result from sms_private.inbound_ai_runs')).rows[0].result;
   assert.equal(record.coordination.reason,'AI_DECLINED');assert.ok(record.coordination.quietUntil);

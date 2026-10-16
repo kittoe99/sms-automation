@@ -1,0 +1,37 @@
+// Local authoring helper. Never contacts a database. Run only on an UNAPPLIED
+// migration; appends schemas, grant constraints and the reviewed gateway version.
+import {readFile,writeFile} from 'node:fs/promises';
+import {resolve} from 'node:path';
+import {pathToFileURL} from 'node:url';
+import {z} from 'zod';
+import {zodToJsonSchema} from 'zod-to-json-schema';
+import assert from 'node:assert/strict';
+const [target,previous,modulePath,prefix,helper]=process.argv.slice(2);
+assert.ok(target&&previous&&modulePath&&prefix&&/^mcp_[a-z_]+$/.test(helper));
+const source=await readFile(target,'utf8');assert.ok(!source.includes('-- GENERATED MCP CONTRACTS'),'Already generated: do not rewrite applied migrations');
+const module=await import(pathToFileURL(resolve(modulePath)));
+const defs=module[prefix+'Tools'],permissions=module[prefix+'ToolPermissions'],labels=module[prefix+'Permissions'];
+assert.ok(defs&&permissions&&labels);const names=defs.map(t=>t[0]),reads=defs.filter(t=>!t[3]).map(t=>t[0]),writes=defs.filter(t=>t[3]).map(t=>t[0]);
+const q=s=>"'"+s.replaceAll("'","''")+"'",list=a=>a.map(q).join(',');
+const prior=await readFile(previous,'utf8');let gateway=prior.slice(prior.indexOf('create or replace function sms_private.mcp_invoke'));
+assert.ok(gateway.startsWith('create or replace function'));const end=gateway.indexOf('end $$;');gateway=gateway.slice(0,end+7);
+gateway=gateway.replace('required_permission:=case tool ','required_permission:=case tool '+Object.entries(permissions).map(([n,p])=>`when ${q(n)} then ${q(p)} `).join(''));
+const scope=gateway.indexOf('if required_permission is null');const idx=gateway.indexOf('if tool in (',scope);assert.ok(idx>scope);
+gateway=gateway.slice(0,idx)+gateway.slice(idx).replace('if tool in (','if tool in ('+list(names)+',');
+const readStart=gateway.indexOf("if tool='crm_start_sms_automation_run'");const branch=gateway.indexOf('if tool in (',readStart);
+assert.ok(branch>readStart);gateway=gateway.slice(0,branch)+gateway.slice(branch).replace('if tool in (',`if tool in (${list(reads)}) then\n    data:=sms_private.${helper}(u,t,tool,p,c.id);\n   elsif tool in (`);
+const mutation=gateway.indexOf('data:=prior.result;replay:=true;');const writeStart=gateway.indexOf('if tool in (',mutation);assert.ok(writeStart>mutation);
+gateway=gateway.slice(0,writeStart)+gateway.slice(writeStart).replace('if tool in (',`if tool in (${list(writes)}) then\n      data:=sms_private.${helper}(u,t,tool,p,c.id);\n     elsif tool in (`);
+gateway=gateway.replace("coalesce(p->>'contactId'","coalesce(p->>'tagId',p->>'eventId',p->>'contactId'");
+gateway=gateway.replace("coalesce(data->>'contactId'","coalesce(data->>'tagId',data->>'runId',data->>'handoffId',data->>'conversationId',data->>'contactId'");
+gateway=gateway.replace("case when error_code is null and tool in (","case when error_code is null and tool in ("+list(writes)+',');
+const base=prior.slice(prior.indexOf('create or replace function sms_private.mcp_admin'));let admin=base.slice(0,base.indexOf('end $$;')+7);
+const grants=Object.values(permissions);const newGrants=[...new Set(grants)];
+admin=admin.replace('if not perms <@ array[','if not perms <@ array['+list(newGrants)+',');
+const all=[...admin.matchAll(/if not perms <@ array\[([^\]]+)\]/g)][0][1];
+const constraints=`alter table sms_private.mcp_connections drop constraint mcp_connections_permissions_check;\nalter table sms_private.mcp_connections add constraint mcp_connections_permissions_check check(permissions <@ array[${all}]::text[]);`;
+const schemas=defs.map(([name,,shape])=>`insert into sms_private.mcp_input_schemas values(${q(name)},${q(JSON.stringify(zodToJsonSchema(z.object(shape).strict(),{$refStrategy:'none'})))}::jsonb);`).join('\n');
+await writeFile(target,source+'\n-- GENERATED MCP CONTRACTS\n'+schemas+'\n'+constraints+'\n'+admin+'\n'+gateway+'\n');
+const ui='public/mcpPermissions.js';let text=await readFile(ui,'utf8');text=text.replace('export const connectionPermissions = [','export const connectionPermissions = [\n'+labels.map(x=>' '+JSON.stringify(x)+',').join('\n'));await writeFile(ui,text);
+const policy='src/mcp/toolPolicy.js';text=await readFile(policy,'utf8');text=text.replace('export const toolPermissions={','export const toolPermissions={\n'+Object.entries(permissions).map(([n,p])=>` ${JSON.stringify(n)}:${JSON.stringify(p)},`).join('\n'));await writeFile(policy,text);
+console.log(`Generated ${names.length} strict contracts and ${newGrants.length} grants in ${target}. Review the diff before applying.`);

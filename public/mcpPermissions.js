@@ -1,5 +1,12 @@
 // Shared by the administrator editor and MCP output validation. New grants are opt-in.
 export const connectionPermissions = [
+ ["conversation_ai_pause","Pause AI for one conversation"],
+ ["conversation_ai_resume","Resume eligible conversation AI"],
+ ["conversation_message_reassign","Reassign selected inbound messages"],
+ ["handoff_alert_retry","Retry eligible handoff alerts"],
+ ["activity_report_read","Read scoped activity metrics and attribution metadata"],
+ ["activity_tag_manage","Create, edit and assign activity tags"],
+ ["activity_attribution_update","Link existing same-customer bookings, responses and AI activity"],
  ['contact_read','Read scoped contact identities'],
  ['contact_create','Create contacts without consent or enrollment'],
  ['contact_edit','Edit contact names and email addresses'],

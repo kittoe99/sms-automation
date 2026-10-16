@@ -85,18 +85,19 @@ test('MCP publication and form state use separate grants, canonical operations a
    assert.equal((await db.query('select sending_enabled from public.sms_businesses where tenant_id=$1',[a])).rows[0].sending_enabled,false);
   });
   await t.test('publish on an enabled form preserves existing runs; disable pauses only this form and enable never resumes',async()=>{
-   const addRun=async(id,status='active')=>(await db.query(`insert into sms_private.form_runs(tenant_id,form_id,version,submission_id,phone,context,status)
-    values($1,$2,1,$3,'+13035550160','{}',$4) returning *`,[a,id,crypto.randomUUID(),status])).rows[0];
+   const readRun=async id=>(await db.query('select * from sms_private.form_runs where id=$1',[id])).rows[0];
+   const addRun=async(id,status='active')=>{const row=(await db.query(`insert into sms_private.form_runs(tenant_id,form_id,version,submission_id,phone,context,status)
+    values($1,$2,1,$3,'+13035550160','{}',$4) returning *`,[a,id,crypto.randomUUID(),status])).rows[0];return readRun(row.id);};
    const run=await addRun(fa.public_id),paused=await addRun(fa.public_id,'paused');
    const otherForm=await form(a);await call(db,'form_workspace','staff',a,'publish',otherForm.public_id,{revision:0,sequence:seq('Other form')});const other=await addRun(otherForm.public_id);
-   const directRun=(await db.query(`insert into sms_private.form_runs(tenant_id,origin,direct_template_id,version,direct_sequence,phone,context,enrollment_key)
+   let directRun=(await db.query(`insert into sms_private.form_runs(tenant_id,origin,direct_template_id,version,direct_sequence,phone,context,enrollment_key)
     values($1,'direct',$2,1,$3,'+13035550161','{}','test-existing-run') returning *`,[a,direct.id,seq('Direct secret v1')])).rows[0];
+   directRun=await readRun(directRun.id);
    await call(db,'form_workspace','staff',a,'draft',fa.public_id,{revision:(await formState()).revision,sequence:seq('Form secret v2')});
    direct=(await call(db,'contact_automations','staff',a,'save',{id:direct.id,revision:direct.revision,name:direct.name,sequence:seq('Direct secret v2'),idempotencyKey:'ui-edit-2'})).template;
    await grant(['automation_publish']);
    const r=await invoke('crm_publish_sms_automation',await pubForm());assert.equal(r.data.automation.enabled,true);assert.equal(r.data.automation.publishedVersion,2);
    assert.equal((await invoke('crm_publish_sms_automation',pubDirect())).data.automation.publishedVersion,2);
-   const readRun=async id=>(await db.query('select * from sms_private.form_runs where id=$1',[id])).rows[0];
    assert.deepEqual(await readRun(run.id),run);assert.deepEqual(await readRun(directRun.id),directRun);
    await grant(['automation_enable']);const off=await setState(false,'disable-form-1');
    const disabled=await invoke('crm_set_form_followups_enabled',off);assert.equal(disabled.data.effect,'form_followups_disabled');

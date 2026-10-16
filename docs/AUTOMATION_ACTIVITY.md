@@ -1,5 +1,30 @@
 # Automation activity
 
+## Conversation controls and activity MCP — October 16, 2026 (local)
+
+Stage 2 adds 13 tools and seven separate grants: AI pause/resume, same-contact
+message reassignment, eligible failed handoff alert retry, activity reports,
+tags and explicit same-customer attribution. Lead/handoff owner and status edits
+already exist and remain the canonical supported fields. The local catalog has
+72 tools and 49 permissions. Strict generated input schemas are also enforced
+inside private database wrappers. Private schema storage and helpers are denied
+to application roles.
+
+Activity changes advance a separate shared activity_revision on form_runs, never
+SMS generation. Tag/attribution edits require both counters plus source revisions.
+AI controls preserve unread state and run lifecycle; reassignment checks both
+thread revisions and cancels stale AI work. Alert retry locks related jobs and
+rejects leased, uncertain or submitted work. It can queue a staff alert, so live
+verification must not invoke it. Retry receipts and audits remain transactional.
+
+Local isolation/retry/rollback tests and disposable PostgreSQL concurrency checks
+pass. Full CRM: 628 passed / 29 existing skips; paired: 63 passed; relevant E2:
+27 passed; both checks, frontend build and 65-file Edge bundle passed. CRM migration
+20261016191603_crm_mcp_conversation_activity.sql has passed a guarded rollback-only
+live rehearsal against 138 reconciled entries but is NOT applied or released yet.
+No E2 runtime or contract change is required. No customer records or SMS were
+changed for verification. See docs/MCP_ROLLOUT.md and ignored data/activity-*.
+
 ## Conversation actions production status — October 16, 2026
 
 The four CRM migrations 20261016180739, 20261016181809, 20261016183011 and

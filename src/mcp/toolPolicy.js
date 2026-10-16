@@ -1,5 +1,18 @@
 // Tool authorization metadata. SQL parity is tested against the latest gateway.
 export const toolPermissions={
+ "crm_pause_conversation_ai":"conversation_ai_pause",
+ "crm_resume_conversation_ai":"conversation_ai_resume",
+ "crm_reassign_conversation_message":"conversation_message_reassign",
+ "crm_retry_handoff_alert":"handoff_alert_retry",
+ "crm_get_activity_report":"activity_report_read",
+ "crm_list_activity_tags":"activity_report_read",
+ "crm_get_enquiry_attribution_context":"activity_report_read",
+ "crm_create_activity_tag":"activity_tag_manage",
+ "crm_update_activity_tag":"activity_tag_manage",
+ "crm_set_enquiry_tag":"activity_tag_manage",
+ "crm_link_enquiry_booking":"activity_attribution_update",
+ "crm_link_enquiry_response":"activity_attribution_update",
+ "crm_link_enquiry_activity":"activity_attribution_update",
  "crm_list_contacts": "contact_read",
  "crm_get_contact": "contact_read",
  "crm_get_contact_consent": "consent_read",
@@ -59,4 +72,4 @@ export const toolPermissions={
  "crm_add_business_service": "service_add",
  "crm_set_service_visibility": "visibility"
 };
-export const externalTools=new Set(['crm_add_business_service','crm_reply_to_conversation','crm_send_contact_sms']);
+export const externalTools=new Set(['crm_add_business_service','crm_reply_to_conversation','crm_send_contact_sms','crm_retry_handoff_alert']);
