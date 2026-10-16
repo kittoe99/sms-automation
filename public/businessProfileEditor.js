@@ -1,3 +1,4 @@
+import {businessInfoEditorHtml,bindBusinessInfo} from './businessInfo.js';
 import {normalizePhoneInput,installPhoneFormatting} from './phoneInput.js?v=20261003-phone';
 const esc=value=>String(value??'').replaceAll('&','&amp;').replaceAll('<','&lt;').replaceAll('>','&gt;').replaceAll('"','&quot;').replaceAll("'",'&#39;');
 const listFields=['services','locations','faqs','pricing','policies'];
@@ -13,6 +14,10 @@ const guidance={
 };
 export function profileFromForm(form,previous={}) {
  const profile={...previous};
+ if(form.get('profileEditor')==='document'){
+  for(const name of ['businessName','timeZone','contactEmail','contactPhone','websiteUrl','businessInfo'])profile[name]=String(form.get(name)||'').trim();
+  profile.contactPhone=normalizePhoneInput(profile.contactPhone);return profile;
+ }
  for(const name of textFields) profile[name]=String(form.get(name)||'').trim();
  for(const name of listFields) profile[name]=form.has('profileEditor')
   ? name==='faqs'
@@ -76,92 +81,7 @@ function list(profile,name,label,hint) {
 function guidanceField(profile,name,label,hint,max) {
  return `<div class="profile-guidance">${field(profile,name,label,hint,{multi:true,max})}<div class="profile-preset-row"><label class="profile-field"><span>Add a suggested rule</span><select data-guidance="${name}"><option value="">Choose a suggestion…</option>${guidance[name].map(([label],i)=>`<option value="${i}">${label}</option>`).join('')}</select></label><button type="button" class="btn ghost" data-apply-guidance="${name}">Add rule</button></div></div>`;
 }
-export function profileEditorHtml(profile) {
- profile={...profile};for(const name of listFields)if(!Array.isArray(profile[name]))profile[name]=String(profile[name]||'').split(/\r?\n/).map(value=>value.trim()).filter(Boolean);
- const zones=[...new Set(['UTC',...(profile.timeZone?[profile.timeZone]:[]),...Intl.supportedValuesOf('timeZone')])];
- return `<input type="hidden" name="profileEditor" value="guided"/>
- <div class="profile-intro"><span class="eyebrow">Business setup</span><h3>Give your business a clear foundation.</h3><p>Add the facts customers need. Choose a suggestion to get started, then make it your own.</p><span class="profile-status" data-profile-progress></span></div>
- ${section('01','Business details','Start with your identity and the best ways for customers to reach you.',`<div class="profile-grid">
- ${field(profile,'businessName','Business name','Your real business or trading name.',{max:160,required:true})}
- <label class="profile-field"><span>Business time zone <small>Required</small></span><select name="timeZone" required><option value="">Choose a time zone…</option>${zones.map(zone=>`<option value="${esc(zone)}" ${profile.timeZone===zone?'selected':''}>${esc(zone.replaceAll('_',' ').replaceAll('/',' / '))}</option>`).join('')}</select><small>Used to interpret local appointment times.</small></label>
- ${field(profile,'contactEmail','Business email','An email customers can use to contact you.',{max:254,type:'email'})}
- ${field(profile,'contactPhone','Business phone','US/Canada: +1 is added automatically. Other countries: include +country code.',{max:32,type:'tel'})}
- <div class="profile-wide">${field(profile,'websiteUrl','Website','Your public website, starting with https://.',{max:500,type:'url'})}</div>
- <div class="profile-wide">${field(profile,'summary','What does your business do?','Describe what you offer and who you help in two or three sentences.',{max:2000,multi:true})}</div></div>`)}
- ${section('02','Services & availability','Tell customers what you offer, where you work, and when you are open.',`<div class="profile-grid">${list(profile,'services','Services','Add each service separately. At least one is needed for review.')}${list(profile,'locations','Service areas','Add each city, neighborhood, or ZIP code separately. At least one is needed for review.')}</div>
- <div class="profile-hours">${field(profile,'hours','Opening hours','Include closed days or appointment-only hours. Use your business time zone.')}
- <div class="profile-preset-row"><label class="profile-field"><span>Start with an hours preset</span><select data-hours-preset><option value="">Choose a schedule…</option>${hoursPresets.map((value,i)=>`<option value="${i}">${esc(value)}</option>`).join('')}</select></label><button type="button" class="btn ghost" data-apply-hours>Use schedule</button></div><small>Written hours describe your business. Set bookable times in Booking configuration.</small></div>`)}
- ${section('03','Customer questions & pricing','Give clear answers and real prices. These details are optional; add only what you know.',`<div class="profile-list"><h4>Frequently asked questions</h4><p class="profile-section-hint">One question and answer per card. Up to 20, with 300 characters combined per card.</p><div data-entries="faqs">${rows(profile,'faqs')}</div><div class="profile-preset-row"><label class="profile-field"><span>Common question</span><select data-faq-topic><option value="">Choose a topic…</option>${faqTopics.map((q,i)=>`<option value="${i}">${esc(q)}</option>`).join('')}</select></label><button type="button" class="btn ghost" data-add-entry="faqs">+ Add FAQ</button></div></div>
- <div class="profile-list"><h4>Pricing</h4><p class="profile-section-hint">Add a price, a starting rate, or an explanation of how you quote.</p><div data-entries="pricing">${(profile.pricing||[]).map(value=>entryRow('pricing',value)).join('')}</div>
- <div class="profile-price-builder"><div class="profile-grid"><label class="profile-field"><span>Service</span><input data-price-service maxlength="160" placeholder="Which service is this for?"/></label><label class="profile-field"><span>Pricing method</span><select data-price-method><option value="quote">Custom quote</option><option value="fixed">Fixed price</option><option value="from">Starting price</option><option value="hourly">Hourly rate</option><option value="custom">Other / explain pricing</option></select></label><label class="profile-field" data-price-amount-wrap hidden><span>Price (USD)</span><input data-price-amount type="number" min="0" step="0.01" placeholder="0.00"/></label><label class="profile-field"><span>Details <small data-price-details-label>Optional</small></span><input data-price-details maxlength="700" placeholder="What affects the price? What is included?"/></label></div><p data-price-error class="login-error" role="alert"></p><button type="button" class="btn ghost" data-add-price>+ Add pricing detail</button></div></div>`)}
- ${section('04','Policies & booking guidance','Help customers know what to expect before they commit.',`<div class="profile-list"><h4>Customer policies</h4><p class="profile-section-hint">Choose a topic, then enter your actual policy. No policy is assumed.</p><div data-entries="policies">${(profile.policies||[]).map(value=>entryRow('policies',value)).join('')}</div><div class="profile-preset-row"><label class="profile-field"><span>Policy topic</span><select data-policy-topic><option value="">Custom policy</option><option>Cancellation & rescheduling</option><option>Payment methods</option><option>Refunds</option><option>Items or jobs you cannot accept</option></select></label><button type="button" class="btn ghost" data-add-entry="policies">+ Add policy</button></div></div>
- ${guidanceField(profile,'bookingRules','Booking rules','Describe the information and notice needed before arranging an appointment.',2000)}
- <p class="profile-note">These are written instructions. Configure availability, required booking fields, and booking limits separately in Booking configuration.</p>
- ${guidanceField(profile,'handoff','When should a person step in?','Describe situations that need staff attention. This field does not configure notifications or routing.',1000)}`)}
- ${section('05','Brand voice','Choose how your business should sound in written replies.',`<div class="profile-voices">${[['','Use AI instructions','Keep the voice specified in your AI instructions.'],['friendly','Friendly','Warm, approachable, and helpful.'],['professional','Professional','Clear, polished, and respectful.'],['casual','Casual','Relaxed, simple, and conversational.']].map(([value,label,hint])=>`<label class="profile-voice"><input type="radio" name="tone" value="${value}" ${String(profile.tone||'')===value?'checked':''}/><span><strong>${label}</strong><small>${hint}</small></span></label>`).join('')}</div>`)}
- <section class="profile-summary-section" aria-label="Detailed business profile summary"><h3><span class="profile-step">06</span>Review your business profile</h3><p class="profile-section-hint">A detailed summary of your current entries. Check the information below before saving. Use Edit to return to a field.</p><div data-profile-summary>${profileSummaryHtml(profile)}</div></section>
- <p class="profile-note">This profile supports general business conversations. Each automation group uses its own AI instructions and business details.</p><p data-editor-notice role="status" class="profile-editor-notice"></p>`;
-}
+export function profileEditorHtml(profile) {return businessInfoEditorHtml(profile);}
 export function bindProfileEditor(form) {
- installPhoneFormatting(form);
- const notice=form.querySelector('[data-editor-notice]');
- const announce=message=>{notice.textContent=message;};
- const entries=name=>form.querySelector(`[data-entries="${name}"]`);
- const changed=()=>{form.dataset.dirty='true';form.dispatchEvent(new Event('input',{bubbles:true}));};
- function add(name,html) {
-  if(entries(name).children.length>=limits[name]) {announce(`You can add up to ${limits[name]} ${name==='locations'?'service areas':name}.`);return false;}
-  entries(name).insertAdjacentHTML('beforeend',html);entries(name).lastElementChild.querySelector('input,textarea').focus();changed();return true;
- }
- form.addEventListener('click',event=>{
-  const edit=event.target.closest('[data-summary-edit]');if(edit){const name=edit.dataset.summaryEdit;const target=listFields.includes(name)?entries(name).querySelector('input,textarea')||form.querySelector(name==='pricing'?'[data-price-service]':`[data-add-entry="${name}"]`):form.querySelector(name==='tone'?'[name="tone"]:checked':`[name="${name}"]`);if(target){target.scrollIntoView({behavior:'auto',block:'center'});target.focus({preventScroll:true});}return;}
-  const remove=event.target.closest('[data-remove]');if(remove){const row=remove.closest('[data-entry]');const list=row.parentElement;row.remove();(list.lastElementChild?.querySelector('input,textarea')||list.parentElement.querySelector('[data-add-entry]')||list.parentElement.querySelector('[data-add-price]'))?.focus();changed();announce('Entry removed. Save to keep this change.');}
-  const button=event.target.closest('[data-add-entry]');if(!button)return;
-  const name=button.dataset.addEntry;
-  if(name==='faqs') {
-   const select=form.querySelector('[data-faq-topic]'),question=select.value===''?'':faqTopics[Number(select.value)];
-   const blank=[...entries(name).children].find(row=>![...row.querySelectorAll('input,textarea')].some(input=>input.value.trim()));
-   if(blank){blank.querySelector('[name="faqQuestion"]').value=question;blank.querySelector(question?'textarea':'input').focus();changed();}else if(!add(name,faqRow('',question)))return;
-   select.value='';
-  }else if(name==='policies') {
-   const topic=form.querySelector('[data-policy-topic]').value;add(name,entryRow(name,'',topic?`Describe your ${topic.toLowerCase()} policy` : hints.policies));
-  }else add(name,entryRow(name));
- });
- form.querySelector('[data-apply-hours]').addEventListener('click',()=>{
-  const select=form.querySelector('[data-hours-preset]');if(select.value===''){announce('Choose an hours preset first.');select.focus();return;}
-  const input=form.elements.hours;
-  input.value=hoursPresets[Number(select.value)];input.focus();changed();announce('Hours preset added. Adjust it to match your business.');
- });
- for(const name of Object.keys(guidance))form.querySelector(`[data-apply-guidance="${name}"]`).addEventListener('click',()=>{
-  const select=form.querySelector(`[data-guidance="${name}"]`);if(select.value===''){announce('Choose a suggested rule first.');select.focus();return;}
-  const input=form.elements[name],text=guidance[name][Number(select.value)][1];
-  if(input.value.includes(text)){announce('That rule is already included.');return;}
-  const value=[input.value.trim(),text].filter(Boolean).join('\n');if(value.length>input.maxLength){announce('This rule would exceed the field limit. Shorten the existing text first.');return;}
-  input.value=value;select.value='';input.focus();changed();announce('Suggested rule added. Review it before saving.');
- });
- const method=form.querySelector('[data-price-method]');
- const updatePriceMethod=()=>{const needsAmount=!['quote','custom'].includes(method.value);form.querySelector('[data-price-amount-wrap]').hidden=!needsAmount;form.querySelector('[data-price-amount]').disabled=!needsAmount;if(!needsAmount)form.querySelector('[data-price-amount]').value='';form.querySelector('[data-price-details-label]').textContent=method.value==='custom'?'Required':'Optional';};
- method.addEventListener('change',updatePriceMethod);updatePriceMethod();
- const priceInputs=['service','amount','details'].map(name=>form.querySelector(`[data-price-${name}]`));
- function addPrice() {
-  const error=form.querySelector('[data-price-error]');error.textContent='';
-  try{const value=priceEntry({service:priceInputs[0].value,method:method.value,amount:priceInputs[1].value,details:priceInputs[2].value});if(!add('pricing',entryRow('pricing',value)))return false;priceInputs.forEach(input=>input.value='');changed();announce('Pricing detail added.');return true;}catch(e){error.textContent=e.message;return false;}
- }
- form.querySelector('[data-add-price]').addEventListener('click',addPrice);
- const progress=()=>{
-  const profile=profileFromForm(new FormData(form));const count=[Boolean(profile.businessName&&profile.timeZone),Boolean(profile.services.length&&profile.locations.length),Boolean(profile.faqs.length||profile.pricing.length),Boolean(profile.policies.length||profile.bookingRules||profile.handoff),Boolean(profile.tone)].filter(Boolean).length;form.querySelector('[data-profile-progress]').textContent=`${count} of 5 sections have details · optional sections can be left blank`;
-  let pendingPrice='',pendingPriceError='';if(priceInputs.some(input=>input.value.trim()))try{pendingPrice=priceEntry({service:priceInputs[0].value,method:method.value,amount:priceInputs[1].value,details:priceInputs[2].value});}catch(error){pendingPriceError=error.message;}
-  form.querySelector('[data-profile-summary]').innerHTML=profileSummaryHtml(profile,{pendingPrice,pendingPriceError});
- };
- form.addEventListener('input',progress);form.addEventListener('change',progress);progress();
- return {prepare(review){
-  // Include a completed pending pricing detail; never silently discard a half-filled builder.
-  if(priceInputs.some(input=>input.value.trim())&&!addPrice())throw new Error('Complete the pricing detail, or clear its fields before saving.');
-  if(!review)return;
-  const profile=profileFromForm(new FormData(form));
-  if(!profile.services.length||!profile.locations.length)throw new Error('Add at least one service and one service area before reviewing.');
-  if(profile.summary&&profile.summary.length<20)throw new Error('Use at least 20 characters for the business description, or leave it blank.');
-  for(const row of entries('faqs').children)if(row.querySelector('input').value.trim()&&!row.querySelector('textarea').value.trim()){row.querySelector('textarea').focus();throw new Error('Add an answer to each FAQ question before reviewing.');}
-  if(profile.faqs.some(value=>value.length>300))throw new Error('Keep each FAQ question and answer within 300 characters combined.');
-  for(const [name,max] of Object.entries(limits))if(profile[name].length>max)throw new Error(`Too many ${name}; the limit is ${max}.`);
- }};
+ installPhoneFormatting(form);return bindBusinessInfo(form);
 }

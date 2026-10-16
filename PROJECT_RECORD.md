@@ -1,5 +1,35 @@
 # Opek SMS project record
 
+## Unified Business Info and live AI controls — October 16, 2026
+
+CRM now uses one reviewed Business Info document in workspace settings and
+business administration. Existing facts are preserved and pricing is optional.
+Inbound AI uses the document as its primary approved reference; missing prices
+use saved quote contact details, with staff help when neither is available.
+
+The AI screen offers on/off instead of shadow/pilot controls. Activation keeps
+staff scope, reviewed profile, provider readiness, sending and consent checks;
+booking capacity, STOP, staff takeover and revision fences are unchanged.
+Other businesses are not automatically enabled. E2 owns the existing canonical
+setup/ownership/review/cache contracts; no E2 runtime or migration change is needed.
+
+Local implementation: CRM migration 20261016220003_unified_business_info replaces
+only the profile validator and canonical AI settings implementation. It performs
+no profile/settings backfill.
+
+Local verification passed: CRM verify:release (700 passing tests, 29 existing
+skips, 63 paired checks, frontend build and 68-file Edge bundle); E2 verify:release
+(248 application tests, six Worker tests, 63 paired checks and production build).
+Disposable PostgreSQL concurrency tests passed for scoped AI configuration,
+retries, revision conflicts and knowledge worker races. Synthetic browser checks
+confirmed the preserved-fact document and on/off controls. No live customer
+messages were used or sent in these checks. The updated prompt has deterministic
+coverage; no new real-model conversation evaluation was performed in this release.
+
+Live reconciliation found 148 applied migrations and only the new CRM migration
+pending. A guarded rollback rehearsal passed with both expected function hashes.
+Production application and releases are recorded separately below when verified.
+
 ## Compliance operation repair and archive — October 16, 2026
 
 Fixed the gap where a terminal compliance job left a safe preflight/status

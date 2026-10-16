@@ -4,7 +4,7 @@ The new default-off [Inbound AI agent](INBOUND_AI.md) supersedes the generation
 path below for `sms-agent-v1` jobs only. It uses GPT 6.1 Sol and five narrow tools.
 Older AI jobs remain disabled; knowledge approval and embedding workflows remain.
 The inbound backend/frontend were released October 10 and Opek was enabled in
-shadow; live activation still requires the documented pilot gate. These are
+shadow; that October 10 pilot gate was replaced by the October 16 on/off workflow. These are
 recorded release observations, not a fresh live inspection. The legacy generation
 instructions below are historical; use [Inbound AI](INBOUND_AI.md) for current settings.
 

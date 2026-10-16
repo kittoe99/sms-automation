@@ -1,10 +1,19 @@
 # Inbound SMS agent
 
-Open **SMS → AI replies**. The mode labels are **Review only — no
-replies sent** (shadow) and **Automatic replies** (live). A form test does not
-change this mode or unlock its release gates.
+Open **SMS → AI replies** and use **AI replies on**. Off sends no AI replies;
+on responds to future eligible incoming messages using reviewed Business Info.
+Pricing is optional: unsupported prices use the saved quote phone or website.
+No mandatory shadow/pilot phase remains. The separate booking switch still
+requires configured shared availability before the agent can offer appointments.
 
-## Release status — October 10, 2026
+Turning on requires an active business, reviewed business information and a ready
+SMS connection with sending already enabled. Consent/STOP, conversation pauses,
+staff takeover, scoped tools and revision fences remain enforced. The control
+does not backfill old messages or enable form follow-ups. Legacy shadow values
+and liveValidated fields remain readable as historical evidence; they are not
+activation prerequisites. See [Business Info](BUSINESS_PROFILE_FORM.md).
+
+## Historical release — October 10, 2026
 
 The backend is deployed to WPacquisition (`wxamwhfmelxqahkdtcci`). Direct project
 access works despite the connector's incomplete project listing. Applied history
@@ -47,16 +56,15 @@ requests, three tools, a 35-second model/action deadline and 4,096 output tokens
 per request. Customer replies are separately limited to 600 characters. Transient
 failures retry through the existing queue, up to three total attempts.
 
-Staff use **Inbound AI** for revision-checked off/shadow/live settings, business
-instructions, a separate booking permission, approved knowledge and shared
-**Service availability** links. Only the Opek pilot may enable shadow/live.
-Live also requires an operator-recorded validation gate. A manual reply pauses
+Staff use **AI replies** for revision-checked on/off settings, optional reply style,
+a separate booking permission, approved Business Info and shared
+**Service availability** links. Legacy shadow settings are retained for history. A manual reply pauses
 that conversation until explicit resume. STOP, new messages, staff takeover and
 settings revisions fence tools and the final provider submission. Queued inputs
 coalesce with a two-second delay; the existing queue serializes business/phone.
 
-The five tools are `lookup_bookings`, `check_availability`, `prepare_booking`,
-`confirm_booking` and `request_staff_help`. Identity comes exclusively from the
+The tools are `lookup_bookings`, `check_availability`, `prepare_booking`,
+`confirm_booking` `request_staff_help` and `close_enquiry`. Identity comes exclusively from the
 leased verified inbound job. Lookups return only that customer's appointment
 references, services, times and statuses. Approved profile/retrieval content,
 recent accepted messages, recent forms and the active draft provide context.

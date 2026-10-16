@@ -11,27 +11,23 @@ test('business context drafts survive realtime and polling refreshes',()=>{
  assert.match(app,/form\[data-dirty="true"\]/);
  assert.match(app,/connectSupabaseLive\(\(\) => refreshFromBackground/);
  assert.match(app,/setInterval\(\(\) => refreshFromBackground/);
- assert.match(app,/form\.addEventListener\('input', captureDraft\)/);
-  assert.match(app,/state\.businessContextDraft \? \{ \.\.\.defaults, \.\.\.state\.businessContextDraft \} : defaults/);
+ assert.match(app,/state\.businessContextDraft=profileFromForm\(new FormData\(form\),profile\)/);
+  assert.match(app,/const profile=\{\.\.\.saved\.onboarding,\.\.\.state\.businessContextDraft\}/);
 });
 
 test('business context uses the shared draft and review workflow without local success fallback',()=>{
-  assert.match(app,/const onboardingState = await fetchOnboarding\(\)/);
+  assert.match(app,/saved=await fetchOnboarding\(\)/);
   assert.match(app,/writeBusinessProfile\(apiFetch, payload, state.setupOnboarding\?\.revision, intent\)/);
-  assert.match(app,/Save reviewed profile/);
+  assert.match(app,/Save business info/);
   assert.doesNotMatch(app,/Saved on this device only/);
 });
 
-test('business context website enrichment prefers the project Firecrawl endpoint',()=>{
-  const handlerStart=app.indexOf("const payload = JSON.stringify({ websiteUrl: url })");
-  const localFetch=app.indexOf("fetch('/api/enrich-website'",handlerStart);
-  const hostedFallback=app.indexOf("apiFetch('/api/enrich-website'",handlerStart);
-  assert.ok(handlerStart >= 0);
-  assert.ok(localFetch > handlerStart);
-  assert.ok(hostedFallback > localFetch);
-  assert.match(app,/localResponseIsJson/);
-  assert.match(app,/response\.status === 404 \|\| !localResponseIsJson/);
-  assert.doesNotMatch(app,/Replace the form contents with freshly fetched website details/);
+test('business context saves the shared document editor through explicit draft or review',()=>{
+ assert.match(app,/profileEditorHtml\(profile\)/);
+ assert.match(app,/editor\.prepare\(intent==='review'\)/);
+ assert.match(app,/saveOnboarding\(payload,intent\)/);
+ assert.match(app,/Draft saved. AI continues using the reviewed version/);
+ assert.doesNotMatch(app,/fetch\('\/api\/enrich-website'/);
 });
 
 test('business context and AI knowledge share one navigation destination',()=>{

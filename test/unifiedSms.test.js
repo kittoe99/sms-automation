@@ -54,7 +54,7 @@ test('one reply setting enables automation context without approving live mode o
   const saved=await call(db,'inbound_ai_settings_api','admin',tenant,request);
   assert.equal(saved.mode,'shadow');assert.equal(saved.replyScope,'all_sms');assert.equal(saved.coordinationEnabled,true);
   assert.equal(saved.liveValidated,false);assert.equal(saved.revision,revision+2); // Mode and coordination are two canonical row updates.
-  await assert.rejects(()=>call(db,'inbound_ai_settings_api','admin',tenant,{...request,mode:'live',revision:saved.revision}),/Pilot validation/);
+  await assert.rejects(()=>call(db,'inbound_ai_settings_api','admin',tenant,{...request,mode:'live',revision:saved.revision}),/ready SMS connection/);
   await assert.rejects(()=>call(db,'inbound_ai_settings_api','admin',tenant,request),/stale revision/);
   await assert.rejects(()=>call(db,'inbound_ai_settings_api','stranger',tenant,request),/denied|admin|staff/i);
   const grants=(await db.query("select has_function_privilege('sms_api','sms_private.inbound_ai_settings_api(text,text,jsonb)','execute') api,has_function_privilege('sms_api','sms_private.inbound_ai_settings_api_before_unified_sms(text,text,jsonb)','execute') old,has_function_privilege('anon','sms_private.inbound_ai_settings_api(text,text,jsonb)','execute') anon")).rows[0];

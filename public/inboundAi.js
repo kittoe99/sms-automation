@@ -13,11 +13,9 @@ export async function mountInboundAi(root,{apiFetch,onKnowledge,onAvailability,i
 
  root.innerHTML=`<section class="card setup-body"><h2>AI replies for all SMS</h2><p>Use one set of business instructions for incoming texts and replies to form or contact messages. AI reads the customer’s recent SMS history across those sources.</p>
 
- <p>${initial.pilot?'Opek pilot.':'Pilot access is limited to Opek.'} Review only records proposed replies without sending messages or creating bookings.</p>
-
- <form data-inbound-ai><label>Reply mode<select name="mode"><option value="off">Off</option><option value="shadow" ${!initial.pilot?'disabled':''}>Review only — no replies sent</option><option value="live" ${!initial.pilot||!initial.liveValidated?'disabled':''}>Automatic replies</option></select></label>
-
- <p class="muted">${initial.liveValidated?'Automatic replies are available. Saving this mode turns on eligible replies.':'Automatic replies need pilot approval. Review only lets you inspect proposed replies without sending. This setting applies to all SMS sources; testing an automation does not activate AI.'}</p><label>Business instructions<textarea name="systemPrompt" rows="7" maxlength="6000">${esc(initial.systemPrompt)}</textarea></label>
+ <form data-inbound-ai><label class="availability-toggle"><input type="checkbox" name="enabled" ${initial.mode==='live'?'checked':''}> AI replies on</label>
+ <p class="muted">When on, AI responds to new eligible incoming messages using Business Info. Turning it on does not reply to old messages. If a price is missing, it directs customers to your business phone or website.</p>
+ <details><summary>Reply style (optional)</summary><label>Style instructions<textarea name="systemPrompt" rows="4" maxlength="6000">${esc(initial.systemPrompt)}</textarea></label></details>
 
  <label class="availability-toggle"><input type="checkbox" name="bookingEnabled" ${initial.bookingEnabled?'checked':''}> Allow new bookings after customer confirmation</label>
 
@@ -25,11 +23,11 @@ export async function mountInboundAi(root,{apiFetch,onKnowledge,onAvailability,i
 
  <div class="compose-actions"><button class="btn" type="submit">Save settings</button><span data-result role="status" aria-live="polite"></span></div></form>
 
- <div class="compose-actions"><button type="button" class="btn ghost" data-knowledge>Approved knowledge</button><button type="button" class="btn ghost" data-availability>Booking availability</button></div>
+ <div class="compose-actions"><button type="button" class="btn ghost" data-knowledge>Business Info</button><button type="button" class="btn ghost" data-availability>Booking availability</button></div>
 
- </section><section class="card setup-body"><h2>Automations and replies</h2><p>${initial.coordinationEnabled?"Enabled":"Off"}${initial.mode==="shadow"?" · proposed actions only":""}. Form and contact follow-ups set to Continue wait 30 minutes after a customer reply or an accepted AI reply, including in Off and Review only modes. Paused follow-ups need a manual resume; booking reminders keep their own rules.</p>${initial.coordination?.length?`<div class="table-scroll"><table class="data"><thead><tr><th>Enquiry</th><th>Status</th><th>Association</th><th>Reason</th><th>${initial.mode==='shadow'?'Proposed quiet until':'Quiet until'}</th></tr></thead><tbody>${initial.coordination.map(c=>`<tr><td>${esc(c.title)}</td><td>${esc(c.status)}</td><td>${c.associated?'Linked to AI conversation':'Not linked'}</td><td>${esc(reasonLabel(c.reason))}</td><td>${c.quietUntil?esc(new Date(c.quietUntil).toLocaleString()):'—'}</td></tr>`).join('')}</tbody></table></div>`:'<p>No active enquiry sequences.</p>'}</section><section class="card setup-body"><h2>Recent AI replies</h2>${initial.runs?.length?`<div class="table-scroll"><table class="data"><thead><tr><th>Time</th><th>Mode</th><th>Reply</th><th>Enquiry outcome</th><th>Duration</th><th>Estimated cost</th></tr></thead><tbody>${initial.runs.map(r=>`<tr><td>${esc(new Date(r.created_at).toLocaleString())}</td><td>${esc(r.mode==='shadow'?'Review only — not sent':r.mode==='live'?'Automatic replies':r.mode)}</td><td>${esc(r.result.reply||r.result.code||'')}</td><td>${esc(r.result.coordination?.title||'—')}<br>${esc(reasonLabel(r.result.coordination?.reason))}${r.result.coordination?.simulated?' (proposed)':''}</td><td>${esc(r.result.latencyMs??'—')} ms</td><td>${r.result.estimatedCostMicros==null?'—':'$'+(r.result.estimatedCostMicros/1e6).toFixed(4)}</td></tr>`).join('')}</tbody></table></div>`:'<p>No runs yet.</p>'}</section>`;
+ </section><section class="card setup-body"><h2>Automations and replies</h2><p>${initial.coordinationEnabled?"Enabled":"Off"}${initial.mode==="shadow"?" · legacy preview mode; turn on AI replies to respond":""}. Form and contact follow-ups set to Continue wait 30 minutes after a customer reply or an accepted AI reply, including while AI replies are off. Paused follow-ups need a manual resume; booking reminders keep their own rules.</p>${initial.coordination?.length?`<div class="table-scroll"><table class="data"><thead><tr><th>Enquiry</th><th>Status</th><th>Association</th><th>Reason</th><th>${initial.mode==='shadow'?'Proposed quiet until':'Quiet until'}</th></tr></thead><tbody>${initial.coordination.map(c=>`<tr><td>${esc(c.title)}</td><td>${esc(c.status)}</td><td>${c.associated?'Linked to AI conversation':'Not linked'}</td><td>${esc(reasonLabel(c.reason))}</td><td>${c.quietUntil?esc(new Date(c.quietUntil).toLocaleString()):'—'}</td></tr>`).join('')}</tbody></table></div>`:'<p>No active enquiry sequences.</p>'}</section><section class="card setup-body"><h2>Recent AI replies</h2>${initial.runs?.length?`<div class="table-scroll"><table class="data"><thead><tr><th>Time</th><th>Mode</th><th>Reply</th><th>Enquiry outcome</th><th>Duration</th><th>Estimated cost</th></tr></thead><tbody>${initial.runs.map(r=>`<tr><td>${esc(new Date(r.created_at).toLocaleString())}</td><td>${esc(r.mode==='shadow'?'Review only — not sent':r.mode==='live'?'Automatic replies':r.mode)}</td><td>${esc(r.result.reply||r.result.code||'')}</td><td>${esc(r.result.coordination?.title||'—')}<br>${esc(reasonLabel(r.result.coordination?.reason))}${r.result.coordination?.simulated?' (proposed)':''}</td><td>${esc(r.result.latencyMs??'—')} ms</td><td>${r.result.estimatedCostMicros==null?'—':'$'+(r.result.estimatedCostMicros/1e6).toFixed(4)}</td></tr>`).join('')}</tbody></table></div>`:'<p>No runs yet.</p>'}</section>`;
 
- const form=root.querySelector('form');form.elements.mode.value=initial.mode;
+ const form=root.querySelector('form');
 
  root.querySelector('[data-knowledge]').onclick=onKnowledge;root.querySelector('[data-availability]').onclick=onAvailability;
 
@@ -39,7 +37,7 @@ export async function mountInboundAi(root,{apiFetch,onKnowledge,onAvailability,i
 
   try {
 
-   const response=await apiFetch('/api/inbound-ai',{method:'PUT',body:JSON.stringify({revision:settings.revision,mode:form.elements.mode.value,systemPrompt:form.elements.systemPrompt.value,bookingEnabled:form.elements.bookingEnabled.checked})});
+   const response=await apiFetch('/api/inbound-ai',{method:'PUT',body:JSON.stringify({revision:settings.revision,mode:form.elements.enabled.checked?'live':'off',systemPrompt:form.elements.systemPrompt.value,bookingEnabled:form.elements.bookingEnabled.checked})});
 
    const data=await response.json();if(!response.ok)throw new Error(data.error||'Save failed');settings=data;result.textContent='Saved';
 

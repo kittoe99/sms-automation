@@ -1,5 +1,5 @@
 const esc=value=>String(value??'').replaceAll('&','&amp;').replaceAll('<','&lt;').replaceAll('>','&gt;').replaceAll('"','&quot;').replaceAll("'",'&#39;');
-import {profileFromForm,profileEditorHtml,bindProfileEditor} from './businessProfileEditor.js?v=20261003-phone';
+import {profileFromForm,profileEditorHtml,bindProfileEditor} from './businessProfileEditor.js?v=20261016-document';
 import {mountTwilioConnection} from './twilioConnection.js?v=20261003-sms-nav';
 import {mountVoiceSetup} from './voiceSetup.js';
 export {profileFromForm};
@@ -10,7 +10,7 @@ export function mountBusinessSetup(container,row,{read,write,reload,onCreateWebs
    <form class="compose business-profile-form" data-profile><p data-profile-error class="login-error" role="alert"></p>
    ${profileEditorHtml(profile)}
    <div class="profile-savebar"><div><strong>${reviewed?'Reviewed profile':'Ready when you are'}</strong><p>${reviewed?'Reviewed '+esc(new Date(setup.reviewed_at).toLocaleString())+'. Draft edits take effect after review.':'Save your progress, or review the facts to continue with service setup.'}</p></div>
-   <div class="compose-actions"><button class="btn ghost" type="submit" name="intent" value="draft" formnovalidate>Save draft</button><button class="btn" type="submit" name="intent" value="review">Save reviewed profile</button></div></div>
+   <div class="compose-actions"><button class="btn ghost" type="submit" name="intent" value="draft" formnovalidate>Save draft</button><button class="btn" type="submit" name="intent" value="review">Save business info</button></div></div>
    <p class="profile-note">Saving a reviewed profile does not publish a website or activate SMS sending.</p>
    </form>
    ${row.registration?`<details class="profile-registration"><summary>View original customer registration</summary><pre>${esc(JSON.stringify(row.registration.profile,null,2))}</pre></details>`:''}

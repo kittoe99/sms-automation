@@ -26,7 +26,7 @@ test('summary labels omissions and pending pricing without inventing completed i
  const complete=profileSummaryHtml({},{pendingPrice:'Repair: $50.00 per hour.'});assert.ok(complete.includes('Repair: $50.00 per hour.'));assert.ok(complete.includes('will be included when you save'));
  const incomplete=profileSummaryHtml({},{pendingPriceError:'Enter the service <first>.'});assert.ok(incomplete.includes('Incomplete pricing detail'));assert.ok(incomplete.includes('&lt;first&gt;'));assert.ok(!incomplete.includes('will be included when you save'));
  const items=Array.from({length:200},(_,i)=>`Service ${i}: quoted individually.`);assert.ok(profileSummaryHtml({pricing:items}).includes(items.at(-1)));
- const editor=profileEditorHtml({});assert.ok(editor.indexOf('data-profile-summary')>editor.indexOf('05'));assert.ok(editor.includes('Review your business profile'));
+ const editor=profileEditorHtml({});assert.ok(editor.includes('name="businessInfo"'));assert.ok(editor.includes('Pricing is optional'));
 });
 
 test('guided entries serialize to the existing profile contract and allow clearing lists',()=>{
@@ -53,14 +53,16 @@ test('pricing builder requires actual details and formats the selected pricing m
  assert.throws(()=>priceEntry({service:'Repair',method:'custom'}),/Describe/);
 });
 
-test('guided editor retains saved content, escapes it, and does not preselect business facts',()=>{
+test('document editor preserves existing facts, escapes content and does not invent defaults',()=>{
  const html=profileEditorHtml({businessName:'<script>bad</script>',timeZone:'Asia/Tokyo',faqs:['Are you open? Yes.','Custom saved answer.'],pricing:['Special: €25'],hours:'Custom hours'});
- assert.ok(html.includes('&lt;script&gt;bad&lt;/script&gt;'));assert.ok(html.includes('value="Asia/Tokyo" selected'));
- assert.ok(html.includes('value="Are you open?"'));assert.ok(html.includes('>Yes.</textarea>'));
- assert.ok(html.includes('Custom saved answer.'));assert.ok(html.includes('Special: €25'));assert.ok(html.includes('value="Custom hours"'));
- const empty=profileEditorHtml({});assert.ok(empty.includes('value="" checked'));assert.ok(empty.includes('value="" placeholder="Your real business'));
- assert.ok(!empty.includes('value="Mon–Fri')); // Presets are suggestions, never inserted as facts on load.
- const custom=profileEditorHtml({faqs:['Payment methods — Cash or card.','Can I reschedule?']});
- assert.ok(custom.includes('value="Payment methods"'));assert.ok(custom.includes('>Cash or card.</textarea>'));
- assert.ok(custom.includes('value="Can I reschedule?"'));
+ assert.ok(html.includes('&lt;script&gt;bad&lt;/script&gt;'));assert.ok(html.includes('value="Asia/Tokyo"'));
+ for(const text of ['Are you open? Yes.','Custom saved answer.','Special: €25','Custom hours'])assert.ok(html.includes(text));
+ assert.equal((html.match(/<textarea/g)||[]).length,1);assert.ok(!html.includes('data-price-method'));
+ const doc=profileEditorHtml({businessInfo:'Only this <content>',pricing:['Old price']});assert.ok(doc.includes('Only this &lt;content&gt;'));assert.ok(!doc.includes('Old price'));
+ const empty=profileEditorHtml({});assert.ok(!empty.includes('Mon–Fri'));assert.ok(empty.includes('Pricing is optional'));
+});
+
+test('document saves retain identity and compatibility facts while allowing price-free content',()=>{
+ const previous={services:['Removal'],pricing:['Old price'],customFact:'Keep'};const form=new FormData();form.set('profileEditor','document');form.set('businessInfo','Removal services. Contact us for a quote.');form.set('businessName','Opek');form.set('timeZone','America/Denver');form.set('websiteUrl','https://example.test');
+ const saved=profileFromForm(form,previous);assert.equal(saved.businessInfo,form.get('businessInfo'));assert.deepEqual(saved.services,previous.services);assert.deepEqual(saved.pricing,previous.pricing);assert.equal(saved.customFact,'Keep');assert.equal(previous.businessInfo,undefined);
 });
