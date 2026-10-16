@@ -153,3 +153,25 @@ by these local regression tests.
 ## Recording a release
 
 Record commit/release identifiers, affected components, migration filename-to-live-version mapping, actual test results, rollout switches and remaining pilot work in [PROJECT_RECORD.md](../PROJECT_RECORD.md). A successful mock test or public page response alone is not proof of authenticated workflows, telephony audio, real delivery or capacity.
+
+## Scoped MCP operations
+
+MCP diagnostics are business-scoped and return queue/status counts and curated
+metadata, not job payloads or global worker state. Provider inventory is the saved
+assigned sender, with a last-check timestamp. Use the separate provider_refresh
+grant to queue the canonical read-only provider check. provider_reconcile only
+inspects an explicitly selected uncertain refresh or registration operation;
+number purchases, sender binding and legal setup require the existing CRM UI.
+
+operations_retry is limited to failed non-reconciliation status refresh jobs with
+no active lease and no submitted/uncertain remote outcome. Other domains retain
+their own recovery tools. sending_activate requires current business/provider/
+registration revisions, no pending provider work and canonical delivered-canary
+readiness. Activation can release previously queued eligible sends and is a
+separate permission. It does not create a new canary or enroll contacts.
+
+All writes require idempotency keys; reread after conflicts. A repeated key with
+a changed payload conflicts; identical retries return the original receipt.
+Business/worker edits advance shared operational revisions. Provider operations
+remain queued until workers report completion. No credentials, raw errors or
+private content enter MCP output or audit.

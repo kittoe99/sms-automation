@@ -1,5 +1,16 @@
 // Tool authorization metadata. SQL parity is tested against the latest gateway.
 export const toolPermissions={
+ "crm_get_operations_summary":"operations_read",
+ "crm_list_operational_jobs":"operations_read",
+ "crm_get_operational_job":"operations_read",
+ "crm_list_provider_operations":"operations_read",
+ "crm_get_provider_operation":"operations_read",
+ "crm_get_provider_readiness":"provider_read",
+ "crm_get_provider_inventory":"provider_read",
+ "crm_refresh_provider_status":"provider_refresh",
+ "crm_reconcile_provider_status":"provider_reconcile",
+ "crm_retry_operational_job":"operations_retry",
+ "crm_activate_sms_sending":"sending_activate",
  "crm_list_websites":"website_read",
  "crm_get_website":"website_read",
  "crm_get_website_publication":"website_read",
@@ -142,4 +153,4 @@ export const toolPermissions={
  "crm_add_business_service": "service_add",
  "crm_set_service_visibility": "visibility"
 };
-export const externalTools=new Set(['crm_publish_website','crm_unpublish_website','crm_retry_email_job','crm_prepare_knowledge_upload','crm_create_knowledge_source','crm_refresh_knowledge_source','crm_add_business_service','crm_reply_to_conversation','crm_send_contact_sms','crm_retry_handoff_alert']);
+export const externalTools=new Set(['crm_refresh_provider_status','crm_reconcile_provider_status','crm_retry_operational_job','crm_activate_sms_sending','crm_publish_website','crm_unpublish_website','crm_retry_email_job','crm_prepare_knowledge_upload','crm_create_knowledge_source','crm_refresh_knowledge_source','crm_add_business_service','crm_reply_to_conversation','crm_send_contact_sms','crm_retry_handoff_alert']);

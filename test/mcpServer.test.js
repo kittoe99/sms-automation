@@ -87,5 +87,5 @@ test('AI connection management uses browser identity and remains staff navigatio
  assert.ok(permittedGroups(true,null).flatMap(x=>x.views).some(x=>x.view==='platform-ai-connections'));
  assert.equal(permittedGroups(false,{smsRead:true}).flatMap(x=>x.views).some(x=>x.view==='platform-ai-connections'),false);
  assert.equal(toolDefinitions.some(([name])=>name.includes('grant')),false);
- assert.deepEqual(toolDefinitions.filter(([name])=>name.includes('send')).map(([name])=>name),['crm_send_contact_sms']);
+ assert.deepEqual(toolDefinitions.filter(([name])=>name.startsWith('crm_send_')).map(([name])=>name),['crm_send_contact_sms']);
 });

@@ -1,5 +1,11 @@
 // Shared by the administrator editor and MCP output validation. New grants are opt-in.
 export const connectionPermissions = [
+ ["operations_read","Read scoped job diagnostics and provider operations"],
+ ["provider_read","Read assigned sender inventory and activation readiness"],
+ ["provider_refresh","Queue provider status refresh without setup or sends"],
+ ["provider_reconcile","Queue safe status-only provider reconciliation"],
+ ["operations_retry","Retry failed status-refresh jobs only"],
+ ["sending_activate","Activate an already verified SMS sender; queued eligible sends may proceed"],
  ["website_read","Read scoped existing websites and publication status"],
  ["website_deployment_read","Read existing website deployment metadata"],
  ["website_details_edit","Edit website name and customer-visible details"],

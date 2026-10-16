@@ -1822,3 +1822,42 @@ reconcile against 144 live entries and match rollback rehearsal. Not yet applied
 Order: CRM 20261016204900 integration state, E2 20261016204903 hosting contract,
 E2 runtime, MCP trusted adapter URL/service, CRM frontend, grants, read-only checks.
 No production website publication, customer record edit or messaging verification.
+
+## Operational MCP — October 16, 2026 (local)
+
+Stage 9 adds eleven tools and six independent grants (153 tools / 104 permissions):
+scoped queue/job and provider-operation metadata, assigned sender inventory,
+activation readiness, status refresh, safe status reconciliation, eligible failed
+status-check recovery and sending activation. Inventory explicitly reports saved
+connection state and last-check time; it never enumerates parent-account resources.
+No job payload, credential, provider response or customer content is projected.
+
+Business, provider, registration, job and remote-operation revisions advance for
+all writers. Mutations lock/check all relevant revisions, use the existing
+connection-scoped transactional fingerprints/receipts and audit affected job and
+operation revisions. Only failed, unleased, non-reconciliation refresh_status jobs
+with pending/failed remote state can be retried; send, purchase, canary and unknown
+outcomes remain excluded. A queued MCP reconciliation is pinned to a specific
+uncertain status/registration operation and rechecked by the canonical worker
+context before any provider call. Purchase/binding reconciliation is rejected.
+Activation uses canonical readiness and requires ready/delivered-canary state; it
+may release existing eligible work but does not enroll contacts or create a test.
+
+CRM owns forward migration 20261016211044. It follows the released website/E2
+contract; no E2 schema or runtime change is required. Customer cache invalidation
+and provider workers retain their canonical behavior. No live mutation verification.
+Local validation and release outcome are recorded separately below.
+
+## Operational MCP validation and migration — October 16, 2026
+
+Final CRM verify:release passed: 686 tests, 29 existing skips, 63 paired tests,
+checks, frontend build and complete 68-file Edge bundle. E2 verify:release passed:
+248 tests, six worker tests, 63 paired tests, lint/type/worker checks and production
+build. Final real-PostgreSQL concurrency tests passed for refresh, retry, activation,
+worker locks, stale revisions and interrupted rollback; no provider calls or sends.
+
+Reconciled 146 live migrations including aliases. Rehearsed and applied only
+20261016211044_crm_mcp_operations (147 live history entries), with nine matching
+function hashes and no private helper execute grants. No E2 migration or worker
+runtime release was needed. MCP/frontend deployment and read-only verification
+follow; this entry does not claim that release is complete.

@@ -1,3 +1,4 @@
+import {operationsTools,operationsOutputs} from './operationsSchemas.js';
 import {websiteTools,websiteOutputs} from './websiteSchemas.js';
 import {voiceTools,voiceOutputs} from './voiceSchemas.js';
 import {emailTools,emailOutputs} from './emailSchemas.js';
@@ -28,7 +29,7 @@ const business={businessId:id};
 const write={...business,idempotencyKey:z.string().min(8).max(128)};
 const profile={...write,revision:z.number().int().nonnegative(),profile:z.record(z.unknown())};
 export const toolDefinitions=[
- ...websiteTools,...voiceTools,...activityTools,...formLifecycleTools,...emailTools,
+ ...operationsTools,...websiteTools,...voiceTools,...activityTools,...formLifecycleTools,...emailTools,
  ...knowledgeTools,
  ...bookingTools,
  ...contactTools,
@@ -70,7 +71,7 @@ const providerSetup=z.object({state:z.string(),jobs:z.array(z.object({id:uuid,st
 const mutation=record=>z.object({record,businessId:id,databaseStatus:z.literal('committed'),providerSetup});
 const paging={total:z.number().int().nonnegative(),page:z.number().int().positive(),pageSize:z.number().int().min(1).max(100)};
 export const toolOutputs={
- ...websiteOutputs,
+ ...operationsOutputs,...websiteOutputs,
  ...voiceOutputs,
  ...activityOutputs,...formLifecycleOutputs,...emailOutputs,
  ...knowledgeOutputs,
