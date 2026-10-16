@@ -15,5 +15,11 @@ export const connectionPermissions = [
  ['automation_run_resume','Resume paused SMS runs with current consent'],
  ['automation_run_pause_stop','Pause or stop SMS runs and replace selected overlaps'],
  ['automation_activity','Inspect SMS runs and their activity'],
+ ['form_read','Read form definitions and collection state'],
+ ['form_create','Create inactive forms'],
+ ['form_edit','Edit separate form drafts'],
+ ['form_preview','Preview saved form drafts without submitting'],
+ ['form_publish','Apply saved form drafts while preserving collection state'],
+ ['form_activate','Activate collection, or deactivate and pause form SMS runs / cancel form email enrollments'],
 ];
 export const connectionPermissionNames=connectionPermissions.map(([key])=>key);

@@ -5,6 +5,8 @@ import {smsDraftTools,smsDraftOutputs} from './smsDraftSchemas.js';
 import {smsReleaseTools,smsReleaseOutputs} from './smsReleaseSchemas.js';
 import {smsRunTools,smsRunOutputs} from './smsRunSchemas.js';
 import {smsActivityTools,smsActivityOutputs} from './smsActivitySchemas.js';
+import {formReadTools,formReadOutputs,formDraftTools,formDraftOutputs,formPreviewTools,formPreviewOutputs,formApplyTools,formApplyOutputs,formCollectionTools,formCollectionOutputs} from './formSchemas.js';
+import {formPreviewResource} from './formPreview.js';
 import {McpServer} from '@modelcontextprotocol/sdk/server/mcp.js';
 
 const id=z.string().min(1).max(255), uuid=z.string().uuid();
@@ -13,6 +15,11 @@ const business={businessId:id};
 const write={...business,idempotencyKey:z.string().min(8).max(128)};
 const profile={...write,revision:z.number().int().nonnegative(),profile:z.record(z.unknown())};
 export const toolDefinitions=[
+ ...formReadTools,
+ ...formDraftTools,
+ ...formPreviewTools,
+ ...formApplyTools,
+ ...formCollectionTools,
  ...smsReadTools,
  ...smsDraftTools,
  ...smsReleaseTools,
@@ -38,6 +45,11 @@ const providerSetup=z.object({state:z.string(),jobs:z.array(z.object({id:uuid,st
 const mutation=record=>z.object({record,businessId:id,databaseStatus:z.literal('committed'),providerSetup});
 const paging={total:z.number().int().nonnegative(),page:z.number().int().positive(),pageSize:z.number().int().min(1).max(100)};
 export const toolOutputs={
+ ...formReadOutputs,
+ ...formDraftOutputs,
+ ...formPreviewOutputs,
+ ...formApplyOutputs,
+ ...formCollectionOutputs,
  ...smsReadOutputs,
  ...smsDraftOutputs,
  ...smsReleaseOutputs,
@@ -62,7 +74,9 @@ export function createMcpServer({invoke,identity,requestId}) {
   server.registerTool(name,{description,inputSchema:schema,outputSchema,annotations:{readOnlyHint:!writing,destructiveHint:writing,idempotentHint:true,openWorldHint:name==='crm_add_business_service'}},async input=>{
    const data=await invoke(identity,name,schema.parse(input),requestId);
    const result=z.object(outputSchema).parse({...data,requestId});
-   return {content:[{type:'text',text:JSON.stringify(result)}],structuredContent:result,...(!result.ok?{isError:true}:{})};
+   const content=[{type:'text',text:JSON.stringify(result)}];
+   if(name==='crm_preview_form'&&result.ok)content.push(formPreviewResource(result.data));
+   return {content,structuredContent:result,...(!result.ok?{isError:true}:{})};
   });
  }
  return server;

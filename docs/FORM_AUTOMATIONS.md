@@ -1,5 +1,82 @@
 # Form-first SMS automation
 
+## Forms release preflight — October 15 (before application)
+
+The five CRM forms migrations were reconciled against 121 live migration records,
+including source/remote aliases and two unchanged remote-only historical entries.
+The exact-version CLI dry run lists only 20261016040535, 20261016041950,
+20261016043205, 20261016044442 and 20261016045607. No history repair or replay is
+needed. The unrelated main-checkout AI-default migration is excluded. Both Render
+services still run 0e0728c, so deploying the existing release worktree preserves
+the production baseline and leaves newer unrelated local work untouched.
+
+Preflight corrected the still-unapplied apply migration: it now writes only
+validated definition columns. The full canonical saver also writes enabled even
+when unchanged, which fires the email lifecycle trigger. Pure draft validation
+retains canonical field rules/normalization while avoiding that unintended effect.
+Regression fixtures cover active and paused email across inactive, active and
+no-email forms. Historical step-4 notes below describe the original local approach;
+this correction is the release implementation. Collection control still invokes
+its intended pause/cancel safeguards. No public/shared saver or E2 contract changed.
+
+Corrected local verification: 516 CRM passes / 29 skips, 63 paired passes,
+23 focused apply/collection passes, 17 PostgreSQL concurrency scenarios, CRM
+checks, frontend build and Edge packaging. Production rehearsal rolled back and
+matched all 19 expected functions, including the existing E2-owned staff guard.
+The user authorized all six form grants for the existing all-business admin
+connection. Actual migrations, grant activation, deployments and Codex verification
+will be recorded separately after success. No live form or messaging mutation ran.
+
+Forms MCP step 5 (October 15, local only) adds `crm_set_form_collection_enabled`
+under independent `form_activate`. Explicit business/form IDs, current form and
+draft revisions (0 if absent), a boolean enabled state and retry key are required.
+Activation uses applied content and rejects enabled SMS follow-ups or active form
+SMS runs; it never applies drafts, enables follow-ups, resumes runs or sends.
+Deactivation pauses active form SMS runs and cancels active/paused form email
+enrollments using the existing generation safeguards. Follow-up flags remain
+unchanged. Known in-flight SMS are reported because they may still deliver.
+Fresh draft metadata advances on state changes; stale drafts remain stale.
+Effect audits include affected generations, and retries/rollback cover all effects.
+All five forms migrations remain unapplied; no production forms or SMS changed.
+See [CRM MCP](CRM_MCP.md#forms-milestone-step-5--collection-activation-and-deactivation-october-15-local-only).
+
+Historical forms MCP step 4 (October 15, local only) adds `crm_apply_form_draft` under
+`form_publish`. It applies the saved definition with both current revisions and
+a retry key, preserving collection/consent state and all SMS/email activity.
+Current SMS field references must remain valid; historical answers and run snapshots
+stay intact. Stale bases conflict and are not rebased. The applied draft is retained
+with advanced revision/base metadata for further editing. Collection activation
+remains a later, separately granted step. See [CRM MCP](CRM_MCP.md#forms-milestone-step-4--explicitly-apply-saved-drafts-october-15-local-only).
+
+
+Historical forms MCP step 3 (October 15, local only) adds `crm_preview_form` under the
+independent `form_preview` grant. It previews a saved draft using explicit business,
+form and current applied/draft revisions. Structured fields and inert embedded
+HTML show fixed/custom fields and unchecked canonical consent choices. No sample
+submission, contact lookup, collection change, automation simulation or SMS occurs.
+Outdated draft bases/archives are labeled; mismatched revisions conflict. Apply
+and activation remain future steps. See [CRM MCP](CRM_MCP.md#forms-milestone-step-3--saved-draft-previews-october-15-local-only).
+
+
+Historical forms MCP step 2 (October 15, local only) adds `crm_create_form` under
+`form_create` and `crm_save_form_draft` under `form_edit`. Creation produces an
+inactive canonical form and a separate private draft. Draft edits never change
+the applied form, public collection, consent, SMS/email state or E2 snapshots.
+Both require retry keys; edits require applied and draft revisions. A draft based
+on an older applied version conflicts and awaits explicit reconciliation in a
+later step. Preview, apply and activation remain unimplemented. The CRM editor
+continues to edit applied forms directly. Details and forward migration order:
+[CRM MCP](CRM_MCP.md#forms-milestone-step-2--inactive-creation-and-separate-drafts-october-15-local-only).
+
+Historical forms MCP step 1 (October 15, local only) adds `crm_list_forms` and `crm_get_form`
+under the new independent `form_read` grant. They expose scoped applied form
+definitions, field order, collection state and current revisions. They do not
+read submissions, change forms, simulate submissions, or affect SMS. Separate
+form drafts and create/edit/preview/apply/activate tools remain future increments;
+five reserved grants are visible but provide no tools yet. Existing connection
+grants are unchanged. See [CRM MCP](CRM_MCP.md#forms-milestone-step-1--local-scoped-reads-october-15)
+for input bounds, isolation and the new unapplied forward migration.
+
 Release update (October 14): all five SMS MCP increments are deployed, with
 independent grants available in AI connections. Codex verification used reads
 only and sent no SMS. Applied aliases and releases are in [CRM MCP](CRM_MCP.md);

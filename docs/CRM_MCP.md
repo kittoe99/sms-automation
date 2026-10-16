@@ -1,5 +1,327 @@
 # CRM MCP business setup
 
+## Forms release preflight — October 15 (before application)
+
+The five CRM forms migrations were reconciled against 121 live migration records,
+including source/remote aliases and two unchanged remote-only historical entries.
+The exact-version CLI dry run lists only 20261016040535, 20261016041950,
+20261016043205, 20261016044442 and 20261016045607. No history repair or replay is
+needed. The unrelated main-checkout AI-default migration is excluded. Both Render
+services still run 0e0728c, so deploying the existing release worktree preserves
+the production baseline and leaves newer unrelated local work untouched.
+
+Preflight corrected the still-unapplied apply migration: it now writes only
+validated definition columns. The full canonical saver also writes enabled even
+when unchanged, which fires the email lifecycle trigger. Pure draft validation
+retains canonical field rules/normalization while avoiding that unintended effect.
+Regression fixtures cover active and paused email across inactive, active and
+no-email forms. Historical step-4 notes below describe the original local approach;
+this correction is the release implementation. Collection control still invokes
+its intended pause/cancel safeguards. No public/shared saver or E2 contract changed.
+
+Corrected local verification: 516 CRM passes / 29 skips, 63 paired passes,
+23 focused apply/collection passes, 17 PostgreSQL concurrency scenarios, CRM
+checks, frontend build and Edge packaging. Production rehearsal rolled back and
+matched all 19 expected functions, including the existing E2-owned staff guard.
+The user authorized all six form grants for the existing all-business admin
+connection. Actual migrations, grant activation, deployments and Codex verification
+will be recorded separately after success. No live form or messaging mutation ran.
+
+## Forms milestone, step 5 — collection activation and deactivation (October 15, local only)
+
+The local catalog has 33 tools. `crm_set_form_collection_enabled` uses the
+independent `form_activate` grant; existing connections receive no new grants.
+Required inputs are businessId, formId, current revision, current draftRevision
+(0 when no private draft exists), enabled (a boolean), and an 8–128 character
+idempotencyKey. Definitions, consent switches, SMS switches and force/rebase flags
+are rejected. Scope, active staff, connection and permission checks precede every
+call, including retries. Archived forms cannot change collection state.
+
+Activation exposes the **applied** definition. It does not apply a saved draft,
+change consent, enable SMS follow-ups, resume runs or schedule a message. An
+inactive form with enabled SMS follow-ups or active form SMS runs cannot activate:
+disable follow-ups/pause runs through their separately granted tools first.
+This prevents collection activation from implicitly making existing SMS rules
+effective. Existing email consent/settings are preserved, so later real submissions
+continue through the normal consent and email eligibility checks.
+
+Deactivation stops public collection and preserves canonical CRM safeguards:
+active form SMS runs pause with FORM_DISABLED and incremented generations; active
+and paused form email enrollments cancel with incremented generations. SMS sequence
+enablement itself is unchanged. Paused SMS due timestamps are retained, as in the
+CRM editor; paused runs cannot send and require a separate explicit resume.
+Other forms, direct runs, historical submissions and rule snapshots are untouched.
+No send/enrollment/provider operation is invoked. Already submitted SMS cannot be
+recalled; inFlightMayDeliver reports known submitting, uncertain or accepted but
+nonterminal SMS for this form. It is a snapshot, not a delivery guarantee.
+
+Both revisions must match under the canonical form/draft locks. A changed state
+increments the form revision and invalidates the E2 cache. Fresh private drafts
+advance their base and draft revision without changing their definition; already
+stale drafts stay stale. Requests with matching state do not bump form/draft
+revisions, but disabling again still pauses/cancels any inconsistent active work.
+The result includes scoped form state, previousRevision, databaseStatus=committed,
+effect (activated/deactivated/unchanged, describing collection state), pausedSmsRuns,
+cancelledEmailEnrollments, deliveryStatus=not_sent_by_this_operation and
+inFlightMayDeliver. Counts include cancellations made by canonical form triggers.
+
+Form/draft/cache changes, safeguard effects, effect audits and the retry result
+share one transaction. Identical retries return the original response without
+reapplying a later state; changed payloads conflict. Failures roll back all effects.
+The main audit records applied/draft revisions; additional private audit entries
+attribute each paused run/cancelled enrollment and resulting generation to the
+same actor, connection and request. No phone, email, answers or message bodies
+enter the MCP audit. The private helper is inaccessible to the MCP login and all
+API roles; only the granted gateway can invoke it.
+
+CRM owns `20261016045607_crm_mcp_form_collection.sql`, following the form apply
+migration and the previous read/draft/preview steps. All five forms migrations
+remain local/unapplied. No E2 runtime/schema change or production action was made.
+Before release, reconcile live aliases and unrelated main-checkout changes, then
+apply only new forward migrations and deploy matching service/frontend code.
+
+Local verification: 516 CRM tests passed (29 existing skips), including 12 collection
+checks; 28 relevant E2 tests and 63 paired contract tests passed. Both project
+checks, frontend build and 65-file Edge packaging passed. Seventeen real PostgreSQL
+concurrency scenarios passed. Combined pending CRM/E2 migrations and local security
+advisors passed in disposable databases. No live migration, release or SMS occurred.
+
+## Forms milestone, step 4 — explicitly apply saved drafts (October 15, local only)
+
+Historical step-4 checkpoint, superseded by step 5 above. The catalog had 32 tools. `crm_apply_form_draft` uses the independent
+`form_publish` grant. Required inputs: businessId, formId, current revision,
+current draftRevision, and an 8–128 character idempotencyKey. No inline definition,
+force/rebase flag, preset, consent or collection switch is accepted. Existing
+connections receive no new grants. Editing, preview, applying, activation and SMS
+permissions remain independent.
+
+Apply copies only the saved draft into the canonical definition using the existing
+validated definition saver. The current collection flag is preserved: an inactive
+form stays inactive; an active form displays the newly applied definition while
+remaining active. Preset, legacy/email consent settings, website connections,
+SMS rules/publication/enablement, existing runs, email enrollments, submissions
+and their historical field snapshots stay unchanged. Existing E2 form-row cache
+invalidation still runs. The general form_workspace save route is intentionally
+not used because saving an already-disabled form there can pause/cancel activity.
+Applying does not call enrollment, sending, website publishing or public submission.
+
+The operation locks the canonical form then the draft; current SMS rule checks
+follow the same parent-first order. Both expected revisions must match, and the
+draft's saved base must equal the current applied revision. Missing drafts and
+archived forms are rejected. A stale base conflicts even if the caller supplies
+the latest applied revision: explicit reconciliation remains a separate later
+operation, never an automatic overwrite. Saved definitions are revalidated before
+applying. Current SMS draft and published rules must remain valid against the new
+fields; incompatible changes fail with a generic validation error without exposing
+rule content. Update those rules through their separately granted tools first.
+Historical SMS versions/runs use their saved context and are never rewritten.
+
+Success increments the applied revision and retains the draft, advancing its
+revision and base to the newly applied form so another edit can begin safely.
+The response includes the full scoped form state, databaseStatus=committed,
+previousRevision and appliedDraftRevision (the consumed draft revision). Audit
+captures the resulting applied/draft revisions with actor, connection, target,
+request and outcome; no definition text or customer content is logged.
+
+Form and draft changes, E2 cache invalidation and the retry result share one
+transaction. Identical retries return the original result even after a later edit;
+reusing a key with a changed payload or tool conflicts. Staff, permission and scope checks
+precede replay. A failed/interrupted transaction leaves no partial application.
+Applying again with old revisions and a new key conflicts rather than silently
+applying a newer draft. A deliberate later apply uses fresh revisions and a new key.
+
+CRM owns forward migration `20261016044442_crm_mcp_form_apply.sql`, following
+`20261016043205_crm_mcp_form_preview.sql`, the earlier form draft/read migrations,
+and the established paired E2 baseline. All four form migrations remain local and
+unapplied. No E2 schema/runtime change is needed. Before a later release, reconcile
+live aliases and unrelated main-checkout work, apply only new forward migrations,
+then deploy the matching service/frontend. No live form or SMS action occurred.
+
+
+Local verification: 504 CRM tests passed (29 existing skips), including eleven
+apply checks; 28 relevant E2 tests and 63 paired contract tests passed. Both project
+checks, frontend build and Edge packaging passed. Eleven real PostgreSQL concurrency
+scenarios passed, including duplicate apply, apply vs draft edit, rollback and CRM
+edit races. The combined pending CRM/E2 fixture and local security advisors passed.
+No production migration, deployment or SMS occurred.
+
+## Forms milestone, step 3 — saved draft previews (October 15, local only)
+
+Historical step-3 checkpoint, superseded by step 4 above. The catalog had 31 tools. `crm_preview_form` requires only the separate
+`form_preview` grant plus permitted business scope and active canonical CRM staff.
+No existing grants are expanded. `form_read`, editing, publishing, activation and
+SMS preview grants do not imply this permission, nor does preview grant them.
+
+Required inputs are businessId, formId, revision and draftRevision. Revisions must
+be positive safe integers and identify the current applied form and saved draft.
+No draft means a validation error; there is no fallback to the applied definition.
+A changed expected revision returns CONFLICT for rereading. The database uses
+parent-first shared locks consistent with CRM/MCP edits to read one coherent form
+and draft. A draft whose base predates the current applied revision remains
+inspectable with `DRAFT_BASE_CHANGED`; archived forms carry `FORM_ARCHIVED`.
+These warnings are displayed, never silently reconciled or treated as publish
+readiness. Unknown keys, unsaved definitions, sample answers, contact IDs,
+submission switches, activation flags and retry keys are rejected.
+
+The result is a structured, display-only saved-draft preview: ordered custom
+fields, fixed name/phone/email fields, the booking appointment field in the
+business timezone, current collection state, both revisions and the draft base.
+Optional SMS consent is always unchecked; the separate email choice appears only
+when the existing form enables it. Both use canonical consent wording. No sample
+values, contacts, submissions, SMS rules, sending readiness or provider state are
+read or returned. Rendering HTML-like form text does not execute it.
+
+Successful MCP responses also embed a self-contained `text/html` resource. Its
+`crm-form-preview://` URI is a resource identifier, not a hosted/public endpoint
+or an authorization link. Clients that cannot render HTML can use structured data.
+All controls are disabled, consent is unchecked, and the button is type=button.
+There is no form element, submit action, script, external asset or active link;
+CSP denies scripts, network access and form submission. Text/labels/options are
+escaped. Nothing invokes the browser form tester or a public submission route.
+
+Preview is annotated read-only, nondestructive, idempotent and closed-world.
+Every call rechecks access. Only connection last-use and audit metadata change;
+there is no idempotency-result write or domain mutation. Audit records actor,
+connection, request, form and both revisions, without draft/HTML/customer content.
+
+CRM owns forward migration `20261016043205_crm_mcp_form_preview.sql`, after
+`20261016041950_crm_mcp_form_drafts.sql` and `20261016040535_crm_mcp_form_reads.sql`
+with the existing E2 baseline. All three form migrations remain local/unapplied.
+No E2 runtime/schema change or production release is included. Before a later
+release, reconcile live aliases and unrelated main-checkout changes; apply only
+new forward migrations, then deploy the matching MCP service and CRM grant labels.
+
+
+Local verification: 493 CRM tests passed (29 existing skips); ten new preview
+checks include MCP embedded-resource delivery, HTML escaping, permission/scope
+isolation, revision conflicts, redacted audit and unchanged domain snapshots.
+Relevant E2 tests (28), paired tests (63), both project checks, frontend build and
+Edge packaging passed. Seven disposable PostgreSQL concurrency scenarios passed,
+including preview racing a CRM edit. The combined pending CRM/E2 migration fixture
+and local security advisors passed. No live migration, deployment or SMS occurred.
+
+## Forms milestone, step 2 — inactive creation and separate drafts (October 15, local only)
+
+Historical step-2 checkpoint; superseded by step 3 above. The catalog had 30 tools. New independent grants are usable:
+
+| Tool | Grant | Required inputs |
+| --- | --- | --- |
+| `crm_create_form` | `form_create` | businessId, preset, definition, idempotencyKey |
+| `crm_save_form_draft` | `form_edit` | businessId, formId, revision, draftRevision, definition, idempotencyKey |
+
+Creation uses the canonical form operation and always creates an inactive form,
+plus a private draft with revision 1 based on that initial applied definition.
+Presets are contacts, quote_requests and bookings. It creates no SMS sequence,
+enrollment or sending job. New forms remain unavailable to public collection.
+
+Draft saves replace only the private staged definition. They preserve the applied
+form, collection state, preset, consent controls, SMS rules/runs, email state,
+submission snapshots and E2 contracts. The normal CRM editor still edits applied
+forms directly; it does not display or apply MCP drafts in this increment.
+Preview, apply and activation remain future tools under their reserved grants.
+Existing connections receive no new grants.
+
+Definitions require title (1–120), description (0–500), buttonLabel (1–80), and
+up to 20 ordered custom fields. Field keys are unique safe identifiers, excluding
+fixed identity, appointment and consent fields (including email_opt_in). Types
+are text, textarea, select, checkbox or date; required is explicitly boolean.
+Select fields require 1–20 unique nonblank string options. Unknown fields,
+collection/SMS switches and changes to a form's preset are rejected independently
+by strict SDK and database validation. Text is not interpreted as executable code.
+
+`crm_get_form` and mutation results report the applied definition/revision plus
+`draft`, `draftRevision`, `draftBaseRevision`, and `draftStale`. An existing form
+without a staged draft reports null draft revisions; pass draftRevision 0 for its
+first draft save. Subsequent saves require both current revisions. Parent-row
+locks serialize draft saves with the CRM editor. A changed applied version makes
+the existing draft stale, even when the caller supplies the new applied revision;
+saving returns CONFLICT rather than implicitly rebasing. Explicit reconciliation
+of stale drafts is deferred to the apply/reconciliation step. Keep the saved draft
+and reread; do not loop on conflicts or overwrite applied changes automatically.
+Lists continue to search and display applied titles, not draft titles.
+
+Every mutation requires an 8–128 character idempotencyKey. The gateway rechecks
+staff, connection, permission and business scope before replay. Identical retries
+return the original result snapshot, even after later edits. A changed payload or
+tool with that key conflicts. Form/draft changes and the retry result commit in
+one transaction; failure rolls them all back. Audit records include actor,
+connection, tool, target, request, outcome and both applied/draft revisions, never
+definitions or consent/customer content. Private draft storage has RLS, no API
+role grants, and no direct MCP helper access.
+
+CRM owns forward migration `20261016041950_crm_mcp_form_drafts.sql`, following
+`20261016040535_crm_mcp_form_reads.sql` and the established paired E2 baseline.
+No E2 schema/runtime change is needed. Both form migrations are still unapplied;
+this is local implementation, not a release. Reconcile live aliases and pending
+main-checkout changes before any future deployment; do not replay histories.
+Release the migrations before the matching MCP service/frontend catalog.
+
+Local verification: 483 CRM tests passed (29 existing skips), 28 relevant E2 tests
+and 63 paired tests passed; both project checks, frontend build and Edge packaging
+passed. Final focused form/read/server checks passed (22). Six real PostgreSQL
+concurrency scenarios passed via `node scripts/test-mcp-form-concurrency.js`.
+The combined pending CRM/E2 history applied in a disposable database; local
+security advisors exited successfully without emitted findings. No production
+migration or deployment occurred.
+
+## Forms milestone, step 1 — local scoped reads (October 15)
+
+Historical step-1 checkpoint, superseded by step 2 above. At this point the local catalog had 28 tools. AI connections now
+offers six independent opt-in grants: `form_read`, `form_create`, `form_edit`,
+`form_preview`, `form_publish`, and `form_activate`. Only `form_read` has callable
+tools in this step; the other labels explicitly identify future steps. Existing
+connections receive no new grants, including connections scoped to all businesses.
+
+| Tool | Input | Output |
+| --- | --- | --- |
+| `crm_list_forms` | Explicit businessId; optional q, preset, collectionEnabled, includeArchived, page and pageSize | Scoped summaries, current form revisions, collection state, business timezone and filtered count |
+| `crm_get_form` | Explicit businessId and formId | Applied definition, ordered custom fields, fixed field names, current form revision and collection state |
+
+Both require `form_read` independently of business/SMS grants. Neither grants
+submission, contact, SMS-rule, run or activity access. No submission counts,
+answers, message content, website identities, raw metadata or consent evidence
+are returned. Archived forms are excluded from lists by default but can be read
+explicitly within scope. Search is a literal case-insensitive title substring;
+SQL wildcard characters are not search operators. Pages default to 25 and cap
+at 100; page numbers range from 1 to 100000, ordered by title then form ID.
+
+`form.definition` is the currently applied canonical definition, even when public
+collection is disabled. `form.revision` is its existing definition version, not
+an SMS publication version. `draft` and `draftRevision` are explicitly null:
+separate staged drafts, creation, editing, preview, apply and activation belong
+to subsequent increments. Collection state is not an SMS readiness guarantee.
+Fixed fields report the existing appointment and email-consent variants without
+allowing changes to consent controls. No public preview link is created.
+
+Strict input/output schemas reject extra keys and enforce pagination, UUID and
+filter types. The database independently validates inputs. Scope filters precede
+counts and pagination, and form IDs are checked against the requested business
+even when both businesses are permitted. Only curated fields leave the database.
+The dedicated role still has gateway-only access; private helpers are not granted
+to browser, service or MCP roles. Calls recheck canonical staff, current grants
+and business scope and audit actor/connection/request/target plus detail revision.
+Reads only update connection last-use and audit records, not CRM domain data.
+
+CRM owns new forward migration `20261016040535_crm_mcp_form_reads.sql`, after
+`20261015052336_crm_mcp_sms_run_controls_activity.sql` and the existing paired E2
+baseline. The offline manifest records this order. No E2 migration or runtime
+change is needed. Reconcile live aliases and independent pending main-checkout
+migrations before applying only new forward changes. Release the migration before
+the MCP service and CRM frontend; do not deploy the older worktree frontend over
+newer unrelated CRM features without first reconciling release sources.
+No live migrations, grants, form changes, SMS sends or deployments were performed.
+
+Local verification: 473 CRM tests passed with 29 existing skips, including eight
+new form schema/isolation checks; 28 relevant E2 form/bookings/business-service
+tests and 63 paired contract tests passed (overlapping coverage). Both projects'
+required checks passed. CRM frontend build passed using a synthetic local-only
+publishable key; the worktree has no deployment key. Edge packaging passed for
+65 files. After narrowing list hydration to the requested page, all eight form
+checks passed again and the offline manifest was refreshed. Disposable PostgreSQL
+also applied the combined history with the separately pending main-checkout AI
+reply-default migration and confirmed gateway-only MCP privileges. No production
+connection was used for these tests.
+
 ## SMS milestone production rollout — October 14
 
 The five SMS migrations have been reconciled, rehearsed with rollback and applied

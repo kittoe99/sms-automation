@@ -1,5 +1,237 @@
 # Opek SMS project record
 
+## Forms release preflight — October 15 (before application)
+
+The five CRM forms migrations were reconciled against 121 live migration records,
+including source/remote aliases and two unchanged remote-only historical entries.
+The exact-version CLI dry run lists only 20261016040535, 20261016041950,
+20261016043205, 20261016044442 and 20261016045607. No history repair or replay is
+needed. The unrelated main-checkout AI-default migration is excluded. Both Render
+services still run 0e0728c, so deploying the existing release worktree preserves
+the production baseline and leaves newer unrelated local work untouched.
+
+Preflight corrected the still-unapplied apply migration: it now writes only
+validated definition columns. The full canonical saver also writes enabled even
+when unchanged, which fires the email lifecycle trigger. Pure draft validation
+retains canonical field rules/normalization while avoiding that unintended effect.
+Regression fixtures cover active and paused email across inactive, active and
+no-email forms. Historical step-4 notes below describe the original local approach;
+this correction is the release implementation. Collection control still invokes
+its intended pause/cancel safeguards. No public/shared saver or E2 contract changed.
+
+Corrected local verification: 516 CRM passes / 29 skips, 63 paired passes,
+23 focused apply/collection passes, 17 PostgreSQL concurrency scenarios, CRM
+checks, frontend build and Edge packaging. Production rehearsal rolled back and
+matched all 19 expected functions, including the existing E2-owned staff guard.
+The user authorized all six form grants for the existing all-business admin
+connection. Actual migrations, grant activation, deployments and Codex verification
+will be recorded separately after success. No live form or messaging mutation ran.
+
+### October 15 — Forms MCP step 5: collection activation/deactivation (local, not released)
+
+Implemented crm_set_form_collection_enabled under independent form_activate in
+C:/Users/kofik/.codex/worktrees/crm-mcp/opek-sms. The local catalog has 33 tools.
+Inputs require explicit business/form IDs, current applied/draft revisions (0 for
+an absent draft), enabled boolean and a transactional idempotency key. No grants
+were added to existing connections. Strict schemas reject inline content, consent,
+SMS switches or force/rebase flags. Archived forms cannot change collection.
+
+Activation exposes only applied content and rejects enabled SMS follow-ups or
+active form SMS runs. It never enables follow-ups, applies drafts, resumes runs
+or sends. Deactivation preserves canonical safeguards: active form SMS runs pause
+with FORM_DISABLED and new generations; active/paused form email enrollments
+cancel with new generations. Follow-up and consent flags remain unchanged. Known
+in-flight SMS are reported because they can still deliver. No sending/enrollment
+or provider API is called. Other forms/direct runs and historical snapshots remain.
+
+State changes advance the form revision and E2 cache; fresh private drafts advance
+revision/base metadata without content edits, while stale drafts stay stale.
+Matching-state requests do not bump form/draft revisions, but disabling still
+contains inconsistent active work. Identical retries replay the original result,
+never change a later state, and recheck current access. Changes, cache, safeguards,
+effect audits and retry results commit/roll back together. Audits attribute form,
+draft and each affected run/enrollment generation without customer/message content.
+The private helper is callable only through the scoped gateway.
+
+CRM owns 20261016045607_crm_mcp_form_collection.sql after form apply
+(20261016044442), preview (20261016043205), drafts (20261016041950), and reads
+(20261016040535), with the established paired E2 baseline. All five forms migrations
+remain unapplied. No E2 schema/runtime change, production grants, deployment,
+live collection change or SMS send occurred. Before any rollout, reconcile live
+aliases and unrelated main-checkout work, then apply only new forward migrations.
+Explicit stale-draft reconciliation remains separate future work.
+
+Verification: full CRM suite 516 passed / 29 existing skips / zero failures;
+12 collection checks cover strict schemas, independent grants, scope, all presets,
+current/stale/absent drafts, retries, archived forms, public collection/cache state,
+SMS activation blockers, scoped pause/cancel effects, in-flight reporting, atomic
+rollback including effect audits, redaction and restricted-role access. Relevant
+E2 tests: 28 passed; paired contracts: 63 passed (overlapping coverage). Both
+project checks, frontend build with synthetic local key, and 65-file Edge package
+passed. Seventeen disposable PostgreSQL concurrency scenarios passed, including
+six collection races: duplicate retry, competing toggle, interruption, CRM save,
+follow-up enablement and an in-progress run transaction. Combined pending CRM
+history (including unrelated main-checkout AI defaults) and E2 history applied in
+a disposable database; local security advisors passed with no findings printed.
+
+### October 15 — Forms MCP step 4: apply saved drafts (local, not released)
+
+Implemented crm_apply_form_draft under the independent form_publish grant in
+C:/Users/kofik/.codex/worktrees/crm-mcp/opek-sms. The local catalog has 32 tools.
+Explicit business/form IDs, both current revisions and a transactional retry key
+are required; inline definitions and activation/rebase switches are rejected.
+Existing connection permissions are unchanged. Missing drafts and archived forms
+fail; stale applied/draft revisions or bases conflict without automatic overwrite.
+
+Apply calls the canonical definition saver with the existing collection flag.
+Inactive forms stay inactive; active forms display the newly applied definition
+without changing collection state. Consent controls, preset, website associations,
+SMS draft/publication/enablement, runs, email state and historical submission/run
+snapshots stay intact. Current SMS rules must remain compatible with the new
+fields; validation errors expose no rule content and require separate rule edits.
+Existing E2 cache invalidation remains intact. No enrollment or sending is invoked.
+
+Success advances the applied revision and retained draft revision/base; the
+response identifies previousRevision and appliedDraftRevision. The audit stores
+both resulting revisions plus actor/connection/target/request/outcome, not content.
+Lost-response retries return the original result even after later edits, and
+current permissions/scope are checked before replay. Definition, draft metadata,
+cache changes and retry result commit or roll back together.
+
+CRM owns 20261016044442_crm_mcp_form_apply.sql after the local form preview
+(20261016043205), draft (20261016041950), and read (20261016040535) migrations
+and the paired E2 baseline. All four remain unapplied. No E2 schema/runtime change,
+production grant change, release, live form update or SMS send was performed.
+Reconcile remote aliases and unrelated main-checkout work before any later rollout;
+never replay histories or overwrite newer unrelated frontend work. Collection
+activation and explicit stale-draft reconciliation remain separate later work.
+
+Verification: full CRM suite 504 passed / 29 existing skips / zero failures.
+Eleven new apply checks cover schema/scope/grants, active and inactive collection,
+canonical validation, old submission/run snapshots, E2 cache invalidation, retries,
+rollback, stale bases, SMS dependencies, audit redaction and restricted privileges.
+Relevant E2 tests: 28 passed; paired contracts: 63 passed (overlapping coverage).
+Both project checks, frontend build using a synthetic local publishable key and
+65-file Edge packaging passed. Eleven disposable PostgreSQL concurrency scenarios
+passed, including duplicate apply, apply vs edit, interrupted apply and a concurrent
+CRM save. Combined pending CRM history (including the separate main-checkout AI
+defaults change) and E2 history applied in a disposable database; local security
+advisors exited successfully without emitted findings. All verification was local.
+Details are in the MCP worktree docs/CRM_MCP.md and affected workflow docs.
+
+
+### October 15 — Forms MCP step 3: saved draft preview (local, not released)
+
+Implemented crm_preview_form in C:/Users/kofik/.codex/worktrees/crm-mcp/opek-sms
+under the independent form_preview grant. It requires explicit business/form IDs
+and current applied/draft revisions; missing drafts and malformed inputs fail,
+changed revisions conflict. Parent-first shared locks protect concurrent reads.
+Stale bases and archived forms remain inspectable with explicit warnings, never
+implicit reconciliation. Existing connection grants remain unchanged.
+
+Results include structured saved-draft fields, fixed fields, timezone, canonical
+unchecked SMS/email consent and both revisions. Successful MCP calls also embed
+escaped, inert HTML: disabled controls, no form action, script, active link or
+external asset; CSP blocks network access and submission. It accepts no sample
+answers, contact IDs or unsaved definitions. No public preview endpoint is created.
+Only connection last-use and audit metadata change; form definitions, submissions,
+contacts, automation/enrollments/jobs and E2 contracts remain unchanged. Audit
+contains attribution and both revisions, never HTML, draft text or customer data.
+
+CRM owns new 20261016043205_crm_mcp_form_preview.sql after the local form reads
+(20261016040535) and drafts (20261016041950), with the established paired E2
+baseline. All three remain unapplied; no production migrations, grants, releases,
+form collection changes or SMS sends occurred. No E2 runtime/schema change is
+needed. Reconcile remote aliases and unrelated main-checkout work before a later
+release. Preview does not establish publish or sending readiness; apply and
+activation remain later steps. The local MCP catalog now has 31 tools.
+
+Verification: full CRM suite 493 passed, 29 existing skips, zero failures; ten
+preview checks cover schemas, HTML safety, MCP resource delivery, isolation,
+revision conflicts, no domain changes, revocation and audit redaction. Relevant
+E2 tests: 28 passed; paired contracts: 63 passed (overlapping coverage). Both
+projects' checks, frontend build with a synthetic local publishable key and
+65-file Edge packaging passed. Seven disposable PostgreSQL concurrency scenarios
+passed, including preview vs concurrent CRM edits. Combined pending CRM history
+(including the separate main-checkout AI defaults migration) and E2 history applied
+in a disposable database; local security advisors exited successfully without
+emitted findings. These results are local verification, not a production release.
+Workflow details are recorded in the MCP worktree docs/CRM_MCP.md.
+
+
+### October 15 — Forms MCP step 2 (local, not released)
+
+Implemented crm_create_form (form_create) and crm_save_form_draft (form_edit) in
+C:/Users/kofik/.codex/worktrees/crm-mcp/opek-sms. The local catalog has 30 tools.
+Creation uses the canonical inactive-form operation and creates a private draft.
+Saving a draft changes only private staged storage; public definitions, collection,
+consent controls, SMS/email state and historical E2 snapshots remain untouched.
+Strict SDK/database schemas reject activation switches, unsafe/reserved field keys,
+invalid types and unknown fields. Existing connection grants are not expanded.
+
+Draft writes require both applied and draft revisions and share the canonical
+form-row lock. Detail reads expose draftBaseRevision/draftStale. A stale base is
+rejected even after rereading; explicit reconciliation is deferred to the later
+apply step, never done implicitly. Retry fingerprints/results commit atomically
+with the operation; identical retries return the original snapshot, changed keys
+conflict, and current permissions/scope still fence retries. Audit captures both
+applied and draft revisions without definition content. Private storage has RLS
+and gateway-only access. The existing CRM editor still edits applied forms.
+
+CRM owns 20261016041950_crm_mcp_form_drafts.sql after the still-local
+20261016040535_crm_mcp_form_reads.sql and the paired E2 baseline. No E2 schema or
+runtime changes. Both form migrations remain unapplied; no production grants,
+releases, live form changes or SMS activity were performed. Before future rollout,
+reconcile remote aliases and unrelated pending main-checkout AI/default changes;
+never replay histories or deploy an older frontend over those unrelated changes.
+
+Verification: full CRM suite 483 passed / 29 existing skips / 0 failures; final
+focused form/read/server checks 22 passed, including unchanged public rendering
+and unavailable inactive forms. Relevant E2 tests 28 passed; paired contracts 63
+passed (overlapping coverage). Both project checks, local frontend build (synthetic
+publishable key), 65-file Edge packaging and diff checks passed. Six disposable
+PostgreSQL concurrency scenarios passed: create/edit retries, competing edits,
+rollback, concurrent CRM edits and revocation. Combined CRM history including the
+separately pending AI defaults migration plus E2 applied in a disposable database;
+local security advisors exited successfully without emitted findings. No production
+database was used. Workflow details are in docs/CRM_MCP.md and FORM_AUTOMATIONS.md.
+
+
+### October 15 — Forms MCP step 1 (local, not released)
+
+The managed CRM MCP worktree adds independent form_read/form_create/form_edit/
+form_preview/form_publish/form_activate grants, without expanding existing
+connections. Only form_read exposes tools in this increment: crm_list_forms and
+crm_get_form. Strict schemas and guarded database reads scope counts, search,
+pagination and explicit form IDs to permitted businesses. Applied definitions,
+collection state and revisions are curated; no submissions, contacts, SMS rules,
+website identities or raw metadata are returned. Staged drafts remain absent
+(null draft/revision) until step 2; reserved grants expose no mutation tools.
+Audit preserves actor, connection, request, target and detail revision. Domain
+state and sending remain unchanged by reads.
+
+CRM owns new forward migration 20261016040535_crm_mcp_form_reads.sql after
+20261015052336 and the established paired E2 baseline. No E2 schema/runtime
+change is required. Reconcile remote aliases and independent pending CRM main
+migrations before a release; never replay histories or overwrite newer frontend
+features with the older MCP worktree baseline. This step does not merge unrelated
+AI reply-default work. Implementation is in
+C:/Users/kofik/.codex/worktrees/crm-mcp/opek-sms; docs/CRM_MCP.md there records the
+contract and rollout requirements. Production migrations, grants and releases
+are unchanged; no SMS or live form actions were performed.
+
+Local verification: 473 CRM tests passed with 29 existing skips, including eight
+new form schema/isolation checks; 28 relevant E2 form/bookings/business-service
+tests and 63 paired contract tests passed (overlapping coverage). Both projects'
+required checks passed. CRM frontend build passed using a synthetic local-only
+publishable key; the worktree has no deployment key. Edge packaging passed for
+65 files. After narrowing list hydration to the requested page, all eight form
+checks passed again and the offline manifest was refreshed. Disposable PostgreSQL
+also applied the combined history with the separately pending main-checkout AI
+reply-default migration and confirmed gateway-only MCP privileges. No production
+connection was used for these tests.
+
+
 ### October 14 — SMS MCP production release and no-send Codex verification
 
 Reconciled both histories: 81 exact entries, 35 documented aliases and exactly

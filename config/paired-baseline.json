@@ -102,7 +102,12 @@
     "20261015043001_crm_mcp_sms_drafts_preview.sql": "29410296a779dfe58e94cc2c7584754766d12b894e7ed072c7cd5e430104f505",
     "20261015045955_crm_mcp_sms_publish_enable.sql": "283c0593a9acfabafcae89bf4b63396f357292eefbcba2cdda465e0b64717687",
     "20261015050856_crm_mcp_sms_run_start.sql": "5dad262f7308d2f092ed53a9aedbdabe83d85c2ffbd6bb96a38b3ec3250fa4cb",
-    "20261015052336_crm_mcp_sms_run_controls_activity.sql": "407968bb84e15b0d61a3dc099be04b292106cf436ca75297bda98b372cc368db"
+    "20261015052336_crm_mcp_sms_run_controls_activity.sql": "407968bb84e15b0d61a3dc099be04b292106cf436ca75297bda98b372cc368db",
+    "20261016040535_crm_mcp_form_reads.sql": "c888ae53bb12fd0dcb2580d305b3c5c435755c8d2fc9063473a0fce1f0212d9f",
+    "20261016041950_crm_mcp_form_drafts.sql": "8cd9e70434218f9530b1e1df6405af4a092a684c7da5952bfb56c61e3005e4f6",
+    "20261016043205_crm_mcp_form_preview.sql": "7c08da437d846df52541d302e5b42f357c3aad87511bc6fc03c4ee397327e9c8",
+    "20261016044442_crm_mcp_form_apply.sql": "123f8db5ee121c08f28bee93a3b1bce787e73e625bda583f5b076380423a0fa3",
+    "20261016045607_crm_mcp_form_collection.sql": "21e96a7156ee1712b3c5ff094671eb2ac28188be2536c4136e93f6f9700089f6"
   },
   "e2": {
     "20260922000000_create_contact_submissions.sql": "9a94bdadaabf0253d21529984d86bec5aafb1cfe80b454796d9ea9835b0463a5",
