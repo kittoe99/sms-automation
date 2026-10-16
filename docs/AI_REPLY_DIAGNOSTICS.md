@@ -1,10 +1,11 @@
 # AI reply diagnostics through MCP
 
-## Local implementation — October 16, 2026
+## Released — October 16, 2026
 
-This step adds read-only diagnostics for inbound SMS agent jobs. It is not yet
-applied or deployed. The local catalog has 155 tools and 106 grants; production
-remains at its previously recorded 153 tools and 104 grants.
+This step adds read-only diagnostics for inbound SMS agent jobs. Migration
+20261016222634 is applied; runtime 066d2ef is live in MCP and the CRM frontend.
+The production catalog has 155 tools and 106 grants. The existing all-business
+admin connection has both read permissions; new connections still default off.
 
 | Tool | Input | Result |
 | --- | --- | --- |
@@ -74,7 +75,10 @@ The sole new CRM migration is
 operation archive and unified Business Info migrations plus the existing paired
 E2 baseline. It adds private read helpers/indexes, schemas and grant/gateway
 routing without backfilling grants or business data. No E2 migration or runtime
-change is required. Before a separately requested release, reconcile live aliases
-against both repositories, apply only this new migration, then release MCP and
-the CRM permission editor. Grant access explicitly; verify through read tools
-only. This implementation task applies no live migrations and sends no SMS.
+change is required. Live reconciliation found 149 prior migrations and only this
+migration pending; history is now 150. A rollback rehearsal and all six function
+hashes passed. MCP deployment dep-db9ah4fbtjjs73b08k70 and frontend deployment
+dep-db9ai97btjjs73b0cks0 released 066d2ef. Twelve attributed Codex read calls
+verified Opek's runs and content grants, with no mutation receipts or domain
+changes. No SMS was queued/sent and no messages were marked read. Future releases
+must again reconcile aliases and apply only new owning migrations.

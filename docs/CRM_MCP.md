@@ -1,11 +1,12 @@
 # CRM MCP business setup
 
-## AI reply diagnostics — local, October 16, 2026
+## AI reply diagnostics — released October 16, 2026
 
-Two new read tools and two default-off permissions are implemented locally.
+Two new read tools and two default-off permissions are released at 066d2ef.
 See [AI reply diagnostics](AI_REPLY_DIAGNOSTICS.md) for scope, content access,
 redaction, missing historical profile provenance and release prerequisites.
-Migration 20261016222634 is not applied; these tools are not yet deployed.
+Migration 20261016222634 is applied; 155 tools are live. Twelve attributed Codex
+read checks passed without domain changes, read marks or SMS.
 
 ## Form lifecycle/preset MCP release — October 16, 2026
 

@@ -1,5 +1,45 @@
 # Opek SMS project record
 
+## AI reply diagnostics release — October 16, 2026
+
+Reconciled all 149 live migrations against both repositories, including historical
+aliases. Applied only CRM `20261016222634_crm_mcp_ai_reply_diagnostics`; live
+history now contains 150 entries. A guarded rollback rehearsal passed before
+apply. All six resulting function hashes match the tested source, private helper
+execute grants remain denied, and security-advisor findings are unchanged.
+The Supabase connector required reauthentication; the existing authenticated CLI
+performed reconciliation, rehearsal, forward-only apply and verification instead.
+
+Runtime `066d2ef7399937b78c8ef2298047ece3000ea952` is live in Render MCP deployment
+`dep-db9ah4fbtjjs73b08k70` (22:44:09 UTC) and CRM frontend deployment
+`dep-db9ai97btjjs73b0cks0` (22:46:10 UTC). The frontend's automatic push event did
+not appear; the existing Dashboard manual deployment released the same commit
+without changing auto-deploy settings. MCP health returned 200 and the post-start
+error-log query was empty. No Edge worker or E2 runtime release was needed.
+
+Under the user's standing all-business administrator authorization, the canonical
+audited grant editor added `ai_reply_read` and `ai_reply_content_read` to the
+existing admin connection: revision 17, 106 grants. Other connections received
+no new permissions. Fresh Codex discovery verified all 155 tools and the strict
+read-only annotations/schemas of both diagnostic tools.
+
+Twelve read-only Codex MCP calls verified Opek's four AI attempts: three completed
+live runs with linked delivered SMS, and one completed historical shadow run with
+no linked outbound SMS. Recorded content is available only when requested; the
+pricing clarification's saved reply offers quote contact details and contains no
+moving rate. Historical Business Info provenance remains explicitly not recorded.
+All 12 audit records are attributed; one invalid run ID was denied and zero
+mutation receipts were created. Conversation revision 31 and its four unread
+messages stayed unchanged. Before/after domain hashes match, including messages,
+read state, AI jobs/results/actions/settings, SMS send jobs and form automation
+state. No messages were marked read, queued or sent by release verification.
+
+Local verification remains the preceding 709 CRM passes / 29 existing skips,
+63 paired checks, frontend and 68-file Edge builds, plus isolated E2 release
+checks (248 application tests, six Worker tests, 63 paired checks and build).
+The unrelated E2 main dashboard work was preserved. Local verification, the
+applied migration and the deployed runtime are recorded separately here.
+
 ## AI reply diagnostics through MCP — October 16, 2026 (local)
 
 Implemented `crm_list_ai_reply_runs` and `crm_get_ai_reply_run` with explicit

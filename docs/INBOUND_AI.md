@@ -13,7 +13,7 @@ does not backfill old messages or enable form follow-ups. Legacy shadow values
 and liveValidated fields remain readable as historical evidence; they are not
 activation prerequisites. See [Business Info](BUSINESS_PROFILE_FORM.md).
 
-## MCP diagnostics (local implementation)
+## MCP diagnostics (released October 16, 2026)
 
 Scoped run list/detail reads are documented in
 [AI reply diagnostics](AI_REPLY_DIAGNOSTICS.md). Diagnostics and message content

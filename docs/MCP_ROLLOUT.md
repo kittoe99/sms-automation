@@ -3,7 +3,7 @@
 This is the execution record for the approved nine-stage rollout. The starting
 production baseline is 49 tools and 33 permissions (conversation release
 7ea1dc8). New capabilities are released by domain; production verification uses
-reads and previews only. All nine stages below are now released; the catalog has 153 tools and 104 grants.
+reads and previews only. All nine stages below are now released; with the AI diagnostics follow-on, the catalog has 155 tools and 106 grants.
 Agreed exclusions remain documented below.
 
 | Stage | Deliverable | State |
@@ -18,11 +18,13 @@ Agreed exclusions remain documented below.
 | 8 | Existing-site details/deployments, form connections, update requests and publication | Released 66623ea / E2 4b41268; 142 tools / 98 grants; read-only verification passed |
 | 9 | Operational diagnostics, sanitized provider readiness, refresh/reconciliation and eligible recovery | Released 8a724e1; 153 tools / 104 grants; read-only verification passed |
 
-## Follow-on: AI reply diagnostics (local only)
+## Follow-on: AI reply diagnostics (released October 16, 2026)
 
 `crm_list_ai_reply_runs` and `crm_get_ai_reply_run` add scoped job/result/delivery
-reads with separate `ai_reply_read` and `ai_reply_content_read` grants. Local
-catalog: 155 tools / 106 grants. No live grants, migrations or releases changed.
+reads with separate `ai_reply_read` and `ai_reply_content_read` grants. Live
+catalog: 155 tools / 106 grants at 066d2ef; only migration 20261016222634 applied.
+The existing admin connection received both grants at revision 17. Twelve Codex
+read checks passed with domain/read-state preservation and zero mutation receipts.
 See [AI reply diagnostics](AI_REPLY_DIAGNOSTICS.md) for the strict contract,
 isolation coverage and the one new CRM migration, 20261016222634.
 
