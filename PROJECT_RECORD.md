@@ -1,5 +1,20 @@
 # Opek SMS project record
 
+## Email MCP release — October 16, 2026
+
+Stage 6 is LIVE at a0ce383c151c83c68986fee16e77cd3874d66a6c. Only migration
+20261016202046 advanced reconciled history 142 to 143; twelve function hashes
+match and private helpers remain denied. CRM Edge deployed before the service.
+MCP dep-db98m0e1egvs73csslpg completed 20:37:56 UTC; frontend
+ dep-db98m2vf3r2c73ai0b6g completed 20:37:44 UTC (no automatic push event).
+Admin connection revision 13 now has 80 permissions. Codex discovered 115 tools;
+23 allowlisted reads/previews passed, with 23 attributed audits and zero mutation
+receipts. Domain snapshots and security advisors are unchanged. Opek forms and SMS
+v1 remain enabled, both test runs stopped, and the reply unread. No email/SMS send,
+enrollment, activation or content edit occurred during verification. Local CRM
+659 passed / 29 existing skips, paired 63, relevant E2 7, checks/builds and real
+PostgreSQL concurrency passed. Stages 7–9 remain.
+
 ## Email MCP — October 16, 2026 (local)
 
 Stage 6 adds twelve tools and eight separate grants (115 tools / 80 permissions).
