@@ -1,5 +1,19 @@
 # Opek SMS project record
 
+## Voice MCP release — October 16, 2026
+
+Stage 7 is LIVE at 42e82935fff1d0944883c5492c79b57c7bad0a69. Migration
+20261016203800 alone advanced reconciled history 143 to 144. Ten function hashes
+match and private helper access remains denied. CRM Edge deployed before MCP.
+MCP dep-db98qfjbc2fs73eq3r80 finished 20:47:34 UTC; frontend
+ dep-db98qm8m7kps73bj6n9g finished 20:47:35 UTC. Admin revision 14 has 88 grants.
+Fresh Codex discovered 127 tools and passed 31 allowlisted reads, with 31 attributed
+audits and zero mutation receipts. Voice and other domain snapshots and security
+advisors are unchanged. Both canary runs remain stopped and the reply unread.
+No recording URL requested, call started, configuration published or SMS sent in
+live verification. Local CRM 668 passed / 29 existing skips, paired 63, E2 4,
+checks/builds and final PostgreSQL concurrency passed. Stages 8–9 remain.
+
 ## Voice MCP — October 16, 2026 (local)
 
 Stage 7 adds twelve tools and eight independent grants (127 tools / 88 permissions).

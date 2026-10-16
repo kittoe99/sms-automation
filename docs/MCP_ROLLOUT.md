@@ -14,7 +14,7 @@ is released or its agreed exclusion is documented.
 | 4 | Existing bookings, availability/settings, intake edits and cancellation | Released 3fd85ef; 91 tools / 63 grants; read-only verification passed |
 | 5 | Knowledge sources/uploads/versions and AI configuration/activation | Released c204b75; 103 tools / 72 grants; read-only verification passed |
 | 6 | Existing email groups, enrollment/job activity, preview, enablement and recovery | Released a0ce383; 115 tools / 80 grants; read-only verification passed |
-| 7 | Voice configuration/drafts/publication, calls, transcripts and media | Locally verified; release in progress |
+| 7 | Voice configuration/drafts/publication, calls, transcripts and media | Released 42e8293; 127 tools / 88 grants; read-only verification passed |
 | 8 | Existing-site details/deployments, form connections, update requests and publication | Pending |
 | 9 | Operational diagnostics, sanitized provider readiness, refresh/reconciliation and eligible recovery | Pending |
 
