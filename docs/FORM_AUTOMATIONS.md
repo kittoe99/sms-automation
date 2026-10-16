@@ -1,5 +1,21 @@
 # Form-first SMS automation
 
+## Enquiry MCP released — October 16, 2026
+
+Both enquiry migrations (20261016061921, 20261016063330) are applied and CRM
+MCP/frontend commit 3c85353 is live. Codex discovers all 36 tools, including
+crm_list_enquiries and crm_get_enquiry under enquiry_read, and
+crm_get_enquiry_status under the separate enquiry_status_read permission.
+The existing admin connection has both reads; other connections receive no grants
+automatically. Opek's two existing submissions were verified: no consent means
+CONSENT_REQUIRED/no run; the consented submission's version 1 run is stopped with
+no next send. Both submissions have zero recorded booking/handoff links. SMS state
+and linked outcomes remain distinct. Both test runs remain stopped; collection
+and future-consented follow-ups remain enabled. No SMS or domain changes were
+made during release verification. E2 schema/runtime is unchanged. See
+PROJECT_RECORD.md for exact migration/deploy IDs and separate local/live checks.
+The local-only enquiry notes below describe earlier implementation checkpoints.
+
 Enquiry MCP step 2 (October 16, local only) activates the separate
 enquiry_status_read capability through crm_get_enquiry_status. Exact submission
 identity scopes intake and SMS state plus recorded response/booking/handoff counts.

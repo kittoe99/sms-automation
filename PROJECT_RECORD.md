@@ -1,5 +1,52 @@
 # Opek SMS project record
 
+## Enquiry MCP production release — October 16, 2026
+
+**Applied migrations:** reconciled both repositories against 127 live migrations
+and historical aliases. The guarded rollback rehearsal matched local function
+hashes; the isolated forward-only CLI catalog applied exactly
+`20261016061921_crm_mcp_enquiry_reads.sql` and
+`20261016063330_crm_mcp_enquiry_status.sql`. Live history is now 129 entries,
+with the original 127 unchanged. All four live function hashes match the tested
+definitions. Both private helpers deny direct execution to all five application
+roles. Security advisors are unchanged (five pre-existing warnings). No history
+repair/replay, unrelated AI-default migration, E2 migration or Edge release.
+
+**Released:** implementation commit `3c8535372ab4dde267b63ac469d28a8facceca1b`.
+MCP `dep-db8sq0ui0phs738t1hsg` and CRM frontend
+`dep-db8sqi7f3r2c73f9u400` are live in the confirmed Micah workspace. MCP health
+returns 200; the served frontend includes both enquiry permission labels.
+Frontend auto-deploy produced no deploy/event after the push; one explicit
+deployment released the commit. E2 runtime is unchanged.
+
+**Live verification:** a fresh Codex MCP session discovered 36 tools, checked
+strict/read-only enquiry schemas, and completed 12 successful read-only calls.
+Existing admin connection `dd79bf79-c164-4493-a099-35654f7f7c12` received only
+`enquiry_read` and `enquiry_status_read`; revision 3 -> 4, all prior grants and
+all-business scope preserved. The canonical administrator function audited the
+grant. All 12 tool calls have matching actor/connection attribution; submission
+detail/status audits target the exact submission and record its relevant revision.
+
+Opek quote form returns two saved submissions with historical answers and form
+version 4. The no-consent submission is skipped with CONSENT_REQUIRED and no run.
+The consented submission points to stopped form run
+`9a83e5be-ea2b-4fa1-85b3-7d80977f5446`, generation 3/version 1, next send null.
+Neither submission has recorded response, booking or handoff links. The separate
+direct canary run remains stopped (generation 6), with its existing reply retained
+only on that run. Both runs still show one previously delivered SMS and no next
+send. Collection and version 1 follow-ups remain enabled for future consented
+submissions. Verification created no submissions, runs, jobs or SMS and made no
+business/form/sequence/run/email changes; before/after domain hashes and counts
+match exactly. Audit/connection last-use writes are expected.
+
+**Local validation (before release):** CRM 537 passed/29 existing skips, 20 focused
+MCP checks, 26 E2 enquiry/customer-lead/cache checks, 63 paired contract checks,
+both required project checks, CRM frontend build and 65-function Edge packaging
+passed. These are local results, separate from the production checks above.
+Ignored workstation receipts are data/enquiry-*. Both project records and affected
+workflow docs are updated; unrelated main-checkout work remains preserved.
+The local-only entries below are historical implementation checkpoints.
+
 ## Enquiry MCP step 2 — October 16, 2026 (local only)
 
 Added crm_get_enquiry_status under the independent enquiry_status_read grant in
