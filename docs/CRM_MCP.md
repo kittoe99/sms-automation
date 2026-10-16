@@ -1,5 +1,72 @@
 # CRM MCP business setup
 
+## Forms MCP production release — October 15, 2026, 11:19 PM Denver
+
+The forms milestone is deployed. This release record supersedes the historical
+local/unapplied checkpoints below. Implementation is committed in the CRM release
+worktree C:/Users/kofik/.codex/worktrees/crm-mcp/opek-sms; unrelated dirty main CRM
+work remains untouched. No E2 schema or runtime deployment was required.
+
+**Applied migrations:** reconciled 121 live records with both repositories and
+the previous alias inventory. Two remote-only historical entries were already
+present in the prior release snapshot. An isolated exact-version CLI catalog
+used already-applied history markers and only the five new source files. Dry run
+listed exactly five; two rollback rehearsals (before and after the apply correction)
+verified the prerequisite guards. No history repair, replay, role/seed/Vault
+change or unrelated AI-default migration was applied. Production now has 126
+migration records. Source and applied versions are identical for this release:
+
+| Version | Migration |
+| --- | --- |
+| 20261016040535 | crm_mcp_form_reads |
+| 20261016041950 | crm_mcp_form_drafts |
+| 20261016043205 | crm_mcp_form_preview |
+| 20261016044442 | crm_mcp_form_apply |
+| 20261016045607 | crm_mcp_form_collection |
+
+All 19 inspected live function hashes match the tested paired definitions.
+Private helpers/table access remains denied to API/MCP roles. Security advisors:
+69 informational findings, 5 pre-existing warnings, 0 errors. The one new INFO
+is RLS enabled with no policies on the deliberately private mcp_form_drafts table;
+no new warning or error was introduced. The Supabase connector required renewal,
+so the already-authenticated CLI applied the migrations to wxamwhfmelxqahkdtcci.
+
+**Releases:** commit 95e432ac1da97d1e5c2e76ea4336bccf8f2634ee is live on
+[MCP deploy dep-db8r69ks728c73aph4eg](https://dashboard.render.com/web/srv-db84ogivcj2c73874e20/deploys/dep-db8r69ks728c73aph4eg)
+and [CRM frontend deploy dep-db8r770n74is73chjfbg](https://dashboard.render.com/static/srv-dandjcp42hec73e569pg/deploys/dep-db8r770n74is73chjfbg)
+in the previously confirmed Micah workspace. The frontend produced no automatic
+deploy/event after the branch push; one explicit deployment of the verified commit
+completed. Both the served permission module and bundled grant labels were verified.
+Health/discovery return 200; unauthenticated MCP returns the expected 401 challenge.
+No MCP application error logs appeared after rollout. CRM API source is unchanged,
+so its existing grant administration routes needed no redundant Edge deployment.
+
+**Access and Codex verification:** on explicit user authorization, canonical admin
+save added all six form grants to existing all-business connection
+dd79bf79-c164-4493-a099-35654f7f7c12. Revision is 3, with 21 total permissions;
+existing scope/grants were preserved, and the grant change is audited. New
+connections still start pending without grants. Two fresh Codex app-server OAuth
+sessions verified discovery/reconnection, all 33 tools, strict schemas, read/write
+annotations and mutation retry/revision requirements. Ten read-only calls covered
+access, scoped/empty form lists, missing-form and missing-business denials; all ten
+have correct actor/connection/request attribution. No form mutation tool ran.
+
+Live has zero forms and zero saved drafts, so successful detail/preview and mutation
+paths were not exercised against production or seeded just for verification. They
+remain covered by local tests. No expiry-driven token-refresh scenario was forced.
+Before/after hashes of business, forms, follow-ups, runs and email enrollments match.
+Counts remain 1 SMS run, 4 messages (2 outbound), and 2 SMS-send jobs. No collection
+activation, enrollment, follow-up enablement or SMS send occurred during this release.
+
+**Local verification:** corrected apply writes only validated definition columns
+to avoid an unchanged enabled flag firing email lifecycle cancellation. Regression
+fixtures preserve active/paused email on inactive, active and no-email forms.
+Full CRM: 516 passed / 29 existing skips / 0 failed; focused apply/collection: 23;
+paired contracts: 63; relevant E2 tests: 28; PostgreSQL concurrency scenarios: 17.
+Both projects' required checks, frontend build and 65-file Edge packaging passed.
+Release verification artifacts are in the worktree's ignored data/forms-* files;
+credentials and customer message content are not included in these records.
+
 ## Forms release preflight — October 15 (before application)
 
 The five CRM forms migrations were reconciled against 121 live migration records,
