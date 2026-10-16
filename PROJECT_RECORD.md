@@ -1,5 +1,43 @@
 # Opek SMS project record
 
+## Dashboard production release — October 16, 2026
+
+Dashboard runtime `3a60a1bfd55cdaea44bb2762de1e28be13653ebc` is live on
+www.e2local.com and e2local.com in Vercel deployment
+`dpl_8TSHQTdbgUUjde6re2qFBsLH44Vx` (READY, created 23:35 UTC). The normal
+Git integration deployed the pushed main commit. An earlier CLI staging build
+`dpl_6qo73hU9vLpHQxJsX6QhY3zvYefd` also passed but was not promoted.
+
+The database release below preceded deployment: E2 20261016224415 applied,
+152 history entries verified, and CRM 20261016225447 superseded by the already-live
+20261016225239 validation. CRM runtime, Edge functions and Cloudflare Workers
+were not redeployed by this dashboard release.
+
+Validation: 254 E2 tests, 717 current-CRM tests (29 existing skips), 63 paired
+contract checks and six Worker tests passed with zero failures. E2 lint,
+TypeScript, Worker checks and production build passed. The isolated checkout
+needed local npm dependencies because Turbopack rejects an external node_modules
+junction; after npm ci the normal build passed without application changes.
+The CRM fixture baseline is recorded in `codex/dashboard-paired-baseline` at
+`639672b`; E2 CI's PAIRED_CRM_REF is pinned to that full immutable commit.
+
+Authenticated production browser checks passed: new action counts and freshness,
+awaiting-SMS filter, exact recent-enquiry navigation with answers expanded,
+Website/Text messages/Calls panels, and Refresh. The account has no booking
+service: its production empty state passed; upcoming-booking behavior was
+verified with synthetic automated tests, not a production booking. At 390px and
+1440px the dashboard has no horizontal overflow. Browser errors and scoped
+Vercel runtime error/fatal logs were empty. The public homepage returned 200 and
+the apex domain redirected to www; anonymous dashboard API requests require
+sign-in. Domain hashes stayed unchanged after browser verification, and the
+pre/post migration security-advisor findings were unchanged.
+
+Ignored local evidence is under .artifacts/dashboard-release in the primary E2
+checkout, including production-desktop.jpg, production-mobile.jpg, test/build
+logs, migration receipts and aggregate verification snapshots. No credentials or
+customer content are included in these project records.
+
+
 ## Dashboard database release — October 16, 2026
 
 The user authorized dashboard deployment, superseding the earlier E2 hold. Applied
@@ -4631,3 +4669,9 @@ production database or deployment change was made in this follow-up.
 Applied E2 20261016224415 after guarded rehearsal; CRM 20261016225447 is superseded
 by the live 20261016225239 rollout. Domain hashes, grants and advisors verified.
 See the current dashboard release section above for validation and deployment.
+
+### October 16 — Dashboard deployed and production verified
+
+Runtime 3a60a1b is live in dpl_8TSHQTdbgUUjde6re2qFBsLH44Vx after applying only
+E2 20261016224415. Current paired suites and production browser/database checks
+passed; see the current production release section for counts and limits.
