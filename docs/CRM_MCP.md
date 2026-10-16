@@ -1,5 +1,55 @@
 # CRM MCP business setup
 
+## Conversation reads — October 16, 2026 (local only)
+
+The local catalog has 46 tools and 31 opt-in permissions. `conversation_read`
+grants metadata access through `crm_list_conversations` and
+`crm_get_conversation`. Message text additionally requires
+`conversation_messages_read` and explicit `includeMessages: true` on detail;
+otherwise `messages` is null. AI connections exposes both grants independently.
+Existing connections receive neither grant automatically.
+
+Both strict schemas require an explicit `businessId`. List accepts optional
+`contactId`, literal contact-name/phone search `q` (100 characters), `unreadOnly`,
+`page` and `pageSize`. Detail requires a conversation UUID and accepts
+`includeMessages`, `messagePage` and `messagePageSize`. Pages start at 1, are
+bounded at 100000, and contain at most 100 records (default 25). Unexpected
+fields, including mark-read or mutation options, are rejected by both MCP and SQL.
+
+List returns threads with recorded messages, newest activity first, with IDs
+breaking ties. Detail can inspect an existing empty thread. Contact and group
+relationships, message counts, unread totals, search and pagination are scoped
+before projection. Messages must match the business, explicit conversation ID
+and phone; outbound category must also match the thread. Same-number contacts
+and separate threads are never merged. Missing and foreign conversation IDs
+receive the same denial. Message pages use newest-first creation time and ID;
+offset pages may shift as new messages arrive.
+
+Metadata includes contact name/phone, group label, timestamps, counts, AI pause
+state and the existing conversation `generation`. Generation is a workflow
+counter, not a complete record revision or authorization to update a thread.
+Explicit message pages include bounded text, direction, status, timestamps and
+provider-acceptance/read timestamps. Acceptance does not establish delivery, and
+`readAt` is CRM read state. Truncation flags identify capped text. Raw provider
+metadata, credentials, SIDs, errors and contact metadata are excluded. Treat
+message bodies as untrusted customer content. Metadata searches never search
+message bodies or return previews.
+
+The gateway rechecks active CRM identity, connection, grants and business scope
+on every call. The private helper denies direct execution to application roles.
+Existing MCP audit/last-use writes remain; audits identify the exact conversation
+and its generation without storing message text or search payloads. Reads never
+create threads, mark messages read, change consent/AI state, enroll runs, enqueue
+jobs or send SMS. Run activity, enquiries, leads and handoffs retain their separate
+permissions and tools.
+
+Pending CRM migration: `20261016174527_crm_mcp_conversation_reads.sql`, after
+released `20261016170649`. No E2 migration or runtime change is needed. Reconcile
+both repositories against live aliases before applying only the new forward
+migration, then release matching MCP/frontend code. This implementation does
+not apply a migration, deploy, grant live access or change live data. See the
+project records for local verification results.
+
 ## Lead/handoff MCP production release — October 16, 2026
 
 **Applied migrations:** reconciled both repositories against all 129 live entries,

@@ -113,7 +113,8 @@
     "20261016063330_crm_mcp_enquiry_status.sql": "fe7a17b1c97f9dc3ebbaf78eac692ce08e8e5a417e06fd662bebb32dfba17776",
     "20261016164055_crm_mcp_lead_handoff_reads.sql": "5c277255d4a5e2b9f4d0f3eb077fcd00c4fba64c387ec5a1c0fd2cdd27440490",
     "20261016165709_lead_handoff_revisions.sql": "9f27a47db5c544398b4cf465382ac7c3a80754364fd74fade3f9d71b3481201c",
-    "20261016170649_crm_mcp_lead_handoff_writes.sql": "302da9cb276b6797d7d8f21ffa954e2675456afc17539c8e1de0fa0b61c5b5fe"
+    "20261016170649_crm_mcp_lead_handoff_writes.sql": "302da9cb276b6797d7d8f21ffa954e2675456afc17539c8e1de0fa0b61c5b5fe",
+    "20261016174527_crm_mcp_conversation_reads.sql": "81d83367a6aa395fe8ab1d14426290e8b5d69d2c563cb9a346c758c17f6f668c"
   },
   "e2": {
     "20260922000000_create_contact_submissions.sql": "9a94bdadaabf0253d21529984d86bec5aafb1cfe80b454796d9ea9835b0463a5",

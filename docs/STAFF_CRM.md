@@ -1,5 +1,15 @@
 # Shared staff CRM and customer dashboard
 
+## MCP conversation reads — October 16, 2026 (local only)
+
+AI connections adds independent `conversation_read` (scoped metadata and counts)
+and `conversation_messages_read` (message text, also requiring metadata access).
+Neither is granted automatically. Agents must explicitly request a message page;
+metadata access never includes message previews. Reading through MCP leaves the
+inbox unread state unchanged and cannot send, resume or pause anything. Existing
+staff inbox controls remain unchanged. The pending CRM migration is
+20261016174527; see [CRM MCP](CRM_MCP.md) for schemas, scope and release order.
+
 ## Lead/handoff MCP release — October 16, 2026
 
 CRM migrations 20261016164055 (reads), 20261016165709 (shared revisions) and

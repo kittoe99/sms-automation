@@ -1,5 +1,7 @@
 // Shared by the administrator editor and MCP output validation. New grants are opt-in.
 export const connectionPermissions = [
+ ['conversation_read','Read scoped SMS conversation metadata and counts'],
+ ['conversation_messages_read','Read SMS message text (also requires conversation_read)'],
  ['lead_read','Read scoped existing leads'],
  ['lead_status_update','Update lead status'],
  ['lead_assign','Assign lead owner labels'],

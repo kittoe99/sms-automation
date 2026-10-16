@@ -1,5 +1,15 @@
 # Automation activity
 
+## MCP conversation reads — October 16, 2026 (local only)
+
+Conversation metadata and explicitly requested message pages now have separate
+MCP grants (`conversation_read` and `conversation_messages_read`). They do not
+confer run-activity, enquiry or lead/handoff access. Counts use the selected
+business and exact thread, never phone-only attribution across threads. Reads
+preserve unread state, consent, AI controls, run state and queues. Provider
+acceptance remains distinct from delivery. Pending migration 20261016174527 and
+matching service/frontend release are not applied; see [CRM MCP](CRM_MCP.md).
+
 ## Lead/handoff MCP release — October 16, 2026
 
 CRM migrations 20261016164055 (reads), 20261016165709 (shared revisions) and

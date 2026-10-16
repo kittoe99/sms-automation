@@ -1,5 +1,45 @@
 # Opek SMS project record
 
+## MCP conversation reads — October 16, 2026 (local only)
+
+Implemented crm_list_conversations and crm_get_conversation with strict input
+and output schemas, explicit business IDs and bounded pagination. The local
+catalog has 46 tools and 31 opt-in permissions. conversation_read grants scoped
+metadata/counts; conversation_messages_read additionally allows explicitly
+requested message pages. Existing grants are preserved. The AI connections
+screen exposes the two permissions separately through its shared catalog.
+
+All contact, group and message relationships are business-scoped before search,
+counts and pagination. Message reads use exact conversation IDs and matching
+phone/category, avoiding same-phone cross-thread merges. Metadata has no message
+previews; searches only inspect contact name/phone. Detail message text is capped
+and flagged on truncation, excludes raw provider/contact metadata, and preserves
+accepted/read timestamps without treating acceptance as delivery. The existing
+generation is a workflow counter, not a new shared record revision. Current
+staff/connection/grant/scope checks apply on every call. Audit records contain
+actor, connection, tool, target, time, request ID, outcome and generation, without
+message text or search payloads. Direct private-helper execution is denied.
+
+Local verification: full CRM 572 passed/29 existing skips/zero failures; new
+conversation schema/isolation tests 9 passed; E2 enquiry/customer-lead/cache
+tests 26 passed; paired contracts 63 passed. Both required project checks passed,
+as did the frontend build with a synthetic local publishable key, 65-function
+Edge bundling, migration/source fingerprints and whitespace checks. Isolation
+fixtures cover separate grants, missing/foreign IDs, same-number contacts in
+different businesses, distinct threads, nested records and filtered counts,
+pagination, raw SQL input validation, helper privileges, immediate grant removal,
+disabled/revoked connections, suspended/nonstaff/customer identities, audit
+redaction and unchanged messages/read state, consent, queues and domain data.
+Receipts are local ignored data/conversation-*.log.
+
+Pending CRM-owned migration: 20261016174527_crm_mcp_conversation_reads.sql,
+after released 20261016170649. No E2 migration or runtime change. Reconcile both
+repositories and live migration aliases before applying only the new forward
+migration, then release matching CRM frontend/MCP code. Applied migrations:
+none this step. Releases/pushes/live grant changes: none. No live data, message
+read state or SMS/provider was touched. Both project records and affected
+workflow docs are updated; unrelated local work is preserved.
+
 ## Lead/handoff MCP production release — October 16, 2026
 
 **Applied migrations:** reconciled both repositories against all 129 live entries,
