@@ -1,5 +1,29 @@
 # Opek SMS project record
 
+## Dashboard database release — October 16, 2026
+
+The user authorized dashboard deployment, superseding the earlier E2 hold. Applied
+only E2 migration `20261016224415_dashboard_actions_and_enquiry_links.sql` after
+reconciling 151 existing live entries, comparing prerequisite function hashes,
+and passing a guarded rollback rehearsal. Live history now has 152 entries.
+The proposed CRM repair `20261016225447_restore_automation_ai_reply_validation`
+is superseded by already-applied CRM `20261016225239_automation_ai_reply_defaults_rollout`;
+its strict boolean validation is present and was verified by function hash. Do
+not apply the older repair or replay either repository's migration history.
+
+Post-apply verification passed: all three new RPC hashes match the disposable
+database; execution is limited to service_role; old/new list projections agree
+for the active completed customer account and dashboard actions read successfully.
+Before/after domain hashes and all five security-advisor findings are unchanged.
+No customer records or messages were changed. CRM runtime remains db4fbe9.
+
+Local release validation uses current CRM source from 2175fea, not the older
+primary deploy-crm checkout. E2 has 254 passing tests, 63 paired contract checks
+and six Worker tests; lint, TypeScript and Worker checks passed. Deployment and
+remaining release checks are recorded separately after completion. The paired
+fixture inventory includes the new E2 migration and complete current CRM history.
+
+
 ## October 16 — CRM cross-chat rollout completed; E2 dashboard held
 
 Runtime commit `db4fbe9859e2f9fe3144c53eea82b1cc25dd122c` is live on both CRM services. MCP deployment `dep-db9aoq8m7kps73clsfgg` completed at 23:00:28 UTC; frontend `dep-db9apnm7bikc73fb1ud0` completed at 23:02:03 UTC. Render emitted no automatic frontend event after the push, so the existing dashboard's Deploy latest commit action was used; auto-deploy settings were not changed.
@@ -4601,3 +4625,9 @@ all 25 E2 route/method combinations appear in the API inventory. Relevant Markdo
 diffs pass whitespace checks. Earlier application/build/test results were not
 rerun or presented as new evidence. No application, migration, provider,
 production database or deployment change was made in this follow-up.
+
+### October 16 — Dashboard migration reconciliation
+
+Applied E2 20261016224415 after guarded rehearsal; CRM 20261016225447 is superseded
+by the live 20261016225239 rollout. Domain hashes, grants and advisors verified.
+See the current dashboard release section above for validation and deployment.
