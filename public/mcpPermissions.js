@@ -1,5 +1,14 @@
 // Shared by the administrator editor and MCP output validation. New grants are opt-in.
 export const connectionPermissions = [
+ ["knowledge_read","Read scoped knowledge sources and versions"],
+ ["knowledge_create","Create knowledge sources for indexing"],
+ ["knowledge_refresh","Refresh existing knowledge sources"],
+ ["knowledge_archive","Archive knowledge sources"],
+ ["knowledge_approve","Approve indexed knowledge versions"],
+ ["knowledge_upload","Prepare private knowledge file uploads"],
+ ["ai_config_read","Read active SMS AI configuration"],
+ ["ai_config_edit","Edit SMS AI instructions without changing activation"],
+ ["ai_activate","Change SMS AI mode and booking capability"],
  ["booking_read","Read existing operational bookings"],
  ["booking_intake_read","Read booking intake requests"],
  ["booking_schedule_read","Read booking availability schedules"],

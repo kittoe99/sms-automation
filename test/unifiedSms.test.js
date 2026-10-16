@@ -48,11 +48,13 @@ test('one reply setting enables automation context without approving live mode o
   await db.query('update sms_private.inbound_ai_settings set coordination_enabled=false where tenant_id=$1',[tenant]);
   const profile=(await db.query("insert into public.sms_business_profile_versions(tenant_id,version,facts,status,content_hash,created_by,approved_by,approved_at) values($1,1,'{}','approved','test','admin','admin',now()) returning id",[tenant])).rows[0].id;
   await db.query('update public.sms_businesses set active_profile_version_id=$2 where tenant_id=$1',[tenant,profile]);
-  const request={mode:'shadow',systemPrompt:'Help customers with approved facts',bookingEnabled:false,revision:0};
+  const revision=(await db.query('select revision from sms_private.inbound_ai_settings where tenant_id=$1',[tenant])).rows[0].revision;
+  assert.equal(revision,1); // Direct fixture/worker updates now share the revision fence.
+  const request={mode:'shadow',systemPrompt:'Help customers with approved facts',bookingEnabled:false,revision};
   const saved=await call(db,'inbound_ai_settings_api','admin',tenant,request);
   assert.equal(saved.mode,'shadow');assert.equal(saved.replyScope,'all_sms');assert.equal(saved.coordinationEnabled,true);
-  assert.equal(saved.liveValidated,false);assert.equal(saved.revision,1);
-  await assert.rejects(()=>call(db,'inbound_ai_settings_api','admin',tenant,{...request,mode:'live',revision:1}),/Pilot validation/);
+  assert.equal(saved.liveValidated,false);assert.equal(saved.revision,revision+2); // Mode and coordination are two canonical row updates.
+  await assert.rejects(()=>call(db,'inbound_ai_settings_api','admin',tenant,{...request,mode:'live',revision:saved.revision}),/Pilot validation/);
   await assert.rejects(()=>call(db,'inbound_ai_settings_api','admin',tenant,request),/stale revision/);
   await assert.rejects(()=>call(db,'inbound_ai_settings_api','stranger',tenant,request),/denied|admin|staff/i);
   const grants=(await db.query("select has_function_privilege('sms_api','sms_private.inbound_ai_settings_api(text,text,jsonb)','execute') api,has_function_privilege('sms_api','sms_private.inbound_ai_settings_api_before_unified_sms(text,text,jsonb)','execute') old,has_function_privilege('anon','sms_private.inbound_ai_settings_api(text,text,jsonb)','execute') anon")).rows[0];

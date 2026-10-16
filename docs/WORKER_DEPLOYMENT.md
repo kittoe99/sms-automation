@@ -200,3 +200,15 @@ evidence, not a current environment health check.
 Twilio's Messaging Service now routes inbound and status webhooks to WPacquisition Edge Functions. A bad signature returned 403; a signed inbound event persisted; replaying the same SID remained idempotent; and signed STOP suppressed the contact, recorded consent evidence, and left no pending work. The obsolete DigitalOcean hostname no longer resolves. Opek is active with sending and Supabase scheduling enabled; Bello Moving remains pending and disabled. The test recipient remains opted out after the STOP verification, the deployment-canary AI setting remains disabled, and there are no active enrollments, failed jobs, or uncertain submissions at cutover.
 
 Default inbound AI was enabled for Opek on 2026-09-18 UTC using the Quote follow-up instructions as its business fallback. The test recipient's thread was unpaused, but its STOP suppression remains intact; it must send START before a later inbound message can receive an AI response.
+
+## MCP knowledge upload adapter
+
+Deploy the CRM-owned knowledge MCP migration before updating `crm-api`. Configure
+`MCP_KNOWLEDGE_ADAPTER_URL` on the MCP service to the trusted HTTPS
+`/functions/v1/crm-api/mcp/knowledge-upload` endpoint. No storage secret belongs in
+the MCP environment. The endpoint accepts only a one-use database-authorized ticket;
+ordinary CRM authentication and OAuth tokens cannot authorize it. Supabase signed
+upload URLs expire after two hours and prohibit overwrite. See [the storage
+contract](https://supabase.com/docs/reference/javascript/storage-from-createsigneduploadurl).
+An unavailable signer leaves the committed intent recoverable with the same retry
+key. Production release smoke checks must not prepare uploads or index sources.

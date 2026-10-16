@@ -1,5 +1,17 @@
 // Tool authorization metadata. SQL parity is tested against the latest gateway.
 export const toolPermissions={
+ "crm_list_knowledge_sources":"knowledge_read",
+ "crm_get_knowledge_source":"knowledge_read",
+ "crm_list_knowledge_versions":"knowledge_read",
+ "crm_get_knowledge_version":"knowledge_read",
+ "crm_prepare_knowledge_upload":"knowledge_upload",
+ "crm_create_knowledge_source":"knowledge_create",
+ "crm_refresh_knowledge_source":"knowledge_refresh",
+ "crm_archive_knowledge_source":"knowledge_archive",
+ "crm_approve_knowledge_version":"knowledge_approve",
+ "crm_get_ai_configuration":"ai_config_read",
+ "crm_save_ai_configuration":"ai_config_edit",
+ "crm_set_ai_mode":"ai_activate",
  "crm_list_bookings":"booking_read",
  "crm_get_booking":"booking_read",
  "crm_list_booking_intakes":"booking_intake_read",
@@ -91,4 +103,4 @@ export const toolPermissions={
  "crm_add_business_service": "service_add",
  "crm_set_service_visibility": "visibility"
 };
-export const externalTools=new Set(['crm_add_business_service','crm_reply_to_conversation','crm_send_contact_sms','crm_retry_handoff_alert']);
+export const externalTools=new Set(['crm_prepare_knowledge_upload','crm_create_knowledge_source','crm_refresh_knowledge_source','crm_add_business_service','crm_reply_to_conversation','crm_send_contact_sms','crm_retry_handoff_alert']);

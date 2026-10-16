@@ -7,6 +7,7 @@ import {emailOverview,saveEmailGroup} from './email.js';
 import {syncCrmLogin} from '../_shared/crm-account.js';
 import {crmLoginConfig} from '../_shared/http.js';
 import {createTwilioConnections} from './twilio-connections.js';
+import {signMcpKnowledgeUpload} from './mcp-upload.js';
 const KNOWLEDGE_MIME=new Set(['application/pdf','application/vnd.openxmlformats-officedocument.wordprocessingml.document','text/plain','text/markdown']);
 const INTAKE_TYPES=new Set(['contacts','quote_requests','bookings','reviews']);
 async function signedKnowledgeUpload(tenant,input,fetchImpl=fetch) {
@@ -31,6 +32,7 @@ export function createCrmHandler(db,verify=authenticate,{platform=false,provisio
     const configured=Boolean(env('CRM_CLERK_PUBLISHABLE_KEY')&&issuer&&customerIssuer&&issuer!==customerIssuer);
     return json({mode:'clerk',loginApplication:'crm',manualBusinesses:true,configured,publishableKey:configured?env('CRM_CLERK_PUBLISHABLE_KEY'):null,frontendApiUrl:configured?issuer:null},200,headers);
    }
+   if(path==='/mcp/knowledge-upload'&&request.method==='POST')return json(await signMcpKnowledgeUpload(db,await readJson(request)),200,headers);
    const user=await verify(request),tenant=request.headers.get('X-Tenant-ID');
    const read=(resource,p={})=>db.call('api_read',user,tenant,resource,p);
    const write=(action,p)=>db.call('api_action',user,tenant,action,p);

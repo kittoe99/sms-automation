@@ -12,7 +12,7 @@ is released or its agreed exclusion is documented.
 | 2 | Conversation AI controls, reassignment, enquiry edits, alerts, reporting, tags and attribution | Released d60dd35; 72 tools / 49 grants; read-only verification passed |
 | 3 | Form duplication/archive/restore, template archive and saved presets | Released 95b6c36; 79 tools / 55 grants; read-only verification passed |
 | 4 | Existing bookings, availability/settings, intake edits and cancellation | Released 3fd85ef; 91 tools / 63 grants; read-only verification passed |
-| 5 | Knowledge sources/uploads/versions and AI configuration/activation | Pending |
+| 5 | Knowledge sources/uploads/versions and AI configuration/activation | Local checks passed; release in progress |
 | 6 | Existing email groups, enrollment/job activity, preview, enablement and recovery | Pending |
 | 7 | Voice configuration/drafts/publication, calls, transcripts and media | Pending |
 | 8 | Existing-site details/deployments, form connections, update requests and publication | Pending |

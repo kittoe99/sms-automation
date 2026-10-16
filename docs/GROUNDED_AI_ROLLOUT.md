@@ -85,3 +85,36 @@ Twilio Compliance Embeddable access is an account-level prerequisite. The server
 8. Complete the appropriate Twilio branch, confirm every paid action, deliver the activation canary, and call activation only after readiness reports no reasons.
 
 Rollback is independent: disable a business's grounded AI setting, individual Edge queues, compliance automation, or sending. Do not delete approved versions, job history, AI runs, or uncertain remote operations.
+
+## Knowledge and active SMS AI MCP — October 16, 2026 (local)
+
+Stage 5 adds twelve tools and nine independent grants. Local catalog: 103 tools /
+72 permissions. Source/version reads are scoped and bounded, with explicit IDs and
+paginated extracted text. Manual text is untrusted content. Creation queues indexing;
+refresh, archive and version approval are independent and revision protected.
+Duplicate origins conflict instead of overwriting. Shared triggers fence browser,
+worker and MCP changes. Archive rejects in-flight indexing, cancels pending jobs,
+and audits affected versions/jobs; archived knowledge cannot be resurrected by a
+stale worker. Structured profile knowledge stays in the profile-review workflow.
+
+Private file uploads use a committed upload intent and a 60-second, one-use adapter
+ticket. The restricted database login can mint tickets only for its own authorized
+intent; CRM Edge consumes them after rechecking identity, grants and business scope.
+Storage credentials remain in Edge. Signed upload URLs are ephemeral responses,
+never audit or retry-receipt content. Storage URLs expire after two hours and do not
+permit overwrite; uploaded size/MIME must match the intent before indexing. Intent
+expiry is 24 hours. Lost signing responses recover the same intent with the same
+idempotency key and a fresh URL. No OAuth token is forwarded as a browser session.
+
+AI reads do not insert defaults. Instruction edits preserve mode/booking activation;
+activation is separately granted and retains canonical pilot, reviewed-profile and
+live-validation prerequisites. No tool sets the private validation flag or queues
+an SMS. AI instruction content is excluded from mutation receipts and audit.
+
+Local CRM 651 passed / 29 existing skips; paired 63; relevant E2 15; both project
+checks and frontend/66-file Edge bundle pass. Real PostgreSQL concurrency covers
+same-key indexing/settings retries, worker lock/revision conflicts, archive versus
+refresh, interrupted transactions and one-use upload races. Migration 20261016200143
+is reconciled against 141 entries and rollback-rehearsed, not yet applied. Release
+order: migration, CRM Edge adapter, MCP environment/service, frontend. No E2 runtime
+release required. Live smoke checks use only reads and existing previews.

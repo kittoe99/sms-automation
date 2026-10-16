@@ -21,6 +21,8 @@ services:
         sync: false
       - key: MCP_DATABASE_URL
         sync: false
+      - key: MCP_KNOWLEDGE_ADAPTER_URL
+        value: https://wxamwhfmelxqahkdtcci.supabase.co/functions/v1/crm-api/mcp/knowledge-upload
       - key: MCP_ALLOWED_ORIGINS
         value: https://crm.e2local.com
   - type: web
