@@ -1,5 +1,26 @@
 # Opek SMS project record
 
+## Knowledge and AI MCP release — October 16, 2026
+
+Stage 5 is LIVE at c204b753ba46674d8ad2499cab057793e8545f1b. Migration
+20261016200143 alone advanced reconciled history 141 to 142; rollback rehearsal
+and all eleven function hashes matched. Private helper access remains denied.
+The CRM Edge adapter deployed successfully before MCP, with no new storage secret
+on MCP. The trusted adapter URL is configured in Render and recorded in Blueprint.
+MCP dep-db98ctq8hkrc73al46g0 finished 20:19:00 UTC; frontend
+ dep-db98cvrbc2fs73eohvl0 finished 20:18:26 UTC. Environment update first redeployed
+the previous MCP commit; the subsequent verified release uses c204b75.
+
+Admin connection revision 12 has 72 grants. Fresh Codex discovered 103 tools and
+passed 12 allowlisted reads/previews, with 12 attributed audits and zero mutation
+receipts. Opek has no knowledge sources to inspect; source/version isolation and
+writes were tested locally, with no production fixture created. AI, knowledge,
+customer, booking, form, run and message snapshots are unchanged, as are security
+advisors. Both test runs remain stopped; one reply remains unread. No uploads,
+knowledge approvals, AI activation or sends occurred during live verification.
+Local CRM 651 passed / 29 existing skips, paired 63, relevant E2 15, checks/builds
+and final disposable PostgreSQL concurrency passed. Stages 6–9 remain.
+
 ## Knowledge and active SMS AI MCP — October 16, 2026 (local)
 
 Stage 5 adds twelve tools and nine independent grants. Local catalog: 103 tools /
