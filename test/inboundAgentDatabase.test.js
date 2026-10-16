@@ -21,7 +21,7 @@ async function incoming(db,body='Hello',sid=crypto.randomUUID()) {
 const invoke=(db,job,name,args={})=>call(db,'inbound_ai_tool',job.id,job.lease_token,name,args);
 const details=()=>({service:'junk_removal',name:'Test Person',address:'123 Test Street',localDate:day,localTime:'10:00',details:{notes:null}});
 
-test('new jobs are versioned; default off and legacy enqueue stay disabled',async()=>{
+test('new jobs are versioned; explicit off and legacy enqueue stay disabled',async()=>{
  const db=await setup('off');try {
   assert.equal(await incoming(db),null);
   assert.equal(await call(db,'enqueue',tenant,'ai_reply_jobs','old',{phone}),null);

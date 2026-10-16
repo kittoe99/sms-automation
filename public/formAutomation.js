@@ -1,6 +1,6 @@
 // Shared by the browser editor and server validation. No model calls.
 export const TIME_UNITS = ['minute', 'hour', 'day', 'week', 'month'];
-export const emptySequence = () => ({ trigger: 'submission', leadHours: 24, replyPolicy: 'pause', startHour: 9, endHour: 19, steps: [] });
+export const emptySequence = () => ({ trigger: 'submission', leadHours: 24, replyPolicy: 'pause', aiRepliesEnabled: true, startHour: 9, endHour: 19, steps: [] });
 export const newMessage = (body = '') => ({ body, delayCount: 0, delayUnit: 'day', sendCount: 1, intervalCount: 1, intervalUnit: 'day' });
 export const BUILTIN_PRESETS = [
   { id: 'acknowledgment', name: 'Submission acknowledgment', sequence: { ...emptySequence(), steps: [newMessage('Hi {{first_name}}, thanks for contacting {{business_name}}. We have received your request.')] } },
@@ -12,7 +12,9 @@ export function validateSequence(value, fields = [], { appointmentAllowed = true
   const whole = (n, min, max, label) => { if (!Number.isInteger(n) || n < min || n > max) throw new Error(`${label} must be a whole number from ${min} to ${max}.`); return n; };
   if (!['submission', 'appointment'].includes(value.trigger) || (value.trigger === 'appointment' && !appointmentAllowed)) throw new Error('Appointment rules require a booking form.');
   if (!['pause', 'continue'].includes(value.replyPolicy)) throw new Error('Choose how replies affect this sequence.');
+  if (value.aiRepliesEnabled !== undefined && typeof value.aiRepliesEnabled !== 'boolean') throw new Error('AI replies must be on or off.');
   const result = { trigger: value.trigger, leadHours: whole(value.leadHours ?? 24, 1, 8760, 'Appointment lead time'), replyPolicy: value.replyPolicy,
+    aiRepliesEnabled: value.aiRepliesEnabled !== false,
     startHour: whole(value.startHour, 0, 23, 'Window start'), endHour: whole(value.endHour, 1, 24, 'Window end'), steps: [] };
   if (result.endHour <= result.startHour) throw new Error('The sending window must end after it starts.');
   if (value.instantAcknowledgment !== undefined) {

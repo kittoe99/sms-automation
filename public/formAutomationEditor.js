@@ -34,6 +34,7 @@ export async function renderFormAutomation({root,form,apiFetch,canManage,timeZon
       <div class="web-builder-body"><p>Each message finishes its repeats before the next message starts. Existing runs keep their published version.</p>
       <fieldset ${canManage?'':'disabled'}><legend class="form-visually-hidden">Automation configuration</legend>
       <label>Start with a preset<select data-preset><option value="">Choose a starting point</option>${presets.map((p,i)=>`<option value="${i}">${esc(p.name)}</option>`).join('')}</select></label>
+      <label><input type="checkbox" data-setting="aiRepliesEnabled" ${sequence.aiRepliesEnabled!==false?'checked':''}> AI replies</label><small>On by default. Turn off to handle replies to this automation yourself. Business-wide Off and staff pauses still apply.</small>
       <section class="form-timing"><h3>Timing</h3><div class="form-rule-grid"><label>Start follow-ups<select data-setting="trigger"><option value="submission" ${sequence.trigger==='submission'?'selected':''}>After submission</option>${form.preset==='bookings'?`<option value="appointment" ${sequence.trigger==='appointment'?'selected':''}>Before confirmed appointment</option>`:''}</select></label>
       ${sequence.trigger==='appointment'?`<label>Hours before appointment<input type="number" min="1" max="8760" data-setting="leadHours" value="${sequence.leadHours}" /></label>`:''}
       <label>When someone replies<select data-setting="replyPolicy"><option value="pause" ${sequence.replyPolicy==='pause'?'selected':''}>Pause scheduled messages</option><option value="continue" ${sequence.replyPolicy==='continue'?'selected':''}>Continue scheduled messages</option></select><small>This controls scheduled messages. AI replies follow the business setting in SMS → AI replies. Continue waits 30 minutes after a customer text or sent AI reply, even when AI is off. Paused sequences need staff to resume. Appointment reminders keep their own policy.</small></label>
@@ -67,7 +68,8 @@ export async function renderFormAutomation({root,form,apiFetch,canManage,timeZon
     if(e.target.matches('[data-preset]')&&e.target.value!==''){
       const preset=presets[Number(e.target.value)];
       if(preset.sequence.trigger==='appointment'&&form.preset!=='bookings'){root.querySelector('[data-status]').textContent='This preset requires a booking form.';return;}
-      sequence=structuredClone(preset.sequence);notice='Preset copied. Customize and publish when ready.';render();
+      const aiRepliesEnabled=sequence.aiRepliesEnabled!==false;
+      sequence={...structuredClone(preset.sequence),aiRepliesEnabled};notice='Preset copied. Customize and publish when ready.';render();
     } else if(e.target.dataset.setting==='trigger')render();
     else if(e.target.matches('[data-copy]')&&e.target.value){const card=e.target.closest('[data-message]');sequence.steps[Number(card.dataset.message)].body=e.target.value;card.querySelector('textarea').value=e.target.value;e.target.value='';preview();}
     else if(e.target.matches('[data-token]')&&e.target.value){

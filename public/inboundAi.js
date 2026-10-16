@@ -14,7 +14,7 @@ export async function mountInboundAi(root,{apiFetch,onKnowledge,onAvailability,i
  root.innerHTML=`<section class="card setup-body"><h2>AI replies for all SMS</h2><p>Use one set of business instructions for incoming texts and replies to form or contact messages. AI reads the customer’s recent SMS history across those sources.</p>
 
  <form data-inbound-ai><label class="availability-toggle"><input type="checkbox" name="enabled" ${initial.mode==='live'?'checked':''}> AI replies on</label>
- <p class="muted">When on, AI responds to new eligible incoming messages using Business Info. Turning it on does not reply to old messages. If a price is missing, it directs customers to your business phone or website.</p>
+ <p class="muted">AI replies are on by default for new settings. Each form or contact automation can opt out; business-wide Off and staff pauses still apply. When on, AI responds to new eligible incoming messages using Business Info. Turning it on does not reply to old messages. If a price is missing, it directs customers to your business phone or website.</p>
  <details><summary>Reply style (optional)</summary><label>Style instructions<textarea name="systemPrompt" rows="4" maxlength="6000">${esc(initial.systemPrompt)}</textarea></label></details>
 
  <label class="availability-toggle"><input type="checkbox" name="bookingEnabled" ${initial.bookingEnabled?'checked':''}> Allow new bookings after customer confirmation</label>

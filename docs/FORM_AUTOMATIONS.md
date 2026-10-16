@@ -1,5 +1,10 @@
 # Form-first SMS automation
 
+## Per-automation AI replies
+
+New drafts default **AI replies** on. Turn it off to handle customer replies yourself; preset selection preserves your choice. Publication and enrollment retain the saved boolean. An overlapping opted-out run suppresses AI for that contact without changing scheduled reply policy, SMS consent or sending hours. The instant acknowledgment control remains separate. MCP accepts and returns `aiRepliesEnabled` (omitted means true). See [AI reply defaults](INBOUND_AI.md).
+
+
 ## Form lifecycle/preset MCP release — October 16, 2026
 
 Stage 3 is LIVE at 95b6c36cbc0e9d8643a9aa9165d07d0bd6ead1ff. Migration

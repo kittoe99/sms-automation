@@ -1,5 +1,16 @@
 # Inbound SMS agent
 
+## Automation defaults rollout (October 16, 2026)
+
+New business settings default to live AI replies and coordination. A future real inbound text initializes missing settings; no historical messages are replayed. Explicit Off and legacy shadow settings are preserved. Only untouched Off rows (revision zero, empty instructions, no validation) qualify for the forward backfill.
+
+Form and contact sequences have an **AI replies** toggle, checked by default. `aiRepliesEnabled: false` persists in drafts, published versions, presets and enrolled snapshots. An overlapping active/paused opt-out or the last accepted outbound from an opted-out run suppresses AI replies for that business/phone, including late replies to completed/stopped runs. Scheduled pause/continue/stop policy stays separate. The opt-out is rechecked before provider submission, including already queued AI work.
+
+MCP strict inputs and read projections include this setting; omission means on. Instant acknowledgments, consent/STOP, sending eligibility, revision fences and the simplified Business Info/on-off controls remain intact. Saving explicit live settings still checks reviewed business information and SMS readiness. This rollout does not enable sending or enroll contacts.
+
+The unpublished local migration `20261016035447_automation_ai_reply_defaults.sql` is superseded by `20261016225239_automation_ai_reply_defaults_rollout.sql`; apply only the reconciled forward migration, never both. It preserves the newer settings readiness/audit implementation and instant-ack validation.
+
+
 Open **SMS → AI replies** and use **AI replies on**. Off sends no AI replies;
 on responds to future eligible incoming messages using reviewed Business Info.
 Pricing is optional: unsupported prices use the saved quote phone or website.

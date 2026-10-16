@@ -42,9 +42,7 @@ groups for the same business/customer. Saving an enabled mode also enables
 automation context and coordination. Continue form/contact enquiry messages wait
 30 minutes after inbound or accepted AI messages even in Off/Review only mode.
 Pause/Stop policies, staff takeover and appointment reminders retain their rules.
-**Review only — no replies sent** is shadow mode; **Automatic replies** is live
-mode. Running a form test does not change the agent's mode or satisfy its release
-gates. **Voice agents** opens the existing connected/draft library.
+**AI replies on** is the business-wide on/off control. New settings default on; existing explicit Off choices remain off. Form and contact editors also have a checked-by-default **AI replies** opt-out. Historical shadow results remain readable, but there is no required shadow/pilot setup. Testing a form does not change the business setting. **Voice agents** opens the existing connected/draft library.
 
 **Settings → Booking availability** configures operational booking capacity.
 **Business information** contains the reviewed profile and knowledge sources.

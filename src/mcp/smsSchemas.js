@@ -13,6 +13,7 @@ export const smsReadTools=[
 ];
 const unit=z.enum(['minute','hour','day','week','month']);
 export const smsSequenceSchema=z.object({
+ aiRepliesEnabled:z.boolean().optional().describe("Defaults to true. False disables automatic AI replies associated with this automation; it does not change scheduled reply policies or business-wide sending checks."),
  instantAcknowledgment:z.boolean().optional().describe('Form submission only: send the zero-delay first acknowledgment outside sending hours. Repeats and later messages keep the sending window; consent is still required.'),
  trigger:z.enum(['submission','appointment']),leadHours:z.number().int().min(1).max(8760),
  replyPolicy:z.enum(['pause','continue','stop']),startHour:z.number().int().min(0).max(23),endHour:z.number().int().min(1).max(24),

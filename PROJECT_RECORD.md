@@ -1,5 +1,16 @@
 # Opek SMS project record
 
+## October 16 — Cross-chat CRM release reconciliation (prepared locally)
+
+User requested all outstanding CRM edits, then explicitly held the ongoing E2 Local dashboard deployment. E2 dashboard files and migration 20261016224415 remain excluded. The clean CRM release worktree is authoritative; the primary deploy-crm checkout is preserved.
+
+Audit found 179 main-checkout edits already identical to the release, and 36 overlapping files exactly match older released versions. These are not pending reversions. The remaining runtime feature is the other chat's AI defaults/automation opt-out change. It is integrated with current instant acknowledgment, Business Info, settings readiness/audit checks, and strict MCP sequence validation/projection. The old unpublished 20261016035447 migration is superseded by the new CLI-generated 20261016225239 forward migration. No historical file is replayed. Older Twilio worktrees contain only release-record updates already represented here; their runtime commits are ancestors of this release.
+
+Local validation: CRM check passed; 717 tests passed, 29 existing skips; 63 paired contract tests passed against the released E2 worktree (not the in-progress dashboard); production frontend and complete 68-file Edge bundle built. Live history reconciles 150 applied migrations. A guarded rollback rehearsal matches expected function hashes; dry run proposes only 20261016225239. Live preflight: zero untouched defaults, zero queued AI/SMS jobs, Opek remains live/revision 2. Applied migrations/releases are recorded separately below after completion.
+
+Edge inventory also found stale bundled shared HTTP error handling, web-form phone normalization, and voice playback expiry logic in older active functions. The tracked CRM functions will be brought to the tested release source. The remote-only inbound-ai-validation utility and suspended legacy Render forms service are outside this source release and stay untouched.
+
+
 ## AI reply diagnostics release — October 16, 2026
 
 Reconciled all 149 live migrations against both repositories, including historical

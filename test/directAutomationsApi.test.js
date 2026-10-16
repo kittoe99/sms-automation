@@ -10,7 +10,18 @@ test('direct APIs bind actor/business, enforce methods and forward retry keys',a
 test('direct editor permits Stop but rejects appointment sequences and unknown fields',()=>{
  const s={...emptySequence(),replyPolicy:'stop',steps:[newMessage('Hello {{name}}')]};assert.equal(validateDirectSequence(s).replyPolicy,'stop');assert.throws(()=>validateDirectSequence({...s,trigger:'appointment'}));assert.throws(()=>validateDirectSequence({...s,steps:[newMessage('{{field.unsaved}}')]}));
 });
-class Host{isConnected=true;nodes=new Map();html='';set innerHTML(v){this.html=v;this.nodes.clear();}get innerHTML(){return this.html;}querySelector(k){if(!this.nodes.has(k))this.nodes.set(k,new Host());return this.nodes.get(k);}querySelectorAll(){return [];}addEventListener(){} }
+class Host{isConnected=true;nodes=new Map();events=new Map();html='';set innerHTML(v){this.html=v;this.nodes.clear();}get innerHTML(){return this.html;}querySelector(k){if(!this.nodes.has(k))this.nodes.set(k,new Host());return this.nodes.get(k);}querySelectorAll(){return [];}addEventListener(name,fn){this.events.set(name,fn);} }
+
+test('new contact template checks AI replies and retains an unchecked choice when adding a message',async()=>{
+ const root=new Host();
+ await mountContactAutomations(root,{apiFetch:async()=>new Response(JSON.stringify({templates:[],canManage:true}))});
+ root.querySelector('[data-new]').events.get('click')();
+ assert.match(root.innerHTML,/data-setting="aiRepliesEnabled" checked/);
+ root.oninput({target:{dataset:{setting:'aiRepliesEnabled'},type:'checkbox',checked:false}});
+ root.querySelector('[data-add]').events.get('click')();
+ assert.doesNotMatch(root.innerHTML,/data-setting="aiRepliesEnabled" checked/);
+ assert.match(root.innerHTML,/data-setting="aiRepliesEnabled"/);
+});
 test('contact switching aborts stale reads and stale results cannot repaint or mutate',async()=>{
  const root=new Host();let resolve,oldSignal;const slow=mountContactAutomations(root,{apiFetch:(_,o)=>{oldSignal=o.signal;return new Promise(r=>resolve=r);}});
  await mountContactAutomations(root,{apiFetch:async()=>new Response(JSON.stringify({templates:[],canManage:false}))});assert.equal(oldSignal.aborted,true);resolve(new Response(JSON.stringify({templates:[{id:'old',name:'OLD BUSINESS'}],canManage:true})));await slow;assert.doesNotMatch(root.innerHTML,/OLD BUSINESS/);

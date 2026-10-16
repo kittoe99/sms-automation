@@ -1,5 +1,10 @@
 # Direct contact automations
 
+## Per-automation AI replies
+
+New templates default **AI replies** on. Uncheck it for staff-handled replies; contact overrides can also opt out. Drafts, publication and enrollment snapshots preserve `aiRepliesEnabled`. An overlapping opt-out or a reply to its last accepted message suppresses AI even after the run ends. This does not change scheduled pause/continue/stop policy, consent, sending or business-wide Off. MCP supports the same boolean. See [AI reply defaults](INBOUND_AI.md).
+
+
 Release update (October 14): the full SMS MCP milestone is deployed and its 26-tool
 catalog verified through Codex. Independent grants are available in AI connections.
 No live run or message was created for verification. See [CRM MCP](CRM_MCP.md)

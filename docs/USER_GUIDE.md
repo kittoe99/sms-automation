@@ -1,5 +1,10 @@
 # Staff user guide
 
+## AI replies in form and contact automations
+
+New settings and automation drafts default to AI replies on. Uncheck **AI replies** in an automation to handle replies yourself, or switch off the business-wide control under **SMS → AI replies**. Existing explicit Off settings stay off. No historical messages are replayed. Business Info remains the primary reference and missing pricing falls back to the saved phone or website. Consent, staff pauses and sending checks still apply.
+
+
 ## Registration and service visibility
 
 After an E2 customer completes onboarding, open their owner-linked record under **Businesses**. Extend the prefilled information and **Save business info**, then explicitly add/link services and **Set live** individually. Draft services remain hidden from the customer. **Hide from customer** reverses visibility; website publication and SMS activation are separate. Administrative setup requires an existing completed customer registration. See [Business lifecycle](BUSINESS_LIFECYCLE.md) for transfers, existing records and rollout. The owner-linked lifecycle was released October 1; see the dated project record for evidence.
