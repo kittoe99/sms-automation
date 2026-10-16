@@ -11,6 +11,8 @@ Use this guide for deployment preparation, monitoring and ordinary recovery. [Wo
 5. Verify authentication denials, authenticated reads and intended role permissions. A worker POST with a valid token can consume real work: pause affected dispatch/sending and establish controlled test conditions first.
 6. Use explicitly selected test recipients for delivery/STOP/booking/email tests. Confirm provider callbacks and original database records. Then enable the intended queue/business configuration and record the actual release and checks.
 
+For Node dependency fixes, keep the change targeted in `package-lock.json`, reinstall with `npm ci`, run `npm audit` and the release checks, then verify both Render builds use the intended commit. Record the audit result separately from the deployment receipt. The root npm lockfile controls Render installs; it does not establish which npm packages are bundled by the separate Deno Edge deployment path. A Node-only dependency update does not require a database migration or an E2 dashboard release.
+
 Shared identity and ownership rollout has additional report, mapping and pilot requirements in [staff CRM](STAFF_CRM.md). Bootstrap scripts that create privileged grants are not routine redeployment steps.
 
 For the October 14 local changes, use both the [CRM hardening guide](HARDENING_RELEASE.md)

@@ -1,5 +1,11 @@
 # Opek SMS project record
 
+## October 16 — Axios advisory fix (prepared locally)
+
+Updated only the resolved transitive Axios package from 1.19.0 to 1.20.0 in the CRM npm lockfile. Twilio remains 5.5.1 and accepts the patched version through its existing dependency range. A clean `npm ci --ignore-scripts` and `npm audit` report zero vulnerabilities. No application logic, database contract, migration or Edge import changed; this npm audit covers the Node install, not the separately resolved Deno graph.
+
+The requested release targets the existing CRM MCP and static frontend services. E2 Local dashboard changes, its pending migration and all E2 deployment branches remain held. The released E2 worktree supplies paired test contracts. No worker invocation, SMS test or live business mutation is part of validation. Local verification passed: 717 CRM tests, 29 existing skips, 63 paired E2 tests, source/SQL checks, production frontend build and the 68-file Edge bundle. Ignored evidence: `data/axios-release-checks.log`, `data/axios-audit.json`. Deployment receipts follow separately when the release completes.
+
 ## October 16 — CRM cross-chat rollout completed; E2 dashboard held
 
 Runtime commit `db4fbe9859e2f9fe3144c53eea82b1cc25dd122c` is live on both CRM services. MCP deployment `dep-db9aoq8m7kps73clsfgg` completed at 23:00:28 UTC; frontend `dep-db9apnm7bikc73fb1ud0` completed at 23:02:03 UTC. Render emitted no automatic frontend event after the push, so the existing dashboard's Deploy latest commit action was used; auto-deploy settings were not changed.
