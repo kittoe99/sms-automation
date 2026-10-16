@@ -15,7 +15,7 @@ is released or its agreed exclusion is documented.
 | 5 | Knowledge sources/uploads/versions and AI configuration/activation | Released c204b75; 103 tools / 72 grants; read-only verification passed |
 | 6 | Existing email groups, enrollment/job activity, preview, enablement and recovery | Released a0ce383; 115 tools / 80 grants; read-only verification passed |
 | 7 | Voice configuration/drafts/publication, calls, transcripts and media | Released 42e8293; 127 tools / 88 grants; read-only verification passed |
-| 8 | Existing-site details/deployments, form connections, update requests and publication | Pending |
+| 8 | Existing-site details/deployments, form connections, update requests and publication | Locally verified; release in progress |
 | 9 | Operational diagnostics, sanitized provider readiness, refresh/reconciliation and eligible recovery | Pending |
 
 ## Common contract

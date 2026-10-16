@@ -1,5 +1,20 @@
 // Tool authorization metadata. SQL parity is tested against the latest gateway.
 export const toolPermissions={
+ "crm_list_websites":"website_read",
+ "crm_get_website":"website_read",
+ "crm_get_website_publication":"website_read",
+ "crm_list_website_deployments":"website_deployment_read",
+ "crm_get_website_deployment":"website_deployment_read",
+ "crm_update_website_details":"website_details_edit",
+ "crm_list_website_form_connections":"website_form_read",
+ "crm_connect_website_form":"website_form_connect",
+ "crm_disable_website_form_connection":"website_form_disable",
+ "crm_list_website_requests":"website_request_read",
+ "crm_get_website_request":"website_request_read",
+ "crm_update_website_request":"website_request_edit",
+ "crm_publish_website":"website_publish",
+ "crm_unpublish_website":"website_unpublish",
+ "crm_get_website_operation":"website_read",
  "crm_list_voice_agents":"voice_config_read",
  "crm_get_voice_agent":"voice_config_read",
  "crm_list_voice_versions":"voice_config_read",
@@ -127,4 +142,4 @@ export const toolPermissions={
  "crm_add_business_service": "service_add",
  "crm_set_service_visibility": "visibility"
 };
-export const externalTools=new Set(['crm_retry_email_job','crm_prepare_knowledge_upload','crm_create_knowledge_source','crm_refresh_knowledge_source','crm_add_business_service','crm_reply_to_conversation','crm_send_contact_sms','crm_retry_handoff_alert']);
+export const externalTools=new Set(['crm_publish_website','crm_unpublish_website','crm_retry_email_job','crm_prepare_knowledge_upload','crm_create_knowledge_source','crm_refresh_knowledge_source','crm_add_business_service','crm_reply_to_conversation','crm_send_contact_sms','crm_retry_handoff_alert']);

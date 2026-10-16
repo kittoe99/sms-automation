@@ -1,5 +1,15 @@
 // Shared by the administrator editor and MCP output validation. New grants are opt-in.
 export const connectionPermissions = [
+ ["website_read","Read scoped existing websites and publication status"],
+ ["website_deployment_read","Read existing website deployment metadata"],
+ ["website_details_edit","Edit website name and customer-visible details"],
+ ["website_form_read","Read scoped website form connections"],
+ ["website_form_connect","Connect an existing enabled business form"],
+ ["website_form_disable","Disable an existing website form connection"],
+ ["website_request_read","Read scoped website update requests"],
+ ["website_request_edit","Update website request status and staff response"],
+ ["website_publish","Publish an existing ready website deployment"],
+ ["website_unpublish","Unpublish an existing website"],
  ["voice_config_read","Read scoped voice configurations and revision history"],
  ["voice_create","Create private voice drafts"],
  ["voice_edit","Edit voice drafts"],

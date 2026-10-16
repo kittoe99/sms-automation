@@ -125,7 +125,8 @@
     "20261016194340_crm_mcp_booking_management.sql": "4b4ba9a13a191ef149aed1c05e3915f4612d28345953a010341bcd10be1ff3c6",
     "20261016200143_crm_mcp_knowledge_ai.sql": "3e3f20dff420330869badd00208b9b8cbb20a9ba1eef2396e86323bb99f247b2",
     "20261016202046_crm_mcp_email_automation.sql": "a2f927c55b0dd90aa9c35ec2f7e79747619dc1912b477ab9fb91e33b84d5bf99",
-    "20261016203800_crm_mcp_voice_management.sql": "b8b465f917a6477da1c22dc13994fe692fa4b6d1bb8ca33998db11a1ad28b96d"
+    "20261016203800_crm_mcp_voice_management.sql": "b8b465f917a6477da1c22dc13994fe692fa4b6d1bb8ca33998db11a1ad28b96d",
+    "20261016204900_crm_mcp_website_management.sql": "57f7ae9f35a7e8214de45acf3d4c2609e430e3207361c536cb635c9aba3ea8f4"
   },
   "e2": {
     "20260922000000_create_contact_submissions.sql": "9a94bdadaabf0253d21529984d86bec5aafb1cfe80b454796d9ea9835b0463a5",
@@ -154,14 +155,15 @@
     "20261014061728_hosting_read_indexes.sql": "01549f619695450fe87575753ca59b340facd8450ae8d4c8296f9c00b6ed2717",
     "20261014065217_dashboard_scoped_reads.sql": "4523eb69c8a45622d1bc5e26e99494a64e8e423c39b8b446c7574f838ca3c72d",
     "20261014065602_contact_intake_limits.sql": "9873181c4a5bb0f43820ebe61c2f6e84e7c105e73af42325a07cd678c2760d4c",
-    "20261014071224_hosting_operation_fencing.sql": "7c2a1d9aef15e090507d1b326022cb1b0023cc575f41aefc195c5a59a40e9649"
+    "20261014071224_hosting_operation_fencing.sql": "7c2a1d9aef15e090507d1b326022cb1b0023cc575f41aefc195c5a59a40e9649",
+    "20261016204903_hosting_mcp_adapter_contract.sql": "a81c2dcace5b9fe1f06ad0714b6611913596eb8d6f95e0bb2d48a84b526e1ce4"
   },
   "e2HostingSources": {
     "app/api/web-hosting/route.ts": "3147ffca4348b583de099f4807a2691e479daf2e09291df4860216538edd07c9",
-    "app/api/web-hosting/[siteId]/route.ts": "1d993d761df772c224528a504032b6298fc6a933b9736605834bb08faeb1f4b4",
+    "app/api/web-hosting/[siteId]/route.ts": "bd6eba795738eb1f3913376db0d608e41aaf2de30f741f65fff3a4c14220d0fe",
     "app/api/web-hosting/[siteId]/deployments/route.ts": "a410f2f057ab6c5cf906b06683a9b37395cffeff509b79c4cfd3b7a2665b8c81",
     "app/api/web-hosting/[siteId]/deployments/[deploymentId]/route.ts": "73a9a7bd1b039092024860f936b8c8f2af4597d2db9be75a79985b9050fa9d33",
-    "lib/hosting/read-model.ts": "da1397ad79bb5b1807f03ed98e05921bbf563692a3fdfd8e875139f585e41fba",
+    "lib/hosting/read-model.ts": "e2d9dcc4c3e4758b999983ef2b0affa35087696ebf6ef40f31311fcedf05de87",
     "lib/hosting/r2.ts": "f53564c3922a9d5227eedd013a4d14624e31b2cf76aa13c5e8dd30d22389dff2",
     "lib/hosting/operation.ts": "55c93d873271c5d68ed1aaf946d3a39279bd73a99035141d8663bacc38a9735b",
     "lib/hosting/publication.ts": "41260a93e3119cdad7aaf26dffb74aeeee1b2e8cdfa66896c7deed9b9e5f3f34",

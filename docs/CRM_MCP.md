@@ -1792,3 +1792,33 @@ advisors are unchanged. Both canary runs remain stopped and the reply unread.
 No recording URL requested, call started, configuration published or SMS sent in
 live verification. Local CRM 668 passed / 29 existing skips, paired 63, E2 4,
 checks/builds and final PostgreSQL concurrency passed. Stages 8–9 remain.
+
+## Website MCP — October 16, 2026 (local)
+
+Stage 8 adds fifteen tools and ten grants (142 tools / 98 permissions). Reads scope
+site links, deployments, form connections and update requests before pagination/counts.
+Details edits preserve ownership/domain/publication and share site revisions with
+browser saves. E2 adds deployment/connection revisions, site revision changes for
+connections/publication, and fences metadata edits during hosting operations.
+Request edits reuse the E2 revisioned workflow. Connections never enable collection
+or SMS; no tool creates websites, uploads files, builds, buys domains or transfers ownership.
+
+CRM owns durable publication intents, fingerprints/receipts, grants, audit and hashed
+one-use tickets. The E2-owned /api/web-hosting/mcp adapter consumes those proofs with
+its existing server credentials, rechecks the CRM identity/connection/business grants,
+and uses the canonical hosting lease, R2 publication and cache invalidation. Completed
+operations replay status; interrupted or unknown external writes remain held for
+operator reconciliation. Read-only publication checks distinguish unavailable from
+unpublished and recheck scope after storage. No OAuth token becomes a browser session;
+R2 credentials, manifests, source files and preview tokens never enter MCP receipts.
+
+Local CRM 679 passed / 29 existing skips; paired 63. E2 full run had 240 passes and
+one fixture-path failure; that fixture now honors SMS_PROJECT_ROOT and all eight of
+its tests pass. E2 checks, six worker tests, paired 63, production build and targeted
+adapter/site tests pass. Disposable PostgreSQL covers concurrent details/intent
+retries, browser conflicts, interrupted transactions, competing execution claims
+and one-use proofs. CRM frontend/68-file Edge bundle pass. Two forward migrations
+reconcile against 144 live entries and match rollback rehearsal. Not yet applied.
+Order: CRM 20261016204900 integration state, E2 20261016204903 hosting contract,
+E2 runtime, MCP trusted adapter URL/service, CRM frontend, grants, read-only checks.
+No production website publication, customer record edit or messaging verification.
