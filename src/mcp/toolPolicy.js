@@ -1,5 +1,17 @@
 // Tool authorization metadata. SQL parity is tested against the latest gateway.
 export const toolPermissions={
+ "crm_list_voice_agents":"voice_config_read",
+ "crm_get_voice_agent":"voice_config_read",
+ "crm_list_voice_versions":"voice_config_read",
+ "crm_get_voice_version":"voice_config_read",
+ "crm_create_voice_agent":"voice_create",
+ "crm_save_voice_draft":"voice_edit",
+ "crm_publish_voice_draft":"voice_publish",
+ "crm_rollback_voice_configuration":"voice_rollback",
+ "crm_list_voice_calls":"voice_call_read",
+ "crm_get_voice_call":"voice_call_read",
+ "crm_get_voice_transcript":"voice_transcript_read",
+ "crm_get_voice_recording":"voice_media_read",
  "crm_set_form_email_enabled":"email_form_enable",
  "crm_list_email_groups":"email_read",
  "crm_get_email_group":"email_read",

@@ -1,5 +1,13 @@
 // Shared by the administrator editor and MCP output validation. New grants are opt-in.
 export const connectionPermissions = [
+ ["voice_config_read","Read scoped voice configurations and revision history"],
+ ["voice_create","Create private voice drafts"],
+ ["voice_edit","Edit voice drafts"],
+ ["voice_publish","Publish voice configuration for new calls"],
+ ["voice_rollback","Publish a copy of a previous voice revision"],
+ ["voice_call_read","Read scoped voice call metadata"],
+ ["voice_transcript_read","Read retained voice transcripts"],
+ ["voice_media_read","Access retained private call recordings"],
  ["email_form_enable","Offer or remove email consent on existing legacy email forms"],
  ["email_read","Read email groups, enrollments and job status"],
  ["email_content_read","Read existing email job subject and body"],

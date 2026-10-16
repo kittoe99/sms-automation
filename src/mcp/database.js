@@ -26,6 +26,14 @@ export function createMcpDatabase(config) {
     return row.result;
    });
   },
+  async voiceMediaTicket(identity,businessId,callId){
+   if(identity.issuer!==config.issuer)throw new Error('Invalid actor issuer');
+   return sql.begin(async tx=>{
+    await tx`select set_config('platform.actor_issuer',${config.issuer},true)`;
+    const [row]=await tx`select crm_mcp.voice_media_ticket(${identity.subject},${identity.clientId},${businessId},${callId}::uuid) ticket`;
+    return row.ticket;
+   });
+  },
   close:()=>sql.end({timeout:5}),
  };
 }

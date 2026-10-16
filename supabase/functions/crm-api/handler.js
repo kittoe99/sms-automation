@@ -1,3 +1,4 @@
+import {signMcpVoiceMedia} from './mcp-voice-media.js';
 import {json,readJson,cors,failure,authenticate,env} from '../_shared/http.js';
 import {phone,groupRule,localDateTime,business,message,contact,thread,group} from '../_shared/domain.js';
 import {enrichBusinessFromWebsite} from '../../../src/lib/websiteEnrich.js';
@@ -34,6 +35,7 @@ export function createCrmHandler(db,verify=authenticate,{platform=false,provisio
     return json({mode:'clerk',loginApplication:'crm',manualBusinesses:true,configured,publishableKey:configured?env('CRM_CLERK_PUBLISHABLE_KEY'):null,frontendApiUrl:configured?issuer:null},200,headers);
    }
    if(path==='/mcp/knowledge-upload'&&request.method==='POST')return json(await signMcpKnowledgeUpload(db,await readJson(request)),200,headers);
+   if(path==='/mcp/voice-media'&&request.method==='POST')return json(await signMcpVoiceMedia(db,await readJson(request)),200,headers);
    if(path==='/mcp/email-action'&&request.method==='POST')return json(await executeMcpEmailAction(db,await readJson(request)),200,headers);
    const user=await verify(request),tenant=request.headers.get('X-Tenant-ID');
    const read=(resource,p={})=>db.call('api_read',user,tenant,resource,p);

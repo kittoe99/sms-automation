@@ -103,7 +103,7 @@ test('MCP enforces paired business permissions, revisions, retries, release and 
    assert.equal((await db.query("select has_function_privilege('crm_mcp','sms_private.mcp_admin(text,text,jsonb)','EXECUTE') allowed")).rows[0].allowed,false);
    assert.equal((await db.query("select has_schema_privilege('crm_mcp','sms_private','USAGE') allowed")).rows[0].allowed,false);
    const exposed=(await db.query("select n.nspname,p.proname from pg_proc p join pg_namespace n on n.oid=p.pronamespace where n.nspname in ('public','sms_private','crm_mcp') and has_schema_privilege('crm_mcp',n.oid,'usage') and has_function_privilege('crm_mcp',p.oid,'execute')")).rows;
-   assert.deepEqual(exposed.sort((a,b)=>a.proname.localeCompare(b.proname)),[{nspname:'crm_mcp',proname:'email_action_ticket'},{nspname:'crm_mcp',proname:'invoke'},{nspname:'crm_mcp',proname:'knowledge_upload_ticket'}]);
+   assert.deepEqual(exposed.sort((a,b)=>a.proname.localeCompare(b.proname)),[{nspname:'crm_mcp',proname:'email_action_ticket'},{nspname:'crm_mcp',proname:'invoke'},{nspname:'crm_mcp',proname:'knowledge_upload_ticket'},{nspname:'crm_mcp',proname:'voice_media_ticket'}]);
    await db.exec('set role crm_mcp');
    const throughRole=(await db.query('select crm_mcp.invoke($1,$2,$3,$4,$5) r',['user_staff','https://client.example.test/codex.json','crm_get_access','{}',crypto.randomUUID()])).rows[0].r;
    assert.equal(throughRole.ok,true);await assert.rejects(db.query('select sms_private.seed_web_forms($1)',[a]),/permission denied/);await db.exec('reset role');

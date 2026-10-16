@@ -1753,3 +1753,28 @@ v1 remain enabled, both test runs stopped, and the reply unread. No email/SMS se
 enrollment, activation or content edit occurred during verification. Local CRM
 659 passed / 29 existing skips, paired 63, relevant E2 7, checks/builds and real
 PostgreSQL concurrency passed. Stages 7–9 remain.
+
+## Voice MCP — October 16, 2026 (local)
+
+Stage 7 adds twelve tools and eight independent grants (127 tools / 88 permissions).
+Agent/configuration/history and call reads use scoped projections and bounded pages.
+Draft creation deploys nothing; canonical draft_version protects browser and MCP
+saves, publication and rollback. Publication requires an existing deployment/phone
+and applies to new calls; rollback copies history while preserving the saved draft.
+Current calls and customer service visibility remain separate. Browser lock races
+return retryable failure promptly; subsequent stale revisions conflict.
+
+Transcripts and private recordings each require a separate grant and honor deletion
+and retention. One-use, 60-second media tickets recheck current identity, grants and
+scope in CRM Edge. Recording URLs expire within five minutes; credentials remain in
+Edge and are absent from receipts/audit. MCP never calls the global deployment
+catalog or exposes raw call request payloads, SIP/room/job identifiers or media paths.
+
+Local CRM 668 passed / 29 existing skips; paired 63 and relevant E2 4 passed. Both
+project checks, frontend/68-file Edge bundle, final targeted tests and disposable
+PostgreSQL concurrency passed. The final lock-handling change was rechecked with
+targeted and concurrency tests; the paired baseline was rerecorded and checks rerun.
+Migration 20261016203800 reconciles against 143 live entries and ten function hashes
+match rollback rehearsal. Not yet applied/released. Release order: CRM migration,
+CRM Edge media adapter, MCP/frontend, grants, read-only Codex checks. No E2 runtime
+change. No live calls, publication, transcript edits or SMS in release verification.
