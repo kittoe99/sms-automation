@@ -1,5 +1,15 @@
 # Opek SMS project record
 
+## October 16 — Axios fix deployed to CRM; E2 remains held
+
+CRM npm dependency Axios is now 1.20.0 (previously 1.19.0), with Twilio unchanged at 5.5.1. Runtime commit `4312d26dbf95775aac7e5bf5b28417362c6097aa` is live on MCP deployment `dep-db9ben0m7kps73coicug` (23:47:17 UTC) and frontend deployment `dep-db9besnbtjjs73b3j21g` (23:47:10 UTC). Both Render build logs report zero vulnerabilities. The frontend again emitted no automatic push event; Dashboard Deploy latest commit released the tested source without changing auto-deploy settings.
+
+Local verification: clean dependency install and npm audit (zero vulnerabilities), 717 CRM tests passed with 29 existing skips, 63 paired released-E2 contract tests passed, source/SQL checks, frontend build and 68-file Edge bundle passed. CRM root, MCP health and CRM authentication configuration return HTTP 200. Post-deployment Render error-log queries are empty for both services. Four served frontend modules match the tested build after normalizing Windows/Unix line endings; the initial byte comparison differed only by CRLF versus LF.
+
+Fresh Codex MCP verification discovered 155 tools and validated 16 read-only calls, including the expected permission denial for a nonexistent AI run. Opek's provider remains ready, both test runs are stopped with no next send, and the conversation remains revision 31 with four unread messages. No mutation tool, mark-read action, worker invocation or SMS test was performed. Evidence: ignored `data/axios-*`, including the local check log, audit, HTTP/MCP receipts and live deployment screenshot.
+
+No database migration or Edge function was deployed for this Node lockfile update. The npm audit result covers the Node dependency graph, not an independent audit of the Deno deployment graph. E2 Local dashboard edits, pending migration and all E2 releases remain explicitly held. Both project records were updated; the paired E2 record is local only in its released worktree, with no E2 push and no changes to the active dashboard checkout.
+
 ## October 16 — Axios advisory fix (prepared locally)
 
 Updated only the resolved transitive Axios package from 1.19.0 to 1.20.0 in the CRM npm lockfile. Twilio remains 5.5.1 and accepts the patched version through its existing dependency range. A clean `npm ci --ignore-scripts` and `npm audit` report zero vulnerabilities. No application logic, database contract, migration or Edge import changed; this npm audit covers the Node install, not the separately resolved Deno graph.
