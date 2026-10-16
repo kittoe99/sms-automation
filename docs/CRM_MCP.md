@@ -901,3 +901,13 @@ The SMS milestone above is released. Staff-access changes, ownership transfers,
 website reassignment/publication, deletion, arbitrary one-off sends and unattended
 credentials remain outside this tool set. Production sending is possible only
 through separately granted start/resume/enable workflows and their existing checks.
+## Instant form acknowledgment
+
+SMS sequence input/output accepts optional boolean `instantAcknowledgment`.
+Only form submission sequences with a zero-delay first step can set it true;
+direct-contact and appointment sequences reject it. It exempts only the first send
+from sending hours, never repeats or subsequent messages. Consent is still required.
+Use the normal draft-save revision/idempotency protections, then preview a time
+outside sending hours with and without consent. Publication and enablement remain
+separate actions. Publishing preserves existing run snapshots.
+

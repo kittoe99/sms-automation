@@ -470,3 +470,22 @@ behavior. See `PROJECT_RECORD.md` in each repository for verified scope.
 October 14: form and contact Continue enquiry messages share the 30-minute wait
 after customer/accepted AI replies in every AI mode. AI behavior is configured
 once under SMS → AI replies. See [unified SMS behavior](INBOUND_AI.md#october-14-unified-sms-behavior).
+## Optional instant form acknowledgment — October 16, 2026
+
+Submission sequences may opt into `instantAcknowledgment: true` with zero delay
+on their first message. That first send is due immediately even outside sending
+hours. Repeats of that message and all later steps still use the configured business
+window. Appointment and direct-contact sequences cannot enable this option. Omitted
+or false preserves existing behavior, and existing published snapshots are unchanged.
+
+This is a scheduling exception, not a consent exception: unchecked submission SMS
+consent, contact STOP/consent, overlap, reply/quiet-wait, staff pause, sending readiness,
+generation, lease and provider retry protections continue to apply. Normal queue and
+provider processing can delay acceptance; immediate does not promise instant delivery.
+The editor, saved-draft MCP schema and both preview paths preserve the option.
+
+CRM owns forward migration `20261016055448_form_instant_acknowledgment.sql`.
+Requires the five released forms MCP migrations and the current paired E2 baseline;
+no E2 contract migration is needed. Never replay migration history. Deployment and
+Opek draft configuration status are recorded separately in `PROJECT_RECORD.md`.
+

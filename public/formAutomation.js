@@ -15,6 +15,11 @@ export function validateSequence(value, fields = [], { appointmentAllowed = true
   const result = { trigger: value.trigger, leadHours: whole(value.leadHours ?? 24, 1, 8760, 'Appointment lead time'), replyPolicy: value.replyPolicy,
     startHour: whole(value.startHour, 0, 23, 'Window start'), endHour: whole(value.endHour, 1, 24, 'Window end'), steps: [] };
   if (result.endHour <= result.startHour) throw new Error('The sending window must end after it starts.');
+  if (value.instantAcknowledgment !== undefined) {
+    if (typeof value.instantAcknowledgment !== 'boolean') throw new Error('Instant acknowledgment must be on or off.');
+    if (value.instantAcknowledgment && (value.trigger !== 'submission' || value.steps?.[0]?.delayCount !== 0)) throw new Error('Instant acknowledgment requires a submission trigger and zero first delay.');
+    result.instantAcknowledgment = value.instantAcknowledgment;
+  }
   if (!Array.isArray(value.steps) || value.steps.length < 1 || value.steps.length > 50) throw new Error('Add between 1 and 50 messages.');
   const allowed = new Set(['first_name', 'name', 'phone', 'email', 'business_name', ...(value.trigger === 'appointment' ? ['appointment_at'] : []), ...fields.map(f => `field.${f.key}`)]);
   result.steps = value.steps.map((step, index) => {
@@ -29,5 +34,6 @@ export function validateSequence(value, fields = [], { appointmentAllowed = true
   return result;
 }
 export function sequenceSummary(sequence) {
-  return (sequence.steps || []).map((s, i) => `Message ${i + 1}: wait ${s.delayCount} ${s.delayUnit}${s.delayCount === 1 ? '' : 's'}, send ${s.sendCount} time${s.sendCount === 1 ? '' : 's'}${s.sendCount > 1 ? `, every ${s.intervalCount} ${s.intervalUnit}${s.intervalCount === 1 ? '' : 's'}` : ''}`).join(' → ');
+  const timing = sequence.instantAcknowledgment ? 'First acknowledgment immediately, including outside sending hours. Repeats and later messages use sending hours. ' : '';
+  return timing + (sequence.steps || []).map((s, i) => `Message ${i + 1}: wait ${s.delayCount} ${s.delayUnit}${s.delayCount === 1 ? '' : 's'}, send ${s.sendCount} time${s.sendCount === 1 ? '' : 's'}${s.sendCount > 1 ? `, every ${s.intervalCount} ${s.intervalUnit}${s.intervalCount === 1 ? '' : 's'}` : ''}`).join(' → ');
 }

@@ -13,6 +13,7 @@ export const smsReadTools=[
 ];
 const unit=z.enum(['minute','hour','day','week','month']);
 export const smsSequenceSchema=z.object({
+ instantAcknowledgment:z.boolean().optional().describe('Form submission only: send the zero-delay first acknowledgment outside sending hours. Repeats and later messages keep the sending window; consent is still required.'),
  trigger:z.enum(['submission','appointment']),leadHours:z.number().int().min(1).max(8760),
  replyPolicy:z.enum(['pause','continue','stop']),startHour:z.number().int().min(0).max(23),endHour:z.number().int().min(1).max(24),
  steps:z.array(z.object({body:z.string().min(1).max(1600),delayCount:z.number().int().min(0).max(365),delayUnit:unit,

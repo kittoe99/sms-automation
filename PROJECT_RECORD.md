@@ -1,5 +1,28 @@
 # Opek SMS project record
 
+## Instant form acknowledgment — October 16, 2026 (release preflight)
+
+Implemented optional `instantAcknowledgment` across form editor, MCP sequence
+schema, validation/projection, preview, initial enrollment, worker preparation and
+final send checks. Only the first zero-delay submission acknowledgment bypasses
+sending hours; repeats/later steps keep the window. Existing versions and settings
+are unchanged. Consent, STOP, overlaps, replies, lease/generation fences and
+idempotent acceptance remain authoritative. Zero unrestricted delay preserves the
+exact instant through DST folds.
+
+Local verification: CRM check; 521 tests passed/29 existing skips; 31 focused tests;
+E2 required check and 20 enquiries/bookings tests; 63 paired contract tests;
+frontend production build using its existing public configuration and 65-file
+Edge packaging passed. No network SMS calls occurred in tests.
+
+Migration preflight: reconciled 126 live history entries and prior aliases; exactly
+one new forward migration, `20261016055448_form_instant_acknowledgment.sql`.
+Rollback rehearsal passed with all function guards. The preexisting start_form_run
+hash differs solely by trailing whitespace on one blank line; verified equivalent
+before using its actual live hash in the guard. No history repair/replay and no
+unrelated main-checkout AI-default migration. Not yet applied or released at this
+checkpoint; deployment and target draft changes will be recorded below.
+
 ## Forms MCP production release — October 15, 2026, 11:19 PM Denver
 
 The forms milestone is deployed. This release record supersedes the historical
