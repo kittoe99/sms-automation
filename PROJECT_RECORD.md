@@ -1,5 +1,43 @@
 # Opek SMS project record
 
+## Compliance operation repair and archive — October 16, 2026
+
+Fixed the gap where a terminal compliance job left a safe preflight/status
+operation pending. The database now synchronizes failed/cancelled jobs with
+pending activation-canary and non-reconciliation status-check operations, with
+transactional redacted audit and shared revisions. Successful/uncertain provider
+outcomes, purchases, registration submissions and canaries with send evidence
+are preserved. Archived evidence is immutable and omitted before diagnostic
+counts/pagination; scoped details remain available by ID.
+
+Local verification: CRM verify:release passed (694 tests, 29 existing skips,
+63 paired tests, checks, frontend build and 68-file Edge bundle). E2
+verify:release passed (248 tests, six worker tests, 63 paired tests, checks and
+production build). Eight focused lifecycle/archive tests and disposable
+PostgreSQL races passed, including audit rollback, worker completion races,
+revision/lock conflicts, isolation and no queued sends.
+
+Applied only CRM migration 20261016213635_compliance_operation_lifecycle after
+reconciling 147 applied entries and a rollback rehearsal; history is now 148.
+All eight function hashes matched, private helper execute grants remain zero,
+and security advisors were unchanged. This was a database-only release; no
+Render service, Edge worker or E2 runtime redeployment was required.
+
+At 21:46:50 UTC, the authorized scoped maintenance transaction corrected the old
+Opek preflight operation to failed and archived it together with its failed job
+and one cancelled bootstrap job superseded by the configured connection. Three
+audit entries attribute the repair/archive to the verified CRM administrator.
+No records were deleted. Successful canary evidence, all other operational
+records, contacts, submissions, forms, runs, messages and send jobs retained
+identical preservation hashes.
+
+Fresh Codex MCP verification completed at 21:47:22 UTC: nine successful attributed
+read calls; 13 completed jobs and seven completed provider operations in active
+lists; archived details retained with retry disabled. Opek remained ready with
+no blockers and unchanged sending configuration. No retry, enrollment, activation,
+provider call or SMS was performed by the repair/archive. The earlier authorized
+status refresh remains recorded separately.
+
 ## Nine-stage MCP rollout complete — October 16, 2026
 
 All nine planned stages are implemented and released. The final catalog has

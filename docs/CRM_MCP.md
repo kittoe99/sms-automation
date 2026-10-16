@@ -1888,3 +1888,33 @@ Final local verification: CRM verify:release 686 passed / 29 existing skips;
 E2 verify:release 248 passed plus six worker tests; paired suites 63 passed;
 checks/builds and disposable PostgreSQL concurrency passed. Local checks, applied
 migrations and live deployments are separate evidence, recorded above.
+
+## Terminal operation lifecycle and archive
+
+CRM owns 20261016213635_compliance_operation_lifecycle, applied after the
+operational MCP migration (20261016211044). Do not replay either project history.
+Terminal failed/cancelled compliance jobs now conclude only safe pending canary
+preflight or non-reconciliation status operations. The check excludes successful
+or uncertain results, external resource SIDs and canaries with downstream send
+records. Worker finish and exhausted-lease recovery use the same transaction,
+revision and redacted audit path.
+
+Archive is owner-only maintenance using archive_obsolete_provider_job, not a
+new MCP permission or browser action. It requires canonical active staff access,
+an explicit business/job ID and current job/operation revisions. Only old,
+unleased failed preflight canaries with a later successful delivered replacement,
+or cancelled bootstrap jobs superseded by a configured connection, qualify.
+Rehearse scoped maintenance in a rollback transaction and compare protected
+domain hashes before committing. No queues, sends or credentials are created.
+
+Archived rows retain payloads, dedupe keys and audit history; updates/retries
+are rejected. CRM operations, grounded diagnostics and MCP operational lists
+exclude archives before counts/paging. Scoped MCP details remain readable by ID
+with the original terminal status; archive timestamps are private maintenance
+metadata. Successful delivery history and active services are never archive
+candidates in this workflow. E2 public/customer contracts and caches are unchanged.
+
+October 16 release: history 148; two obsolete Opek jobs and their one failed
+operation archived, with all other domain hashes unchanged. Nine fresh Codex
+read calls verified readiness and filtered diagnostics. See both project records
+for local tests and the separate database-only release evidence.

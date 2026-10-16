@@ -214,3 +214,15 @@ RLS without policies and no direct grants. Existing unrelated notices include
 [pg_net in public](https://supabase.com/docs/guides/database/database-linter?lint=0014_extension_in_public)
 and [legacy executable definer functions](https://supabase.com/docs/guides/database/database-linter?lint=0028_anon_security_definer_function_executable);
 these were not changed by this release.
+
+### Historical failed canary cleanup — October 16
+
+The October 3 preflight failure preceded the existing SDK response-field fix
+(commit 887bf16). The current sender check already uses `sid`; no new SDK change
+or canary retry was required. A separate lifecycle gap left its operation pending
+when the worker marked its job failed. Migration 20261016213635 fixes safe terminal
+operation bookkeeping and adds conservative archival; see [Operations](OPERATIONS.md#terminal-operation-lifecycle-and-archive).
+The failed preflight operation/job and obsolete cancelled bootstrap were archived
+after verifying zero child messages/send jobs and a later delivered canary.
+Provider readiness, the successful canary and active customer workflows remain
+unchanged. No SMS or provider retry was performed during this cleanup.

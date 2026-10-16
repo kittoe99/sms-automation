@@ -127,7 +127,8 @@
     "20261016202046_crm_mcp_email_automation.sql": "a2f927c55b0dd90aa9c35ec2f7e79747619dc1912b477ab9fb91e33b84d5bf99",
     "20261016203800_crm_mcp_voice_management.sql": "b8b465f917a6477da1c22dc13994fe692fa4b6d1bb8ca33998db11a1ad28b96d",
     "20261016204900_crm_mcp_website_management.sql": "57f7ae9f35a7e8214de45acf3d4c2609e430e3207361c536cb635c9aba3ea8f4",
-    "20261016211044_crm_mcp_operations.sql": "102327f1a5af7effb3823561f63b42d9f990dad15a870e97748e4d61d03282cc"
+    "20261016211044_crm_mcp_operations.sql": "102327f1a5af7effb3823561f63b42d9f990dad15a870e97748e4d61d03282cc",
+    "20261016213635_compliance_operation_lifecycle.sql": "6959ea2e44a7b765ff5fe5129e94bc9c6561d4998fb967253df7398a6efeb780"
   },
   "e2": {
     "20260922000000_create_contact_submissions.sql": "9a94bdadaabf0253d21529984d86bec5aafb1cfe80b454796d9ea9835b0463a5",
