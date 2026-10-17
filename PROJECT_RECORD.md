@@ -15,6 +15,16 @@ still enforced) and aliases the CRM authorization metadata at
 shared-contract change. Open operator decisions: enable Clerk DCR only if a
 non-CIMD client is required; paid Render plan to remove free-tier cold starts.
 
+Released commit 35ffc31 to `codex/crm-mcp-business-setup`; MCP deploy
+dep-db9pq03ncjis73a7p2qg is live (16:07 UTC). Before release: MCP suite 281 passed
+and `npm run check` passed. Live checks: `/health` and all six discovery paths return
+200 with ACAO for a foreign Origin; aliases report issuer clerk.crm.e2local.com;
+foreign-Origin `/mcp` preflight/POST 403; allowed-Origin and no-Origin unauthenticated
+POST 401 with the resource-metadata challenge; wrong Host 403. Claude Code's
+`e2-crm` client completed OAuth and `crm_get_access`, creating pending connection
+94f0a966-d1b9-420b-8edb-c86edf3b332a with no grants (awaiting staff activation).
+`deploy-crm` does not carry this commit or the four newer service-branch records.
+
 ## October 16 — MCP documentation published; E2 production reconciled
 
 Pushed documentation commit 176df95 to the public CRM branch codex/crm-mcp-business-setup. Anonymous GitHub raw reads of the entry point, quick start, tool reference and full JSON catalog all returned 200 and matched local content. GitHub CI run 38999056874 completed successfully. Updated the current guides with public links and corrected the stale E2 hold statement.
