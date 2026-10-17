@@ -25,6 +25,15 @@ POST 401 with the resource-metadata challenge; wrong Host 403. Claude Code's
 94f0a966-d1b9-420b-8edb-c86edf3b332a with no grants (awaiting staff activation).
 `deploy-crm` does not carry this commit or the four newer service-branch records.
 
+Later on October 17, at the user's request, `deploy-crm` was fast-forwarded (no force)
+from bd318e5 to 8877e25, so it now matches `codex/crm-mcp-business-setup`. The six
+commits change only MCP server code, MCP tests, docs, doc scripts and the CI workflow.
+No frontend, Supabase function, migration or E2 change, so no
+static-site redeploy was started and Render was not checked for an automatic one. Before the
+push, `npm run check`, the MCP suite (281 passed), `docs:mcp:check` and
+`build:frontend` passed. `main` is a separate, older history and was left
+unchanged.
+
 ## October 16 — MCP documentation published; E2 production reconciled
 
 Pushed documentation commit 176df95 to the public CRM branch codex/crm-mcp-business-setup. Anonymous GitHub raw reads of the entry point, quick start, tool reference and full JSON catalog all returned 200 and matched local content. GitHub CI run 38999056874 completed successfully. Updated the current guides with public links and corrected the stale E2 hold statement.
