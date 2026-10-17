@@ -131,7 +131,8 @@
     "20261016213635_compliance_operation_lifecycle.sql": "6959ea2e44a7b765ff5fe5129e94bc9c6561d4998fb967253df7398a6efeb780",
     "20261016220003_unified_business_info.sql": "b0f0b9ca874f87d944b0df3c4e6cdd567ac9b04d1ca3bf9f6e8304d1b1f27529",
     "20261016222634_crm_mcp_ai_reply_diagnostics.sql": "79c4294e0aa29b5de03a96b58b19e6a836386e89188437d86e5da4c0c08e06ba",
-    "20261016225239_automation_ai_reply_defaults_rollout.sql": "a910a97b03b2ff758c0b77fc0e7f6b7da2dfa6cfe603ec45f7eda79acc38cc1e"
+    "20261016225239_automation_ai_reply_defaults_rollout.sql": "a910a97b03b2ff758c0b77fc0e7f6b7da2dfa6cfe603ec45f7eda79acc38cc1e",
+    "20261016235631_inbound_ai_profile_provenance.sql": "3fcab30057befbc83f06f237463f2dfa1bcdc1d6f0bb96d328bfc26febe0d217"
   },
   "e2": {
     "20260922000000_create_contact_submissions.sql": "9a94bdadaabf0253d21529984d86bec5aafb1cfe80b454796d9ea9835b0463a5",

@@ -1,5 +1,14 @@
 # CRM MCP business setup
 
+## Business Info version tracking — local only
+
+The existing AI run list/detail schemas now accept server-recorded Business Info
+version metadata. One CRM forward migration captures the actual leased context
+and copies it into new results; historical results remain not recorded. No new
+tools or grants are added. See [AI diagnostics](AI_REPLY_DIAGNOSTICS.md) for retry,
+recovery, isolation, tests and the compatible MCP-first release order. Nothing in
+this step has been applied or deployed; E2 Local remains held.
+
 ## AI reply diagnostics — released October 16, 2026
 
 Two new read tools and two default-off permissions are released at 066d2ef.

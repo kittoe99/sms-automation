@@ -28,6 +28,14 @@ read checks passed with domain/read-state preservation and zero mutation receipt
 See [AI reply diagnostics](AI_REPLY_DIAGNOSTICS.md) for the strict contract,
 isolation coverage and the one new CRM migration, 20261016222634.
 
+## Next follow-on: Business Info provenance (implemented locally)
+
+One new CRM migration, `20261016235631_inbound_ai_profile_provenance.sql`, records
+Business Info context versions for new AI results. Existing scoped diagnostic
+reads expose the version; older results remain not recorded. This introduces no
+new tools, grants or E2 contracts. Deploy the compatible MCP schema before the
+forward migration; neither is released yet. See [AI diagnostics](AI_REPLY_DIAGNOSTICS.md).
+
 ## Common contract
 
 Explicit business and record IDs, independent grants, strict schemas, bounded

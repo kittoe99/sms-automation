@@ -1,5 +1,15 @@
 # Opek SMS project record
 
+## October 16 — AI Business Info provenance (implemented locally; not released)
+
+New CRM migration `20261016235631_inbound_ai_profile_provenance.sql` captures the approved Business Info ID, integer version, facts and timestamp atomically with the leased inbound context. Repeated reads in one lease retain the snapshot; regeneration under a new lease may use a newer profile; recovery of committed tool replies retains the original context. A database insert trigger copies trusted metadata into new results, ignoring worker/model-supplied version IDs. Existing results receive no backfill. Missing historical context remains `not_recorded`; a captured context without an approved profile reports `no_approved_profile`.
+
+Existing scoped MCP AI run list/detail tools expose the recorded ID, version, capture timestamp and availability under `ai_reply_read`. Private context content is never returned or copied into MCP audit. The separate reply-content grant, isolation, bounded reads and redaction remain unchanged. There are still 155 tools / 106 grants. Strict output defaults support old database output so the compatible MCP schema must be released before applying this migration; the existing worker already invokes the changed DB functions and needs no Edge source release.
+
+Local verification: 724 CRM tests passed / 29 existing skips; 63 paired tests against the released E2 worktree passed; source/SQL checks, frontend build and 68-file Edge bundle passed. Twenty focused provenance, diagnostics and protocol checks passed after the compatibility defaults. Disposable real PostgreSQL verified concurrent profile review, serialized same-lease reads, trusted result attachment and interrupted transaction rollback with zero outbound messages. Historical migration fixtures, stale leases, retry/recovery, terminal failure, forged metadata, foreign-profile FK rejection, scoped diagnostics, private grants, read-only snapshots and audit redaction are covered. Evidence is in ignored `data/profile-provenance-*`.
+
+Applied migrations: none. Deployments: none. No production database write, live model call, SMS send, consent change or mark-read action was performed. E2 profile/review contracts and runtime files are unchanged; its active dashboard checkout and pending migration remain held. Paired baseline adds only this CRM migration. Both project records and affected MCP workflow docs describe the local work and compatible release order; the E2 record remains local and unpushed.
+
 ## October 16 — Axios fix deployed to CRM; E2 remains held
 
 CRM npm dependency Axios is now 1.20.0 (previously 1.19.0), with Twilio unchanged at 5.5.1. Runtime commit `4312d26dbf95775aac7e5bf5b28417362c6097aa` is live on MCP deployment `dep-db9ben0m7kps73coicug` (23:47:17 UTC) and frontend deployment `dep-db9besnbtjjs73b3j21g` (23:47:10 UTC). Both Render build logs report zero vulnerabilities. The frontend again emitted no automatic push event; Dashboard Deploy latest commit released the tested source without changing auto-deploy settings.
