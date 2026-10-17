@@ -1,5 +1,15 @@
 # Opek SMS project record
 
+## October 16 — Business Info version tracking deployed to CRM
+
+Runtime `1006b79ea57a71eff96631665b5f6ebe089b1475` is live on MCP `dep-db9dfk67bikc73fkn860` (October 17, 02:05:48 UTC) and frontend `dep-db9dg5dg1s2s738a70ig` (02:06:26 UTC). The compatible MCP schema deployed first and passed 16 read-only Codex checks against the previous database. No automatic frontend event appeared after the push; Dashboard Deploy latest commit released the same source without changing auto-deploy settings. No Edge redeploy was needed.
+
+Reconciled 152 live migration entries, including E2 `20261016224415_dashboard_actions_and_enquiry_links` already applied independently before this release. It was observed, not applied or replayed by this task. Rollback rehearsal matched all five tested function hashes; CLI dry-run listed only CRM `20261016235631_inbound_ai_profile_provenance.sql`. Applied that migration alone; live history is now 153. Private table RLS, trigger and denied direct/helper access verified. All four historical runs retain null provenance and `not_recorded`; no backfill or live AI test was performed.
+
+Post-migration fresh Codex discovery verified 155 tools / 106 grants and 16 read-only calls, all attributed to the existing admin connection, with zero mutation receipts. Opek provider readiness, form/follow-up configuration and both stopped test runs are preserved. Conversation revision 31/four unread messages remain unchanged. All 40 monitored domain fields/hashes match before and after, including messages, queues and settings. CRM root, MCP health and auth configuration return HTTP 200; MCP error-log query was empty and frontend build reported zero vulnerabilities. Local test/build evidence remains the separate 724 CRM / 63 paired / 20 focused checks and disposable PostgreSQL concurrency results recorded below.
+
+No SMS was queued/sent, messages marked read, consent changed, or worker/model invoked. No E2 branch was pushed or E2 deployment initiated; ongoing E2 edits remain held and untouched. This paired record is local-only in the released E2 worktree. Evidence: ignored `data/profile-provenance-release-*`, MCP/HTTP receipts and deployment screenshot.
+
 ## October 16 — AI Business Info provenance (implemented locally; not released)
 
 New CRM migration `20261016235631_inbound_ai_profile_provenance.sql` captures the approved Business Info ID, integer version, facts and timestamp atomically with the leased inbound context. Repeated reads in one lease retain the snapshot; regeneration under a new lease may use a newer profile; recovery of committed tool replies retains the original context. A database insert trigger copies trusted metadata into new results, ignoring worker/model-supplied version IDs. Existing results receive no backfill. Missing historical context remains `not_recorded`; a captured context without an approved profile reports `no_approved_profile`.

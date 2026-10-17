@@ -1,6 +1,6 @@
 # AI reply diagnostics through MCP
 
-## Business Info provenance — local implementation, October 16, 2026
+## Business Info provenance — released October 16, 2026
 
 New worker contexts capture the approved Business Info profile ID, integer version,
 exact profile facts and capture time in a private, RLS-enabled context table. Facts
@@ -34,14 +34,20 @@ Existing `ai_reply_read` and `ai_reply_content_read` grants remain unchanged.
 The catalog stays at 155 tools / 106 grants.
 
 CRM owns `20261016235631_inbound_ai_profile_provenance.sql`, following
-`20261016225239_automation_ai_reply_defaults_rollout.sql`. It is **not applied**.
+`20261016225239_automation_ai_reply_defaults_rollout.sql`. It is applied.
 No E2 profile/review contract change, new grant, mode change or send is required.
-For a later authorized release, first deploy the compatible MCP schema, which
-supplies null/`not_recorded` defaults for old database output. Then reconcile both
-migration histories and apply only this forward migration. Applying it before the
-compatible MCP schema would make the old strict validator reject the extra fields.
+MCP runtime `1006b79` deployed first, supplying null/`not_recorded` defaults
+for the previous database output. After reconciling 152 live entries and a rollback
+rehearsal, only this migration was applied (153 entries now). All five live function
+hashes match the tested definitions. E2 dashboard migration `20261016224415` was
+already present independently and was not applied or replayed by this release.
+Applying the provenance migration before the compatible MCP schema would make
+the old strict validator reject its extra fields.
 The unchanged worker already calls the database context/completion functions;
-no Edge redeployment is required. E2 Local remains undeployed.
+no Edge redeployment was required. No E2 deployment was initiated by this task.
+Sixteen attributed read-only Codex calls passed after migration; historical runs
+remain not recorded, private access remains denied and all 40 monitored domain
+fields/hashes remain unchanged. No SMS, live AI run or mark-read test was performed.
 
 Local coverage includes mocked-model generation, profile changes during a reply,
 stale leases, repeat contexts, regenerated retries, recovery, terminal failures,
