@@ -2,7 +2,7 @@
 
 ## AI preview release status — October 16
 
-CRM migration `20261017024313` and runtime `bd318e5` are live. Codex discovers 156 tools; the authorized admin now has `ai_reply_preview` (107 grants total). Server-only `MCP_AI_PREVIEW_API_KEY` configuration and one real Opek preview remain pending the secure key location. Read-only verification passed with unchanged customer/message state and no E2 deployment. See the latest project record for migration and deployment receipts.
+CRM migration `20261017024313` and runtime `bd318e5` are live. Codex discovers 156 tools; the authorized admin now has `ai_reply_preview` (107 grants total). Server-only `MCP_AI_PREVIEW_API_KEY` is configured; MCP restart `dep-db9ec6lg1s2s738d43a0` is live. One real Opek preview returned its website/phone for an accurate junk-removal quote, recorded approved Business Info version 7 and queued no message or action. Nineteen scoped Codex calls produced 21 attributed audit rows and zero mutation receipts. Customer/message/queue state stayed unchanged; E2 remained undeployed. See the latest project record for migration and deployment receipts.
 
 This is the execution record for the approved nine-stage rollout. The starting
 production baseline is 49 tools and 33 permissions (conversation release

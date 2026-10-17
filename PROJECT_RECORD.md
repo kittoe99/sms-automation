@@ -1,5 +1,13 @@
 # Opek SMS project record
 
+## October 16 — AI reply preview release completed
+
+Configured server-only `MCP_AI_PREVIEW_API_KEY` on the existing CRM MCP service from the user-designated local secret file, merging without replacing other environment variables. The key was not logged, committed or added to the frontend. Render's configuration update restarted MCP as `dep-db9ec6lg1s2s738d43a0`, live October 17 at 03:06:42 UTC, source `0fe9035` (documentation only beyond runtime `bd318e5`). Frontend remains the successful `bd318e5` deployment below. No additional migration, grant change, Edge release or E2 deployment was performed in this completion.
+
+Fresh Codex discovery verified 156 tools and 107 admin grants, followed by 19 scoped calls including one real `crm_preview_ai_reply`. Opek's junk-removal-only question returned its website or phone for an accurate couch/mattress quote in ZIP 80231, without using moving rates. The preview recorded approved Business Info version 7 (`86be1552-820f-4021-8b2a-565f8f5e9459`), business revision 7, settings revision 2 and capture time 03:07:17 UTC. It returned `previewOnly:true`, `approved_business_info_only`, `actionsExecuted:false`, and `messageQueued:false`.
+
+All 21 access/recheck/result audit rows are attributed; the result records profile ID/version without message/prompt/reply text. Zero mutation receipts, pending SMS or queued AI jobs. All 40 monitored domain fields/hashes match before and after; conversation revision 35/unread 0 stayed unchanged, four historical AI runs remain not_recorded and both test runs stay stopped with null next-send times. No SMS sent, customer edit, read mark, automation change or E2 push/deployment. Evidence: ignored `data/ai-preview-mcp-verification.json` and `data/ai-preview-key-*`. Prior local test results and migration/code deployment receipts remain separately dated below. This resolves the pending credential/preview item in the preceding entry.
+
 ## October 16 — AI preview database/code released; API key pending
 
 Applied only CRM migration `20261017024313_crm_mcp_ai_reply_preview.sql` after reconciling 153 live entries, verifying rollback rehearsal/function hashes and confirming the single-file CLI dry run. Live history is now 154. Runtime `bd318e50b103e4699a675df168281c5f022f8c6d` is live on MCP `dep-db9e8pqjnfac73bv9ebg` (October 17, 02:59:26 UTC) and frontend `dep-db9e94jrjlhs73eg8ed0` (02:59:41 UTC). Frontend used Dashboard Deploy latest commit after no automatic event appeared. No Edge release was needed.
