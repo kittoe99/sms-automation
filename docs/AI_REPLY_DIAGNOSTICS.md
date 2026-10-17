@@ -1,5 +1,69 @@
 # AI reply diagnostics through MCP
 
+## Hypothetical AI reply previews — local implementation, October 16, 2026
+
+`crm_preview_ai_reply` requires the new, default-off `ai_reply_preview` grant and
+an allowed explicit `businessId`. Inputs are a hypothetical `message` (1–4000
+characters), `businessRevision`, `settingsRevision`, and `profileVersionId`.
+Read the business setup revision/reviewed profile ID with `crm_get_business`
+(`read`) and the settings revision with `crm_get_ai_configuration` (`ai_config_read`).
+Those read grants do not confer preview permission, nor does preview grant sending.
+The admin permission editor includes the new grant; existing connections are not upgraded.
+
+The MCP server uses the live `inboundInstructions` builder and pinned inbound
+model, but supplies only approved Business Info, saved AI instructions, business
+name/timezone and the hypothetical text. It does not load customer history,
+contacts, form submissions, booking state, availability or supplementary knowledge.
+Its explicit `contextScope` is `approved_business_info_only`. No tools are provided
+to the model, and returned tool calls are rejected. Preview instructions prohibit
+claiming bookings, handoffs or other actions occurred. This is a suggested answer,
+not proof of how an existing conversation with richer context would respond.
+
+The database checks active CRM staff, OAuth connection, grant and business scope,
+then captures facts, profile ID/version, setup and settings revisions in one SQL
+statement. After generation it rechecks authorization and revisions plus a hash
+of the entire captured context. Concurrent changes return `CONFLICT`; revocation
+returns `PERMISSION_DENIED`, and the generated reply is discarded. No transaction
+or database lock spans the external model request.
+
+A successful result reports `profileVersionId`, `profileVersion`,
+`profileCapturedAt`, `profileVersionAvailability: recorded`, both revisions,
+`model`, `promptVersion`, `previewOnly: true`, `actionsExecuted: false`, and
+`messageQueued: false`. Provenance describes the preview context; previews do not
+create live AI runs or change historical diagnostic records. No prompt, input or
+reply is saved to the CRM database. Canonical context access/recheck audit events and a separate
+`crm_preview_ai_reply:result` event share the request ID; the result event records
+only approved profile ID/version and an allowlisted outcome. A context-access
+success is not a successful model generation. Interrupted requests may have only
+the context audit; they leave no customer mutation or send to recover.
+
+The server needs the server-only `MCP_AI_PREVIEW_API_KEY` environment variable.
+Missing credentials, provider refusal/timeouts, malformed output or a tool call
+return a sanitized `TEMPORARY_FAILURE`. There is one bounded model request, no
+automatic retry, no customer recipient and no worker/sender credentials. Model
+usage can incur cost. The Responses request uses `store: false`, `text.format`
+structured output, and no tools, following the [official API guide](https://developers.openai.com/api/docs/guides/migrate-to-responses). Repeated previews may differ, so MCP advertises read-only,
+non-destructive, open-world and non-idempotent behavior. No mutation idempotency
+receipt is created. Retry only intentionally; reread after conflicts.
+
+CRM owns the single forward migration
+`20261017024313_crm_mcp_ai_reply_preview.sql`, after profile provenance
+`20261016235631`. No E2 runtime or database contract change is required. Local
+combined fixtures apply CRM and the released E2 baseline; production must reconcile
+both histories and apply only the new migration before releasing MCP/frontend.
+Configure the preview key and explicitly grant preview access during a separately
+authorized release. The local catalog becomes 156 tools / 107 permissions;
+production remains at 155 / 106 until release. No migration, grant or service has
+been applied/deployed for this step.
+
+Tests use mocked model responses and isolated databases: strict inputs, independent
+grants, foreign IDs, missing profiles/settings, stale revisions, mid-generation
+edits, staff/connection revocation, prompt constraints, provider failures, private
+helper access, audit redaction, and unchanged customer/queue snapshots. The local
+PostgreSQL script `scripts/test-ai-preview-concurrency.js` additionally checks
+independent-session edits/revocation with no model-spanning locks. These checks do
+not claim a new real-model quality evaluation or live SMS test.
+
 ## Business Info provenance — released October 16, 2026
 
 New worker contexts capture the approved Business Info profile ID, integer version,

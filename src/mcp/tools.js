@@ -1,3 +1,4 @@
+import {aiPreviewTools,aiPreviewOutputs} from './aiPreviewSchemas.js';
 import {aiDiagnosticsTools,aiDiagnosticsOutputs} from './aiDiagnosticsSchemas.js';
 import {operationsTools,operationsOutputs} from './operationsSchemas.js';
 import {websiteTools,websiteOutputs} from './websiteSchemas.js';
@@ -30,6 +31,7 @@ const business={businessId:id};
 const write={...business,idempotencyKey:z.string().min(8).max(128)};
 const profile={...write,revision:z.number().int().nonnegative(),profile:z.record(z.unknown())};
 export const toolDefinitions=[
+ ...aiPreviewTools,
  ...aiDiagnosticsTools,
  ...operationsTools,...websiteTools,...voiceTools,...activityTools,...formLifecycleTools,...emailTools,
  ...knowledgeTools,
@@ -73,6 +75,7 @@ const providerSetup=z.object({state:z.string(),jobs:z.array(z.object({id:uuid,st
 const mutation=record=>z.object({record,businessId:id,databaseStatus:z.literal('committed'),providerSetup});
 const paging={total:z.number().int().nonnegative(),page:z.number().int().positive(),pageSize:z.number().int().min(1).max(100)};
 export const toolOutputs={
+ ...aiPreviewOutputs,
  ...aiDiagnosticsOutputs,
  ...operationsOutputs,...websiteOutputs,
  ...voiceOutputs,
@@ -114,7 +117,7 @@ export function createMcpServer({invoke,identity,requestId}) {
  for(const [name,description,inputSchema,writing=false] of toolDefinitions) {
   const schema=z.object(inputSchema).strict();
   const outputSchema={...resultShape,data:toolOutputs[name].optional()};
-  server.registerTool(name,{description,inputSchema:schema,outputSchema,annotations:{readOnlyHint:!writing,destructiveHint:writing,idempotentHint:true,openWorldHint:externalTools.has(name)}},async input=>{
+  server.registerTool(name,{description,inputSchema:schema,outputSchema,annotations:{readOnlyHint:!writing,destructiveHint:writing,idempotentHint:name!=='crm_preview_ai_reply',openWorldHint:externalTools.has(name)}},async input=>{
    const data=await invoke(identity,name,schema.parse(input),requestId);
    const result=z.object(outputSchema).parse({...data,requestId});
    const content=[{type:'text',text:JSON.stringify(result)}];

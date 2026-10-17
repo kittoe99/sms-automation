@@ -1,5 +1,6 @@
 // Shared by the administrator editor and MCP output validation. New grants are opt-in.
 export const connectionPermissions = [
+ ["ai_reply_preview","Preview hypothetical AI replies using approved Business Info; calls the model but never sends"],
  ["ai_reply_read","Read scoped AI reply run diagnostics"],
  ["ai_reply_content_read","Read recorded AI replies and linked message text"],
  ["operations_read","Read scoped job diagnostics and provider operations"],

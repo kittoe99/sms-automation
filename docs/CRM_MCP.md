@@ -1,5 +1,15 @@
 # CRM MCP business setup
 
+## AI reply previews — local only
+
+`crm_preview_ai_reply` requires `ai_reply_preview`, explicit business/profile
+identity and current business/settings revisions. It returns a hypothetical
+Business Info answer and captured version metadata without customer reads,
+executed actions or sends. The model request is external and non-idempotent;
+context/revision and permission changes during generation discard the reply.
+See [AI reply previews](AI_REPLY_DIAGNOSTICS.md) for the contract, limits, audit
+and deployment prerequisites. One new CRM migration is unapplied. No E2 release.
+
 ## Business Info version tracking — released October 16, 2026
 
 The existing AI run list/detail schemas now accept server-recorded Business Info

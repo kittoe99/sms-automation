@@ -188,3 +188,13 @@ For Clerk test-login preview, `CRM_PREVIEW_MODE=development`,
 by the inbound/coordination evaluators instead of direct provider access. Treat
 its contents as secrets; it is not an Edge deployment setting. Evaluations can
 incur provider charges and never activate production AI.
+
+## MCP hypothetical AI preview key (local implementation)
+
+`MCP_AI_PREVIEW_API_KEY` is server-only on the CRM MCP Node service. It enables the
+single bounded model request behind `crm_preview_ai_reply`; it is never returned
+by tools or included in frontend configuration. Preview still requires the
+separate `ai_reply_preview` connection grant and an authorized business. Missing
+credentials return a sanitized temporary failure. No SMS/worker key is needed.
+See [AI reply previews](AI_REPLY_DIAGNOSTICS.md) for revisions, context limits,
+non-idempotent model usage and the unapplied forward migration. E2 needs no change.

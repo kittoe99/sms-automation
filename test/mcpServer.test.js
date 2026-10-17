@@ -49,6 +49,7 @@ test('Streamable HTTP initializes, lists, calls, reconnects and validates every 
    assert.ok(tool.outputSchema.properties.data);
   }
   assert.equal(listed.result.tools.find(t=>t.name==='crm_review_business_profile').annotations.readOnlyHint,false);
+  const aiPreview=listed.result.tools.find(t=>t.name==='crm_preview_ai_reply');assert.ok(aiPreview);assert.deepEqual(aiPreview.annotations,{readOnlyHint:true,destructiveHint:false,idempotentHint:false,openWorldHint:true});assert.equal(aiPreview.inputSchema.additionalProperties,false);assert.deepEqual([...aiPreview.inputSchema.required].sort(),['businessId','message','businessRevision','settingsRevision','profileVersionId'].sort());
   const markRead=listed.result.tools.find(t=>t.name==='crm_mark_conversation_messages_read');
   assert.deepEqual([...markRead.inputSchema.required].sort(),['businessId','conversationId','revision','messageIds','idempotencyKey'].sort());
   assert.equal(markRead.inputSchema.additionalProperties,false);

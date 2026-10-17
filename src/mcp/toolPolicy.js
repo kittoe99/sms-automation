@@ -1,5 +1,6 @@
 // Tool authorization metadata. SQL parity is tested against the latest gateway.
 export const toolPermissions={
+ "crm_preview_ai_reply":"ai_reply_preview",
  "crm_list_ai_reply_runs":"ai_reply_read",
  "crm_get_ai_reply_run":"ai_reply_read",
  "crm_get_operations_summary":"operations_read",
@@ -155,4 +156,4 @@ export const toolPermissions={
  "crm_add_business_service": "service_add",
  "crm_set_service_visibility": "visibility"
 };
-export const externalTools=new Set(['crm_refresh_provider_status','crm_reconcile_provider_status','crm_retry_operational_job','crm_activate_sms_sending','crm_publish_website','crm_unpublish_website','crm_retry_email_job','crm_prepare_knowledge_upload','crm_create_knowledge_source','crm_refresh_knowledge_source','crm_add_business_service','crm_reply_to_conversation','crm_send_contact_sms','crm_retry_handoff_alert']);
+export const externalTools=new Set(['crm_preview_ai_reply','crm_refresh_provider_status','crm_reconcile_provider_status','crm_retry_operational_job','crm_activate_sms_sending','crm_publish_website','crm_unpublish_website','crm_retry_email_job','crm_prepare_knowledge_upload','crm_create_knowledge_source','crm_refresh_knowledge_source','crm_add_business_service','crm_reply_to_conversation','crm_send_contact_sms','crm_retry_handoff_alert']);

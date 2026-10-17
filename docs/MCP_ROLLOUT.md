@@ -36,6 +36,14 @@ reads expose the version; older results remain not recorded. This introduces no
 new tools, grants or E2 contracts. Compatible MCP runtime `1006b79` deployed before
 the forward migration; both are live. Historical runs remain not recorded. See [AI diagnostics](AI_REPLY_DIAGNOSTICS.md).
 
+## Follow-on: AI reply previews (implemented locally)
+
+`crm_preview_ai_reply` adds one opt-in `ai_reply_preview` permission and a bounded
+hypothetical Business Info answer. Profile/settings revisions and authorization
+are checked before and after the model request. It cannot execute actions or send
+SMS and does not load customer history. Migration `20261017024313` is unapplied;
+local catalog is 156 tools / 107 grants. See [preview contract](AI_REPLY_DIAGNOSTICS.md#hypothetical-ai-reply-previews--local-implementation-october-16-2026).
+
 ## Common contract
 
 Explicit business and record IDs, independent grants, strict schemas, bounded

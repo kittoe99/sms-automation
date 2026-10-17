@@ -42,6 +42,14 @@ export function createMcpDatabase(config) {
     return row.ticket;
    });
   },
+  async aiReplyPreviewFinish(identity,input,requestId,completed,contextHash){
+   if(identity.issuer!==config.issuer)throw new Error('Invalid actor issuer');
+   return sql.begin(async tx=>{
+    await tx`select set_config('platform.actor_issuer',${config.issuer},true)`;
+    const [row]=await tx`select crm_mcp.ai_reply_preview_finish(${identity.subject},${identity.clientId},${tx.json(input)},${requestId}::uuid,${completed},${contextHash}) result`;
+    return row.result;
+   });
+  },
   close:()=>sql.end({timeout:5}),
  };
 }

@@ -1,5 +1,19 @@
 # Opek SMS project record
 
+## October 16 — MCP AI reply previews (implemented locally; not deployed)
+
+Added `crm_preview_ai_reply` with the separate default-off `ai_reply_preview` permission, strict hypothetical-message schema, explicit business/profile identity and business/settings revisions. Local catalog: 156 tools / 107 grants; live remains 155 / 106. The existing admin editor shares the permission label; no existing connection is granted preview access automatically.
+
+A CRM wrapper captures approved Business Info facts/version, business identity and saved AI instructions in one SQL statement. A bounded single model request reuses the live instruction builder with no customer history, supplementary knowledge or action tools. Final authorization, revision and full-context fingerprint checks discard replies after edits or revocation. Returned metadata identifies the actual profile version/capture time; no live AI run, customer record, consent, booking, handoff or message is created. Context and result audits omit hypothetical text, prompts, replies and credentials; result audit links the profile ID/version. Repeated previews may differ/incur model usage, so annotations are read-only/non-destructive/open-world/non-idempotent with no automatic retry or mutation receipt.
+
+CRM owns new forward migration `20261017024313_crm_mcp_ai_reply_preview.sql`, following profile provenance `20261016235631`. Local paired migration baseline adds only this file. Release prerequisites: reconcile live aliases, apply only this migration, deploy CRM MCP/frontend, configure server-only `MCP_AI_PREVIEW_API_KEY`, then explicitly grant preview access. No E2 runtime/contract change or Edge release is required. Missing preview credentials fail closed.
+
+Verification: 737 CRM tests passed / 29 existing skips; 63 paired contract tests passed against the released E2 worktree. E2 SQL/lint/application and worker TypeScript checks passed, and all 248 E2 tests passed. Eighteen focused preview/manifest/protocol checks passed, including same-phone cross-business history exclusion, strict raw inputs, independent grants, stale revisions, mid-generation edits and staff/connection revocation, forbidden model tool calls, provider failures, interrupted completion, private wrapper privileges, redacted audit and unchanged domain snapshots. Disposable PostgreSQL verified independent-session edits/revocation during generation with no network-spanning locks, customer writes, runs or send jobs. Models/providers were mocked; no new real-model quality evaluation is claimed.
+
+The initial full run exposed the expected wrapper allowlist change; it was updated to include only the protected new completion wrapper, and the full CRM tests then passed. Frontend build initially lacked a local publishable key; it passed with an explicitly synthetic `sb_publishable_local_build_only` value. This is build verification, not a runnable production browser configuration. Source/current-SQL checks and the complete 68-file Edge bundle passed. Evidence is ignored `data/ai-preview-*`.
+
+Applied migrations: none. Deployments: none. No production data, SMS, live model invocation, permission or AI mode changes. Both project records and MCP workflow/configuration docs were updated. The primary dirty CRM and E2 dashboard checkouts remain untouched; the paired E2 record stays local and unpushed.
+
 ## October 16 — Business Info version tracking deployed to CRM
 
 Runtime `1006b79ea57a71eff96631665b5f6ebe089b1475` is live on MCP `dep-db9dfk67bikc73fkn860` (October 17, 02:05:48 UTC) and frontend `dep-db9dg5dg1s2s738a70ig` (02:06:26 UTC). The compatible MCP schema deployed first and passed 16 read-only Codex checks against the previous database. No automatic frontend event appeared after the push; Dashboard Deploy latest commit released the same source without changing auto-deploy settings. No Edge redeploy was needed.
