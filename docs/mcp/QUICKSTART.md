@@ -15,7 +15,7 @@ Use this guide for an MCP client acting on behalf of a CRM staff member. No Open
 | Requested scopes | `profile offline_access` |
 | Client onboarding | CIMD (Client ID Metadata Documents) |
 
-The server publishes [protected-resource metadata](https://e2-crm-mcp.onrender.com/.well-known/oauth-protected-resource/mcp) and [authorization-server discovery](https://e2-crm-mcp.onrender.com/.well-known/oauth-authorization-server). Let the client discover authorization/token endpoints instead of hardcoding them. OAuth scopes identify the staff member and permit refresh; CRM business/action grants are managed separately.
+The server publishes [protected-resource metadata](https://e2-crm-mcp.onrender.com/.well-known/oauth-protected-resource/mcp) and [authorization-server discovery](https://e2-crm-mcp.onrender.com/.well-known/oauth-authorization-server). Let the client discover authorization/token endpoints instead of hardcoding them. Discovery and `/health` are readable from any browser Origin; the same authorization metadata is also served at `/.well-known/oauth-authorization-server/mcp` and `/.well-known/openid-configuration` for older clients. OAuth scopes identify the staff member and permit refresh; CRM business/action grants are managed separately.
 
 ## First connection
 

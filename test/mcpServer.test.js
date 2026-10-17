@@ -10,7 +10,7 @@ import {permittedGroups} from '../public/workspaceNavigation.js';
 
 const config={resource:'https://mcp.example.test/mcp',issuer:'https://staff.example.test',customerIssuer:'https://customer.example.test',origins:['https://crm.example.test']};
 const token={subject:'user_staff',clientId:'https://client.example.test/codex.json',aud:[config.resource],expiration:Math.floor(Date.now()/1000)+3600,revoked:false,expired:false};
-const localFetch=(url,options={})=>new Promise((resolve,reject)=>{const req=httpRequest(url,{method:options.method||'GET',headers:options.headers},res=>{const chunks=[];res.on('data',c=>chunks.push(c));res.on('end',()=>resolve(new Response(Buffer.concat(chunks),{status:res.statusCode,headers:res.headers})));});req.on('error',reject);req.end(options.body);});
+const localFetch=(url,options={})=>new Promise((resolve,reject)=>{const req=httpRequest(url,{method:options.method||'GET',headers:options.headers},res=>{const chunks=[];res.on('data',c=>chunks.push(c));res.on('end',()=>resolve(new Response([204,304].includes(res.statusCode)?null:Buffer.concat(chunks),{status:res.statusCode,headers:res.headers})));});req.on('error',reject);req.end(options.body);});
 test('OAuth requires resource, expiry, human subject and unrevoked token; JWT issuer is verified',async()=>{
  assert.equal(validateOAuthToken(token,config).issuer,config.issuer);
  for(const patch of [{aud:[]},{aud:['https://other.example.test/mcp']},{expiration:null},{expiration:1},{revoked:true},{expired:true},{subject:'machine_1'},{clientId:''},{act:{sub:'machine'}}])assert.throws(()=>validateOAuthToken({...token,...patch},config));
@@ -74,8 +74,30 @@ test('Streamable HTTP initializes, lists, calls, reconnects and validates every 
   assert.equal((await rpc('tools/call',{name:'crm_create_sms_automation',arguments:{...largeDraft,name:'x'.repeat(512*1024)}})).status,413);assert.equal(calls.length,before+1);
   assert.equal((await rpc('tools/list',{}, {origin:'https://evil.example.test'})).status,403);
   assert.equal((await rpc('tools/list',{}, {host:'evil.example.test'})).status,403);
+  for(const path of ['/.well-known/oauth-protected-resource/mcp','/.well-known/oauth-authorization-server','/.well-known/oauth-authorization-server/mcp','/.well-known/openid-configuration','/health']){
+   const r=await localFetch(base+path,{headers:{host:'mcp.example.test',origin:'https://agent.example.test'}});
+   assert.equal(r.status,200,path);assert.equal(r.headers.get('access-control-allow-origin'),'https://agent.example.test');
+  }
+  assert.equal((await localFetch(base+'/.well-known/oauth-authorization-server/mcp',{headers:{host:'mcp.example.test'}}).then(r=>r.json())).issuer,config.issuer);
+  assert.equal((await localFetch(base+'/.well-known/oauth-protected-resource/mcp',{headers:{host:'evil.example.test',origin:'https://agent.example.test'}})).status,403);
   reject=true;assert.equal((await rpc('tools/list')).status,401);
   assert.equal(logs.length,0);
+ } finally{server.closeAllConnections();await new Promise(resolve=>server.close(resolve));}
+});
+test('explicitly allowed browser origin reaches /mcp only with host and bearer token; others are denied',async()=>{
+ const app=createMcpApp({config:{...config,origins:['https://inspector.example.test']},metadata:{issuer:config.issuer},verify:async raw=>{if(raw!=='good')throw new Error('bad');return {subject:'user_staff',clientId:'c',issuer:config.issuer};},
+  invoke:async()=>({ok:true,data:{connectionId:'00000000-0000-4000-8000-000000000001',status:'pending',permissions:[],businessScope:'none',businesses:[]}}),log:()=>{}});
+ const server=app.listen(0,'127.0.0.1');await new Promise(resolve=>server.once('listening',resolve));
+ const base=`http://127.0.0.1:${server.address().port}`,origin='https://inspector.example.test';
+ const post=headers=>localFetch(base+'/mcp',{method:'POST',headers:{host:'mcp.example.test',origin,accept:'application/json, text/event-stream','content-type':'application/json',...headers},body:JSON.stringify({jsonrpc:'2.0',id:1,method:'tools/list',params:{}})});
+ try{
+  const pre=await localFetch(base+'/mcp',{method:'OPTIONS',headers:{host:'mcp.example.test',origin,'access-control-request-method':'POST'}});
+  assert.equal(pre.status,204);assert.equal(pre.headers.get('access-control-allow-origin'),origin);
+  const ok=await post({authorization:'Bearer good'});assert.equal(ok.status,200);assert.equal(ok.headers.get('access-control-allow-origin'),origin);
+  assert.equal((await post({})).status,401);assert.equal((await post({authorization:'Bearer bad'})).status,401);
+  assert.equal((await post({authorization:'Bearer good',host:'evil.example.test'})).status,403);
+  assert.equal((await post({authorization:'Bearer good',origin:'https://other.example.test'})).status,403);
+  assert.equal((await post({authorization:'Bearer good',origin:'*'})).status,403);
  } finally{server.closeAllConnections();await new Promise(resolve=>server.close(resolve));}
 });
 test('AI connection management uses browser identity and remains staff navigation only',async()=>{

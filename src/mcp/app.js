@@ -10,7 +10,9 @@ export function createMcpApp({config,metadata,verify,invoke,log=event=>console.l
   res.set('Cache-Control','no-store');
   if(req.get('host')!==new URL(origin).host)return res.status(403).json({error:'Host denied'});
   const requestOrigin=req.get('origin');
-  if(requestOrigin&&!config.origins.includes(requestOrigin))return res.status(403).json({error:'Origin denied'});
+  // Discovery and health are public metadata; browser OAuth clients must read them cross-origin.
+  const isPublic=req.path==='/health'||req.path.startsWith('/.well-known/');
+  if(requestOrigin&&!isPublic&&!config.origins.includes(requestOrigin))return res.status(403).json({error:'Origin denied'});
   if(requestOrigin){res.set('Access-Control-Allow-Origin',requestOrigin);res.vary('Origin');}
   res.set('Access-Control-Expose-Headers','WWW-Authenticate, MCP-Protocol-Version');
   if(req.method==='OPTIONS')return res.set({'Access-Control-Allow-Methods':'GET,POST,OPTIONS','Access-Control-Allow-Headers':'Authorization,Content-Type,Accept,MCP-Protocol-Version,MCP-Session-Id'}).sendStatus(204);
@@ -18,7 +20,9 @@ export function createMcpApp({config,metadata,verify,invoke,log=event=>console.l
  });
  app.get('/health',(_req,res)=>res.json({status:'ok',service:'e2-crm-mcp'}));
  app.get(['/.well-known/oauth-protected-resource','/.well-known/oauth-protected-resource/mcp'],(_req,res)=>res.json({resource:config.resource,authorization_servers:[config.issuer],scopes_supported:['profile','offline_access'],bearer_methods_supported:['header']}));
- app.get('/.well-known/oauth-authorization-server',(_req,res)=>res.json(metadata));
+ // Older clients (pre protected-resource metadata) look for authorization
+ // metadata on the MCP host itself, sometimes with the /mcp path suffix.
+ app.get(['/.well-known/oauth-authorization-server','/.well-known/oauth-authorization-server/mcp','/.well-known/openid-configuration','/.well-known/openid-configuration/mcp'],(_req,res)=>res.json(metadata));
  app.use('/mcp',async(req,res,next)=>{
   const raw=req.get('authorization')?.match(/^Bearer (\S+)$/)?.[1];
   try {if(!raw)throw new Error('Missing token');req.identity=await verify(raw);next();}

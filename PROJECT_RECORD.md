@@ -1,5 +1,20 @@
 # Opek SMS project record
 
+## MCP external-agent connectivity — October 17, 2026
+
+Live check of https://e2-crm-mcp.onrender.com/mcp: health, protected-resource
+metadata, 401 challenge, CRM Clerk PKCE S256 + CIMD all correct. Gaps: browser
+OAuth clients could not read discovery cross-origin (403); clients probing
+authorization metadata on the MCP host got 404.
+
+`src/mcp/app.js` now serves `/health` and `/.well-known/*` to any Origin (Host is
+still enforced) and aliases the CRM authorization metadata at
+`/.well-known/oauth-authorization-server/mcp` and `/.well-known/openid-configuration[/mcp]`.
+`/mcp` origin checking is unchanged: browser clients still need an explicit
+`MCP_ALLOWED_ORIGINS` entry (no wildcard). No migration, grant, env, E2 runtime or
+shared-contract change. Open operator decisions: enable Clerk DCR only if a
+non-CIMD client is required; paid Render plan to remove free-tier cold starts.
+
 ## October 16 — MCP documentation published; E2 production reconciled
 
 Pushed documentation commit 176df95 to the public CRM branch codex/crm-mcp-business-setup. Anonymous GitHub raw reads of the entry point, quick start, tool reference and full JSON catalog all returned 200 and matched local content. GitHub CI run 38999056874 completed successfully. Updated the current guides with public links and corrected the stale E2 hold statement.
