@@ -1,5 +1,9 @@
 # Remaining CRM MCP rollout
 
+## AI preview release status — October 16
+
+CRM migration `20261017024313` and runtime `bd318e5` are live. Codex discovers 156 tools; the authorized admin now has `ai_reply_preview` (107 grants total). Server-only `MCP_AI_PREVIEW_API_KEY` configuration and one real Opek preview remain pending the secure key location. Read-only verification passed with unchanged customer/message state and no E2 deployment. See the latest project record for migration and deployment receipts.
+
 This is the execution record for the approved nine-stage rollout. The starting
 production baseline is 49 tools and 33 permissions (conversation release
 7ea1dc8). New capabilities are released by domain; production verification uses

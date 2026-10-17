@@ -1,5 +1,9 @@
 # AI reply diagnostics through MCP
 
+## AI preview release status — October 16
+
+CRM migration `20261017024313` and runtime `bd318e5` are live. Codex discovers 156 tools; the authorized admin now has `ai_reply_preview` (107 grants total). Server-only `MCP_AI_PREVIEW_API_KEY` configuration and one real Opek preview remain pending the secure key location. Read-only verification passed with unchanged customer/message state and no E2 deployment. See the latest project record for migration and deployment receipts.
+
 ## Hypothetical AI reply previews — local implementation, October 16, 2026
 
 `crm_preview_ai_reply` requires the new, default-off `ai_reply_preview` grant and

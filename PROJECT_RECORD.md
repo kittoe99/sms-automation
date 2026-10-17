@@ -1,5 +1,13 @@
 # Opek SMS project record
 
+## October 16 — AI preview database/code released; API key pending
+
+Applied only CRM migration `20261017024313_crm_mcp_ai_reply_preview.sql` after reconciling 153 live entries, verifying rollback rehearsal/function hashes and confirming the single-file CLI dry run. Live history is now 154. Runtime `bd318e50b103e4699a675df168281c5f022f8c6d` is live on MCP `dep-db9e8pqjnfac73bv9ebg` (October 17, 02:59:26 UTC) and frontend `dep-db9e94jrjlhs73eg8ed0` (02:59:41 UTC). Frontend used Dashboard Deploy latest commit after no automatic event appeared. No Edge release was needed.
+
+User-authorized canonical admin save added only `ai_reply_preview`, preserving all prior grants and business scope; connection revision advanced 17 to 18 (107 permissions). Fresh Codex discovered 156 tools and passed 18 read-only checks, all attributed with zero mutation receipts. All 40 monitored domain fields/hashes are unchanged. Opek conversation was already revision 35/unread 0 at this release baseline and stayed unchanged; both test runs remain stopped with no next send. Historical AI runs still show not_recorded. CRM/MCP/auth endpoints return HTTP 200 and the served permission module matches source.
+
+Pending: server-only `MCP_AI_PREVIEW_API_KEY` and the real Opek hypothetical preview. No usable key was present in the inspected CRM/E2 local environment files; the user was asked for its secure location, not the secret. No preview/model call was attempted. Local test evidence remains the separate implementation results below. No SMS, message read-state changes, customer edits or E2 deployment/push. Both primary dirty checkouts remain untouched; the paired E2 record is local only. Evidence: ignored `data/ai-preview-release-*`, discovery receipt and frontend deployment screenshot.
+
 ## October 16 — MCP AI reply previews (implemented locally; not deployed)
 
 Added `crm_preview_ai_reply` with the separate default-off `ai_reply_preview` permission, strict hypothetical-message schema, explicit business/profile identity and business/settings revisions. Local catalog: 156 tools / 107 grants; live remains 155 / 106. The existing admin editor shares the permission label; no existing connection is granted preview access automatically.
