@@ -7,6 +7,7 @@ This directory documents the current CRM for developers, operators and staff. Hi
 | Reader | Recommended order |
 | --- | --- |
 | CRM staff | [User guide](USER_GUIDE.md), then the specialist guide for the task |
+| External agent / MCP integrator | [MCP documentation](CRM_MCP.md), [connection quick start](mcp/QUICKSTART.md), [generated tool reference](mcp/TOOLS.md) |
 | New developer | [Root README](../README.md), [development](DEVELOPMENT.md), [architecture](ARCHITECTURE.md), [API reference](API_REFERENCE.md) |
 | Deployment operator | [Configuration](CONFIGURATION.md), [hardening release](HARDENING_RELEASE.md), [operations](OPERATIONS.md), [worker deployment](WORKER_DEPLOYMENT.md), [project record](../PROJECT_RECORD.md) |
 | E2 integrator | [Website integration](WEBSITE_E2_INTEGRATION.md), [staff registry](STAFF_CRM.md), [database inventory](DATABASE_INVENTORY.md) |
@@ -18,6 +19,14 @@ This directory documents the current CRM for developers, operators and staff. Hi
 | [Architecture](ARCHITECTURE.md) | Runtime, code layout, workers, authentication and data flows |
 | [Development](DEVELOPMENT.md) | Local modes, commands and test strategy |
 | [Configuration](CONFIGURATION.md) | Environment variables, public/private settings and configuration generation |
+| [CRM MCP](CRM_MCP.md) | External-agent documentation entry point and architecture boundary |
+| [MCP quick start](mcp/QUICKSTART.md) | Remote OAuth connection, pending activation and first scoped read |
+| [MCP tool reference](mcp/TOOLS.md) / [JSON schemas](mcp/tool-catalog.json) | Generated wire catalog, permissions and synthetic request examples |
+| [MCP workflows](mcp/WORKFLOWS.md) | Explicit IDs, revisions, idempotent retries and action boundaries |
+| [MCP administration](mcp/ADMIN.md) | Staff/client identity, grants, revocation and activity |
+| [MCP troubleshooting](mcp/TROUBLESHOOTING.md) | Compatibility evidence, transport/auth failures and support |
+| [MCP release status](MCP_ROLLOUT.md) | Current recorded baseline, exclusions and release procedure |
+| [AI reply diagnostics](AI_REPLY_DIAGNOSTICS.md) | Preview scope and historical Business Info provenance |
 | [API reference](API_REFERENCE.md) | Current endpoint contracts and integration examples |
 | [User guide](USER_GUIDE.md) | Daily staff procedures and screen navigation |
 | [SMS linking release](CRM_LINKING_RELEASE.md) | October 1 linking contracts, access matrix, migration order and release evidence |
@@ -65,6 +74,8 @@ The related project is `E2local-main`, whose Git origin is `https://github.com/k
 These links require the second checkout locally and may not resolve in a single-repository web viewer. In that case open the same paths in the E2 repository. Paired E2 workflow docs and project records are maintained together for shared lifecycle and authorization changes.
 
 ## Keeping documentation current
+
+MCP checkpoint archives: [implementation](MCP_IMPLEMENTATION_HISTORY.md), [nine-stage rollout](MCP_ROLLOUT_HISTORY.md), [AI diagnostics](AI_REPLY_HISTORY.md). These preserve superseded local-only status statements. Use the current guides above for operating instructions. Run `npm run docs:mcp:check` and `npm run docs:mcp:links` when changing MCP documentation or schemas.
 
 Update the owning guide when changing behavior, and the project record after material code, database, authentication or deployment work. Record checks actually performed, distinguish local work from deployed releases, and preserve unresolved limitations. Keep dated historical observations separate from current procedures. Use configuration names and synthetic examples rather than credentials or customer data.
 

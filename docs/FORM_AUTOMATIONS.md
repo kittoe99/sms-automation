@@ -1,5 +1,7 @@
 # Form-first SMS automation
 
+> MCP status: the complete rollout and AI previews are released (156 tools / 107 permission names, verified October 16, 2026 Denver time). Dated MCP milestone notes below retain their original implementation-time status; local-only/unapplied/pending statements there are historical. Use [current MCP release status](MCP_ROLLOUT.md) and [agent documentation](CRM_MCP.md).
+
 ## Per-automation AI replies
 
 New drafts default **AI replies** on. Turn it off to handle customer replies yourself; preset selection preserves your choice. Publication and enrollment retain the saved boolean. An overlapping opted-out run suppresses AI for that contact without changing scheduled reply policy, SMS consent or sending hours. The instant acknowledgment control remains separate. MCP accepts and returns `aiRepliesEnabled` (omitted means true). See [AI reply defaults](INBOUND_AI.md).
@@ -194,7 +196,7 @@ unchanged. Known in-flight SMS are reported because they may still deliver.
 Fresh draft metadata advances on state changes; stale drafts remain stale.
 Effect audits include affected generations, and retries/rollback cover all effects.
 All five forms migrations remain unapplied; no production forms or SMS changed.
-See [CRM MCP](CRM_MCP.md#forms-milestone-step-5--collection-activation-and-deactivation-october-15-local-only).
+See [CRM MCP](MCP_IMPLEMENTATION_HISTORY.md#forms-milestone-step-5--collection-activation-and-deactivation-october-15-local-only).
 
 Historical forms MCP step 4 (October 15, local only) adds `crm_apply_form_draft` under
 `form_publish`. It applies the saved definition with both current revisions and
@@ -202,7 +204,7 @@ a retry key, preserving collection/consent state and all SMS/email activity.
 Current SMS field references must remain valid; historical answers and run snapshots
 stay intact. Stale bases conflict and are not rebased. The applied draft is retained
 with advanced revision/base metadata for further editing. Collection activation
-remains a later, separately granted step. See [CRM MCP](CRM_MCP.md#forms-milestone-step-4--explicitly-apply-saved-drafts-october-15-local-only).
+remains a later, separately granted step. See [CRM MCP](MCP_IMPLEMENTATION_HISTORY.md#forms-milestone-step-4--explicitly-apply-saved-drafts-october-15-local-only).
 
 
 Historical forms MCP step 3 (October 15, local only) adds `crm_preview_form` under the
@@ -211,7 +213,7 @@ form and current applied/draft revisions. Structured fields and inert embedded
 HTML show fixed/custom fields and unchecked canonical consent choices. No sample
 submission, contact lookup, collection change, automation simulation or SMS occurs.
 Outdated draft bases/archives are labeled; mismatched revisions conflict. Apply
-and activation remain future steps. See [CRM MCP](CRM_MCP.md#forms-milestone-step-3--saved-draft-previews-october-15-local-only).
+and activation remain future steps. See [CRM MCP](MCP_IMPLEMENTATION_HISTORY.md#forms-milestone-step-3--saved-draft-previews-october-15-local-only).
 
 
 Historical forms MCP step 2 (October 15, local only) adds `crm_create_form` under
@@ -222,7 +224,7 @@ Both require retry keys; edits require applied and draft revisions. A draft base
 on an older applied version conflicts and awaits explicit reconciliation in a
 later step. Preview, apply and activation remain unimplemented. The CRM editor
 continues to edit applied forms directly. Details and forward migration order:
-[CRM MCP](CRM_MCP.md#forms-milestone-step-2--inactive-creation-and-separate-drafts-october-15-local-only).
+[CRM MCP](MCP_IMPLEMENTATION_HISTORY.md#forms-milestone-step-2--inactive-creation-and-separate-drafts-october-15-local-only).
 
 Historical forms MCP step 1 (October 15, local only) adds `crm_list_forms` and `crm_get_form`
 under the new independent `form_read` grant. They expose scoped applied form
@@ -230,7 +232,7 @@ definitions, field order, collection state and current revisions. They do not
 read submissions, change forms, simulate submissions, or affect SMS. Separate
 form drafts and create/edit/preview/apply/activate tools remain future increments;
 five reserved grants are visible but provide no tools yet. Existing connection
-grants are unchanged. See [CRM MCP](CRM_MCP.md#forms-milestone-step-1--local-scoped-reads-october-15)
+grants are unchanged. See [CRM MCP](MCP_IMPLEMENTATION_HISTORY.md#forms-milestone-step-1--local-scoped-reads-october-15)
 for input bounds, isolation and the new unapplied forward migration.
 
 Release update (October 14): all five SMS MCP increments are deployed, with

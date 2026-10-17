@@ -1,5 +1,15 @@
 # Opek SMS project record
 
+## October 16 — External-agent MCP documentation package (local only)
+
+Created a current MCP entry point, external OAuth quick start, admin/grant guide, agent workflows and compatibility/troubleshooting guide. Replaced mixed current/history guides with concise current procedures and dated release evidence; preserved all three original checkpoint documents in clearly labeled archives. Retargeted historical anchors and marked related workflow milestone notes historical. The production baseline remains the already recorded 156 tools / 107 permission names; this documentation work makes no new deployment claim.
+
+Added a deterministic generator that reads the actual MCP SDK tools/list wire output through an in-memory client/server connection, with a throwing invoke stub and no network/database/provider access. Generated Markdown and complete JSON input/output schemas cover 156 tools, 107 permission labels and eight synthetic examples validated against the input schemas. The catalog includes annotations, primary grants and revision inputs, with separate guidance for conditional permissions and semantic checks. Added npm generation/drift/link commands and CI drift/link checks.
+
+Validation performed for this change: catalog regeneration/check passed; an intentional stale-output fixture was rejected and restored; all three archives match their prior contents apart from banners/link retargeting; 429 local links/anchors and UTF-8 checks passed; source/static-header/Edge-dependency/current-SQL checks passed; five MCP schema/manifest/protocol tests and 63 paired contract tests passed against the released E2 worktree. No full application suite or fresh live MCP/model test was run for this documentation-only change.
+
+No live migration, permission change, customer edit, message read mark, model/provider call, SMS, application deployment or E2 push. Both primary dirty project checkouts are preserved; this E2 project-record update stays local. CRM documentation/tooling is committed locally without publishing or deploying it.
+
 ## October 16 — AI reply preview release completed
 
 Configured server-only `MCP_AI_PREVIEW_API_KEY` on the existing CRM MCP service from the user-designated local secret file, merging without replacing other environment variables. The key was not logged, committed or added to the frontend. Render's configuration update restarted MCP as `dep-db9ec6lg1s2s738d43a0`, live October 17 at 03:06:42 UTC, source `0fe9035` (documentation only beyond runtime `bd318e5`). Frontend remains the successful `bd318e5` deployment below. No additional migration, grant change, Edge release or E2 deployment was performed in this completion.

@@ -28,7 +28,10 @@
     "test:workers": "node --test test/workerArchitecture.test.js test/edgeWorkers.test.js",
     "test:inbound-ai": "node --test test/inboundAgent.test.js test/inboundAgentDatabase.test.js",
     "test:inbound-concurrency": "node scripts/test-inbound-concurrency.js",
-    "eval:inbound-ai": "node scripts/evaluate-inbound-agent.js"
+    "eval:inbound-ai": "node scripts/evaluate-inbound-agent.js",
+    "docs:mcp": "node scripts/generate-mcp-docs.js",
+    "docs:mcp:check": "node scripts/generate-mcp-docs.js --check",
+    "docs:mcp:links": "node scripts/check-mcp-doc-links.js"
   },
   "engines": {
     "node": ">=20.9"

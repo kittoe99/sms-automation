@@ -6,6 +6,8 @@ The current application is a static browser frontend backed by **Supabase Postgr
 
 Start with the [documentation index](docs/README.md). The [project record](PROJECT_RECORD.md) distinguishes checked-in implementation from previously recorded deployment status and outstanding verification.
 
+External agents: start with the [CRM MCP documentation](docs/CRM_MCP.md) and [connection quick start](docs/mcp/QUICKSTART.md). The [tool reference](docs/mcp/TOOLS.md) and [complete JSON schemas](docs/mcp/tool-catalog.json) are generated from the server's actual discovery output.
+
 ## Quick start
 
 Requires Node.js **20.9 or newer** and npm, as declared in [package.json](package.json).

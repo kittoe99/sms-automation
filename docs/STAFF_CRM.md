@@ -1,5 +1,7 @@
 # Shared staff CRM and customer dashboard
 
+> MCP status: the complete rollout and AI previews are released (156 tools / 107 permission names, verified October 16, 2026 Denver time). Dated MCP milestone notes below retain their original implementation-time status; local-only/unapplied/pending statements there are historical. Use [current MCP release status](MCP_ROLLOUT.md) and [agent documentation](CRM_MCP.md).
+
 ## Contacts MCP release — October 16, 2026
 
 CRM migration 20261016190248 and commit c3d717a are live. Codex discovered

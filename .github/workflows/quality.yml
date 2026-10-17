@@ -22,6 +22,8 @@ jobs:
           cache: npm
       - run: npm ci
       - run: npm run check
+      - run: npm run docs:mcp:check
+      - run: npm run docs:mcp:links
       - run: npm run build:frontend
         env:
           SUPABASE_PUBLISHABLE_KEY: sb_publishable_offline_build_fixture
