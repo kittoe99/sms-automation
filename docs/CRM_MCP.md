@@ -19,7 +19,9 @@ This is the starting point for external agents and CRM administrators. The hoste
 
 As verified October 16, 2026 Denver time (October 17 UTC), the deployed catalog contains **156 tools and 107 permission names**. The CRM frontend and MCP service include AI reply previews; the preview key is configured. The existing authorized admin connection has all-business scope and all 107 grants. New connections still start pending without grants. These are dated observations, not a claim about every future connection or deployment.
 
-Endpoint: `https://e2-crm-mcp.onrender.com/mcp`. CRM issuer: `https://clerk.crm.e2local.com`. E2 Local dashboard edits remain held; this documentation task does not deploy them.
+Endpoint: `https://e2-crm-mcp.onrender.com/mcp`. CRM issuer: `https://clerk.crm.e2local.com`. A later cross-workflow check confirmed E2 Local's dashboard and public-site changes were already deployed independently: production points to `5f56aed` (application runtime `dca7802`). Publishing this documentation required no new E2 deployment. See [release status](MCP_ROLLOUT.md).
+
+The package is published on the public GitHub branch [codex/crm-mcp-business-setup](https://github.com/kittoe99/sms-automation/tree/codex/crm-mcp-business-setup/docs/mcp). External agents can read the [raw quick start](https://raw.githubusercontent.com/kittoe99/sms-automation/codex/crm-mcp-business-setup/docs/mcp/QUICKSTART.md) and [raw schema catalog](https://raw.githubusercontent.com/kittoe99/sms-automation/codex/crm-mcp-business-setup/docs/mcp/tool-catalog.json) without repository credentials. Public documentation does not grant access to the authenticated CRM tools.
 
 ## Architecture and access boundary
 

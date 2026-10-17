@@ -1,5 +1,13 @@
 # Opek SMS project record
 
+## October 16 — MCP documentation published; E2 production reconciled
+
+Pushed documentation commit 176df95 to the public CRM branch codex/crm-mcp-business-setup. Anonymous GitHub raw reads of the entry point, quick start, tool reference and full JSON catalog all returned 200 and matched local content. GitHub CI run 38999056874 completed successfully. Updated the current guides with public links and corrected the stale E2 hold statement.
+
+The user explicitly lifted the earlier E2 hold, but inspection found the dashboard/public-copy/blog work had already been released through another workflow. Compared all tracked/untracked primary E2 files with fetched origin/main: all application, test, asset and migration files match; only five documentation files differ (PROJECT_RECORD.md, docs/mcp-operations.md, docs/bookings.md, docs/business-services.md, docs/dashboard-layout.md). Preserved these local documents and all older dirty checkout state.
+
+Vercel inspection of www.e2local.com confirmed production READY deployment dpl_DEGKneZoamoPPbE4FZYb4Sv3cZEH with www/apex aliases; build logs identify main commit 5f56aed, which only adds the release receipt over runtime dca7802. The runtime release GitHub workflow 38995270763 is successful. Fresh public asset checks matched all four opt-in screenshots; anonymous dashboard API access redirects to sign-in. No new application deployment was necessary or performed. No migrations, customer edits, model calls, SMS or forms submitted. Historical hold entries are superseded by this observed production evidence.
+
 ## October 16 — External-agent MCP documentation package (local only)
 
 Created a current MCP entry point, external OAuth quick start, admin/grant guide, agent workflows and compatibility/troubleshooting guide. Replaced mixed current/history guides with concise current procedures and dated release evidence; preserved all three original checkpoint documents in clearly labeled archives. Retargeted historical anchors and marked related workflow milestone notes historical. The production baseline remains the already recorded 156 tools / 107 permission names; this documentation work makes no new deployment claim.

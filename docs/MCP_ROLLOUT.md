@@ -11,9 +11,11 @@ Verified October 16, 2026 Denver time (October 17 UTC): **156 tools / 107 permis
 | Latest CRM migration | `20261017024313_crm_mcp_ai_reply_preview.sql`, applied alone after reconciling 153 existing entries; 154 recorded entries afterward |
 | Preview configuration | Server-only `MCP_AI_PREVIEW_API_KEY` configured; admin granted `ai_reply_preview` explicitly |
 | Edge workers | No redeployment required for the AI-preview step |
-| E2 Local dashboard | Ongoing edits intentionally held; no E2 deployment or branch push for this step |
+| E2 Local dashboard | Independently released; later inspection confirmed `5f56aed` (application runtime `dca7802`) READY on production aliases in Vercel deployment `dpl_DEGKneZoamoPPbE4FZYb4Sv3cZEH` |
 
 One real Opek hypothetical preview used approved Business Info version 7 and offered the website/phone for an accurate junk-removal quote without using moving rates. Nineteen scoped Codex calls produced 21 attributed audit rows, zero mutation receipts and unchanged monitored customer/message/queue state. This was a preview, not an SMS or a new inbound AI run. Full receipts and separately dated local checks are in [PROJECT_RECORD.md](../PROJECT_RECORD.md).
+
+Subsequent documentation publication: commit `176df95` is available on the public `codex/crm-mcp-business-setup` GitHub branch; [documentation CI](https://github.com/kittoe99/sms-automation/actions/runs/38999056874) passed. Anonymous fetches of the entry point, quick start, generated reference and JSON catalog matched the local package. E2 application files were compared with `origin/main` and already matched; only documentation differed. Its [application release checks](https://github.com/kittoe99/E2local/actions/runs/38995270763) passed, production aliases were READY, served opt-in assets matched and anonymous dashboard access required sign-in. Earlier E2 hold statements describe the CRM task's prior knowledge, not the current cross-workflow release state. No duplicate E2 deployment was performed.
 
 ## Released scope
 
