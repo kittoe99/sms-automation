@@ -1,5 +1,124 @@
 # Opek SMS project record
 
+## In-call SMS released — October 22, 2026
+
+The owner requested SMS during Opek phone calls. CRM-owned forward migration
+`20261022175711_voice_in_call_sms.sql` was tested, rehearsed with rollback against
+the shared database, then applied and recorded once. Its separate `voice_sms_api`
+exposes readiness/send for the fixed Opek business through RPC-only role
+`sms_voice_sms`; a separate login was provisioned without table/provider/booking
+access. No prior migration was replayed. The paired baseline adds this migration
+and the already-live E2 `20261016224415` migration; all prior hashes are unchanged.
+
+New `voice-sms` Edge function is deployed with HMAC authentication, JWT verification
+disabled, and separate scoped database/HMAC credentials. Three project secrets
+were merged without replacing others. The LiveKit worker receives only the HMAC
+secret and SMS flag. Release `bqABvNPK95Wk` is Running with twelve tools,
+including prepare/send SMS and all existing automatic booking/lookup/outcome tools.
+No CRM frontend, MCP service, E2 runtime or prompt publication was needed.
+
+Each requested service text needs a spoken recipient/content recap and a later
+affirmative caller response. Recipients are the active server-recorded SIP caller
+or a callback verified in this call. This does not authorize customer reads.
+The database independently checks the call/phone, approved sending readiness,
+opt-outs and limits (600 characters, five texts/call, ten/recipient/hour), then
+uses the existing transactional outbox. Marketing consent/enrollment is unchanged.
+Call/phone locks and exact UUID/payload deduplication prevent duplicate queuing.
+The worker retains uncertain requests and distinguishes queued from delivered.
+
+Validation: 72 voice Python tests passed; focused CRM suite 32 passed/eight
+existing disabled-AI skips; paired E2 suite 63 passed. Source/current-SQL and Edge
+bundle checks passed. Live endpoint readiness, unsigned rejection, unverified
+recipient rejection and role boundaries passed, with zero in-call SMS rows.
+Security advisors report the same five pre-existing warnings and none for this
+path. A fresh cloud probe verified SMS readiness/tools, automatic booking,
+form version 5, all eleven hourly starts, Vesper and retained CRM prompt revision.
+The first cold worker used the existing configuration fallback; the next probe
+loaded CRM successfully. No production SMS, model conversation or booking was
+created during validation; actual phone/handset delivery remains an acceptance
+check. Source, tests and paired docs are local and unpushed.
+
+## Automatic hourly voice booking — October 22, 2026
+
+The owner specified one-hour jobs and every hour bookable, after setting approved
+hours to Monday–Saturday 7 AM–6 PM, America/Denver. E2-crm MCP created and enabled
+four schedules (junk removal, moving, property cleanout, dumpster rental), all at
+revision 2, duration 60 minutes, shared `opek-hourly` capacity 1, zero notice and
+90-day advance horizon. Sunday remains closed. Whole-hour voice starts run 07:00
+through 17:00; the last appointment ends at 18:00. The existing slot engine's
+quarter-hour candidates are filtered by the voice tool to whole hours.
+
+The existing form was applied at version 5 using the canonical draft/apply MCP
+flow. Only the arrival-window label/options changed to eleven one-hour choices;
+collection remains enabled and other questions/consent/website request semantics
+are preserved. The voice worker now uses the same form schema but commits through
+the existing restricted booking prepare/confirm gateway, atomically creating a
+confirmed operational booking and CRM intake without staff approval. Collected
+answers, email and source form ID/version are retained in booking details. Mattress
+and donation pickups share the junk-removal schedule; all schedules share capacity.
+
+`VOICE_BOOKING_ENABLED=true` was merged into the existing Edge project secrets and
+LiveKit deployment, preserving credentials. LiveKit release `aCaEWCaznMwY` is Running.
+A fresh worker verified automatic mode, form version 5, eleven live hourly starts,
+Vesper and retained CRM prompt revision `ad0d9475-3edd-48ab-a4cb-f6a0266cd4a8`.
+Consented OTP verification and a later affirmative caller reply remain required;
+staff approval is removed. Estimated prices do not become guaranteed final prices.
+No database migration, Edge source redeployment, CRM/E2 application release or
+prompt publication was needed. The new isolated-database booking test and paired
+documentation are local and unpushed.
+
+Validation: 65 voice Python tests, 19 focused CRM booking/form-apply tests and six
+E2 booking tests passed. Added coverage confirms shared capacity across services,
+adjacent one-hour bookings, closing-time rejection, preserved form answers, mirrored
+confirmed intake and no enrollment. Live signed availability covered all four
+services and Sunday closure; the public form matches the tested hourly fixture.
+No production booking or SMS was created; physical phone acceptance is outstanding.
+
+## Opek approved hours update — October 22, 2026
+
+At the owner's request, E2-crm MCP updated the approved Opek business profile
+from Monday–Saturday 9 AM–5 PM to **Monday–Saturday 7 AM–6 PM**, keeping Sunday
+closed and America/Denver. Setup revision advanced 7 to 8. A fresh MCP readback
+showed only `hours` and the canonical update/completion timestamps changed;
+providerSetup was null. The existing restricted voice lookup also returned the
+new approved hours. No profile schema, service grant, form definition, schedule,
+customer record, SMS, runtime deployment or migration changed.
+
+Automatic appointment confirmation remains pending actual job duration and
+simultaneous-job capacity. The UI's 120-minute/one-job defaults were identified
+as defaults only and were not enabled as operational capacity. The owner has a
+pending choice to use those values or supply others. Existing intake continues
+to report requests honestly until capacity-backed confirmation is configured.
+
+Validation: live profile/voice-lookup readbacks, seven CRM business-setup tests
+and eight E2 business-services database tests passed. This paired record update
+is local and unpushed.
+
+## Opek LiveKit booking form integration — October 22, 2026
+
+The sibling `voice agent` worker now reuses the existing Opek Booking Request
+form (`3c69393f-38e0-45ae-bfc6-eededfab8efa`, applied version 4), selected and
+inspected through the authenticated E2-crm MCP. The form remains enabled and
+unchanged. There are still no availability schedules; slot reservation stays
+disabled. A separate `VOICE_FORM_BOOKING_ENABLED=true` worker setting enables
+form intake, with recap/later caller confirmation, exact custom questions,
+requested-window time conversion, terms agreement and idempotent retries.
+Successful submission means a request for staff confirmation, not a reservation.
+SMS/email marketing choices are false; existing-customer reads retain OTP checks.
+
+LiveKit `CA_H8mbfRdWKWJV` version `2oQQpiTDWJx4` is Running. A fresh cloud probe
+read the published form and verified the form tools alongside lookup/outcome
+tools, Vesper and retained configuration revision
+`ad0d9475-3edd-48ab-a4cb-f6a0266cd4a8`. Existing secrets were preserved. No CRM/E2
+runtime deployment, migration, form/prompt edit or production booking submission
+was made; these paired documentation updates are local and unpushed.
+
+Validation: 59 voice Python tests (11 form-intake checks), 24 focused CRM form,
+MCP form and voice-workspace tests, and six E2 booking tests passed. Public form
+GET matched the MCP definition. No production SMS or model conversation was
+started; physical caller/submission acceptance remains outstanding. See
+`docs/VOICE_CRM.md` and the voice project's README for workflow and retry limits.
+
 ## MCP external-agent connectivity — October 17, 2026
 
 Live check of https://e2-crm-mcp.onrender.com/mcp: health, protected-resource

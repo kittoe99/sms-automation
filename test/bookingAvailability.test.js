@@ -107,6 +107,33 @@ test('stale and expired preparations cannot create appointments',async()=>{
  }finally{await db.close();}
 });
 
+test('one-hour jobs share capacity across services and allow adjacent hours without staff approval',async()=>{
+ const db=await setup();try{
+  const date=new Date(Date.now()+3*86400000);if(date.getUTCDay()===0)date.setUTCDate(date.getUTCDate()+1);
+  const localDate=date.toISOString().slice(0,10);
+  const weeklyAvailability=Object.fromEntries(Array.from({length:7},(_,i)=>[i,i===0?[]:[{start:'07:00',end:'18:00'}]]));
+  const settings={...rule(),timeZone:'America/Denver',resourcePool:'opek-hourly',weeklyAvailability};
+  await call(db,'voice_save_rule','admin',tenant,settings);
+  await call(db,'voice_save_rule','admin',tenant,{...settings,service:'local_moving'});
+  await verify(db);
+  const prepare=(localTime,service='junk_removal')=>rpc(db,'prepare',tenant,cid,{...details(),localDate,localTime,service,details:{email:'caller@example.test',items:'One sofa',terms_accepted:true}});
+  const a=await prepare('07:00');assert.equal(a.available,true);
+  const competing=await prepare('07:00','local_moving');assert.equal(competing.available,true);
+  const confirmed=await rpc(db,'confirm',tenant,cid,a.holdId);assert.equal(confirmed.status,'confirmed');
+  await assert.rejects(()=>rpc(db,'confirm',tenant,cid,competing.holdId),/no longer available/);
+  for(const time of ['08:00','17:00']){
+   const hold=await prepare(time,'local_moving');assert.equal(hold.available,true);
+   assert.equal((await rpc(db,'confirm',tenant,cid,hold.holdId)).status,'confirmed');
+  }
+  assert.equal((await prepare('18:00')).available,false);
+  const rows=(await db.query('select status,extract(epoch from voice_end_at-appointment_at)::int seconds,extra_answers from public.sms_bookings where tenant_id=$1',[tenant])).rows;
+  assert.equal(rows.length,3);
+  for(const row of rows){assert.equal(row.status,'confirmed');assert.equal(row.seconds,3600);assert.equal(row.extra_answers.email,'caller@example.test');}
+  assert.equal((await db.query('select count(*)::int n from public.sms_automation_bookings where tenant_id=$1 and status=$2',[tenant,'confirmed'])).rows[0].n,3);
+  assert.equal((await db.query('select count(*)::int n from public.sms_automation_enrollments')).rows[0].n,0);
+ }finally{await db.close();}
+});
+
 test('booking gateway pins tenant, rejects broad writes, verifies HMAC and defaults disabled',async()=>{
  const calls=[],secret='s'.repeat(64),db={call:async(...args)=>{calls.push(args);return {slots:[]};}};
  const handler=createBookingHandler(db,{secret,enabled:true});

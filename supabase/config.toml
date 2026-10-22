@@ -92,3 +92,7 @@ import_map = "./functions/import_map.json"
 [functions.voice-maintenance]
 verify_jwt = false
 import_map = "./functions/import_map.json"
+
+[functions.voice-sms]
+verify_jwt = false
+import_map = "./functions/import_map.json"

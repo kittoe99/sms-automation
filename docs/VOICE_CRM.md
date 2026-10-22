@@ -1,5 +1,89 @@
 # Voice Agent workspace
 
+## Caller-requested SMS during calls — October 22, 2026
+
+Opek's LiveKit agent now has separate prepare/send SMS tools. It reads the
+recipient and exact requested service message, asks permission, and waits for a
+later affirmative reply before queuing it. Booking/OTP permission does not cover
+another text. The recipient is the current admitted SIP caller or a callback
+verified in that call; customer lookups still require verification. Written
+booking details must come from a confirmed booking, and links/prices must use
+approved facts. Staff approval is not required for this caller-authorized send.
+
+Texts appear in the existing CRM conversation/outbox through the approved Opek
+sender. They grant no marketing consent and start no follow-up enrollment.
+STOP, opt-out, business controls and provider readiness remain enforced. Limits:
+600 characters per message, five messages per call, ten per recipient/hour.
+Retries keep the exact message/UUID; queued does not mean delivered.
+
+CRM migration `20261022175711` is applied; the separate HMAC `voice-sms` gateway
+and restricted database login are deployed. LiveKit `bqABvNPK95Wk` is Running.
+The cloud probe verified both tools and SMS readiness alongside automatic hourly
+booking, form version 5, Vesper and the existing CRM prompt revision. No production
+SMS was sent in validation; physical phone-to-handset delivery is still untested.
+Disable `VOICE_SMS_ENABLED` on the gateway/worker to close/remove the capability.
+
+## Automatic hourly phone appointments — October 22, 2026
+
+This supersedes the initial form-request phone integration below. Opek's phone
+agent now books one-hour appointments automatically, without staff approval,
+Monday–Saturday 7 AM–6 PM America/Denver. Starts are on the hour, 07:00 through
+17:00; Sunday is closed. Four service schedules share one concurrent-job capacity
+in `opek-hourly`. Mattress disposal and donation pickup use the junk-removal
+schedule; other form services use the corresponding shared-pool schedule.
+
+The existing form is applied version 5 with eleven one-hour choices. Website
+submissions remain requests. Phone calls collect that same schema, verify the
+callback phone through the consented OTP workflow, and read a complete recap.
+After a later affirmative caller reply, the existing restricted booking gateway
+rechecks capacity and creates a confirmed operational booking plus mirrored intake
+atomically. It retains the answers, email and originating form ID/version in booking
+details and the existing CRM call attribution. No second website request is posted.
+
+The backend lock protects shared capacity; stale/expired preparations and lost
+capacity reject confirmation. Uncertain outcomes retry the identical hold. No
+success is spoken until a confirmed backend booking ID is returned. Pricing may
+remain an estimate; that does not require staff approval of the appointment.
+Phone verification consent does not grant SMS/email marketing consent.
+
+Both existing booking feature flags are enabled (gateway and LiveKit worker),
+with form mode also enabled. LiveKit `aCaEWCaznMwY` is Running and a fresh worker
+verified automatic mode, version 5 and all eleven live hourly starts. No migration,
+Edge source release or CRM/E2 application deployment was needed. Isolated-database
+tests cover actual confirmation/capacity; no production customer booking or SMS was
+created during verification. An actual phone call remains the acceptance check.
+
+## Published booking form intake — October 22, 2026 (initial release)
+
+Opek's LiveKit worker now uses the existing **Opek Junk Removal — Booking Request**
+form (applied version 4), independently of availability schedules. It reads the
+current applied questions, collects name/callback/email and required service,
+address/ZIP, preferred date/window, items, estimate and terms acceptance, then
+speaks a recap and waits for a later affirmative caller reply before submitting.
+The start of the selected window is stored in America/Denver as the requested
+appointment timestamp. Staff must still confirm availability and price.
+
+Submissions use the same public form endpoint as the website, with its existing
+validation, snapshots, intake processing, UUID deduplication and rate limits.
+SMS/email marketing choices are false, so this path does not request follow-ups.
+No staff MCP/OAuth token or database admin key is placed on the voice worker.
+Pending submissions retain identical payloads after uncertain failures; definite
+validation rejection requires correcting details and repeating the recap. A form
+change before first submission invalidates the recap. The public API still uses
+its current server-side schema; it has no atomic client revision precondition.
+
+`VOICE_FORM_BOOKING_ENABLED=true` and the pinned `VOICE_BOOKING_FORM_ID` select
+this mode ahead of slot booking. Disable the first flag to restore the prior
+lookup/outcome tools. `VOICE_BOOKING_ENABLED` remains false, and no schedules were
+created or enabled. Published CRM prompts are preserved; appended runtime rules
+prevent promises of reservations, deposit links, texts or confirmed prices that
+the form tools cannot fulfill. Existing customer reads still require verification.
+
+LiveKit release `2oQQpiTDWJx4` is Running, with cloud form/tool/configuration
+verification completed. No production submission or SMS was part of validation.
+An actual caller request remains the phone acceptance check. This required no
+CRM/E2 runtime release or database migration.
+
 > MCP status: the complete rollout and AI previews are released (156 tools / 107 permission names, verified October 16, 2026 Denver time). Dated MCP milestone notes below retain their original implementation-time status; local-only/unapplied/pending statements there are historical. Use [current MCP release status](MCP_ROLLOUT.md) and [agent documentation](CRM_MCP.md).
 
 ## Lead/handoff MCP release — October 16, 2026

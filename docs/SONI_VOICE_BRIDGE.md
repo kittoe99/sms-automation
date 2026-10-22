@@ -1,5 +1,30 @@
 # Soni voice agent CRM bridge
 
+## Current in-call SMS gateway — October 22, 2026
+
+The current LiveKit worker uses the separate `voice-sms` gateway for one-off
+caller-requested texts. The legacy write bridge below is not exposed to it.
+Migration `20261022175711_voice_in_call_sms.sql` is applied in the shared project.
+It creates RPC-only `sms_voice_sms` and `voice_sms_api.readiness/send`; provision
+a dedicated no-admin login inheriting only that role, then configure
+`VOICE_SMS_DATABASE_URL`, a distinct `SONI_SMS_SECRET` and `VOICE_SMS_ENABLED=true`
+on the Edge project. Deploy only `voice-sms` with its configured import map and
+JWT verification disabled; requests require timestamped HMAC authentication.
+Merge only the HMAC secret and flag into LiveKit, preserving existing secrets.
+
+The pinned business/number remain Opek and `+18777574365`. The model cannot
+choose another tenant. Recipients must match the active CRM SIP call archive
+(fresh heartbeat, phone, call ID and agent) or this call's verified callback.
+Caller ID never authorizes reading customer data. The voice tool asks fresh
+permission for the exact recipient/content, then sends through the existing
+transactional outbox. Opt-out/readiness and per-call/per-phone limits apply;
+marketing consent/enrollment does not change. UUIDs are payload-bound and
+retries cannot create a second message. Queued is distinct from delivered.
+
+LiveKit `bqABvNPK95Wk` and Edge `voice-sms` are deployed. Endpoint and cloud
+tool/readiness checks passed without sending production SMS; actual handset
+delivery remains an acceptance check. See [Voice CRM](VOICE_CRM.md) for workflow.
+
 ## October 12 production rollout status
 
 CRM migrations are applied as `20261012202507 staff_voice_overview` and

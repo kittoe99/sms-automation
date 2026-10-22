@@ -133,7 +133,8 @@
     "20261016222634_crm_mcp_ai_reply_diagnostics.sql": "79c4294e0aa29b5de03a96b58b19e6a836386e89188437d86e5da4c0c08e06ba",
     "20261016225239_automation_ai_reply_defaults_rollout.sql": "a910a97b03b2ff758c0b77fc0e7f6b7da2dfa6cfe603ec45f7eda79acc38cc1e",
     "20261016235631_inbound_ai_profile_provenance.sql": "3fcab30057befbc83f06f237463f2dfa1bcdc1d6f0bb96d328bfc26febe0d217",
-    "20261017024313_crm_mcp_ai_reply_preview.sql": "d1ebd84fcd55527c4e30b16c4c14abd32feb782fdae6628667904b6c8d0e54ad"
+    "20261017024313_crm_mcp_ai_reply_preview.sql": "d1ebd84fcd55527c4e30b16c4c14abd32feb782fdae6628667904b6c8d0e54ad",
+    "20261022175711_voice_in_call_sms.sql": "2ad332397252b07373896da8c5b7f5793dcad1407f2ed240af7d1377c6c7363e"
   },
   "e2": {
     "20260922000000_create_contact_submissions.sql": "9a94bdadaabf0253d21529984d86bec5aafb1cfe80b454796d9ea9835b0463a5",
@@ -163,7 +164,8 @@
     "20261014065217_dashboard_scoped_reads.sql": "4523eb69c8a45622d1bc5e26e99494a64e8e423c39b8b446c7574f838ca3c72d",
     "20261014065602_contact_intake_limits.sql": "9873181c4a5bb0f43820ebe61c2f6e84e7c105e73af42325a07cd678c2760d4c",
     "20261014071224_hosting_operation_fencing.sql": "7c2a1d9aef15e090507d1b326022cb1b0023cc575f41aefc195c5a59a40e9649",
-    "20261016204903_hosting_mcp_adapter_contract.sql": "a81c2dcace5b9fe1f06ad0714b6611913596eb8d6f95e0bb2d48a84b526e1ce4"
+    "20261016204903_hosting_mcp_adapter_contract.sql": "a81c2dcace5b9fe1f06ad0714b6611913596eb8d6f95e0bb2d48a84b526e1ce4",
+    "20261016224415_dashboard_actions_and_enquiry_links.sql": "d9c682a7ed0b7cf35c29881f5e240a2bc41992f968e972f2281d8a5d67f534d8"
   },
   "e2HostingSources": {
     "app/api/web-hosting/route.ts": "3147ffca4348b583de099f4807a2691e479daf2e09291df4860216538edd07c9",
