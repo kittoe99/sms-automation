@@ -1,5 +1,42 @@
 # Opek SMS project record
 
+## Full deployment completion — October 22, 2026
+
+The owner authorized deploying all pending work. Published CRM commit
+`187907edb5c699c54d4b88a8a46dd90583da5d84` to both existing release branches,
+`codex/crm-mcp-business-setup` and `deploy-crm`, with an atomic, non-forced push.
+The unrelated local `.claude/` directory was preserved. The two hosted CRM checks
+passed: runs `39830153961` and `39830154025`.
+
+Render in the confirmed Micah's workspace:
+- CRM `wpacquisition-crm`: `dep-dbd57brncjis73b5vjg0`, live on commit `187907e`.
+- MCP `e2-crm-mcp`: `dep-dbd56vjl550s73anafgg`, live on the same commit.
+MCP automatic deployment is off. CRM reported commit auto-deploy enabled but
+produced no event/deploy after publication; one manual deploy completed. The
+unused, user-suspended legacy forms service was not resumed.
+
+E2 commit `7865ea5834533249d37da278941f795406706d7a` is published on main. Its
+Vercel Production deployment succeeded (GitHub deployment `7260064883`,
+`https://e2local-df3lvc95b-redhawk.vercel.app`). E2 changes are project records only.
+Updated E2's existing `PAIRED_CRM_REF` variable from the old `639672b` baseline to
+the immutable released CRM commit above. Hosted full validation is tracked at
+https://github.com/kittoe99/E2local/actions/runs/39830202063.
+
+The already-deployed LiveKit release `bqABvNPK95Wk` remains Running, and
+`voice-sms` version 1 is ACTIVE. The earlier migration and settings are retained;
+no migration was replayed or additional provider configuration changed. Fresh
+cloud checks confirmed twelve tools, SMS readiness and automatic hourly booking.
+
+Local full release gate: 743 CRM tests passed with 29 existing skips, 63 paired
+E2 tests passed, 72 voice tests passed; source/SQL, frontend build, Edge bundle,
+MCP schema and 431-link checks passed. Live CRM HTML and all eight JS/CSS assets
+matched the local production build, with CSP present. E2 home returns 200 and
+anonymous hosting access 401. MCP health/discovery return 200 and unsigned MCP
+requests 401; no post-release MCP error logs were found in the inspected window.
+MCP readback still reports Opek SMS ready/sending enabled. No production SMS,
+booking, customer edit or model conversation was used for validation. Real phone
+delivery remains an acceptance check. The receipt follow-up contains docs only.
+
 ## In-call SMS released — October 22, 2026
 
 The owner requested SMS during Opek phone calls. CRM-owned forward migration
