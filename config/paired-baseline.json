@@ -134,7 +134,8 @@
     "20261016225239_automation_ai_reply_defaults_rollout.sql": "a910a97b03b2ff758c0b77fc0e7f6b7da2dfa6cfe603ec45f7eda79acc38cc1e",
     "20261016235631_inbound_ai_profile_provenance.sql": "3fcab30057befbc83f06f237463f2dfa1bcdc1d6f0bb96d328bfc26febe0d217",
     "20261017024313_crm_mcp_ai_reply_preview.sql": "d1ebd84fcd55527c4e30b16c4c14abd32feb782fdae6628667904b6c8d0e54ad",
-    "20261022175711_voice_in_call_sms.sql": "2ad332397252b07373896da8c5b7f5793dcad1407f2ed240af7d1377c6c7363e"
+    "20261022175711_voice_in_call_sms.sql": "2ad332397252b07373896da8c5b7f5793dcad1407f2ed240af7d1377c6c7363e",
+    "20261031100908_voice_prompt_length_unlimited.sql": "ad29aa5aa1f13d4f168bcd24f0d3367a3bce8cd964e80114c89c159b8f77ec66"
   },
   "e2": {
     "20260922000000_create_contact_submissions.sql": "9a94bdadaabf0253d21529984d86bec5aafb1cfe80b454796d9ea9835b0463a5",

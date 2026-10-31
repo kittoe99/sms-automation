@@ -107,6 +107,7 @@ test('HMAC ingestion rejects model tenants and broad actions; upload verificatio
 
 test('cleanup retries storage failures without acknowledging deletion; client validates drafts',async()=>{
  validateConfiguration(configuration);assert.throws(()=>validateConfiguration({...configuration,voice:''}),/voice/);
+ validateConfiguration({...configuration,persona:'p'.repeat(9000),voice:'v'.repeat(40000),brain:'b'.repeat(60000)});assert.throws(()=>validateConfiguration({...configuration,brain:'  '}),/brain/);
  const calls=[];const db={call:async(...a)=>{calls.push(a);return {paths:['one']};}};
  const handler=createVoiceMaintenance(db,{secret:'x'.repeat(32),storage:{remove:async()=>{throw Error('offline');}}});
  assert.equal((await handler(new Request('https://test',{method:'POST',headers:{Authorization:`Bearer ${'x'.repeat(32)}`}}))).status,500);

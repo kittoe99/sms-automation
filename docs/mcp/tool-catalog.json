@@ -3723,18 +3723,15 @@
                 "maxLength": 100
               },
               "persona": {
-                "type": "string",
-                "maxLength": 4000
+                "type": "string"
               },
               "voice": {
                 "type": "string",
-                "minLength": 1,
-                "maxLength": 16000
+                "minLength": 1
               },
               "brain": {
                 "type": "string",
-                "minLength": 1,
-                "maxLength": 24000
+                "minLength": 1
               },
               "voiceName": {
                 "type": "string",
@@ -11933,18 +11930,15 @@
                     "maxLength": 100
                   },
                   "persona": {
-                    "type": "string",
-                    "maxLength": 4000
+                    "type": "string"
                   },
                   "voice": {
                     "type": "string",
-                    "minLength": 1,
-                    "maxLength": 16000
+                    "minLength": 1
                   },
                   "brain": {
                     "type": "string",
-                    "minLength": 1,
-                    "maxLength": 24000
+                    "minLength": 1
                   },
                   "voiceName": {
                     "type": "string",
@@ -12623,18 +12617,15 @@
                     "maxLength": 100
                   },
                   "persona": {
-                    "type": "string",
-                    "maxLength": 4000
+                    "type": "string"
                   },
                   "voice": {
                     "type": "string",
-                    "minLength": 1,
-                    "maxLength": 16000
+                    "minLength": 1
                   },
                   "brain": {
                     "type": "string",
-                    "minLength": 1,
-                    "maxLength": 24000
+                    "minLength": 1
                   },
                   "voiceName": {
                     "type": "string",
@@ -27290,18 +27281,15 @@
                 "maxLength": 100
               },
               "persona": {
-                "type": "string",
-                "maxLength": 4000
+                "type": "string"
               },
               "voice": {
                 "type": "string",
-                "minLength": 1,
-                "maxLength": 16000
+                "minLength": 1
               },
               "brain": {
                 "type": "string",
-                "minLength": 1,
-                "maxLength": 24000
+                "minLength": 1
               },
               "voiceName": {
                 "type": "string",

@@ -3,10 +3,14 @@ import assert from 'node:assert/strict';
 import {fixture} from './helpers/twilioConnections.js';
 import {call} from './helpers/database.js';
 import {toolOutputs} from '../src/mcp/tools.js';
-import {voicePermissions,voiceToolPermissions} from '../src/mcp/voiceSchemas.js';
+import {voiceConfiguration,voicePermissions,voiceToolPermissions} from '../src/mcp/voiceSchemas.js';
 import {withVoiceMedia} from '../src/mcp/voiceMedia.js';
 import {signMcpVoiceMedia} from '../supabase/functions/crm-api/mcp-voice-media.js';
 const configuration={name:'Synthetic reception',persona:'PRIVATE persona',voice:'PRIVATE voice prompt',brain:'PRIVATE brain prompt',voiceName:'marin'};
+test('voice prompts have no length limit but cannot be blank',()=>{
+ voiceConfiguration.parse({...configuration,persona:'p'.repeat(9000),voice:'v'.repeat(40000),brain:'b'.repeat(60000)});
+ assert.throws(()=>voiceConfiguration.parse({...configuration,brain:''}));
+});
 test('Voice MCP preserves scoped drafts, publication, retention and separate content permissions',async t=>{
  const {db,business}=await fixture();try{
  const a=(await business('voice-a')).tenant,b=(await business('voice-b')).tenant;
@@ -42,7 +46,7 @@ test('Voice MCP preserves scoped drafts, publication, retention and separate con
    await grant(voicePermissions.map(x=>x[0]).filter(p=>p!==voiceToolPermissions[tool]));assert.equal((await invoke(tool,{...publish,...(tool==='crm_save_voice_draft'?{configuration}: {})})).error.code,'PERMISSION_DENIED');
   }await grant();
   const r=await invoke('crm_publish_voice_draft',publish);assert.equal(r.ok,true,JSON.stringify(r));first=r.data.publishedVersionId;rev=r.data.revision;assert.deepEqual((await invoke('crm_publish_voice_draft',publish)).data,r.data);
-  const edit={businessId:a,agentId:agent,revision:rev,configuration:{...configuration,name:'New draft'},idempotencyKey:crypto.randomUUID()};const saved=await invoke('crm_save_voice_draft',edit);assert.equal(saved.ok,true);rev=saved.data.revision;
+  const edit={businessId:a,agentId:agent,revision:rev,configuration:{...configuration,name:'New draft',voice:'v'.repeat(40000),brain:'b'.repeat(60000)},idempotencyKey:crypto.randomUUID()};const saved=await invoke('crm_save_voice_draft',edit);assert.equal(saved.ok,true);rev=saved.data.revision;
   assert.equal((await invoke('crm_publish_voice_draft',{...publish,idempotencyKey:crypto.randomUUID()})).error.code,'CONFLICT');
   await assert.rejects(()=>call(db,'voice_workspace','staff',a,'save',{agentId:agent,version:rev-1,configuration}),/changed/);
   const published=await invoke('crm_publish_voice_draft',{...publish,revision:rev,idempotencyKey:crypto.randomUUID()});second=published.data.publishedVersionId;rev=published.data.revision;
