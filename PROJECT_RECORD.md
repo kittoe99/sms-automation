@@ -1,5 +1,25 @@
 # Opek SMS project record
 
+## CRM dashboard release and sender delivery test — November 2, 2026
+
+Released CRM commit `2934d50` (CRM dashboard matched to the E2 dashboard design,
+paired baseline running the E2 booking-calendar database test, owner booking docs)
+after `npm run check`, CRM `npm test` 760 pass / 29 skipped / 0 fail, paired tests
+66/66 and the frontend build. Pushed atomically without force (fb27009 → 2934d50)
+to `deploy-crm` and `codex/crm-mcp-business-setup`; API-triggered Render deploys
+are live: CRM frontend `dep-dbkgv2ff3r2c73cfel90` and MCP `dep-dbkgv2gn74is73baiebg`.
+E2 booking migration `20261102233000` is applied as remote version `20261102212807`
+and released in E2 `770d7c9`.
+
+Retest of `test.e2local.com` (Opek): Resend reports the domain and all four records
+verified; public DNS serves `send.test` MX/TXT and `resend._domainkey.test` TXT, and
+no duplicated `test.test` names remain. One test email from
+`hello@test.e2local.com` to the owner's address (kofikittoe35@gmail.com, at the
+user's request) was sent through Resend and reported delivered. Opek still uses the
+default `e2local.com` sender with sending disabled; no customer Email release or MCP
+grant was enabled. `e2local.com` has no DMARC record; adding one is recommended.
+
+
 ## Sender subdomain provisioning completed — November 2, 2026
 
 Used the user-provided local credential file to configure the server-only Supabase
@@ -18,6 +38,71 @@ existing records were preserved. The sender database record is verified. No emai
 was sent and no business sending setting or customer Email release was enabled.
 No new database migration or E2 runtime change was required. Unrelated booking and
 dashboard changes in both worktrees were preserved.
+
+
+## CRM Dashboard matched to current E2 Dashboard design — November 2, 2026 (local)
+
+`public/dashboard-theme.css` now follows the current E2 Dashboard
+(`app/dashboard/dashboard.module.css` at E2 `770d7c9`): ink `#173e4c` palette,
+grey workspace, solid-ink selected navigation/tabs/chips, flat 1px hairline cards and
+KPI strip, ink primary and white outlined secondary pill buttons, paper inputs,
+segmented workspace tabs and hidden scrollbars. Old hard-coded blues in the theme
+now use tokens; `index.html` theme-color is white. Sign-in (Clerk appearance in
+`auth.js`), public embeds and `e2-theme.css` brand tokens are unchanged.
+Presentation only: no API, permission, migration or shared database contract change,
+and no E2 code change. Validation: `npm run check`, CRM `npm test` 759 pass / 29
+skipped / 0 fail, paired tests 66/66, frontend build, and synthetic preview checks
+(`test/fixtures/platform-preview.js`) of Home, Websites and SMS at 1280px plus Home
+and the navigation drawer at 375px with no horizontal overflow. Docs updated:
+`docs/DASHBOARD_DESIGN.md`, `docs/STAFF_CRM.md`, `docs/TABBED_WORKSPACE.md` and the
+E2 `docs/staff-crm.md` mirror. Released in CRM `2934d50` (see above).
+
+## E2 booking calendar and owner slot settings — November 2, 2026 (local)
+
+Paired change owned by E2. E2 migration
+`20261102233000_customer_booking_calendar_and_schedules` reads `sms_bookings`
+for a month calendar and lets the current E2 owner of a released Bookings
+service edit slot length, capacity, notice, horizon, weekly hours and closed dates
+of existing `sms_voice_service_rules`. Owner reads/saves use the MCP booking schedule contract (`mcp_booking_schedule`
+output; `{scheduleId, revision, configuration}` saves with the
+`crm_update_booking_schedule` receipt) and the canonical `voice_save_rule` checks.
+No CRM migration was added. CRM changes:
+`scripts/paired-baseline.js` now runs E2 `booking-calendar-database` in the paired
+contract tests, `config/paired-baseline.json` was re-recorded (only the new E2
+migration differs), and `docs/BOOKING_AVAILABILITY.md` documents the owner path.
+Validation: E2 `npm test` 259/259 (the new test parses E2 output with
+`src/mcp/bookingSchemas.js` and re-saves through `voice_save_rule`), paired tests
+66/66, CRM `test/mcpBookings.test.js` 7/7, lint, typecheck and `next build` passed. Later applied as remote version `20261102212807` and released in E2 `770d7c9`.
+
+## Email deployment checkpoint — November 2, 2026
+
+Applied all four email migrations (history 157 → 161); rollback rehearsal and
+post-apply privilege checks passed. CRM API version 68 and email-worker version 17
+are ACTIVE. Anonymous CRM email access and worker POST return 401. Resend verified
+`e2local.com`; its new root sender record is verified. Existing sending/webhook
+Vault credentials remain configured. Domain API key and Cloudflare zone ID were
+configured server-side; the available Cloudflare token lacks DNS access, so automatic
+subdomain provisioning awaits `CLOUDFLARE_EMAIL_DNS_TOKEN`. No customer mail was sent.
+
+CRM source b5ea30aa2264d3f07e8389d92a659af7e8bd8b83 is published on
+`codex/email-automation-20261102`; GitHub source checks passed (41502894449).
+E2 source 835a3e4778125bf7dec8edd6836b126375077ee0 is on main, preserving newer
+blog updates. Vercel deployment GAXcz2f29TaPpYj1yPjobkx9h3Mx succeeded and the
+production email API redirects unsigned visitors to sign-in. Local release checks
+after the merge passed: 258 E2 tests, six Worker tests and 65 paired tests/builds.
+E2 CI 41502910196 remains in progress at this checkpoint; paired CI is pinned to
+the exact CRM source revision. Security advisors remain at five existing warnings.
+
+At the user's request, b5ea30a was pushed atomically without force (c499d65 →
+b5ea30a) to `deploy-crm` and `codex/crm-mcp-business-setup` in Micah's workspace
+(tea-dam9heh42hec738q6r7g). Render auto-deploy did not fire, so both deploys were
+API-triggered: MCP `dep-dbkfb695efls73f3gkeg` live 20:42:47 UTC and CRM frontend
+`dep-dbkfbaafngtc73f4onlg` live 20:42:32 UTC. MCP /health is ok, anonymous MCP POST
+returns 401, CRM root and `/email-unsubscribe.html` return 200, and the connected
+CRM MCP lists the new email tools. E2 CI 41502910196 was not re-checked (private).
+No MCP grants, business sending settings or customer Email releases were enabled;
+subdomain provisioning then awaited `CLOUDFLARE_EMAIL_DNS_TOKEN` (since configured). These checkpoint
+notes are local; the application commits above are published.
 
 
 ## Email production release in progress — November 2, 2026
