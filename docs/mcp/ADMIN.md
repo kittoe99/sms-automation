@@ -42,3 +42,14 @@ Use the connection's activity history to inspect actor, connection, tool, target
 Authentication failures before a trusted connection is established cannot be attributed to a CRM actor. A tool's presence in discovery, a valid login and an active connection are separate checks; none implies that every tool is permitted.
 
 See [troubleshooting](TROUBLESHOOTING.md) and [release/operations procedures](../MCP_ROLLOUT.md).
+
+## Reusable email grants (local, November 2, 2026)
+
+The eight `email_automation_*` grants are opt-in and independent of legacy `email_*`
+group grants. `email_automation_read` includes template content, contact emails,
+consent status and bounded delivery activity. Edit, publish, connection/form-consent,
+sender settings/activation, consent recording, individual starts and run controls
+have separate grants. Consent opt-in may trigger connected sequences; settings,
+connections, publication, starts and resume/retry can affect real delivery.
+Provider/DNS provisioning remains in the CRM staff workspace. See the
+[reusable email workflow](WORKFLOWS.md#reusable-email-automation-mcp--november-2-2026-local).

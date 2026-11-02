@@ -1,5 +1,11 @@
 # Form-first SMS automation
 
+Email now has a separate template workspace under Follow-ups → Email. Both legacy
+and custom forms can offer an unchecked email marketing consent checkbox and
+connect to a published email sequence independently of their SMS sequence. Manage
+the checkbox under Email → Connections; collection/SMS consent and activation are
+unchanged. See [email rollout and release order](EMAIL_AUTOMATIONS.md).
+
 > MCP status: the complete rollout and AI previews are released (156 tools / 107 permission names, verified October 16, 2026 Denver time). Dated MCP milestone notes below retain their original implementation-time status; local-only/unapplied/pending statements there are historical. Use [current MCP release status](MCP_ROLLOUT.md) and [agent documentation](CRM_MCP.md).
 
 ## Per-automation AI replies

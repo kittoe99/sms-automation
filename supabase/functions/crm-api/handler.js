@@ -10,6 +10,7 @@ import {crmLoginConfig} from '../_shared/http.js';
 import {createTwilioConnections} from './twilio-connections.js';
 import {signMcpKnowledgeUpload} from './mcp-upload.js';
 import {executeMcpEmailAction} from './mcp-email.js';
+import {emailAutomationAction} from './email-automations.js';
 const KNOWLEDGE_MIME=new Set(['application/pdf','application/vnd.openxmlformats-officedocument.wordprocessingml.document','text/plain','text/markdown']);
 const INTAKE_TYPES=new Set(['contacts','quote_requests','bookings','reviews']);
 async function signedKnowledgeUpload(tenant,input,fetchImpl=fetch) {
@@ -73,6 +74,12 @@ export function createCrmHandler(db,verify=authenticate,{platform=false,provisio
     return json({business:await db.call('platform_action',user,'business_register',p)},200,headers);
    }
    if(!tenant) return json({error:'Select a business'},400,headers);
+   const emailAutomationRoute=path.match(/^\/email-automations\/(read|preview|create|save|publish|archive|duplicate|settings|connection|form_consent|consent|start|pause|resume|stop|retry|sender)$/);
+   if(emailAutomationRoute) {
+    const action=emailAutomationRoute[1];
+    if(method!==(action==='read'?'GET':'POST')) return json({error:'Method not allowed'},405,headers);
+    return json(await emailAutomationAction(db,user,tenant,action,action==='read'?params:await readJson(request,350000)),200,headers);
+   }
    const directRoute=path.match(/^\/contact-automations\/(templates|read|preview|save|publish|archive|enroll|run|block|edit)$/);
    if(directRoute) {
     const action=directRoute[1],reading=['templates','read'].includes(action);

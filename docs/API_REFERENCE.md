@@ -408,3 +408,19 @@ and [E2 hosting](../../E2local-main/docs/web-hosting.md) for those workflows.
 CRM failures use `{error:"..."}`. Common statuses are 400 for invalid input/missing tenant, 401 for missing/invalid session, 403 for origin/access denial, 404 for unknown route/resource, 409 for conflicts, 413 for size and 500/503 for service/configuration failure. SQL errors are mapped centrally; not every missing row returns 404. Refresh stale revisions before retrying staff changes. Server errors intentionally omit internal details; inspect authorized logs by error code.
 
 E2 `/api/web-hosting/**`, customer readers and signed Clerk lifecycle webhooks are external interfaces owned by E2. See [E2 references](README.md#e2-reference-checkout). Legacy `/api/send` with `X-API-Key`, `/health`, ElevenLabs calls and Express WebSockets are documented separately in [legacy reference](LEGACY.md).
+
+## Reusable email templates (local, pending release)
+
+`GET /api/email-automations/read` returns scoped templates, connections, sender
+readiness, form/contact choices, and paginated runs/jobs (25 per page).
+`POST /api/email-automations/:action` supports `create`, `save`, `publish`,
+`duplicate`, `archive`, `preview`, `settings`, `connection`, `form_consent`,
+`consent`, `start`, `pause`, `resume`, `stop`, `retry`, and staff-only `sender`.
+CRM authentication and `X-Tenant-ID` are required. Mutations carry an
+`idempotencyKey` UUID; edits/controls additionally require their current revisions
+and run generation. Preview never creates a run or provider call.
+
+E2 owners use `GET/POST /api/dashboard/email?business=<id>` and `action` for POST.
+The server derives the customer account and rechecks current ownership and released
+Email access. Owners cannot use sender provisioning. Detailed behavior and rollout:
+[Email automations](EMAIL_AUTOMATIONS.md).

@@ -198,3 +198,17 @@ separate `ai_reply_preview` connection grant and an authorized business. Missing
 credentials return a sanitized temporary failure. No SMS/worker key is needed.
 See [AI reply previews](AI_REPLY_DIAGNOSTICS.md) for revisions, context limits,
 non-idempotent model usage and the applied release baseline. E2 needs no change.
+
+## Reusable email sender provisioning (local, pending release)
+
+Email delivery retains the existing `RESEND_API_KEY`/Vault sending key and webhook
+secret. `RESEND_DOMAIN_API_KEY` optionally supplies a separate domain-management
+key for the CRM API and email worker; otherwise the existing Resend key must have
+domain-read permissions. Neither key is exposed to either frontend.
+
+Automatic subdomain setup additionally needs `CLOUDFLARE_EMAIL_ZONE_ID` for
+e2local.com and `CLOUDFLARE_EMAIL_DNS_TOKEN` restricted to that zone with DNS
+read/edit permissions. These are Edge server secrets, not E2 browser variables.
+The E2 owner application uses its existing service-only database connection and
+does not receive provider/DNS credentials. See [email rollout](EMAIL_AUTOMATIONS.md)
+for activation and migration order.

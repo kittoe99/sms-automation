@@ -63,3 +63,40 @@ Instant acknowledgment is an explicitly configured form-sequence behavior; later
 The hypothetical AI preview uses approved Business Info and saved AI instructions, not customer history, supplementary sources, live availability or action tools. It is not a full simulation of a live conversation. It records which profile version was captured in the returned metadata and sanitized result audit; the hypothetical question/reply is not persisted as an AI run.
 
 Historical AI runs without captured provenance remain `not_recorded`; never assign today's Business Info version to them. See [AI diagnostics](../AI_REPLY_DIAGNOSTICS.md).
+
+## Reusable email automation MCP — November 2, 2026 (local)
+
+Added 16 MCP tools and eight opt-in `email_automation_*` grants. The source catalog
+now has 172 tools and 115 permissions. Existing email group tools keep their legacy
+scope and grants. The new workspace read includes reusable template content,
+contacts and consent status; grant it only when that combined access is intended.
+
+Use `crm_get_email_automation_workspace`, create/save a formatted template, preview
+its draft at the current revision, then publish. Configure a verified sender and
+reply-to with `crm_set_email_automation_settings`. Connect future form, contact
+opt-in or booking events with `crm_connect_email_template`, or explicitly start one
+eligible marketing contact with `crm_start_email_template_run`. Consent recording
+can trigger an enabled contact opt-in connection. Pause/resume/stop/retry require
+current run revision and generation. Publication can affect future event enrollments;
+activation/resume/start can schedule real Resend delivery. None bulk-enrolls history.
+
+All mutations require UUID idempotency keys. Preserve the exact payload/key after
+an uncertain response. Database permission, active staff and business scope checks
+run before replay. Mutation receipts and MCP audit records exclude template bodies,
+recipient addresses and consent evidence. Private canonical operation records keep
+their existing restricted retention. Form/SMS state and provider retry fencing remain
+owned by the shared email workflow. DNS provisioning stays in the staff workspace.
+The workspace is bounded to 100 templates/connections/forms/contacts and 25 runs/jobs
+per activity page; it is not an exhaustive export or contact search.
+
+MCP business service schemas now accept `email`, including business detail results.
+A forward preview patch prevents later sequence steps appearing before earlier steps.
+Preview times assume prompt processing and do not establish provider delivery.
+
+CRM owns `20261102181913_mcp_reusable_email_automations.sql` and
+`20261102181936_email_preview_sequence_order.sql`. Apply after the original CRM
+`20261102051753_reusable_email_automations.sql`; E2's existing
+`20261102051756_customer_email_service.sql` is required for adding/releasing Email
+services. Reconcile live history and apply only missing forward migrations, then
+release CRM/MCP and the original paired E2 changes before enabling new grants.
+No live migrations, deployments, grants, DNS changes or real sends were performed.

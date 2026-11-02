@@ -1,5 +1,85 @@
 # Email automation rollout
 
+## Reusable templates — local implementation, November 1, 2026
+
+**Follow-ups → Email** now opens Templates, Connections, Activity, and Settings.
+The former AI-written fixed groups remain under **Legacy AI email groups**. New
+templates render deterministically through the existing Resend Email API worker;
+they do not require OpenAI. The main E2 Local dashboard also has an owner-only
+Email service after staff add it and set it live in Businesses.
+
+Create a template or choose a starter, edit its subject/formatted content and
+timing, save, preview, then publish. Publication freezes a version for future
+runs; editing does not change existing runs. Offsets are minutes from the event
+or appointment (negative means before the appointment). Sending hours use the
+business timezone. Late pre-appointment reminders are skipped. The editor supports
+paragraphs, headings, lists, bold, italics, links, and the listed personalization
+fields. Raw HTML and executable links are not accepted.
+
+Connections support form submission (legacy and custom forms), newly recorded
+contact email opt-in, and confirmed/changed/cancelled operational bookings.
+Enable the form's separate email-consent checkbox in Connections for marketing.
+No old submissions or contacts are backfilled. Activity can record consent with
+evidence, start one eligible contact, and pause/resume/stop a run. A booking change
+fences obsolete jobs; cancellation stops pending reminders. Provider acceptance
+and actual delivery remain separate states. Existing legacy MCP tools retain
+their group-only scope; template management uses the new authenticated APIs.
+
+Marketing needs recorded email consent and honors business unsubscribe. Booking
+service templates are limited to booking events and must contain operational
+content only. They do not require marketing consent or an unsubscribe footer.
+Provider bounce/complaint/suppression blocks both purposes across the platform.
+Recording consent does not clear an existing unsubscribe or provider suppression.
+Email sending is independent of SMS sending. A provider request already underway
+may finish after a pause; its accepted step advances without resuming later steps.
+
+The default address is `hello@e2local.com`, with the business display name. Reply-to
+uses the configured business mailbox, initially `hello@e2local.com`; no mailbox is
+created by sender provisioning. Staff can provision `hello@<business>.e2local.com`
+in Settings. DNS provisioning only creates missing Resend DKIM/SPF records under
+that subdomain and refuses conflicts. Refresh resumes partial operations and checks
+verification. Existing MX/website records are not replaced. A selected sender
+must be verified. The worker refreshes provider verification after 15 minutes and
+holds sends if verification is lost. A frozen payload already submitted to the
+provider is never rewritten to change its sender.
+
+### Forward release order
+
+1. Reconcile the live paired histories. Apply only CRM
+   `20261102051753_reusable_email_automations.sql`, then E2
+   `20261102051756_customer_email_service.sql`. The latter requires the former.
+   Neither migration activates connections, sending, or customer visibility.
+2. Deploy the updated CRM API and email worker with their complete import graph.
+   Retain existing Vault Resend sending/webhook secrets. Configure server-only
+   `RESEND_DOMAIN_API_KEY` with domain management access (or use an existing full
+   access Resend key), `CLOUDFLARE_EMAIL_ZONE_ID`, and
+   `CLOUDFLARE_EMAIL_DNS_TOKEN` restricted to e2local.com DNS read/edit.
+3. Deploy CRM frontend and E2 application. In Email Settings, check the existing
+   `e2local.com` domain to establish verified readiness. Provision optional business
+   subdomains, enter reply-to/address, and explicitly enable business sending.
+4. Staff add/release the Email service for each intended owner. Release affects
+   dashboard access; sending and connections have separate controls. Configure
+   connections explicitly. Replacing overlapping legacy routes requires the
+   replacement checkbox and affects future enrollment, not existing legacy runs.
+5. Verify one controlled recipient through acceptance and delivery before enabling
+   business automations. Monitor Activity for suppression, failure, or uncertain
+   outcomes. Never blindly resend an uncertain submission outside the 23-hour
+   recovery horizon.
+
+Implementation/testing is local. These migrations, application releases, live
+Resend/domain checks and DNS changes have not been applied by this work. The
+connected Cloudflare token lacks DNS access; runtime provisioning requires the
+separate server token above. The Supabase connector needs reauthentication for
+live migration reconciliation. No real recipient or provider send was used in tests.
+
+The synthetic browser fixture is `node test/fixtures/email-automation-preview.js`
+on port 8194. It uses an in-memory database and disables provider management.
+`node scripts/check-email-workspace.js` runs the workflow with Playwright; optional
+`EMAIL_PLAYWRIGHT_MODULE` and `EMAIL_BROWSER_EXECUTABLE` select an existing local
+installation. Screenshots are written to ignored `.artifacts/email/`.
+
+## Historical legacy group rollout
+
 Open **Follow-ups → Email**. Email retains its existing independent groups,
 consent rules and send controls.
 
@@ -99,3 +179,40 @@ v1 remain enabled, both test runs stopped, and the reply unread. No email/SMS se
 enrollment, activation or content edit occurred during verification. Local CRM
 659 passed / 29 existing skips, paired 63, relevant E2 7, checks/builds and real
 PostgreSQL concurrency passed. Stages 7–9 remain.
+
+## Reusable email automation MCP — November 2, 2026 (local)
+
+Added 16 MCP tools and eight opt-in `email_automation_*` grants. The source catalog
+now has 172 tools and 115 permissions. Existing email group tools keep their legacy
+scope and grants. The new workspace read includes reusable template content,
+contacts and consent status; grant it only when that combined access is intended.
+
+Use `crm_get_email_automation_workspace`, create/save a formatted template, preview
+its draft at the current revision, then publish. Configure a verified sender and
+reply-to with `crm_set_email_automation_settings`. Connect future form, contact
+opt-in or booking events with `crm_connect_email_template`, or explicitly start one
+eligible marketing contact with `crm_start_email_template_run`. Consent recording
+can trigger an enabled contact opt-in connection. Pause/resume/stop/retry require
+current run revision and generation. Publication can affect future event enrollments;
+activation/resume/start can schedule real Resend delivery. None bulk-enrolls history.
+
+All mutations require UUID idempotency keys. Preserve the exact payload/key after
+an uncertain response. Database permission, active staff and business scope checks
+run before replay. Mutation receipts and MCP audit records exclude template bodies,
+recipient addresses and consent evidence. Private canonical operation records keep
+their existing restricted retention. Form/SMS state and provider retry fencing remain
+owned by the shared email workflow. DNS provisioning stays in the staff workspace.
+The workspace is bounded to 100 templates/connections/forms/contacts and 25 runs/jobs
+per activity page; it is not an exhaustive export or contact search.
+
+MCP business service schemas now accept `email`, including business detail results.
+A forward preview patch prevents later sequence steps appearing before earlier steps.
+Preview times assume prompt processing and do not establish provider delivery.
+
+CRM owns `20261102181913_mcp_reusable_email_automations.sql` and
+`20261102181936_email_preview_sequence_order.sql`. Apply after the original CRM
+`20261102051753_reusable_email_automations.sql`; E2's existing
+`20261102051756_customer_email_service.sql` is required for adding/releasing Email
+services. Reconcile live history and apply only missing forward migrations, then
+release CRM/MCP and the original paired E2 changes before enabling new grants.
+No live migrations, deployments, grants, DNS changes or real sends were performed.

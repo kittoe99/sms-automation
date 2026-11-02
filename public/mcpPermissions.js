@@ -1,5 +1,14 @@
 // Shared by the administrator editor and MCP output validation. New grants are opt-in.
 export const connectionPermissions = [
+ ["email_automation_read","Read reusable email content, settings, contacts, consent status and delivery activity"],
+ ["email_automation_edit","Create, edit, duplicate and archive reusable email templates"],
+ ["email_automation_publish","Publish reusable email versions for future enrollments"],
+ ["email_automation_connect","Configure email event connections and form consent switches"],
+ ["email_automation_settings","Configure verified email sender settings and activate email sending"],
+ ["email_automation_consent","Record email marketing consent or withdrawal; opt-in may start connected sequences"],
+ ["email_automation_start","Start an eligible individual email sequence"],
+ ["email_automation_control","Pause, resume, stop or retry reusable email sequences"],
+
  ["ai_reply_preview","Preview hypothetical AI replies using approved Business Info; calls the model but never sends"],
  ["ai_reply_read","Read scoped AI reply run diagnostics"],
  ["ai_reply_content_read","Read recorded AI replies and linked message text"],

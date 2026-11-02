@@ -136,7 +136,10 @@
     "20261017024313_crm_mcp_ai_reply_preview.sql": "d1ebd84fcd55527c4e30b16c4c14abd32feb782fdae6628667904b6c8d0e54ad",
     "20261022175711_voice_in_call_sms.sql": "2ad332397252b07373896da8c5b7f5793dcad1407f2ed240af7d1377c6c7363e",
     "20261028034132_voice_name_check_booking_changes.sql": "f219afdc2f7f61b19a1354a6bde7af575b73454c03a495cbc6b55d62a6a82965",
-    "20261031100908_voice_prompt_length_unlimited.sql": "ad29aa5aa1f13d4f168bcd24f0d3367a3bce8cd964e80114c89c159b8f77ec66"
+    "20261031100908_voice_prompt_length_unlimited.sql": "ad29aa5aa1f13d4f168bcd24f0d3367a3bce8cd964e80114c89c159b8f77ec66",
+    "20261102051753_reusable_email_automations.sql": "2924c9e3847d3b326ff2a725b599b0c5ed673599c45b7d35cd43cf3153abf588",
+    "20261102181913_mcp_reusable_email_automations.sql": "b60d411e774f5ad330e4d2239df071441a312ebd9f7f01f96ed0b5a550973981",
+    "20261102181936_email_preview_sequence_order.sql": "5657532ac3ff1ace49739acd4599ea6fe2cfe193780e897d0f71ed6fa9fb25ed"
   },
   "e2": {
     "20260922000000_create_contact_submissions.sql": "9a94bdadaabf0253d21529984d86bec5aafb1cfe80b454796d9ea9835b0463a5",
@@ -167,7 +170,8 @@
     "20261014065602_contact_intake_limits.sql": "9873181c4a5bb0f43820ebe61c2f6e84e7c105e73af42325a07cd678c2760d4c",
     "20261014071224_hosting_operation_fencing.sql": "7c2a1d9aef15e090507d1b326022cb1b0023cc575f41aefc195c5a59a40e9649",
     "20261016204903_hosting_mcp_adapter_contract.sql": "a81c2dcace5b9fe1f06ad0714b6611913596eb8d6f95e0bb2d48a84b526e1ce4",
-    "20261016224415_dashboard_actions_and_enquiry_links.sql": "d9c682a7ed0b7cf35c29881f5e240a2bc41992f968e972f2281d8a5d67f534d8"
+    "20261016224415_dashboard_actions_and_enquiry_links.sql": "d9c682a7ed0b7cf35c29881f5e240a2bc41992f968e972f2281d8a5d67f534d8",
+    "20261102051756_customer_email_service.sql": "a1312655db2c45e951505aa72ca8341c922389b9a00c2a81c60ed449afe56cd0"
   },
   "e2HostingSources": {
     "app/api/web-hosting/route.ts": "3147ffca4348b583de099f4807a2691e479daf2e09291df4860216538edd07c9",
@@ -187,6 +191,9 @@
     "lib/supabase/admin.ts": "a554055978fa8767e7ae352f4e28fe3252bfef376c7658f056288febcd41e28c",
     "workers/e2-sites/src/index.ts": "211c720dd97be44ae91e3d5e72bdd6e1ec17acf7b796a07ebd47bf4e2518c22b",
     "package.json": "d5442a9581507a983f38415851cabdcc0ca0988d4b30b8e1f4eeaed122b9893e",
-    "package-lock.json": "9f0d77fef465c020fbd65afdcc1e1daf49929d4dd126d1a0ed4184db6787ebc5"
+    "package-lock.json": "9f0d77fef465c020fbd65afdcc1e1daf49929d4dd126d1a0ed4184db6787ebc5",
+    "lib/emailTemplates.js": "167ff5a4762ac6e3b80c6ad5fce87b957252948b237c0980cbe5442501db19b2",
+    "app/dashboard/email/workspace.js": "d3f3979ded3c92f04b2b111e8d14eb127b5fa88b41670cc951ff3a4ba0947e75",
+    "app/api/dashboard/email/route.ts": "2b03bc170a0d9b6eb80aa84b6c96855fc52d92cdd45afabd821c4a342e4b1d3c"
   }
 }

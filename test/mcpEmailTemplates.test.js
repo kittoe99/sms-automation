@@ -1,0 +1,77 @@
+import test from 'node:test';
+import assert from 'node:assert/strict';
+import {fixture} from './helpers/twilioConnections.js';
+import {call} from './helpers/database.js';
+import {toolOutputs,toolDefinitions} from '../src/mcp/tools.js';
+import {emailAutomationPermissions,emailAutomationTools} from '../src/mcp/emailAutomationSchemas.js';
+import {EMAIL_STARTERS} from '../src/lib/emailTemplates.js';
+import {z} from 'zod';
+
+test('MCP reusable email uses scoped opt-in grants, canonical workflow, safe receipts and atomic replay',async()=>{
+ const {db,business}=await fixture();
+ try {
+  const a=(await business('template-owner')).tenant,b=(await business('other-owner')).tenant;
+  const invoke=async(tool,p={})=>{const r=(await db.query('select crm_mcp.invoke($1,$2,$3,$4,$5) r',['staff','email-template-client',tool,JSON.stringify(p),crypto.randomUUID()])).rows[0].r;if(r.ok)toolOutputs[tool].parse(r.data);return r;};
+  const cid=(await invoke('crm_get_access')).data.connectionId;let grantRevision=0;
+  const grant=async(permissions=emailAutomationPermissions.map(x=>x[0]),status='active')=>{grantRevision=(await call(db,'mcp_admin','staff','save',{connectionId:cid,revision:grantRevision,status,permissions,businessIds:[a],allBusinesses:false})).connection.revision;};
+  const write=(tool,p)=>invoke(tool,{businessId:a,idempotencyKey:crypto.randomUUID(),...p});
+  assert.equal((await invoke('crm_get_email_automation_workspace',{businessId:a})).error.code,'PERMISSION_DENIED');
+  await grant(['email_read','email_config_edit']);
+  assert.equal((await invoke('crm_get_email_automation_workspace',{businessId:a})).error.code,'PERMISSION_DENIED');
+  await grant();
+  assert.equal((await invoke('crm_get_email_automation_workspace',{businessId:b})).error.code,'PERMISSION_DENIED');
+  assert.equal((await invoke('crm_get_email_automation_workspace',{businessId:a,page:10001})).error.code,'VALIDATION_ERROR');
+  const definition=structuredClone(EMAIL_STARTERS[0]);definition.steps[0].subject='PRIVATE TEMPLATE SUBJECT';definition.steps[0].offsetMinutes=2880;definition.steps[1].offsetMinutes=0;
+  const p={businessId:a,name:'Reusable',definition,idempotencyKey:crypto.randomUUID()};
+  await grant(['email_automation_read']);
+  assert.equal((await invoke('crm_create_email_template',p)).error.code,'PERMISSION_DENIED');
+  await grant();
+  const before=(await db.query('select count(*)::integer n from sms_private.email_templates')).rows[0].n;
+  await db.exec("create function sms_private.template_audit_fail() returns trigger language plpgsql as $$begin raise exception 'audit failure';end$$; create trigger template_audit_fail before insert on sms_private.mcp_activity for each row execute function sms_private.template_audit_fail();");
+  await assert.rejects(()=>invoke('crm_create_email_template',p),/audit failure/);
+  assert.equal((await db.query('select count(*)::integer n from sms_private.email_templates')).rows[0].n,before);
+  await db.exec('drop trigger template_audit_fail on sms_private.mcp_activity; drop function sms_private.template_audit_fail();');
+  let created=await invoke('crm_create_email_template',p);assert.equal(created.ok,true,JSON.stringify(created));const id=created.data.id;
+  assert.deepEqual((await invoke('crm_create_email_template',p)).data,created.data);
+  assert.equal((await invoke('crm_create_email_template',{...p,name:'Changed'})).error.code,'CONFLICT');
+  assert.equal((await write('crm_save_email_template',{id,revision:9,name:'No',definition})).error.code,'CONFLICT');
+  assert.equal((await write('crm_save_email_template',{id,revision:1,name:'No',definition,unexpected:true})).error.code,'VALIDATION_ERROR');
+  const preview=await invoke('crm_preview_email_template',{businessId:a,id,revision:1,startAt:'2030-02-03T12:00:00Z',appointmentAt:null});assert.equal(preview.ok,true,JSON.stringify(preview));assert.ok(preview.data.schedule[1].dueAt>=preview.data.schedule[0].dueAt);assert.equal(preview.data.queued,false);
+  let published=await write('crm_publish_email_template',{id,revision:1});assert.equal(published.ok,true,JSON.stringify(published));
+  assert.equal((await write('crm_duplicate_email_template',{id,revision:2})).ok,true);
+  const foreign=await call(db,'email_automations','staff',b,'create',{name:'Foreign',definition,idempotencyKey:crypto.randomUUID()});
+  assert.equal((await write('crm_publish_email_template',{id:foreign.id,revision:1})).ok,false);
+  const contact=(await db.query("insert into public.sms_contacts(tenant_id,phone,name,email) values($1,'+13035550100','PRIVATE NAME','synthetic@example.test') returning *",[a])).rows[0];
+  assert.equal((await write('crm_start_email_template_run',{templateId:id,contactId:contact.id,contactRevision:contact.revision})).ok,false);
+  await db.exec("update sms_private.email_sender_domains set status='verified'; update public.sms_businesses set status='active'; update sms_private.runtime set edge_enabled=true");
+  const secret=(await db.query("select vault.create_secret('SYNTHETIC') id")).rows[0].id;await db.query('insert into vault.secrets(id) values($1)',[secret]);await db.query("update sms_private.edge_config set enabled=true,secret_id=$1 where queue='automation_jobs'",[secret]);
+  assert.equal((await write('crm_set_email_automation_settings',{revision:0,enabled:true,replyTo:'owner@example.test',mailingAddress:'Synthetic address',domainId:null})).ok,true);
+  assert.equal((await write('crm_record_email_marketing_consent',{contactId:contact.id,contactRevision:contact.revision,consent:true,evidence:'PRIVATE CONSENT EVIDENCE'})).ok,true);
+  const start=await write('crm_start_email_template_run',{templateId:id,contactId:contact.id,contactRevision:contact.revision});assert.equal(start.ok,true,JSON.stringify(start));const runId=start.data.id;
+  let r=(await db.query('select revision,generation from sms_private.email_enrollments where id=$1',[runId])).rows[0];
+  let paused=await write('crm_pause_email_template_run',{runId,...r});assert.equal(paused.ok,true,JSON.stringify(paused));
+  let resumed=await write('crm_resume_email_template_run',{runId,revision:paused.data.revision,generation:paused.data.generation});assert.equal(resumed.ok,true,JSON.stringify(resumed));
+  assert.equal((await write('crm_stop_email_template_run',{runId,revision:resumed.data.revision,generation:resumed.data.generation})).ok,true);
+  const connection=await write('crm_connect_email_template',{templateId:id,event:'contact.opted_in',formId:null,enabled:false,replaceLegacy:false});assert.equal(connection.ok,true,JSON.stringify(connection));
+  assert.equal((await write('crm_connect_email_template',{id:connection.data.id,templateId:id,event:'contact.opted_in',formId:null,enabled:false,replaceLegacy:false})).ok,false);
+  const form=(await db.query("insert into public.sms_web_form_definitions(tenant_id,preset,title,enabled) values($1,'contacts','Synthetic',true) returning public_id,version",[a])).rows[0];
+  assert.equal((await write('crm_set_email_template_form_consent',{formId:form.public_id,revision:form.version,enabled:true})).ok,true);
+  assert.equal((await write('crm_archive_email_template',{id,revision:2})).ok,true);
+  await grant([...emailAutomationPermissions.map(x=>x[0]),'service_add','read']);
+  const service=await write('crm_add_business_service',{kind:'email'});assert.equal(service.ok,true,JSON.stringify(service));assert.equal(service.data.record.kind,'email');
+  assert.equal((await invoke('crm_get_business',{businessId:a})).data.business.services.some(s=>s.kind==='email'),true);
+  const workspace=await invoke('crm_get_email_automation_workspace',{businessId:a});assert.equal(workspace.ok,true);assert.equal(workspace.data.runs.length,1);assert.ok(!JSON.stringify(workspace).includes('unsubscribe_token'));assert.ok(!JSON.stringify(workspace).includes('providerId'));
+  const saved=JSON.stringify((await db.query('select result from sms_private.mcp_requests')).rows)+JSON.stringify((await db.query('select * from sms_private.mcp_activity')).rows);
+  for(const value of ['PRIVATE TEMPLATE SUBJECT','PRIVATE NAME','synthetic@example.test','PRIVATE CONSENT EVIDENCE'])assert.ok(!saved.includes(value),value);
+  await grant([], 'revoked');assert.equal((await invoke('crm_create_email_template',p)).error.code,'PERMISSION_DENIED');
+  assert.equal((await db.query("select has_function_privilege('crm_mcp','sms_private.mcp_email_template_action(text,text,text,jsonb,uuid)','execute') ok")).rows[0].ok,false);
+  assert.equal((await db.query('select count(*)::integer n from sms_private.email_jobs where send_started_at is not null')).rows[0].n,0);
+ } finally {await db.close();}
+});
+
+test('MCP template schemas reject unsafe rich text and recognize the Email service',()=>{
+ assert.equal(z.object(toolDefinitions.find(t=>t[0]==='crm_add_business_service')[2]).strict().safeParse({businessId:'test',kind:'email',idempotencyKey:crypto.randomUUID()}).success,true);
+ const create=z.object(emailAutomationTools.find(t=>t[0]==='crm_create_email_template')[2]).strict();
+ const definition=structuredClone(EMAIL_STARTERS[0]);definition.steps[0].document[0].content[0].href='javascript:alert(1)';
+ assert.equal(create.safeParse({businessId:'test',name:'Bad',definition,idempotencyKey:crypto.randomUUID()}).success,false);
+});

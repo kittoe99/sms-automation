@@ -43,3 +43,12 @@ For the completed AI-preview release, migration came before compatible runtime, 
 ## Historical rollout records
 
 The original [implementation notes](MCP_IMPLEMENTATION_HISTORY.md), [stage history](MCP_ROLLOUT_HISTORY.md) and [AI history](AI_REPLY_HISTORY.md) preserve earlier local-only/unapplied checkpoints and catalog counts. Those checkpoints are superseded by the recorded baseline above. No new migration, deployment, OAuth connection or SMS test is part of creating this documentation package.
+
+## Local reusable email follow-up — November 2, 2026
+
+The local source catalog now has 172 tools / 115 permissions, including 16 reusable
+email automation tools and eight opt-in grants. Both paired release gates and the
+synthetic browser workflow passed. This does not change the dated live deployment
+evidence above: no migration, MCP/frontend deployment or grant was applied. See
+[Email automation rollout](EMAIL_AUTOMATIONS.md#reusable-email-automation-mcp--november-2-2026-local)
+for the two additional CRM migrations, original paired prerequisites and workflow.

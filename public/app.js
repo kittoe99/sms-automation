@@ -2,6 +2,7 @@ import {profileFromForm,profileEditorHtml,bindProfileEditor} from './businessPro
 import {workspaceGroups,groupForView,permittedGroups,navigationLevels,syncNavigation,syncNavigationTabs} from './workspaceNavigation.js';
 import {readHome,homeMarkup} from './workspaceHome.js';
 import {mountContactAutomations} from './contactAutomations.js';
+import {mountEmailWorkspace} from './emailAutomationWorkspace.js';
 import {mountFormDirectory} from './formDirectory.js';
 import {installPhoneFormatting,normalizePhoneInput} from './phoneInput.js?v=20261003-phone';
 installPhoneFormatting();
@@ -138,7 +139,7 @@ function currentPlatform() {
     const instance = createPlatform({root:host, title:el.title, subtitle:el.sub, pager:el.pager,
       isCurrent:()=>host.isConnected && platformInstances.get(state.view)===instance,
       onOpenRecord:(resource,id)=>switchView(`platform-${resource}`).then(()=>platform.openRecord(resource,id)),
-      onWorkspace:async(tenantId,service,agentId)=>{await switchTenant(tenantId);if(service==='voice')state.voiceWorkspace={tab:agentId?'configuration':'agents',agentId};await switchView(service==='sms'?'business-setup':service==='enquiries'?'web-forms':service==='voice'?'voice-agent':'bookings',{force:true});},
+      onWorkspace:async(tenantId,service,agentId)=>{await switchTenant(tenantId);if(service==='voice')state.voiceWorkspace={tab:agentId?'configuration':'agents',agentId};await switchView(service==='sms'?'business-setup':service==='enquiries'?'web-forms':service==='voice'?'voice-agent':service==='email'?'email':'bookings',{force:true});},
       onNavigate:view=>{
         if (view !== state.view) {
           tabMemory.take(view);
@@ -1260,7 +1261,20 @@ function initNavFind() {
   });
 }
 
+let disposeEmailWorkspace;
 async function renderEmailGroups() {
+  disposeEmailWorkspace?.();
+  if(state.emailGroupId)return renderLegacyEmailGroups();
+  el.root.innerHTML='<div data-email-workspace></div><button class="btn ghost" data-legacy-email>Legacy AI email groups</button>';
+  const tenant=getTenantId();
+  disposeEmailWorkspace=mountEmailWorkspace(el.root.querySelector('[data-email-workspace]'),{staff:true,request:async(action,input)=>{
+    if(getTenantId()!==tenant)throw new Error('Business changed. Reopen Email.');
+    const response=await apiFetch(`/api/email-automations/${action}${action==='read'?`?${new URLSearchParams(input)}`:''}`,action==='read'?{}:{method:'POST',body:JSON.stringify(input)});
+    const result=await response.json();if(!response.ok)throw new Error(result.error||'Email request failed');return result;
+  }});
+  el.root.querySelector('[data-legacy-email]').onclick=async()=>{disposeEmailWorkspace?.();await renderLegacyEmailGroups();const back=document.createElement('button');back.className='btn ghost';back.textContent='Back to email templates';back.onclick=renderEmailGroups;el.root.prepend(back);};
+}
+async function renderLegacyEmailGroups() {
   setTitle('Email', 'Manage opted-in follow-ups for each automation group.');
   el.kpi.innerHTML = '';
   el.pager.hidden = true;

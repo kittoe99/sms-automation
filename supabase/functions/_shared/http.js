@@ -47,8 +47,8 @@ export function cors(request) {
  if(origin && !(env('CRM_ALLOWED_ORIGINS') || '').split(',').map(s=>s.trim()).includes(origin)) throw Object.assign(new Error('Origin denied'),{status:403});
  return {'Access-Control-Allow-Origin':origin || 'null','Vary':'Origin','Access-Control-Allow-Headers':'authorization,content-type,x-tenant-id,idempotency-key','Access-Control-Allow-Methods':'GET,POST,PUT,DELETE,PATCH,OPTIONS'};
 }
-export async function readJson(request) {
- const text=await request.text(); if(text.length>65536) throw Object.assign(new Error('Payload too large'),{status:413});
+export async function readJson(request,maxLength=65536) {
+ const text=await request.text(); if(text.length>maxLength) throw Object.assign(new Error('Payload too large'),{status:413});
  try{return text ? JSON.parse(text):{};}catch{throw Object.assign(new Error('Invalid JSON'),{status:400});}
 }
 export function failure(error,headers={}) {

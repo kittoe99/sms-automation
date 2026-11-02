@@ -1,5 +1,108 @@
 # Opek SMS project record
 
+## Email production release in progress — November 2, 2026
+
+Production history reconciled at 157 entries; a transactional rollback rehearsal
+passed. Applied exactly four new migrations in dependency order: CRM
+20261102051753, E2 20261102051756, CRM 20261102181913 and CRM 20261102181936.
+History now has 161 entries. Private MCP helpers and anonymous owner-gateway access
+remain denied; security advisors are unchanged (five pre-existing warnings).
+CRM API and email-worker Edge functions deployed successfully through the existing
+CLI credentials. Resend confirmed e2local.com verified; the root sender record is
+verified and the server-side domain-management key/zone are configured. Automatic
+subdomain provisioning still requires the zone-scoped Cloudflare DNS token.
+No business sending, connection, customer release or MCP grant was enabled, and no
+email was sent. Application/MCP releases are being completed separately.
+E2 remote blog changes through b1e90dd were preserved and its full release gate
+passed again. Live deployment receipts will be recorded after final verification.
+
+
+## Email verification and MCP tools — November 2, 2026 (local)
+
+Verified the reusable Resend automation and added 16 MCP tools with eight opt-in
+`email_automation_*` grants (172 tools / 115 permissions in the local catalog).
+They cover bounded workspace reads, draft creation/editing/duplication/archival,
+preview/publication, verified sender settings, event connections, form consent,
+recorded marketing consent, individual starts and run pause/resume/stop/retry.
+Existing legacy email tools/grants stay separate. DNS provisioning remains in the
+staff workspace. The new read grant includes content, contacts and consent status.
+MCP writes share the canonical email eligibility/revision workflow and existing
+atomic audit/replay gateway. Receipts exclude content and recipient/evidence data.
+
+Fixed MCP service schemas to accept Email and a shared preview ordering defect:
+later sequence steps no longer appear before earlier steps. CRM owns forward
+migrations `20261102181913_mcp_reusable_email_automations.sql` and
+`20261102181936_email_preview_sequence_order.sql`, following the original CRM email
+migration. The existing E2 email service migration remains required for service
+creation/release. No new E2 migration. Paired fingerprints were updated; every
+historical migration hash remains unchanged.
+
+Both full release gates passed locally: CRM 759 passed / 29 existing skips,
+65 paired tests, source/SQL checks, frontend build and 74-file Edge bundle; E2
+257 tests, six Worker tests, 65 paired tests, lint/type checks and production build.
+New MCP database tests verify opt-in grants, cross-business denial, stale revisions,
+exact replay, audit-failure rollback, consent/start/control flows, service creation,
+response privacy and private helper privileges. Desktop/mobile browser workflow
+passed again using disposable synthetic data, with no page errors or overflow.
+Generated MCP catalog and all 464 local documentation links passed validation.
+
+No production migration, deployment, connection grant, provider send or DNS change
+was made. The prior Supabase reconnection and Cloudflare DNS credential prerequisites
+remain. Apply only missing owning-repository migrations after reconciliation, then
+release the paired applications/MCP and explicitly grant the new actions. Workflow
+and rollout details are in CRM `docs/EMAIL_AUTOMATIONS.md` and MCP workflow/admin docs.
+
+
+## Reusable Resend email automations — November 1, 2026 (local)
+
+Implemented reusable email templates with immutable published versions, formatted
+content, personalization, deterministic preview, starter sequences, and connections
+to legacy/custom forms, recorded contact opt-in, and operational booking events.
+The new Follow-ups → Email workspace includes templates, connections, consent,
+individual starts, activity, run controls, and sender settings. The previous AI
+groups remain available separately. Their MCP tools retain their legacy group
+scope. Existing valid consent can be reused without historical enrollment.
+
+Template runs extend the existing email enrollment/job infrastructure and Resend
+worker. No new provider or AI drafting is needed. Shared fair scheduling, frozen
+payloads/idempotency, suppression/unsubscribe and uncertainty handling remain.
+Marketing and operational booking email have distinct eligibility; booking edits
+fence obsolete reminders. Pausing a prepared send defers it; already-submitted
+acceptance advances its step while preserving pause. SMS activation is independent.
+
+Senders default to the business display name at hello@e2local.com. Staff can provision
+business subdomains through Resend and missing Cloudflare DKIM/SPF records; conflicting
+DNS is never overwritten. Setup has durable fenced operations and resumes partial
+work. The worker refreshes stale domain verification and holds unverified senders.
+Owners select verified senders and their reply-to mailbox; no inbox is provisioned.
+
+CRM owns `20261102051753_reusable_email_automations.sql`. Apply it once before E2's
+`20261102051756_customer_email_service.sql`, following live history reconciliation.
+The paired manifest retains prior migration hashes and adds the two new migrations
+and shared email source contracts. No migration was applied, provider email sent,
+DNS record changed, application deployed, or source published by this work.
+The connected Supabase app needs reauthentication and the connected Cloudflare
+token lacks DNS access. Server-side sender provisioning needs the documented
+Resend domain key and zone-scoped Cloudflare token. All new connections/settings
+start disabled; E2 customer access requires explicit staff release.
+
+Source, database, provider-mocked and browser checks are local. The browser fixture
+uses disposable PGlite and blocks provider management; desktop and 390px mobile
+screenshots are under ignored `.artifacts/email/`. See `docs/EMAIL_AUTOMATIONS.md`
+for workflow, secrets, rollout order, and a controlled-recipient delivery pilot.
+The user's existing `docs/mcp/TOOLS.md` and `.claude/` changes were preserved.
+
+Final local validation: CRM full release gate passed (756 tests passed, 29 existing
+skips), including 65 paired tests, source/current-SQL checks, frontend build and
+the 74-file Edge bundle. E2's full release gate passed (257 tests, six Worker tests,
+65 paired tests, lint/type checks and production build). A final HTTP validation
+regression test passed after correcting the staff Configure Email destination and
+invalid-draft HTTP status; CRM checks/frontend/Edge bundle were rerun successfully.
+The real headless browser workflow passed without page errors or horizontal
+overflow at 390px. Every historical migration hash remains unchanged, and the
+final paired fingerprints match. Live delivery and DNS acceptance remain pending.
+
+
 ## Phone booking changes, name check instead of texted codes — October 28, 2026
 
 The owner requested that the phone agent change bookings itself and that SMS codes be removed

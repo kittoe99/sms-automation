@@ -24,6 +24,7 @@ const sources=[
   'lib/hosting/build.ts','lib/hosting/delete.ts','lib/hosting/db.ts',
   'lib/hosting/assets.ts','lib/hosting/constants.ts','lib/request-body.ts',
   'lib/supabase/admin.ts','workers/e2-sites/src/index.ts','package.json','package-lock.json',
+  'lib/emailTemplates.js','app/dashboard/email/workspace.js','app/api/dashboard/email/route.ts',
 ];
 const sourceHashes={};for(const file of sources)sourceHashes[file]=await digest(path.join(paired,file));
 const actual={purpose:'Offline paired fixture and hosting contract; not a production replay plan',
@@ -38,7 +39,7 @@ if(process.argv.includes('--record')) {
   if(JSON.stringify(expected)!==JSON.stringify(actual))throw new Error('Paired baseline differs. Review owning migrations/contracts, run paired tests, then explicitly record the new baseline. Never replay histories on a shared database.');
   console.log('Paired source/migration fingerprints match.');
   if(process.argv.includes('--test')) {
-    const files=['hosting-tabs','hosting-storage','hosting-lifecycle','hosting-operation-database','site-details','platform-hosting-auth','platform-login-realms','business-services-database','customer-voice'];
+    const files=['hosting-tabs','hosting-storage','hosting-lifecycle','hosting-operation-database','site-details','platform-hosting-auth','platform-login-realms','business-services-database','customer-voice','email-automation-database'];
     const available=await readdir(path.join(paired,'tests'));
     const required=files.map(name=>`tests/${name}.test.mjs`);
     for(const file of required)if(!available.includes(path.basename(file)))throw new Error(`Missing paired contract test: ${file}`);

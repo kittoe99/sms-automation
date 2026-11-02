@@ -1,4 +1,5 @@
 import { resendEmailRequest, renderEmailMessage } from '../lib/resendEmail.js';
+import { renderTemplateEmail } from '../lib/emailTemplates.js';
 
 const env = key => globalThis.Deno?.env.get(key) ?? globalThis.process?.env[key];
 const outputText = response => (response.output || []).filter(item => item.type === 'message')
@@ -49,19 +50,29 @@ export async function processEmailJob(job, db, { apiKey = env('RESEND_API_KEY'),
     if (!context?.source || !context?.settings) return await finish('failed', null, 'MISSING_CONTEXT');
     const providerKey = apiKey || await db.call('email_secret_value', 'resend_api');
     if (!providerKey) throw Object.assign(new Error('Resend key is not configured'), { code: 'RESEND_NOT_CONFIGURED' });
-    const content = job.subject && job.body ? { subject: job.subject, body: job.body } : await draft(context);
+    if(context.template && context.settings.providerId && (!context.settings.checkedAt || Date.parse(context.settings.checkedAt)<Date.now()-15*60000)) {
+      const domain=await resendEmailRequest(`/domains/${encodeURIComponent(context.settings.providerId)}`,{method:'GET',apiKey:env('RESEND_DOMAIN_API_KEY')||providerKey,fetchImpl});
+      await db.call('email_sender_verified',job.id,job.lease_token,domain.status==='verified');
+      if(domain.status!=='verified')throw Object.assign(new Error('Sender verification is pending'),{code:'SENDER_NOT_VERIFIED'});
+    }
+    const unsubscribeUrl = new URL('/email-unsubscribe.html', baseUrl);
+    unsubscribeUrl.searchParams.set('token', context.enrollment.unsubscribe_token);
+    const values = { ...context.source, name:context.enrollment.name, firstName:context.enrollment.name?.trim().split(/\s+/)[0] || '',
+      email:context.enrollment.email, businessName:context.business.name,
+      appointment:context.enrollment.appointment_at ? new Intl.DateTimeFormat('en-US',{dateStyle:'full',timeStyle:'short',timeZone:context.business.timeZone}).format(new Date(context.enrollment.appointment_at)) : '' };
+    const template = context.template ? renderTemplateEmail(context.step, values, {businessName:context.business.name,
+      mailingAddress:context.settings.mailing_address,unsubscribeUrl:unsubscribeUrl.toString(),purpose:context.enrollment.purpose}) : null;
+    const content = job.subject && job.body ? { subject: job.subject, body: job.body } : template || await draft(context);
     if (!job.subject || !job.body) await db.call('email_save_draft', job.id, job.lease_token, content.subject, content.body);
     if (!job.provider_payload) {
-      const unsubscribeUrl = new URL('/email-unsubscribe.html', baseUrl);
-      unsubscribeUrl.searchParams.set('token', context.enrollment.unsubscribe_token);
       const oneClickUrl = new URL(unsubscribeApiUrl);
       oneClickUrl.searchParams.set('token', context.enrollment.unsubscribe_token);
-      const rendered = renderEmailMessage(content.body, context.business.name,
+      const rendered = template ? {html:template.html,text:template.text} : renderEmailMessage(content.body, context.business.name,
         context.settings.mailing_address, unsubscribeUrl.toString());
       await db.call('email_save_payload', job.id, job.lease_token, { from: context.settings.sender,
         to: context.enrollment.email, reply_to: context.settings.reply_to,
         subject: content.subject, ...rendered,
-        headers: { 'List-Unsubscribe': `<${oneClickUrl}>`, 'List-Unsubscribe-Post': 'List-Unsubscribe=One-Click' } });
+        ...(!context.template || context.enrollment.purpose === 'marketing' ? {headers: { 'List-Unsubscribe': `<${oneClickUrl}>`, 'List-Unsubscribe-Post': 'List-Unsubscribe=One-Click' }} : {}) });
     }
     const ready = await db.call('email_before_send', job.id, job.lease_token);
     if (!ready) return;

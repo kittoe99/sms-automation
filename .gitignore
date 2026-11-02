@@ -12,6 +12,7 @@ node_modules/
 /.codex-*-preview.png
 .DS_Store
 dist/
+/.artifacts/
 /public/vendor/
 *.log
 
