@@ -1,19 +1,28 @@
 /* CRM adaptation of E2local-main/app/dashboard/dashboard.module.css.
    Keep feature layouts in styles.css; public embeds keep their own theme. */
 :root {
-  --bg: #f7fafb;
+  /* E2 Dashboard ink palette (dashboard.module.css .dashboard tokens). */
+  --bg: #f5f7f8;
+  --paper: #fbfdfd;
   --surface: #ffffff;
-  --surface-2: #f7fafb;
-  --surface-3: #eaf8fc;
-  --text: #172f36;
+  --surface-2: #f2f5f6;
+  --surface-3: #edf2f3;
+  --text: #173e4c;
+  --ink: #173e4c;
   --muted: #536d76;
-  --border: #cbdfe8;
-  --border-soft: #d3e4ec;
-  --brand: #087aa5;
-  --brand-deep: #066383;
-  --brand-soft: #eaf8fc;
+  --border: #d9e2e5;
+  --border-soft: #d9e2e5;
+  --card-line: #c7d5d9;
+  --button-line: #b4c7cc;
+  --brand: #173e4c;
+  --brand-deep: #0f2d38;
+  --brand-soft: #edf2f3;
+  --info: #173e4c;
   --sidebar-w: 240px;
   --shadow-sm: none;
+  --shadow-md: 0 0 0 1px var(--border);
+  --shadow-surface: 0 0 0 1px var(--border);
+  --shadow-raised: 0 0 0 1px var(--card-line);
   --dashboard-gutter: clamp(24px, 3.3vw, 56px);
   font-family: "Plus Jakarta Sans", Arial, sans-serif;
 }
@@ -32,7 +41,7 @@ body { font-family: "Plus Jakarta Sans", Arial, sans-serif; font-size: 14px; lin
 .dashboard-site-link svg { width: 24px; height: 24px; }
 .crm .toolbar-live { margin: 0; padding-left: 16px; border-left: 1px solid var(--border-soft); }
 .crm .live-pill { margin: 0; font-size: 11px; }
-.crm .sidebar { position: fixed; top: 72px; left: 0; bottom: 0; display: flex; flex-direction: column; width: var(--sidebar-w); height: calc(100dvh - 72px); padding: 20px 14px 16px; gap: 0; border-right: 1px solid var(--border-soft); background: #fff; box-shadow: none; overflow-y: auto; scrollbar-width: thin; }
+.crm .sidebar { position: fixed; top: 72px; left: 0; bottom: 0; display: flex; flex-direction: column; width: var(--sidebar-w); height: calc(100dvh - 72px); padding: 20px 14px 16px; gap: 0; border-right: 1px solid var(--border-soft); background: #fff; box-shadow: none; overflow-y: auto; scrollbar-width: none; }
 .crm .sidebar-brand { min-height: 0; padding: 0 10px; margin-bottom: 10px; border: 0; }
 .sidebar-label { margin: 0; color: var(--muted); font: 9px/1.5 "Geist Mono", monospace; letter-spacing: .12em; }
 .crm #sidebar-close { display: none; }
@@ -222,17 +231,17 @@ body { font-family: "Plus Jakarta Sans", Arial, sans-serif; font-size: 14px; lin
 .crm .platform-root > .card:has(.website-tabs) [data-error]:empty { display:none; }
 .crm .platform-root > .card:has(.website-tabs) [data-detail] > p { margin:0; }
 .crm .website-tabs { display:flex; gap:22px; overflow-x:auto; border-bottom:1px solid #dde3e8; margin:20px 0 26px; }
-.crm .platform-root .website-tabs [data-tab] { flex:none; min-height:44px; padding:10px 0; border:0; border-bottom:2px solid transparent; border-radius:0; background:transparent; box-shadow:none; color:#64717b; font-size:13px; text-transform:none; }
-.crm .platform-root .website-tabs [data-tab][aria-current="page"] { border-bottom-color:#087aa5; color:#075e7e; background:transparent; }
-.crm .website-deployments { max-width:1000px; margin:auto; color:#26353d; }
+.crm .platform-root .website-tabs [data-tab] { flex:none; min-height:44px; padding:10px 0; border:0; border-bottom:2px solid transparent; border-radius:0; background:transparent; box-shadow:none; color:var(--muted); font-size:13px; text-transform:none; }
+.crm .platform-root .website-tabs [data-tab][aria-current="page"] { border-bottom-color:var(--brand); color:var(--brand-deep); background:transparent; }
+.crm .website-deployments { max-width:1000px; margin:auto; color:var(--text); }
 .crm .website-deployments :is(h3,p) { margin:0; }
 .crm .website-deployments h3 { font-size:17px; letter-spacing:-.025em; }
-.crm .website-deployments p { color:#64717b; font-size:13px; line-height:1.65; }
-.crm .website-deployments .btn { border-radius:4px; background:#087aa5; box-shadow:none; transform:none; transition:none; border:1px solid #087aa5; color:#fff; }
+.crm .website-deployments p { color:var(--muted); font-size:13px; line-height:1.65; }
+.crm .website-deployments .btn { border-radius:4px; background:var(--brand); box-shadow:none; transform:none; transition:none; border:1px solid var(--brand); color:#fff; }
 .crm .website-deployments .btn.ghost { background:#fff; color:#33444f; border-color:#d4dde3; }
-.crm .website-deployments .btn:focus-visible,.crm .website-tabs [data-tab]:focus-visible,.crm .website-deployments summary:focus-visible { outline:2px solid #087aa5; outline-offset:3px; }
+.crm .website-deployments .btn:focus-visible,.crm .website-tabs [data-tab]:focus-visible,.crm .website-deployments summary:focus-visible { outline:2px solid var(--brand); outline-offset:3px; }
 .crm .website-live { display:flex; justify-content:space-between; align-items:center; gap:20px; padding:20px 24px; background:#f5f7f9; border:1px solid #e0e5e9; border-radius:5px; }
-.crm .website-caption { display:block; margin-bottom:6px; color:#64717b; font-size:11px; font-weight:600; letter-spacing:.06em; text-transform:uppercase; }
+.crm .website-caption { display:block; margin-bottom:6px; color:var(--muted); font-size:11px; font-weight:600; letter-spacing:.06em; text-transform:uppercase; }
 .crm .website-live-address { font-size:18px; font-weight:600; overflow-wrap:anywhere; margin-bottom:5px; }
 .crm .website-live-actions { display:flex; align-items:center; flex-wrap:wrap; justify-content:flex-end; gap:14px; flex-shrink:0; }
 .crm .website-badge { display:inline-flex; align-items:center; gap:6px; border:1px solid #dce2e7; border-radius:4px; padding:3px 8px; background:#f7f8fa; color:#5d6873; font-size:11px; font-weight:500; white-space:nowrap; }
@@ -242,18 +251,18 @@ body { font-family: "Plus Jakarta Sans", Arial, sans-serif; font-size: 14px; lin
 .crm .website-upload { margin:28px 0 32px; padding:0; max-width:none; }
 .crm .website-section-heading { display:flex; align-items:center; justify-content:space-between; gap:12px; margin-bottom:18px; }
 .crm .website-section-heading p { margin-top:5px; }
-.crm .website-section-heading > span { color:#64717b; font-size:12px; }
+.crm .website-section-heading > span { color:var(--muted); font-size:12px; }
 .crm .website-file-choices { display:grid; grid-template-columns:repeat(2,minmax(0,1fr)); gap:16px; }
 .crm .platform-root .website-file-choices label { display:flex; flex-direction:column; gap:8px; min-width:0; padding:18px; border:1px solid #dce2e7; background:#fff; border-radius:5px; }
-.crm .website-file-choices strong { font-size:14px; color:#26353d; font-weight:600; }
-.crm .website-file-choices span { font-size:12px; color:#64717b; }
-.crm .platform-root .website-file-choices input { padding:8px 0 0; border:0; border-radius:0; background:transparent; color:#64717b; font-size:12px; box-shadow:none; }
+.crm .website-file-choices strong { font-size:14px; color:var(--text); font-weight:600; }
+.crm .website-file-choices span { font-size:12px; color:var(--muted); }
+.crm .platform-root .website-file-choices input { padding:8px 0 0; border:0; border-radius:0; background:transparent; color:var(--muted); font-size:12px; box-shadow:none; }
 .crm .website-file-choices input::file-selector-button { margin-right:12px; padding:9px 12px; border:1px solid #d4dde3; background:#f7f8fa; color:#33444f; border-radius:4px; font:inherit; cursor:pointer; }
-.crm .website-requirements { margin:14px 0 20px; color:#64717b; font-size:12px; }
+.crm .website-requirements { margin:14px 0 20px; color:var(--muted); font-size:12px; }
 .crm .website-requirements summary { cursor:pointer; width:fit-content; padding:4px 0; }
 .crm .website-requirements p { max-width:640px; margin-top:8px; }
 .crm .website-upload-footer { display:flex; align-items:center; flex-wrap:wrap; gap:16px; }
-.crm .website-upload-footer span { color:#64717b; font-size:12px; }
+.crm .website-upload-footer span { color:var(--muted); font-size:12px; }
 .crm [data-upload-status]:not(:empty) { margin-top:14px; }
 .crm .website-history { border-top:1px solid #dde3e8; padding-top:24px; }
 .crm .website-version { display:flex; justify-content:space-between; align-items:center; gap:20px; border-bottom:1px solid #e5e9ed; padding:18px 0; }
@@ -262,7 +271,7 @@ body { font-family: "Plus Jakarta Sans", Arial, sans-serif; font-size: 14px; lin
 .crm .website-version-title strong { font-size:13px; font-weight:600; }
 .crm .website-version-info p { font-size:12px; }
 .crm .website-version-actions { display:flex; align-items:center; flex-wrap:wrap; gap:8px; flex-shrink:0; }
-.crm .website-version-more summary { cursor:pointer; color:#64717b; font-size:12px; padding:12px 8px; }
+.crm .website-version-more summary { cursor:pointer; color:var(--muted); font-size:12px; padding:12px 8px; }
 .crm .website-version-more[open] { flex-basis:100%; }
 .crm .website-version-more > div { display:flex; flex-wrap:wrap; gap:8px; padding:0 8px 8px; }
 .crm .website-deployments .website-build-error { color:#a13939; overflow-wrap:anywhere; margin-top:8px; max-width:580px; }
@@ -284,9 +293,9 @@ body { font-family: "Plus Jakarta Sans", Arial, sans-serif; font-size: 14px; lin
  .crm [data-open-registered-business] { grid-column:auto; grid-row:auto; width:fit-content; margin-top:8px; }
 }
 /* Shared with E2 Local's DashboardLoader. */
-.crm-loader { display:flex; flex-direction:column; align-items:center; justify-content:center; gap:14px; width:100%; min-height:220px; padding:28px; color:#087aa5; box-sizing:border-box; }
-.crm-loader-ring { display:inline-block; flex:none; width:30px; height:30px; border:2px solid #cbdfe8; border-top-color:currentColor; border-radius:50%; animation:crm-dashboard-spin .9s linear infinite; box-sizing:border-box; }
-.crm-loader-label { color:#536d76; font-size:12px; line-height:1.5; font-weight:500; }
+.crm-loader { display:flex; flex-direction:column; align-items:center; justify-content:center; gap:14px; width:100%; min-height:220px; padding:28px; color:var(--brand); box-sizing:border-box; }
+.crm-loader-ring { display:inline-block; flex:none; width:30px; height:30px; border:2px solid var(--card-line); border-top-color:currentColor; border-radius:50%; animation:crm-dashboard-spin .9s linear infinite; box-sizing:border-box; }
+.crm-loader-label { color:var(--muted); font-size:12px; line-height:1.5; font-weight:500; }
 .crm-boot-loader { min-height:100dvh; }
 .crm-loader-compact { display:inline-flex; flex-direction:row; justify-content:flex-start; gap:8px; width:auto; min-height:0; padding:0; color:inherit; vertical-align:middle; }
 .crm-loader-compact .crm-loader-ring { width:14px; height:14px; }
@@ -370,5 +379,91 @@ body { font-family: "Plus Jakarta Sans", Arial, sans-serif; font-size: 14px; lin
  .crm .form-directory-facts { grid-template-columns:1fr 1fr; }
  .crm .page-heading h1 { font-size:26px; }
  .crm .form-rule-grid { grid-template-columns:1fr; }
+}
+/* November E2 Dashboard: flat hairline surfaces, ink selected states and the
+   email-workspace button palette (ink primary, white outlined secondary). */
+html:has(.crm), .crm, .crm * { scrollbar-width: none; }
+html:has(.crm)::-webkit-scrollbar, .crm::-webkit-scrollbar, .crm *::-webkit-scrollbar { display: none; }
+::selection { background: var(--card-line); }
+.crm .sidebar { border-right: 0; }
+.crm .workspace-switcher { border-bottom-color: var(--border); }
+.crm .sidebar-find { border: 0; background: var(--paper); box-shadow: inset 0 0 0 1px var(--button-line); }
+.crm .sidebar-find:focus-within { background: #fff; }
+.crm .section-link, .crm .nav-item { border: 0; color: var(--muted); }
+.crm :is(.section-icon, .nav-item svg, .navigation-group summary svg) { color: var(--ink); }
+.crm :is(.section-link, .nav-item):not(.active):hover { background: var(--brand-soft); color: var(--ink); }
+.crm .nav-item:hover svg { color: var(--ink); }
+.crm :is(.section-link, .nav-item).active { background: var(--ink); color: #fff; }
+.crm :is(.section-link, .nav-item).active :is(svg, .section-icon) { color: #fff; }
+.crm :is(.nav-tag, .nav-count, .user-avatar, .product-label) { border-color: transparent; background: var(--surface-2); color: var(--ink); }
+.crm .nav-item.active :is(.nav-tag, .nav-count) { background: #ffffff26; color: #fff; }
+.crm .navigation-group:first-of-type { border-top-color: var(--border); }
+.dashboard-support-link { border: 0; border-radius: 8px; box-shadow: var(--shadow-surface); }
+.dashboard-support-link svg, .dashboard-support-link > span:last-child { color: var(--ink); }
+.dashboard-support-link:hover { background: var(--brand-soft); box-shadow: var(--shadow-raised); }
+.crm .sidebar-foot { border-top-color: var(--border); }
+.crm .user-avatar { border: 0; }
+.status-dot { background: var(--muted); }
+.crm .kpi-row { border: 0; border-radius: 8px; box-shadow: var(--shadow-surface); }
+.crm .kpi { border-right: 0; box-shadow: inset -1px 0 0 var(--border); }
+.crm .kpi:last-child { box-shadow: none; }
+.crm .card, .crm :is(.dashboard-action, .followup-card, .category-tile, .home-work, .kv .row, .facet, .automation-step-row, .drip-steps li, .setup-radio, .setup-sample, .booking-window, .booking-config-row, .booking-field-row, .automation-builder, .setup-hero) { border: 1px solid var(--border); background: #fff; box-shadow: none; }
+.crm .card-head, .crm .web-builder-field, .crm .inbox-item, .crm td, .crm th { border-color: var(--border); }
+.crm :is(.dashboard-action, .followup-card, .category-tile.as-button, .home-work):hover { border-color: var(--card-line); background: var(--brand-soft); box-shadow: none; }
+.crm .dashboard-action .dashboard-action-top { color: var(--ink); }
+.crm .dashboard-action-top svg { box-sizing: content-box; width: 22px; height: 22px; padding: 10px; border-radius: 8px; background: var(--surface-2); }
+.crm :is(.eyebrow, .compose-label, .kv .k, .sidebar-label, .nav-label) { color: var(--muted); }
+.crm .btn, .crm .btn-ghost { border: 1px solid var(--button-line); border-radius: 999px; background: #fff; color: var(--ink); font-weight: 700; }
+.crm :is(.btn.ghost, .btn-ghost) { background: #fff; color: var(--ink); }
+.crm :is(.btn.ghost, .btn-ghost):hover, .crm .btn.danger:hover { border-color: var(--ink); background: var(--surface-2); }
+.crm .btn:not(.ghost):not(.btn-ghost):not(.danger) { border-color: var(--ink); background: var(--ink); color: #fff; }
+.crm .btn:not(.ghost):not(.btn-ghost):not(.danger):hover { border-color: var(--brand-deep); background: var(--brand-deep); }
+.crm .btn:disabled, .crm .btn-ghost:disabled { border-color: var(--border); background: var(--bg); color: var(--muted); opacity: 1; }
+.crm :is(input:not([type="checkbox"]):not([type="radio"]):not([type="file"]), select, textarea) { border: 1px solid var(--button-line); background: var(--paper); }
+.crm #nav-find, .crm #tenant-select { border: 0; background: transparent; }
+.crm :is(input, select, textarea):hover { border-color: var(--muted); }
+.crm #nav-find:hover, .crm #tenant-select:hover { border-color: transparent; }
+.crm th, .crm table.data th { background: var(--bg); color: var(--muted); }
+.crm table.data tbody tr:hover { background: var(--surface-2); }
+.crm :is(.chip, .enrolled-chip) { border-color: var(--border); background: var(--surface-2); color: var(--ink); }
+.crm .chip:hover { border-color: var(--card-line); background: #fff; }
+.crm .chip.active { border-color: var(--ink); background: var(--ink); color: #fff; }
+.crm .badge { background: var(--ink); }
+.crm .inbox-item:hover { background: var(--surface-2); }
+.crm .inbox-item.active { background: var(--brand-soft); box-shadow: inset 3px 0 var(--ink); }
+.crm .thread-scroll { background: var(--bg); }
+.crm .bubble { border-color: var(--border); }
+.crm .bubble.out { border-color: var(--card-line); background: var(--brand-soft); }
+.crm .bubble.ai { border-color: var(--border); background: var(--surface-2); }
+.crm :is(.setup-facts, .setup-steps, .web-builder-preview) { background: var(--surface-2); }
+.crm .category-tile .blank { background: var(--surface-2); color: var(--ink); }
+.crm .web-builder-tabs { border-color: var(--border); border-radius: 12px; background: #fff; }
+.crm .web-builder-tabs .btn { border-color: transparent; border-radius: 8px; background: transparent; color: var(--muted); }
+.crm .web-builder-tabs .btn[aria-selected="true"] { border-color: var(--ink); background: var(--ink); color: #fff; box-shadow: none; }
+.crm .drawer { border-left: 1px solid var(--border); box-shadow: none; }
+.crm .drawer-head { border-color: var(--border); }
+.crm .drawer-backdrop, .crm .sidebar-backdrop { background: #173e4c59; }
+.workspace-skeleton i { border: 1px solid var(--border); background: var(--surface-2); }
+/* Workspace tabs follow E2's segmented navGroup: a white hairline group with an ink selected tab. */
+.workspace-local-tabs { gap: 4px; width: fit-content; max-width: min(1200px, calc(100% - 2 * var(--dashboard-gutter))); margin: 18px max(var(--dashboard-gutter), calc((100% - 1200px) / 2)) 0; padding: 4px; border: 0; border-radius: 12px; background: #fff; box-shadow: var(--shadow-surface); }
+.workspace-local-tabs button { border: 0; border-radius: 8px; padding: 10px 14px; color: var(--muted); }
+.workspace-local-tabs button:hover { background: var(--brand-soft); color: var(--ink); }
+.workspace-local-tabs button[aria-selected=true] { background: var(--ink); color: #fff; }
+.workspace-subtabs { margin-top: 8px; }
+.crm .platform-root .website-tabs [data-tab][aria-current="page"] { border-bottom-color: var(--ink); color: var(--ink); }
+.crm .platform-root > .card:has(.website-tabs), .crm :is(.website-live, .website-empty), .crm .platform-root .website-file-choices label { border-color: var(--border); border-radius: 12px; }
+.crm :is(.website-live, .website-empty) { background: var(--surface-2); }
+.crm .website-tabs, .crm .website-history, .crm .website-version { border-color: var(--border); }
+.crm .website-deployments .btn { border-radius: 999px; border-color: var(--ink); background: var(--ink); }
+.crm .website-deployments .btn.ghost { border-color: var(--button-line); background: #fff; color: var(--ink); }
+.crm .website-file-choices input::file-selector-button { border-color: var(--button-line); border-radius: 999px; background: #fff; color: var(--ink); }
+.crm .form-lifecycle-notice { border-color: var(--border); border-radius: 8px; background: var(--surface-2); color: var(--muted); }
+@media (max-width: 900px) {
+  .crm .sidebar { box-shadow: 0 0 0 1px var(--border); }
+  .crm .sidebar-trigger { border: 1px solid var(--button-line); border-radius: 999px; box-shadow: none; }
+}
+@media (max-width: 720px) {
+  .workspace-local-tabs { flex-wrap: nowrap; width: auto; max-width: none; margin-inline: var(--dashboard-gutter); overflow-x: auto; }
+  .workspace-local-tabs button { flex: none; }
 }
 

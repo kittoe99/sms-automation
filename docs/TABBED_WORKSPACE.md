@@ -62,8 +62,8 @@ Late profile/email/booking writes retain their original page/business owner and
 cannot repaint or replace another workspace's draft after completion.
 
 `dashboard-theme.css` uses
-the E2 site's Plus Jakarta Sans/Geist Mono fonts, blue actions, paper surfaces and
-thin borders. Public forms keep their existing stylesheet.
+the E2 site's Plus Jakarta Sans/Geist Mono fonts, ink actions, grey workspace and
+hairline surfaces; workspace tabs are a segmented group with an ink selected tab. Public forms keep their existing stylesheet.
 
 Use `npm test` and `npm run build:frontend`. For a synthetic staff preview, run
 `$env:CRM_TAB_QA_LOG='1'; node test/fixtures/platform-preview.js` in PowerShell,

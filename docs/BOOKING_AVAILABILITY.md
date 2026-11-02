@@ -70,6 +70,25 @@ Callers cannot supply a tenant, arbitrary operation, SQL, or existing booking ID
 these three operations and grants no table access or `sms_private` schema access.
 The existing `sms_voice_lookup` role retains its lookup-only boundary.
 
+### E2 owner schedule edits (E2-owned, November 2, 2026, not released)
+
+E2 migration `20261102233000_customer_booking_calendar_and_schedules` adds
+`public.customer_booking_schedules` (service role only) for the current owner of
+a business with a released E2 Bookings service. It mirrors the MCP contract:
+reads return `sms_private.mcp_booking_schedule` output (as
+`crm_list_booking_schedules`); saves take `{scheduleId, revision, configuration}`
+(as `crm_update_booking_schedule`) and return the same receipt fields plus the
+schedule. Owners may change `durationMinutes`, `capacity`,
+`minimumNoticeMinutes`, `maximumAdvanceDays`, `weeklyAvailability` and
+`dateExceptions`; a different service, market, resource pool or time zone is
+refused, and enabling stays with staff/MCP. Saves lock the business then the
+rule, check `version`, reuse `validate_schedule`/`booking_integer`, repeat the
+`voice_save_rule` shared-pool and unreconciled-booking checks, and store the
+normalized seven-day/`windows` shape. If `mcp_booking_schedule`,
+`voice_save_rule`, these validators or `bookingSchemas.js` change, re-run E2
+`tests/booking-calendar-database.test.mjs` (in the paired contract tests); it
+parses E2 output with the MCP Zod schemas and re-saves through `voice_save_rule`.
+
 ## Voice caller workflow
 
 The sibling `voice agent/booking_tools.py` adds availability, preparation and

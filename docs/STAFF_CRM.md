@@ -459,9 +459,10 @@ preflights passed. See E2 PROJECT_RECORD.md for release limitations.
 
 ## Dashboard design alignment
 
-The CRM uses the E2 dashboard's wordmark, Arial typography, white 64px header,
-210px sidebar, pale blue background, outlined navigation states, 12px cards,
-and blue/orange action colors. `public/dashboard-theme.css` is loaded after the
+The CRM uses the E2 dashboard's wordmark, Plus Jakarta Sans typography, white
+72px header, 240px white sidebar, grey `#f5f7f8` workspace, ink (`#173e4c`)
+selected navigation and tabs, flat 1px hairline cards and the ink/white pill
+button palette (November 2 E2 Dashboard). `public/dashboard-theme.css` is loaded after the
 existing CRM styles by `public/index.html`; public embeds and authentication
 pages retain their existing theme. The wordmark is mirrored as
 `public/e2-dashboard-logo.svg` from E2's dashboard brand component.
