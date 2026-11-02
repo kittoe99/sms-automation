@@ -216,3 +216,11 @@ CRM owns `20261102181913_mcp_reusable_email_automations.sql` and
 services. Reconcile live history and apply only missing forward migrations, then
 release CRM/MCP and the original paired E2 changes before enabling new grants.
 No live migrations, deployments, grants, DNS changes or real sends were performed.
+
+## Sender DNS acceptance — November 2, 2026
+
+The production Cloudflare DNS credential is configured. A live `test.e2local.com`
+sender passed Resend verification for all four required records. Resend DNS names
+may be relative to e2local.com (for example `send.test`); provisioning normalizes
+these without duplicating the business label. Business sending remains independently
+disabled until configured. No test email was sent.

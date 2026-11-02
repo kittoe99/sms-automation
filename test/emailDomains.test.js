@@ -23,3 +23,11 @@ test('DNS conflicts are recorded without overwriting records or leaking credenti
  }});
  assert.equal(result.error,'DNS_RECORD_CONFLICT');assert.equal(result.status,'failed');assert.doesNotMatch(JSON.stringify(result),/secret/);
 });
+
+ test('Resend zone-relative subdomain names do not duplicate the business label',async()=>{
+ const names=[];const db={call:async(n,u,t,a,p)=>a==='begin'?{id:'d',domain:'test.e2local.com',operation_token:'lease',provider_id:'provider'}:a==='complete'?p:'key'};
+ await provisionEmailDomain(db,'admin','test',{}, {getEnv:k=>k==='CLOUDFLARE_EMAIL_ZONE_ID'?'a'.repeat(32):'secret',fetchImpl:async(url,options)=>{
+ if(url.includes('cloudflare')){if(options.method==='POST')names.push(JSON.parse(options.body).name);return Response.json({success:true,result:[]});}
+ return Response.json({status:'pending',records:[{record:'DKIM',type:'TXT',name:'resend._domainkey.test',value:'key'},{record:'SPF',type:'MX',name:'send.test',value:'mx',priority:10}]});
+ }});assert.deepEqual(names,['resend._domainkey.test.e2local.com','send.test.e2local.com']);
+});

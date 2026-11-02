@@ -1,5 +1,25 @@
 # Opek SMS project record
 
+## Sender subdomain provisioning completed — November 2, 2026
+
+Used the user-provided local credential file to configure the server-only Supabase
+`CLOUDFLARE_EMAIL_DNS_TOKEN`. Its stored fingerprint matches the supplied credential;
+no credential value was printed or committed. Live testing found that Resend returns
+zone-relative names such as `send.test`; corrected normalization to produce
+`send.test.e2local.com` instead of duplicating the business label. Added a regression
+test; all three provider tests and CRM source/current-SQL checks passed. Deployed
+the corrected CRM API to the shared Supabase project.
+
+The canonical sender provisioning workflow created `test.e2local.com` for Opek.
+Resend reports the domain and all four DNS records verified (DKIM TXT, SPF TXT/MX
+and CNAME). Cloudflare confirms the correct records. Removed only four mistaken
+test records created by this run, matching their exact names/types/provider values;
+existing records were preserved. The sender database record is verified. No email
+was sent and no business sending setting or customer Email release was enabled.
+No new database migration or E2 runtime change was required. Unrelated booking and
+dashboard changes in both worktrees were preserved.
+
+
 ## Email production release in progress — November 2, 2026
 
 Production history reconciled at 157 entries; a transactional rollback rehearsal

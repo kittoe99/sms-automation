@@ -39,7 +39,13 @@ export async function provisionEmailDomain(db, user, tenant, input, {getEnv = ke
       for(const record of records) {
         if(!['TXT','MX','CNAME'].includes(record.type) || !['DKIM','SPF'].includes(record.record)) continue;
         let name = record.name.replace(/\.$/,'').toLowerCase();
-        if(!name.endsWith(`.${operation.domain}`) && name!==operation.domain) name=`${name}.${operation.domain}`;
+        const slug=operation.domain.slice(0,-'.e2local.com'.length);
+        // Resend returns zone-relative names, e.g. send.opek, as well as FQDNs.
+        if(name===slug || name.endsWith(`.${slug}`)) name=`${name}.e2local.com`;
+        else if(!name.endsWith(`.${operation.domain}`) && name!==operation.domain) {
+          if(name.endsWith('.e2local.com')) throw new Error('INVALID_DNS_RECORD');
+          name=`${name}.${operation.domain}`;
+        }
         if(!name.endsWith(`.${operation.domain}`) && name!==operation.domain) throw new Error('INVALID_DNS_RECORD');
         // Relative records can never escape the business subdomain; existing records are never overwritten.
         if(name.includes(`.${operation.domain}.${operation.domain}`)) throw new Error('INVALID_DNS_RECORD');
