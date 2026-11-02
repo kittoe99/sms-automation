@@ -1,5 +1,29 @@
 # Voice Agent workspace
 
+## Voice delegation policy — October 22, 2026
+
+Opek's published voice configuration is now
+`c5a16c0f-a0b0-46cf-9002-1ba83f9aa00e` (agent revision 60). Its added delegation
+policy follows the current GPT-Live prompt structure and covers these customer
+workflows, without advertising recording or call-outcome capture:
+
+- Business facts/quotes: `lookup_business_information` plus approved-fact reasoning.
+- Current form: `get_booking_form`.
+- Appointments: `check_booking_availability`, `prepare_booking_request`,
+  `submit_booking_request`.
+- Verification: `prepare_customer_verification`, `send_customer_verification_code`,
+  `verify_customer_code`.
+- Existing bookings: `lookup_customer_bookings`.
+- SMS: `prepare_in_call_sms`, `send_in_call_sms`.
+
+The original voice text and backend prompt are preserved. The new section tells
+GPT-Live when to request backend work for dependent answers, pending confirmations,
+codes and corrections, and when a conversational reply/clarification is enough.
+Tool permissions, recaps, hours and booking/SMS result checks remain authoritative.
+Recording settings and registry are unchanged. A fresh cloud probe loaded the new
+revision with the existing tools, booking mode and SMS readiness; no actual call
+conversation, recording, booking or SMS was created for validation.
+
 ## Caller-requested SMS during calls — October 22, 2026
 
 Opek's LiveKit agent now has separate prepare/send SMS tools. It reads the
@@ -16,7 +40,8 @@ STOP, opt-out, business controls and provider readiness remain enforced. Limits:
 600 characters per message, five messages per call, ten per recipient/hour.
 Retries keep the exact message/UUID; queued does not mean delivered.
 
-CRM migration `20261022175711` is applied; the separate HMAC `voice-sms` gateway
+CRM migration `20261028034132` (booking changes by phone plus full name; no texted
+codes) is applied after `20261022175711`. CRM migration `20261022175711` is applied; the separate HMAC `voice-sms` gateway
 and restricted database login are deployed. LiveKit `bqABvNPK95Wk` is Running.
 The cloud probe verified both tools and SMS readiness alongside automatic hourly
 booking, form version 5, Vesper and the existing CRM prompt revision. No production

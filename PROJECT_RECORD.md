@@ -1,5 +1,92 @@
 # Opek SMS project record
 
+## Phone booking changes, name check instead of texted codes — October 28, 2026
+
+The owner requested that the phone agent change bookings itself and that SMS codes be removed
+everywhere, including booking. Identity is now the booking's phone number plus the full name
+on it (owner's choice; case, punctuation and word order ignored; three wrong names lock that
+phone for the call). Anyone who knows both can view, move or cancel that booking.
+
+CRM-owned forward migration `20261028034132_voice_name_check_booking_changes.sql` was tested
+(PGlite: four new tests, updated booking/lookup tests, full suite 0 failures, project checks
+and paired contract tests pass), rehearsed with rollback against the shared database, then
+applied once as `20261028034132` (the local file was renamed from its draft version `20261028020000` to match). It adds `sms_private.voice_identity_checks`,
+`voice_name_key`, `voice_find_bookings`, `voice_identify` and `voice_change_booking`;
+`voice_verified` now also accepts a name match for the same call and phone; voice
+`booking_prepare_new`/`booking_confirm_new` no longer need verification (SMS-channel booking
+unchanged). New RPCs: `voice_lookup_api.voice_find_bookings`/`voice_identify` for
+`sms_voice_lookup`, and `voice_booking_api.check_change`/`apply_change` for
+`sms_voice_booking`. Changes cover reschedule (capacity rechecked under the pool lock),
+cancel (enrollments cancelled) and address/notes updates; the intake mirror re-routes
+reminders. Changes inside 72 hours require the caller's agreement to the $69 fee, which is
+stored as `metadata.late_change_fee` for staff to charge. Each change is audited as
+`booking_voice_<kind>` and appended to `metadata.voice_changes`. No prior migration was
+replayed; the paired baseline adds only this migration.
+
+Edge `voice-lookup` v9 drops `verify.start`/`verify.check` and adds `customer.find` and
+`customer.identify` (`SONI_LOOKUP_OTP_SECRET` is no longer read). `voice-booking` v8 adds
+`check_change` and `apply_change`. Both keep HMAC authentication with JWT verification
+disabled. A signed smoke test with a fake number passed: phone search, name check, refusal
+of details and changes without a name match, and availability.
+
+The sibling LiveKit worker `Eo24wPAEfQBT` is Running with 13 tools (lookup, find/confirm
+booking name, read bookings, form, availability, prepare/submit booking, prepare/submit
+booking change, call outcome, SMS). Voice CRM configuration
+`527cfeee-4603-416e-b82a-81206f1e6ee1` (agent revision 169) makes booking changes on the
+call and takes manager messages only for what the agent can't answer or do. No real
+booking, change or SMS was made during release. A physical test call is still needed.
+
+## Phone pace increased to 1.4x — October 22, 2026
+
+The owner requested a 1.4x pace trial. The sibling voice worker now targets
+approximately 40% faster speech with clear pronunciation. LiveKit `cz2Ut5tfd9ng`
+is Running. Syntax/static checks and the final cloud probe passed: exact 1.4x
+instruction, Vesper, existing CRM configuration
+`3a7c7f6e-2180-4b3b-8500-9c52d29b0511` (agent revision 64), automatic booking,
+form 5, hourly starts and SMS readiness. The initial cold fallback was superseded
+by the published-revision readback. No CRM configuration, schema, application or
+provider change; no conversation, recording, booking or SMS was started. Newer
+prompt edits were preserved. This documentation update is local.
+
+## Normal phone-agent pace restored — October 22, 2026
+
+At the owner's request, the sibling voice worker now requests normal (1x)
+conversational pace instead of 1.2x. LiveKit `NSSwChc2yA2x` is Running; a fresh
+cloud check returned the exact normal-pace instruction and the current CRM
+configuration `1676e93e-3774-4ebf-b354-ee4f8ad43b52` (revision 62). That newer
+published prompt was read and preserved, not overwritten by an older snapshot.
+The probe also confirmed Vesper, automatic booking, form 5, eleven hourly starts
+and SMS readiness. Syntax/static verification passed; initial cold-start/fallback
+checks were superseded by the successful final readback. No CRM/E2 application,
+schema, provider setting or published configuration changed. No conversation,
+recording, booking or SMS was created for verification. These records are local.
+
+## Voice delegation policy published — October 22, 2026
+
+At the owner's request, appended a capability-based delegation policy to Opek's
+existing voice prompt through E2-crm MCP. The saved/live configurations matched
+at revision 58. Save advanced to 59; publish advanced to 60 with configuration
+`c5a16c0f-a0b0-46cf-9002-1ba83f9aa00e`, affecting new calls. Only `voice` changed:
+its original text remains the exact prefix, and brain/persona/name/voiceName are
+unchanged. The policy covers all eleven customer-facing tools in six capabilities.
+Recording and call-outcome capture are excluded from the policy per the owner's
+clarification; runtime recording settings and the twelve-tool registry are unchanged.
+
+The policy uses the current GPT-Live delegation marker and explicit request,
+confirmation/code, correction and uncertainty triggers. It preserves approved
+facts, complete form/phone verification, one-hour 7 AM-6 PM Denver appointments,
+later caller permission, automatic confirmation without staff approval, separate
+SMS consent, exact retries and queued/delivered distinctions. It excludes tools
+that are not connected, including cancellation, payments, email and live transfer.
+
+Validation: compared the policy's six capabilities to the actual eleven relevant
+registered tools, verified saved/published voice-only equality, and confirmed the
+new revision on a fresh LiveKit worker alongside Vesper, automatic booking, form 5,
+eleven hourly starts and SMS readiness. The probe started no model conversation,
+recording, customer booking or SMS. No schema, Edge/frontend/MCP source or worker
+image deployment was needed. The policy source is in the sibling voice project's
+`prompts/opek-delegation-policy.txt`; this paired documentation update is local.
+
 ## Full deployment completion — October 22, 2026
 
 The owner authorized deploying all pending work. Published CRM commit

@@ -1,7 +1,8 @@
 import {json,failure} from '../_shared/http.js';
 import {hmac} from '../voice-agent/handler.js';
 const TENANT='biz-1c0c09ce-819e-4795-86b9-0e457ab92f58';
-const operations={availability:['service','variant','zip','localDate'],prepare:['service','variant','zip','localDate','localTime','phone','name','address','details'],confirm:['holdId']};
+const change=['kind','bookingId','phone','localDate','localTime','address','notes','lateFeeAccepted'];
+const operations={availability:['service','variant','zip','localDate'],prepare:['service','variant','zip','localDate','localTime','phone','name','address','details'],confirm:['holdId'],check_change:change,apply_change:change};
 const invalid=(message,status=400)=>Object.assign(new Error(message),{status});
 function equal(a,b){if(typeof a!=='string'||a.length!==64)return false;let diff=0;for(let i=0;i<64;i++)diff|=a.charCodeAt(i)^b.charCodeAt(i);return diff===0;}
 export function createBookingHandler(db,{secret,enabled=false}={}){

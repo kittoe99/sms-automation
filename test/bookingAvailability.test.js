@@ -71,11 +71,9 @@ test('preview, strict validation, exceptions and DST use database scheduling wit
  }finally{await db.close();}
 });
 
-test('current business can book once, capacity and verification are enforced, roles stay narrow',async()=>{
+test('current business can book once without a texted code, capacity is enforced, roles stay narrow',async()=>{
  const db=await setup();try{
   const saved=await call(db,'voice_save_rule','admin',tenant,rule());assert.ok(saved.id);
-  await assert.rejects(()=>rpc(db,'prepare',tenant,cid,details()),/verification required/);
-  await verify(db);await verify(db,'booking-call-456');
   const a=await rpc(db,'prepare',tenant,cid,details()),b=await rpc(db,'prepare',tenant,'booking-call-456',details());
   assert.equal(a.available,true);assert.equal(b.available,true);
   await assert.rejects(()=>rpc(db,'confirm',tenant,'other-call',a.holdId));

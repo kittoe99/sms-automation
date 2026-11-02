@@ -1,5 +1,5 @@
 import postgres from 'postgres';
-const allowed=new Set(['availability','prepare','confirm']);
+const allowed=new Set(['availability','prepare','confirm','check_change','apply_change']);
 export function bookingDatabase(url,{connect=postgres}={}){
  let sql;
  return {async call(name,...args){

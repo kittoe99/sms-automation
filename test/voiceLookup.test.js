@@ -8,7 +8,7 @@ const tenant='biz-1c0c09ce-819e-4795-86b9-0e457ab92f58',phone='+13035550122',cal
 
 test('lookup gateway signs exact bodies, pins tenant, rejects writes and invalid payloads',async()=>{
   const calls=[],secret='s'.repeat(64),handler=createLookupHandler({call:async(...args)=>{calls.push(args);return {hasApprovedProfile:true};}},
-    {secret,otpSecret:'o'.repeat(64)});
+    {secret});
   async function send(input,{signature,stamp=String(Math.floor(Date.now()/1000))}={}){
     const body=JSON.stringify(input);
     return handler(new Request('https://example.com/functions/v1/voice-lookup',{method:'POST',body,
@@ -24,16 +24,14 @@ test('lookup gateway signs exact bodies, pins tenant, rejects writes and invalid
   assert.equal((await send(request,{signature:'0'.repeat(64)})).status,401);
   assert.equal((await send(request,{stamp:'1'})).status,401);
   assert.equal(calls.length,1);
-  const queued=createLookupHandler({call:async(name,...args)=>{
-    assert.equal(name,'voice_read_start_otp');assert.equal(args[0],tenant);
-    assert.match(args[3],/^[a-f0-9]{64}$/);assert.match(args[4],/\d{6}/);
-    return {status:'queued',phoneLastFour:'0122'};
-  }},{secret,otpSecret:'o'.repeat(64)});
-  const body=JSON.stringify({action:'verify.start',callId,payload:{phone}}),stamp=String(Math.floor(Date.now()/1000));
-  const result=await queued(new Request('https://example.com',{method:'POST',body,
-    headers:{'X-Voice-Timestamp':stamp,'X-Voice-Signature':await hmac(secret,`${stamp}.${body}`)}}));
-  const data=await result.json();assert.equal(data.result.status,'queued');
-  assert.equal(data.result.code,undefined);
+  for(const action of ['verify.start','verify.check'])
+    assert.equal((await send({action,callId,payload:{phone}})).status,400);
+  assert.equal((await send({action:'customer.find',callId,payload:{phone}})).status,200);
+  assert.deepEqual(calls.at(-1),['voice_find_bookings',tenant,callId,phone]);
+  assert.equal((await send({action:'customer.identify',callId,payload:{phone,name:'Pat Lee'}})).status,200);
+  assert.deepEqual(calls.at(-1),['voice_identify',tenant,callId,phone,'Pat Lee']);
+  for(const payload of [{phone},{phone,name:''},{phone,name:'x'.repeat(201)},{phone,name:'Pat',code:'123456'}])
+    assert.equal((await send({action:'customer.identify',callId,payload})).status,400);
 });
 
 test('database lookup is approved-only, tenant-bound, verified per call, and RPC-only',async()=>{
