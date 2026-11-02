@@ -19,6 +19,12 @@ user's request) was sent through Resend and reported delivered. Opek still uses 
 default `e2local.com` sender with sending disabled; no customer Email release or MCP
 grant was enabled. `e2local.com` has no DMARC record; adding one is recommended.
 
+Cleanup at the user's request: removed Resend domain `test.e2local.com` and the
+Opek CRM sender row (no business setting referenced it). Resend and the CRM now
+list only `e2local.com`. The Cloudflare connector lacks DNS write, so four inert
+records remain for manual removal: `send.test` MX and TXT, `resend._domainkey.test`
+TXT and `rsend.test` CNAME (all under e2local.com).
+
 
 ## Sender subdomain provisioning completed — November 2, 2026
 
