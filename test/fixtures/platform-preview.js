@@ -9,6 +9,8 @@ const records={accounts:[{id:accountId,clerk_display_name:'Example Owner',clerk_
 const business=records.businesses[0];
 const aiConnection={id:'00000000-0000-4000-8000-000000000099',staff_name:'Example Staff',subject:'user_example',client_id:'https://chatgpt.com/oauth/codex/example/client.json',status:'pending',permissions:[],business_ids:[],revision:0,created_at:'2026-10-14T12:00:00Z',last_used_at:null};
 const aiActivity=[];
+const domains=[{hostname:'examplerepairs.net',site_id:null,registration_state:'in_progress',registration_cost:'11.20',currency:'USD',connection_state:'disconnected',error_code:null,created_at:'2026-11-02T12:00:00Z'}];
+const offerFor=name=>({name,registrable:true,tier:'standard',registrationCost:name.endsWith('.dev')?'12.20':'10.44',renewalCost:name.endsWith('.dev')?'12.20':'10.44',currency:'USD'});
 const previewForms=[{public_id:'00000000-0000-4000-8000-000000000003',title:'Contact form',description:'Website enquiries',button_label:'Submit',fields:[],enabled:true,archived:false,preset:'contacts',submissionCount:3,automationEnabled:true,publishedVersion:1,email_enabled:false}];
 const websiteRequests=[{id:'00000000-0000-4000-8000-000000000020',title:'Refresh the homepage',category:'content',page:'Home',description:'Please update our homepage introduction.',status:'received',response:'',revision:0,created_at:'2026-10-08T12:00:00Z',updated_at:'2026-10-08T12:00:00Z'}];
 business.registration={accountId,profile:{businessName:'Example Services',timeZone:'America/Denver',contactEmail:'owner@example.test',contactPhone:'+13035550123',summary:'Home repairs and maintenance for Denver customers.',services:['Home repairs'],locations:['Denver']}};
@@ -61,6 +63,20 @@ http.createServer(async(req,res)=>{
    }
    data=type==='business-register'?{id:'demo'}:{saved:true};
   }}
+  else if(url.pathname==='/hosting/domains'&&url.searchParams.has('q'))data={results:[offerFor('exampleservices.com'),offerFor('exampleservices.dev'),{name:'example.com',registrable:false,reason:'domain_unavailable'}]};
+  else if(url.pathname==='/hosting/domains'&&url.searchParams.has('check'))data={offer:url.searchParams.get('check')==='example.com'?{name:'example.com',registrable:false,reason:'domain_unavailable'}:offerFor(url.searchParams.get('check'))};
+  else if(url.pathname==='/hosting/domains'){
+    if(req.method==='POST'){let raw='';for await(const chunk of req)raw+=chunk;const input=JSON.parse(raw);const offer=offerFor(input.domain);
+     if(input.expectedCost!==offer.registrationCost){res.statusCode=409;data={error:'The price changed. Review the new price before buying.',offer};}
+     else{const row={hostname:input.domain,site_id:null,registration_state:'succeeded',registration_cost:offer.registrationCost,currency:'USD',connection_state:'disconnected',error_code:null,created_at:new Date().toISOString()};domains.unshift(row);res.statusCode=201;data={domain:row};}}
+    else data={domains};
+  }
+  else if(url.pathname.startsWith('/hosting/domains/'))data={domain:domains.find(d=>d.hostname===decodeURIComponent(url.pathname.slice(17)))};
+  else if(url.pathname===`/hosting/${siteId}/domain`){
+    if(req.method!=='GET'){let raw='';for await(const chunk of req)raw+=chunk;const row=domains.find(d=>d.hostname===JSON.parse(raw).domain);
+     Object.assign(row,req.method==='POST'?{site_id:siteId,connection_state:'connected'}:{site_id:null,connection_state:'disconnected'});data={domain:row};}
+    else data={domain:domains.find(d=>d.site_id===siteId)||null,available:domains.filter(d=>!d.site_id&&d.registration_state==='succeeded')};
+  }
   else if(url.pathname===`/hosting/${siteId}/requests`){
     if(req.method==='PATCH'){let raw='';for await(const chunk of req)raw+=chunk;const input=JSON.parse(raw);const row=websiteRequests.find(r=>r.id===input.id);Object.assign(row,{status:input.status,response:input.response,revision:row.revision+1});}
     data={requests:websiteRequests};

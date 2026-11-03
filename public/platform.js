@@ -237,7 +237,10 @@ export function createPlatform({root,title,subtitle,pager,onNavigate,onWorkspace
     bind('[data-assign]','submit',event=>{event.preventDefault();run(async()=>{if(!select.value)throw new Error('Choose a business.');await write('website-business',{siteId:row.id,tenantId:select.value,revision:row.revision});siteCache=null;await detail();});});
     bind('[data-unpublish]','click',()=>run(async()=>{if(confirm('Unpublish this website?')){await hostWrite(`/${row.id}`,null,'DELETE');siteCache=null;await detail();}}));
     bind('[data-delete-site]','click',()=>run(async()=>{const slug=prompt('Type the website subdomain to permanently delete its hosting files and records.');if(slug!==row.slug)return;await hostWrite(`/${row.id}?permanent=1`,{confirmSlug:slug},'DELETE');selected=null;siteCache=null;await directory();}));
-  }else if(tab==='domain')panel.innerHTML=`<h3>E2 Local address</h3><p>https://${esc(row.slug)}.e2local.com/</p><p>Customer-owned domains are not configured in this release.</p>`;
+  }else if(tab==='domain'){
+    const {mountWebsiteDomains}=await import('./websiteDomains.js');
+    await mountWebsiteDomains(panel,row,{read:hosting,write:hostWrite,escape:esc});
+  }
   else if(tab==='business-info'){
     const d=row.details||{};panel.innerHTML=`<form data-details class="compose">${field('Website name','name',row.name,'required maxlength="100"')}${field('Business name','businessName',d.businessName,'maxlength="160"')}
       <label>Description<textarea name="description" maxlength="1500">${esc(d.description)}</textarea></label>${field('Contact email','contactEmail',d.contactEmail,'type="email"')}${field('Contact phone','contactPhone',d.contactPhone,'type="tel" autocomplete="tel" placeholder="(303) 555-0123"')}

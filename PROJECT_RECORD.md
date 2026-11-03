@@ -1,5 +1,35 @@
 # Opek SMS project record
 
+## Custom domain purchase and connection — November 3, 2026 (local, not released)
+
+Staff can search, review the live price of, buy and connect custom domains from CRM
+→ Websites → Domain, using the Cloudflare Registrar API and Workers Custom Domains on
+the E2 Cloudflare account. E2 owns the backend: `lib/hosting/cloudflare.ts`,
+`lib/hosting/domains.ts`, `/api/web-hosting/domains`,
+`/api/web-hosting/[siteId]/domain`, migration `20261103010000_hosting_domains.sql`,
+and `e2-sites` Worker custom-host routing (www → apex redirect). The CRM owns
+`public/websiteDomains.js`. The E2 customer Dashboard → Website shows the connected
+domain read-only and uses it for Visit website; customers cannot buy.
+
+Purchases re-check the live price and require it to equal the price staff confirmed;
+the domain table admits one purchase per name and interrupted registrations are
+settled by status polling. Permanent site deletion is refused while a domain is
+connected. Details: E2 `docs/web-hosting.md#custom-domains-november-3-2026--local`.
+
+Validation (local): E2 `tsc` and scoped ESLint clean; E2 tests 267 with one 1-second
+timing test (`hosting-storage`) failing under full-suite load and passing alone;
+new `hosting-domains` (7) and Worker (7) tests pass; migration applied on PGlite after
+the hosting schema with its checks verified. CRM `npm run check`, `npm test` (763 pass,
+0 fail), frontend build, and paired tests 66/66 after recording the paired baseline
+(new E2 migration, `[siteId]/route.ts`, Worker source). Synthetic browser check of the
+CRM Domain tab (search, view, buy, connect) at desktop and 375px with no console
+errors; the synthetic fixture never calls Cloudflare.
+
+Not done: migration not applied; `CLOUDFLARE_ACCOUNT_ID` and
+`CLOUDFLARE_DOMAINS_API_TOKEN` not set in Vercel; Worker, E2 and CRM not deployed;
+no real domain searched or bought. Cloudflare prerequisites (payment method, default
+registrant contact, registration agreement) are unverified.
+
 ## CRM dashboard release and sender delivery test — November 2, 2026
 
 Released CRM commit `2934d50` (CRM dashboard matched to the E2 dashboard design,
