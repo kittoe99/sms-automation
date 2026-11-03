@@ -1,6 +1,6 @@
 # Opek SMS project record
 
-## Custom domain purchase and connection — November 3, 2026 (local, not released)
+## Custom domain purchase and connection — November 3, 2026 (partly released)
 
 Staff can search, review the live price of, buy and connect custom domains from CRM
 → Websites → Domain, using the Cloudflare Registrar API and Workers Custom Domains on
@@ -25,10 +25,16 @@ the hosting schema with its checks verified. CRM `npm run check`, `npm test` (76
 CRM Domain tab (search, view, buy, connect) at desktop and 375px with no console
 errors; the synthetic fixture never calls Cloudflare.
 
-Not done: migration not applied; `CLOUDFLARE_ACCOUNT_ID` and
-`CLOUDFLARE_DOMAINS_API_TOKEN` not set in Vercel; Worker, E2 and CRM not deployed;
-no real domain searched or bought. Cloudflare prerequisites (payment method, default
-registrant contact, registration agreement) are unverified.
+Released: migration `hosting_domains` applied alone to the shared Supabase project
+(`wxamwhfmelxqahkdtcci`, recorded as `20261103005725`); table, checks, indexes, RLS and
+service-role-only grants verified. E2 commit `6b5cd76` pushed to `main` (2ceb6bb →
+6b5cd76); production answers `/api/web-hosting/domains` with 401 instead of 404.
+
+Not done: `CLOUDFLARE_ACCOUNT_ID` and `CLOUDFLARE_DOMAINS_API_TOKEN` not set in Vercel
+(domain routes return 503 until then); `e2-sites` Worker not deployed; CRM commit
+`3117151` not pushed or deployed; no real domain searched or bought, so no customer
+Dashboard shows a custom domain yet. Cloudflare prerequisites (payment method,
+default registrant contact, registration agreement) are unverified.
 
 ## CRM dashboard release and sender delivery test — November 2, 2026
 
