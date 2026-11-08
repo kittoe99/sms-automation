@@ -5306,3 +5306,6 @@ build and Edge bundle.
 Pushed `dfc0866` to `deploy-crm` and `codex/crm-mcp-business-setup`. Not deployed:
 the Render trigger for static service `srv-dandjcp42hec73e569pg` was refused by
 the session's permissions, so live CRM still serves the previous theme.
+Deployed at the user's request: Render static deployment `dep-dbnugrhsrm7s73ag10gg`
+(commit `ede4a14`, which contains `dfc0866`) is live. crm.e2local.com serves
+`dashboard-theme-OHEI3EF3.css` with the left accent edge on Needs-attention cards.
