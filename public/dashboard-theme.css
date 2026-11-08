@@ -493,7 +493,7 @@ html:has(.crm)::-webkit-scrollbar, .crm::-webkit-scrollbar, .crm *::-webkit-scro
 .crm .home-work[data-attention="paused"] { --svc: #9a6500; --svc-soft: #fbf2df; }
 .crm .home-work[data-attention="ai"] { --svc: #6a4cc0; --svc-soft: #f4f1fc; }
 .crm .home-work[data-attention="help"] { --svc: #bf3a66; --svc-soft: #fdf0f4; }
-.crm .card.home-work, .crm .card.home-work:hover { box-shadow: inset 0 3px 0 var(--svc); }
+.crm .card.home-work, .crm .card.home-work:hover { box-shadow: inset 3px 0 0 var(--svc); }
 .crm .home-work strong { color: var(--svc); }
 .crm .card.home-work:hover { background: var(--svc-soft); }
 .crm .kpi .value, .crm .home-summary strong { color: #0a5f80; }

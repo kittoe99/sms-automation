@@ -5296,3 +5296,10 @@ non-force over HTTPS (the SSH remote refused authentication) to `deploy-crm` and
 `dashboard-theme-N7DNNUMT.css` with the new colours. The MCP web service was not
 redeployed (no server change). Paired E2 commit `95fdfd7` is Ready on Vercel
 (`dpl_47rkRMz2tdP7vGFL4p3bETgdqUCR`). The signed-in CRM was not viewed live.
+
+## Needs-attention cards use a left accent edge — November 7, 2026
+
+Matching E2, the Home "Needs attention" cards now show their accent as a 3px left
+edge instead of a top edge (`public/dashboard-theme.css`, CSS only).
+`npm run verify:release` passed: 763 pass / 29 skipped, 66/66 paired, frontend
+build and Edge bundle.
