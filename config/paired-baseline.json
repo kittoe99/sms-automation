@@ -195,7 +195,7 @@
     "package.json": "d5442a9581507a983f38415851cabdcc0ca0988d4b30b8e1f4eeaed122b9893e",
     "package-lock.json": "9f0d77fef465c020fbd65afdcc1e1daf49929d4dd126d1a0ed4184db6787ebc5",
     "lib/emailTemplates.js": "167ff5a4762ac6e3b80c6ad5fce87b957252948b237c0980cbe5442501db19b2",
-    "app/dashboard/email/workspace.js": "d3f3979ded3c92f04b2b111e8d14eb127b5fa88b41670cc951ff3a4ba0947e75",
+    "app/dashboard/email/workspace.js": "fac98dee8b210b5087caeae163f53bac4c5a31fe443db064d78e7c20a9a03b17",
     "app/api/dashboard/email/route.ts": "2b03bc170a0d9b6eb80aa84b6c96855fc52d92cdd45afabd821c4a342e4b1d3c"
   }
 }

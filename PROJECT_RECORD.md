@@ -1,5 +1,53 @@
 # Opek SMS project record
 
+## Custom-domain Worker and CRM released — November 4, 2026
+
+At the user's request, deployed e2-sites custom-host routing and released CRM
+commits 3117151 and 1ac0b3a. Atomic, non-force push advanced deploy-crm and
+codex/crm-mcp-business-setup from 21dd1ef to 1ac0b3a. The HEAD skip-render marker
+prevented auto-deploy; explicit Render deployment dep-dblr8vp42hec73e570qg is live
+(commit 1ac0b3ac34e22f8f1d1996817e26d6010f95c73b, finished 22:41:21 UTC).
+Live CRM assets include the Domain UI and return 200.
+
+Cloudflare e2-sites deployment e743091c-34c3-4fee-9f17-a0c3c03f670d assigns 100%
+traffic to version 315d53d0-6b21-489c-a0b2-f6a142ebcd4f. Wrangler successfully
+uploaded and activated the code but returned an error trying to update account-level
+routes, which the current token cannot manage. Read-back confirms deployed source
+contains customHost/domain mapping handling, the WEBSITES R2 binding is preserved,
+and all existing zone routes are unchanged: wildcard to e2-sites, www and CRM
+excluded. Those existing routes need no change for this release. Main site/CRM
+return 200; an unknown website hostname returns 404. No route change was forced.
+
+Validation: Worker typecheck and seven tests pass (including mapped custom hosts
+and www redirect); CRM checks/build, three Domain UI tests and 66 paired tests pass.
+No migration was replayed, domain purchased or connected, billing changed, or
+customer website routing record created. Vercel keys were already configured.
+User is handling Cloudflare payment method, default registrant contact and Domain
+Registration Agreement. Buying/connecting a chosen domain remains a deliberate
+staff action once those prerequisites are complete. Record updates are local;
+the application commits and deployments above are published.
+
+
+## Environment keys configured — November 4, 2026
+
+Configured Cloudflare account/domain-management variables for E2 Local in Vercel
+production and preview; token is stored as sensitive. Existing production R2 and
+Resend keys were verified present and preserved. Redeploying the existing production
+source as dpl_6oVY2Z8MNxuXHaqgdVQ8FB4H1Yxo to activate the environment changes.
+Local E2 .env.local now includes Cloudflare domain-management settings and Resend
+API/sender settings; local CRM .env includes email DNS zone/token/domain API settings.
+Both files are git-ignored. Supabase's three email provisioning secret fingerprints
+match the configured local CRM values. Credential values were not printed or added
+to source control. Cloudflare Workers and Registrar read probes succeeded.
+
+Hosted websites use E2's server-side credentials; no secret is placed in static
+CRM bundles or customer website files. No domain purchase, business sending
+activation, database migration, or worker publication was performed. Updated E2's
+.env.example with the missing domain variable names. Vercel deployment dpl_6oVY2Z8MNxuXHaqgdVQ8FB4H1Yxo reached READY and is assigned
+to www.e2local.com and e2local.com. Production home and CRM respond 200;
+unsigned hosting-domain requests return 401.
+
+
 ## Custom domain purchase and connection — November 3, 2026 (partly released)
 
 Staff can search, review the live price of, buy and connect custom domains from CRM
@@ -5214,3 +5262,24 @@ all 25 E2 route/method combinations appear in the API inventory. Relevant Markdo
 diffs pass whitespace checks. Earlier application/build/test results were not
 rerun or presented as new evidence. No application, migration, provider,
 production database or deployment change was made in this follow-up.
+
+## CRM Dashboard brightened to match E2 — November 7, 2026 (local)
+
+`public/dashboard-theme.css` follows E2's November 7 dashboard colour change.
+`--brand` is the brand blue #087aa5 (hover/`--brand-deep` #066a8f,
+`--brand-soft` #e8f3f8, `--info` #0a729b) with lighter blue-tinted surfaces and
+lines; body text stays ink #173e4c. Selected nav items, chips, badges, workspace
+tabs, website-builder tabs, primary buttons and website deployment buttons now
+use the brand blue instead of solid ink. One accent per area through `--svc`
+on `data-view`/`data-navigation-group`: Home blue, SMS violet, Contacts teal,
+Bookings green, Forms orange, Calls & voice rose, Email amber, used only on
+sidebar icons and hover tints. Home "Needs attention" cards get a 3px top bar and
+coloured count (paused amber, AI violet, help rose). Also added: a thin
+blue-teal-orange line at the top of the topbar, KPI/summary values in deep blue,
+a gradient user avatar and an orange support icon. Presentation only: no
+JavaScript, API, permission, migration or shared database contract change.
+Validation: `npm run check` passed; `npm test` 763 pass / 0 fail / 29 skipped;
+a local fixture rendering the real `navigationMarkup`/`homeMarkup` output with
+the real stylesheets was checked at 1400px (computed colours confirmed) and 375px
+(no horizontal overflow). The signed-in CRM was not viewed, the frontend was not
+built and nothing was released.

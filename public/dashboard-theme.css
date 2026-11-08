@@ -2,22 +2,25 @@
    Keep feature layouts in styles.css; public embeds keep their own theme. */
 :root {
   /* E2 Dashboard ink palette (dashboard.module.css .dashboard tokens). */
-  --bg: #f5f7f8;
-  --paper: #fbfdfd;
+  --bg: #f3f7f9;
+  --paper: #fbfdfe;
   --surface: #ffffff;
-  --surface-2: #f2f5f6;
-  --surface-3: #edf2f3;
+  --surface-2: #eef5f8;
+  --surface-3: #e8f3f8;
   --text: #173e4c;
   --ink: #173e4c;
   --muted: #536d76;
-  --border: #d9e2e5;
-  --border-soft: #d9e2e5;
-  --card-line: #c7d5d9;
-  --button-line: #b4c7cc;
-  --brand: #173e4c;
-  --brand-deep: #0f2d38;
-  --brand-soft: #edf2f3;
-  --info: #173e4c;
+  --border: #d9e5ea;
+  --border-soft: #d9e5ea;
+  --card-line: #c3d8e0;
+  --button-line: #b3ceda;
+  /* Brand blue for controls and selection (E2 dashboard, November 7); text stays ink. */
+  --brand: #087aa5;
+  --brand-deep: #066a8f;
+  --brand-soft: #e8f3f8;
+  --info: #0a729b;
+  --svc: var(--brand);
+  --svc-soft: var(--brand-soft);
   --sidebar-w: 240px;
   --shadow-sm: none;
   --shadow-md: 0 0 0 1px var(--border);
@@ -467,3 +470,33 @@ html:has(.crm)::-webkit-scrollbar, .crm::-webkit-scrollbar, .crm *::-webkit-scro
   .workspace-local-tabs button { flex: none; }
 }
 
+
+/* November 7: brand-blue selection and one accent per service, matching E2's dashboard. */
+.crm :is(.section-link, .nav-item).active, .crm .chip.active, .crm .badge,
+.workspace-local-tabs button[aria-selected=true], .crm .web-builder-tabs .btn[aria-selected="true"] { border-color: var(--brand); background: var(--brand); color: #fff; }
+.crm .btn:not(.ghost):not(.btn-ghost):not(.danger), .crm .website-deployments .btn:not(.ghost) { border-color: var(--brand); background: var(--brand); color: #fff; }
+.crm .btn:not(.ghost):not(.btn-ghost):not(.danger):hover { border-color: var(--brand-deep); background: var(--brand-deep); }
+.crm :is(.btn.ghost, .btn-ghost):hover, .crm .btn.danger:hover { border-color: var(--brand); background: var(--brand-soft); }
+.crm .inbox-item.active { box-shadow: inset 3px 0 var(--brand); }
+.crm .platform-root .website-tabs [data-tab][aria-current="page"] { border-bottom-color: var(--brand); color: var(--brand-deep); }
+.crm-topbar::before { content: ""; position: absolute; inset: 0 0 auto; height: 3px; background: linear-gradient(90deg, #087aa5, #2aa7a0 55%, #d9541e); }
+.crm .user-avatar { background: linear-gradient(135deg, #e3f2f8, #e9f6f1); color: var(--brand-deep); }
+.crm [data-view="overview"] { --svc: #087aa5; --svc-soft: #e6f3f9; }
+.crm :is([data-view="messaging"], [data-navigation-group="sms"]) { --svc: #6a4cc0; --svc-soft: #efebfb; }
+.crm [data-view="contacts"], .crm [data-navigation-group="contacts"] { --svc: #0f7f86; --svc-soft: #e4f4f5; }
+.crm [data-view="bookings"], .crm [data-navigation-group="bookings"] { --svc: #12805b; --svc-soft: #e5f5ee; }
+.crm [data-view="web-forms"], .crm [data-navigation-group="forms"] { --svc: #c2531c; --svc-soft: #fdefe6; }
+.crm [data-navigation-group="voice"] { --svc: #bf3a66; --svc-soft: #fbe9ef; }
+.crm [data-view="email"], .crm [data-navigation-group="email"] { --svc: #9a6500; --svc-soft: #fbf2df; }
+.crm .nav-item.daily-link:not(.active) svg, .crm .navigation-group > summary svg { color: var(--svc); }
+.crm .nav-item.daily-link:not(.active):hover, .crm .navigation-group > summary:hover { background: var(--svc-soft); }
+.crm .home-work[data-attention="paused"] { --svc: #9a6500; --svc-soft: #fbf2df; }
+.crm .home-work[data-attention="ai"] { --svc: #6a4cc0; --svc-soft: #f4f1fc; }
+.crm .home-work[data-attention="help"] { --svc: #bf3a66; --svc-soft: #fdf0f4; }
+.crm .card.home-work, .crm .card.home-work:hover { box-shadow: inset 0 3px 0 var(--svc); }
+.crm .home-work strong { color: var(--svc); }
+.crm .card.home-work:hover { background: var(--svc-soft); }
+.crm .kpi .value, .crm .home-summary strong { color: #0a5f80; }
+.crm .dashboard-action .dashboard-action-top { color: var(--brand); }
+.crm .dashboard-action-top svg { background: var(--brand-soft); }
+.dashboard-support-link svg { color: #d9541e; }

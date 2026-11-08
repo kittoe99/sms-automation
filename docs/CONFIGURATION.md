@@ -212,3 +212,12 @@ read/edit permissions. These are Edge server secrets, not E2 browser variables.
 The E2 owner application uses its existing service-only database connection and
 does not receive provider/DNS credentials. See [email rollout](EMAIL_AUTOMATIONS.md)
 for activation and migration order.
+
+## Environment ownership (November 4, 2026)
+
+Email sender provisioning uses Supabase Edge secrets: `RESEND_DOMAIN_API_KEY`,
+`CLOUDFLARE_EMAIL_ZONE_ID`, and `CLOUDFLARE_EMAIL_DNS_TOKEN`. Local CRM development
+uses the same names in ignored `.env`. Hosted-site domain management uses
+`CLOUDFLARE_ACCOUNT_ID` and `CLOUDFLARE_DOMAINS_API_TOKEN` in E2 Vercel server
+environments and ignored E2 `.env.local`. R2 and contact-notification Resend settings
+also belong to E2's server. Static CRM and published site files receive no secrets.
