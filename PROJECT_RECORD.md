@@ -5283,3 +5283,16 @@ a local fixture rendering the real `navigationMarkup`/`homeMarkup` output with
 the real stylesheets was checked at 1400px (computed colours confirmed) and 375px
 (no horizontal overflow). The signed-in CRM was not viewed, the frontend was not
 built and nothing was released.
+
+## CRM brand-blue dashboard released — November 7, 2026
+
+CRM commit `a446ad9` (theme, mirrored E2 email workspace tab colour, re-recorded
+paired baseline whose only change was the E2 email workspace hash, and the
+November 4 environment-ownership docs) passed `npm run verify:release`: 763 pass /
+29 skipped, 66/66 paired, frontend build and Edge bundle. Pushed atomically and
+non-force over HTTPS (the SSH remote refused authentication) to `deploy-crm` and
+`codex/crm-mcp-business-setup`. Render static deployment
+`dep-dbnt4arrjlhs739q0160` is live; crm.e2local.com returns 200 and serves
+`dashboard-theme-N7DNNUMT.css` with the new colours. The MCP web service was not
+redeployed (no server change). Paired E2 commit `95fdfd7` is Ready on Vercel
+(`dpl_47rkRMz2tdP7vGFL4p3bETgdqUCR`). The signed-in CRM was not viewed live.
