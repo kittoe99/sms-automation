@@ -174,7 +174,8 @@
     "20261016224415_dashboard_actions_and_enquiry_links.sql": "d9c682a7ed0b7cf35c29881f5e240a2bc41992f968e972f2281d8a5d67f534d8",
     "20261102051756_customer_email_service.sql": "a1312655db2c45e951505aa72ca8341c922389b9a00c2a81c60ed449afe56cd0",
     "20261102233000_customer_booking_calendar_and_schedules.sql": "5f57596c43ccc770944060744a5b8b5a0733425c12eaa1bace0ee43825379a70",
-    "20261103010000_hosting_domains.sql": "79ad60840c1ae161876a43d338fcd5b0a42b4a9fb3a7dfae7e43a7376954298d"
+    "20261103010000_hosting_domains.sql": "79ad60840c1ae161876a43d338fcd5b0a42b4a9fb3a7dfae7e43a7376954298d",
+    "20261107180000_managed_marketing_services.sql": "6f2247e689b4f0f83b1244aa10f03a92b7c9548d65e170a264e95502d89f9f90"
   },
   "e2HostingSources": {
     "app/api/web-hosting/route.ts": "3147ffca4348b583de099f4807a2691e479daf2e09291df4860216538edd07c9",

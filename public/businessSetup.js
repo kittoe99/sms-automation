@@ -3,6 +3,9 @@ import {profileFromForm,profileEditorHtml,bindProfileEditor} from './businessPro
 import {mountTwilioConnection} from './twilioConnection.js?v=20261003-sms-nav';
 import {mountVoiceSetup} from './voiceSetup.js';
 export {profileFromForm};
+// Staff-run marketing services: no CRM workspace; release shows a managed status panel to the customer.
+const managedKinds=['search_ads','seo','facebook_ads'];
+const serviceLabels={sms:'SMS',enquiries:'Website enquiries',bookings:'Bookings',voice:'Voice',email:'Email',search_ads:'Google Search Ads',seo:'SEO',facebook_ads:'Facebook Ads'};
 export function mountBusinessSetup(container,row,{read,write,reload,onCreateWebsite,onWebsite,onWorkspace,lookup}) {
  const setup=row.setup||{revision:0,draft:{}},profile={...row.registration?.profile,...setup.draft};
  const services=row.services||[],reviewed=Boolean(setup.reviewed_profile_id);
@@ -17,11 +20,11 @@ export function mountBusinessSetup(container,row,{read,write,reload,onCreateWebs
    </section>
    <div data-voice-setup></div><section class="card"><h3>Other services</h3><p>Set live makes a service visible in the customer dashboard. Publishing a website and activating SMS are separate controls. Use the Voice setup panel above for voice agents and customer access.</p>
    <p data-service-error class="login-error" role="alert"></p>
-   ${services.filter(s=>s.kind!=='voice').map(s=>`<article class="card"><h4>${esc(s.kind==='website'?s.siteName||'Website':({sms:'SMS',enquiries:'Website enquiries',bookings:'Bookings',voice:'Voice',email:'Email'}[s.kind]))}</h4>
+   ${services.filter(s=>s.kind!=='voice').map(s=>`<article class="card"><h4>${esc(s.kind==='website'?s.siteName||'Website':serviceLabels[s.kind])}</h4>
     <p>${s.visibility==='live'?'Live · visible to customer':'Draft · hidden from customer'}${s.kind==='sms'?` · Setup: ${esc(s.providerState||'pending')}${s.phoneNumber?' · '+esc(s.phoneNumber):''}`:''}</p>
     <button type="button" class="btn" data-release="${esc(s.id)}" ${!reviewed&&s.visibility!=='live'?'disabled':''}>${s.visibility==='live'?'Hide from customer':'Set live'}</button>
-    ${s.kind==='website'?`<button type="button" class="btn ghost" data-site="${esc(s.site_id)}">Manage website</button>`:`<button type="button" class="btn ghost" data-configure="${s.kind}">Configure ${s.kind==='sms'?'SMS':s.kind}</button>`}</article>`).join('')||'<p>No services added.</p>'}
-   <div class="compose-actions">${['sms','enquiries','bookings','email'].filter(kind=>!services.some(s=>s.kind===kind)).map(kind=>`<button type="button" class="btn ghost" data-add="${kind}" ${!reviewed?'disabled':''}>Add ${kind==='sms'?'SMS':kind==='voice'?'Voice':kind}</button>`).join('')}
+    ${s.kind==='website'?`<button type="button" class="btn ghost" data-site="${esc(s.site_id)}">Manage website</button>`:managedKinds.includes(s.kind)?'<p>Managed by E2 Local staff. The customer dashboard shows an active status panel once live.</p>':`<button type="button" class="btn ghost" data-configure="${s.kind}">Configure ${s.kind==='sms'?'SMS':s.kind}</button>`}</article>`).join('')||'<p>No services added.</p>'}
+   <div class="compose-actions">${['sms','enquiries','bookings','email',...managedKinds].filter(kind=>!services.some(s=>s.kind===kind)).map(kind=>`<button type="button" class="btn ghost" data-add="${kind}" ${!reviewed?'disabled':''}>Add ${managedKinds.includes(kind)?serviceLabels[kind]:kind==='sms'?'SMS':kind==='voice'?'Voice':kind}</button>`).join('')}
    <button type="button" class="btn ghost" data-new-site ${!reviewed?'disabled':''}>Create website</button>
    <button type="button" class="btn ghost" data-link-site ${!reviewed?'disabled':''}>Link existing website</button></div><div data-site-link></div></section>`;
  mountTwilioConnection(container.querySelector('[data-twilio-connection]'),row,{read,write,reload,onWorkspace});

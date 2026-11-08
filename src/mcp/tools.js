@@ -63,13 +63,13 @@ export const toolDefinitions=[
  ['crm_get_business','Read permitted business facts, draft, review state, services and current revisions.',business],
  ['crm_save_business_profile_draft','Save a business draft without approving it. Use the latest revision; reuse the idempotency key after an uncertain response.',profile,true],
  ['crm_review_business_profile','Approve operational business facts using the latest revision. Does not release services or enable sending.',profile,true],
- ['crm_add_business_service','Add a service. SMS may queue provider setup; this does not enable sending or release customer access. Websites must already be linked.',{...write,kind:z.enum(['website','sms','enquiries','bookings','voice','email']),siteId:uuid.optional(),siteRevision:z.number().int().nonnegative().optional()},true],
+ ['crm_add_business_service','Add a service. SMS may queue provider setup; this does not enable sending or release customer access. Websites must already be linked. search_ads, seo and facebook_ads are staff-managed and need only a reviewed profile and active owner.',{...write,kind:z.enum(['website','sms','enquiries','bookings','voice','email','search_ads','seo','facebook_ads']),siteId:uuid.optional(),siteRevision:z.number().int().nonnegative().optional()},true],
  ['crm_set_service_visibility','Set customer service visibility. Does not publish websites or activate messaging.',{...write,serviceId:uuid,revision:z.number().int().nonnegative(),visibility:z.enum(['draft','live'])},true],
 ];
 const revision=z.number().int().nonnegative(), facts=z.record(z.unknown());
 const summary=z.object({id,name:z.string()});
 const customer=z.object({id:uuid,name:z.string().nullable(),email:z.string().nullable(),status:z.string(),onboardingCompletedAt:z.string().nullable(),businesses:z.array(summary)});
-const serviceFields={id:uuid,kind:z.enum(['website','sms','enquiries','bookings','voice','email']),visibility:z.enum(['draft','live']),revision};
+const serviceFields={id:uuid,kind:z.enum(['website','sms','enquiries','bookings','voice','email','search_ads','seo','facebook_ads']),visibility:z.enum(['draft','live']),revision};
 const serviceRecord=z.object({...serviceFields,tenant_id:id,site_id:uuid.nullable(),released_by:uuid.nullable(),released_at:z.string().nullable(),created_at:z.string()});
 const setupRecord=z.object({tenant_id:id,draft:facts,revision,reviewed_profile_id:uuid.nullable(),reviewed_by:uuid.nullable(),reviewed_at:z.string().nullable()});
 const providerSetup=z.object({state:z.string(),jobs:z.array(z.object({id:uuid,status:z.string()}))}).nullable();

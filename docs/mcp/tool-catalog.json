@@ -146,7 +146,7 @@
     },
     {
       "name": "crm_add_business_service",
-      "description": "Add a service. SMS may queue provider setup; this does not enable sending or release customer access. Websites must already be linked.",
+      "description": "Add a service. SMS may queue provider setup; this does not enable sending or release customer access. Websites must already be linked. search_ads, seo and facebook_ads are staff-managed and need only a reviewed profile and active owner.",
       "inputSchema": {
         "type": "object",
         "properties": {
@@ -168,7 +168,10 @@
               "enquiries",
               "bookings",
               "voice",
-              "email"
+              "email",
+              "search_ads",
+              "seo",
+              "facebook_ads"
             ]
           },
           "siteId": {
@@ -242,7 +245,10 @@
                       "enquiries",
                       "bookings",
                       "voice",
-                      "email"
+                      "email",
+                      "search_ads",
+                      "seo",
+                      "facebook_ads"
                     ]
                   },
                   "visibility": {
@@ -7152,7 +7158,10 @@
                             "enquiries",
                             "bookings",
                             "voice",
-                            "email"
+                            "email",
+                            "search_ads",
+                            "seo",
+                            "facebook_ads"
                           ]
                         },
                         "visibility": {
@@ -33330,7 +33339,10 @@
                       "enquiries",
                       "bookings",
                       "voice",
-                      "email"
+                      "email",
+                      "search_ads",
+                      "seo",
+                      "facebook_ads"
                     ]
                   },
                   "visibility": {

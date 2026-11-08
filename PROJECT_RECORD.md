@@ -1,5 +1,25 @@
 # Opek SMS project record
 
+## Managed marketing services — November 8, 2026 (local only)
+
+Staff can add Google Search Ads, SEO and Facebook Ads for a business, paired with E2
+migration `20261107180000_managed_marketing_services.sql` (E2-owned; adds the
+`search_ads`, `seo`, `facebook_ads` kinds and the `service_add` path).
+- `public/businessSetup.js`: Add buttons and labels for the three kinds; added
+  services show "Managed by E2 Local staff" with no Configure link.
+- `crm_add_business_service` input and service-record enums include the kinds;
+  `docs/mcp/TOOLS.md` and `tool-catalog.json` regenerated. No CRM migration or SQL
+  gateway change (the gateway passes `kind` through to `platform_action`).
+- `scripts/paired-baseline.js` runs E2 `managed-marketing-database`; baseline
+  re-recorded and only the new E2 migration entry changed.
+- New `test/managedMarketingServices.test.js` (MCP add/release via
+  `crm_mcp.invoke`, schema enum, staff UI).
+Validation (E2_PROJECT_ROOT = the E2 worktree with the migration): `npm test`
+769 pass / 29 skipped; `check` and `docs:mcp:check` pass; `test:paired` 66 pass /
+1 fail. The failure, "paired email editor and template contract remain identical",
+comes from that E2 worktree's CRLF checkout and is unrelated. Not applied to the
+shared database, not pushed, not deployed.
+
 ## Detailed Voice Agent call settings — released November 8, 2026
 
 At the user's request, released CRM commit ea404d8:

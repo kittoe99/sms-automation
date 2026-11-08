@@ -342,6 +342,10 @@ instance. External deletion of that Clerk administrator requires operator recove
    deduplicated bootstrap job; registration and provisioning retries do not
    substitute for this action. Website linking is also explicit. The retained
    unassigned website must remain unassigned until an administrator selects it.
+   **Add Google Search Ads**, **Add SEO** and **Add Facebook Ads** record a
+   staff-managed marketing service (kinds `search_ads`, `seo`, `facebook_ads`; E2
+   migration `20261107180000_managed_marketing_services.sql`). They have no CRM
+   workspace; Set live shows the customer a managed status panel on that tab.
 4. In Website → Business Info, maintain website-specific details separately from
    the customer submission and shared operational profile. In Website → Leads,
    connect the intended enabled form and copy the generated snippet. Disable

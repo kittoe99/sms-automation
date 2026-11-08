@@ -344,7 +344,7 @@ Full schemas: find `crm_activate_sms_sending` in [tool-catalog.json](tool-catalo
 
 ## crm_add_business_service
 
-Add a service. SMS may queue provider setup; this does not enable sending or release customer access. Websites must already be linked.
+Add a service. SMS may queue provider setup; this does not enable sending or release customer access. Websites must already be linked. search_ads, seo and facebook_ads are staff-managed and need only a reviewed profile and active owner.
 
 Primary permission: `service_add`. Revision inputs: `siteRevision`.
 
@@ -356,7 +356,7 @@ Annotations: `readOnlyHint=false`, `destructiveHint=true`, `idempotentHint=true`
 | --- | --- | --- | --- |
 | `businessId` | yes | string | minLength=1; maxLength=255 |
 | `idempotencyKey` | yes | string | minLength=8; maxLength=128 |
-| `kind` | yes | "website" / "sms" / "enquiries" / "bookings" / "voice" / "email" | — |
+| `kind` | yes | "website" / "sms" / "enquiries" / "bookings" / "voice" / "email" / "search_ads" / "seo" / "facebook_ads" | — |
 | `siteId` | no | string | format="uuid" |
 | `siteRevision` | no | integer | minimum=0 |
 
