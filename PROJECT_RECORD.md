@@ -1,6 +1,27 @@
 # Opek SMS project record
 
-## Detailed Voice Agent call settings — November 7, 2026 (local, not released)
+## Detailed Voice Agent call settings — released November 8, 2026
+
+At the user's request, released CRM commit ea404d8:
+
+- Migration `20261107120000_voice_agent_settings.sql` is applied as remote version
+  `20261108043456` (prerequisite 20261031100908 confirmed live). Read-back: the settings
+  validator accepts valid and rejects out-of-range settings; both MCP draft schemas carry
+  `settings`; no stored revision has settings yet.
+- `deploy-crm` fast-forwarded e7eb74d → ea404d8. Auto-deploy did not fire; Render
+  `dep-dbnvo4qjnfac73dha4pg` (wpacquisition-crm) is live. The live bundle hash matches a
+  local build, and its voice chunk/CSS contain Call settings.
+- Render `dep-dbnvo0ajnfac73dh9rvg` (e2-crm-mcp, autodeploy off) is live on ea404d8.
+- LiveKit `voice-agent-phone`: the first deploy, `gKVr5UrYqadW`, crash-looped
+  (`ModuleNotFoundError: voice_settings`; the new modules were missing from the
+  `.dockerignore` allow-list and Dockerfile COPY). Phone calls were unavailable for
+  about 10 minutes until rollback to `WqLY6oozYvhH`, which ran again. After the fix, plus a
+  test that both files include every module agent.py imports, `fqiqkQMu7nBR` is
+  Running. A prompt check (no conversation) loaded published revision `8a356f6d`
+  (no settings, so defaults): unchanged Opek/Lisa greeting, automatic booking, SMS ready,
+  12 tools, low/priority backend, audio recording on.
+
+Not yet verified: a real phone call, and a published revision with non-default settings.
 
 Voice configurations gain an optional `settings` object, edited under Voice Agents →
 Configuration → Call settings and through the existing MCP draft tools: greeting and
@@ -24,9 +45,7 @@ harmless but has no effect on calls.
 
 Validation: CRM 795 tests (766 pass, 29 skipped, 0 fail), project checks, MCP docs
 check and 66 paired tests pass; worker 107 tests pass; the settings UI was checked in
-the local staff voice fixture (save/reload, pronunciation errors, 375px width). Not
-done: migration not applied, worker not deployed, nothing committed or pushed, no
-live call.
+the local staff voice fixture (save/reload, pronunciation errors, 375px width).
 
 ## Custom-domain Worker and CRM released — November 4, 2026
 
