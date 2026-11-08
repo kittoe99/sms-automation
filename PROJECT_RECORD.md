@@ -1,6 +1,6 @@
 # Opek SMS project record
 
-## Managed marketing services — November 8, 2026 (local only)
+## Managed marketing services — November 8, 2026 (released)
 
 Staff can add Google Search Ads, SEO and Facebook Ads for a business, paired with E2
 migration `20261107180000_managed_marketing_services.sql` (E2-owned; adds the
@@ -17,8 +17,23 @@ migration `20261107180000_managed_marketing_services.sql` (E2-owned; adds the
 Validation (E2_PROJECT_ROOT = the E2 worktree with the migration): `npm test`
 769 pass / 29 skipped; `check` and `docs:mcp:check` pass; `test:paired` 66 pass /
 1 fail. The failure, "paired email editor and template contract remain identical",
-comes from that E2 worktree's CRLF checkout and is unrelated. Not applied to the
-shared database, not pushed, not deployed.
+comes from that E2 worktree's CRLF checkout and is unrelated.
+
+Released November 8, 2026 at the user's request:
+- Migration applied to the shared database as remote version `20261108153010`
+  (prerequisite email wrapper confirmed live). Read-back: kind check lists the three
+  kinds, `platform_action_before_managed_marketing` exists, only `sms_api` can execute
+  `platform_action`, no managed-service rows yet.
+- E2 `e7d6794` pushed to `main` (rebased onto the dashboard redesign `cc45ede`; the
+  Home and sidebar `isTabConnected` helpers now map the kinds). Vercel
+  `dpl_3SzJ8yKaGGxCcqET1b8At59oMHL2` READY; `/dashboard` still redirects anonymous
+  visitors to sign-in; no runtime errors after release. Production build and Worker
+  check passed in the main checkout.
+- `deploy-crm` and `codex/crm-mcp-business-setup` fast-forwarded 5a52ef4 → 348fc53
+  (the push also created a stray remote `mcp-release` branch; deleting it was refused
+  by session permissions). CRM `348fc53` live: Render static `dep-dbo9c5e7bikc738a7pv0` (serves the managed
+  service UI chunk) and MCP `dep-dbo9c5m417fc73fk7l70` (health 200).
+Not verified: a signed-in staff add/release or customer view on production.
 
 ## Detailed Voice Agent call settings — released November 8, 2026
 
