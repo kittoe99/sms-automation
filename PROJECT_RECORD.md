@@ -5303,3 +5303,6 @@ Matching E2, the Home "Needs attention" cards now show their accent as a 3px lef
 edge instead of a top edge (`public/dashboard-theme.css`, CSS only).
 `npm run verify:release` passed: 763 pass / 29 skipped, 66/66 paired, frontend
 build and Edge bundle.
+Pushed `dfc0866` to `deploy-crm` and `codex/crm-mcp-business-setup`. Not deployed:
+the Render trigger for static service `srv-dandjcp42hec73e569pg` was refused by
+the session's permissions, so live CRM still serves the previous theme.
