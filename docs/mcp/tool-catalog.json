@@ -4355,6 +4355,200 @@
                   "delta",
                   "cinder"
                 ]
+              },
+              "settings": {
+                "type": "object",
+                "properties": {
+                  "greeting": {
+                    "type": "object",
+                    "properties": {
+                      "spokenName": {
+                        "type": "string",
+                        "maxLength": 60
+                      },
+                      "message": {
+                        "type": "string",
+                        "maxLength": 1000
+                      },
+                      "recordingDisclosure": {
+                        "type": "boolean"
+                      },
+                      "disclosureText": {
+                        "type": "string",
+                        "maxLength": 500
+                      }
+                    },
+                    "additionalProperties": false
+                  },
+                  "closing": {
+                    "type": "object",
+                    "properties": {
+                      "message": {
+                        "type": "string",
+                        "maxLength": 1000
+                      }
+                    },
+                    "additionalProperties": false
+                  },
+                  "language": {
+                    "type": "object",
+                    "properties": {
+                      "primary": {
+                        "type": "string",
+                        "enum": [
+                          "en",
+                          "es",
+                          "pt",
+                          "fr",
+                          "de",
+                          "tl"
+                        ]
+                      },
+                      "allowSwitching": {
+                        "$ref": "#/properties/configuration/properties/settings/properties/greeting/properties/recordingDisclosure"
+                      }
+                    },
+                    "additionalProperties": false
+                  },
+                  "conversation": {
+                    "type": "object",
+                    "properties": {
+                      "responseStyle": {
+                        "type": "string",
+                        "enum": [
+                          "brief",
+                          "balanced",
+                          "detailed"
+                        ]
+                      },
+                      "allowInterruptions": {
+                        "$ref": "#/properties/configuration/properties/settings/properties/greeting/properties/recordingDisclosure"
+                      },
+                      "pronunciations": {
+                        "type": "array",
+                        "items": {
+                          "type": "object",
+                          "properties": {
+                            "term": {
+                              "type": "string",
+                              "minLength": 1,
+                              "maxLength": 80
+                            },
+                            "sayAs": {
+                              "type": "string",
+                              "minLength": 1,
+                              "maxLength": 120
+                            }
+                          },
+                          "required": [
+                            "term",
+                            "sayAs"
+                          ],
+                          "additionalProperties": false
+                        },
+                        "maxItems": 50
+                      }
+                    },
+                    "additionalProperties": false
+                  },
+                  "silence": {
+                    "type": "object",
+                    "properties": {
+                      "enabled": {
+                        "$ref": "#/properties/configuration/properties/settings/properties/greeting/properties/recordingDisclosure"
+                      },
+                      "seconds": {
+                        "type": "integer",
+                        "minimum": 5,
+                        "maximum": 120
+                      },
+                      "message": {
+                        "type": "string",
+                        "maxLength": 300
+                      },
+                      "hangUpAfter": {
+                        "type": "integer",
+                        "minimum": 0,
+                        "maximum": 5
+                      }
+                    },
+                    "additionalProperties": false
+                  },
+                  "limits": {
+                    "type": "object",
+                    "properties": {
+                      "maxCallMinutes": {
+                        "type": "integer",
+                        "minimum": 0,
+                        "maximum": 120
+                      },
+                      "wrapUpMessage": {
+                        "type": "string",
+                        "maxLength": 500
+                      }
+                    },
+                    "additionalProperties": false
+                  },
+                  "escalation": {
+                    "type": "object",
+                    "properties": {
+                      "message": {
+                        "type": "string",
+                        "maxLength": 1000
+                      },
+                      "offerCallback": {
+                        "$ref": "#/properties/configuration/properties/settings/properties/greeting/properties/recordingDisclosure"
+                      }
+                    },
+                    "additionalProperties": false
+                  },
+                  "capabilities": {
+                    "type": "object",
+                    "properties": {
+                      "lookups": {
+                        "$ref": "#/properties/configuration/properties/settings/properties/greeting/properties/recordingDisclosure"
+                      },
+                      "bookings": {
+                        "$ref": "#/properties/configuration/properties/settings/properties/greeting/properties/recordingDisclosure"
+                      },
+                      "inCallSms": {
+                        "$ref": "#/properties/configuration/properties/settings/properties/greeting/properties/recordingDisclosure"
+                      }
+                    },
+                    "additionalProperties": false
+                  },
+                  "backend": {
+                    "type": "object",
+                    "properties": {
+                      "reasoningEffort": {
+                        "type": "string",
+                        "enum": [
+                          "low",
+                          "medium",
+                          "high"
+                        ]
+                      },
+                      "serviceTier": {
+                        "type": "string",
+                        "enum": [
+                          "priority",
+                          "default"
+                        ]
+                      }
+                    },
+                    "additionalProperties": false
+                  },
+                  "recording": {
+                    "type": "object",
+                    "properties": {
+                      "audio": {
+                        "$ref": "#/properties/configuration/properties/settings/properties/greeting/properties/recordingDisclosure"
+                      }
+                    },
+                    "additionalProperties": false
+                  }
+                },
+                "additionalProperties": false
               }
             },
             "required": [
@@ -12887,6 +13081,200 @@
                       "delta",
                       "cinder"
                     ]
+                  },
+                  "settings": {
+                    "type": "object",
+                    "properties": {
+                      "greeting": {
+                        "type": "object",
+                        "properties": {
+                          "spokenName": {
+                            "type": "string",
+                            "maxLength": 60
+                          },
+                          "message": {
+                            "type": "string",
+                            "maxLength": 1000
+                          },
+                          "recordingDisclosure": {
+                            "type": "boolean"
+                          },
+                          "disclosureText": {
+                            "type": "string",
+                            "maxLength": 500
+                          }
+                        },
+                        "additionalProperties": false
+                      },
+                      "closing": {
+                        "type": "object",
+                        "properties": {
+                          "message": {
+                            "type": "string",
+                            "maxLength": 1000
+                          }
+                        },
+                        "additionalProperties": false
+                      },
+                      "language": {
+                        "type": "object",
+                        "properties": {
+                          "primary": {
+                            "type": "string",
+                            "enum": [
+                              "en",
+                              "es",
+                              "pt",
+                              "fr",
+                              "de",
+                              "tl"
+                            ]
+                          },
+                          "allowSwitching": {
+                            "$ref": "#/properties/data/properties/draft/properties/settings/properties/greeting/properties/recordingDisclosure"
+                          }
+                        },
+                        "additionalProperties": false
+                      },
+                      "conversation": {
+                        "type": "object",
+                        "properties": {
+                          "responseStyle": {
+                            "type": "string",
+                            "enum": [
+                              "brief",
+                              "balanced",
+                              "detailed"
+                            ]
+                          },
+                          "allowInterruptions": {
+                            "$ref": "#/properties/data/properties/draft/properties/settings/properties/greeting/properties/recordingDisclosure"
+                          },
+                          "pronunciations": {
+                            "type": "array",
+                            "items": {
+                              "type": "object",
+                              "properties": {
+                                "term": {
+                                  "type": "string",
+                                  "minLength": 1,
+                                  "maxLength": 80
+                                },
+                                "sayAs": {
+                                  "type": "string",
+                                  "minLength": 1,
+                                  "maxLength": 120
+                                }
+                              },
+                              "required": [
+                                "term",
+                                "sayAs"
+                              ],
+                              "additionalProperties": false
+                            },
+                            "maxItems": 50
+                          }
+                        },
+                        "additionalProperties": false
+                      },
+                      "silence": {
+                        "type": "object",
+                        "properties": {
+                          "enabled": {
+                            "$ref": "#/properties/data/properties/draft/properties/settings/properties/greeting/properties/recordingDisclosure"
+                          },
+                          "seconds": {
+                            "type": "integer",
+                            "minimum": 5,
+                            "maximum": 120
+                          },
+                          "message": {
+                            "type": "string",
+                            "maxLength": 300
+                          },
+                          "hangUpAfter": {
+                            "type": "integer",
+                            "minimum": 0,
+                            "maximum": 5
+                          }
+                        },
+                        "additionalProperties": false
+                      },
+                      "limits": {
+                        "type": "object",
+                        "properties": {
+                          "maxCallMinutes": {
+                            "type": "integer",
+                            "minimum": 0,
+                            "maximum": 120
+                          },
+                          "wrapUpMessage": {
+                            "type": "string",
+                            "maxLength": 500
+                          }
+                        },
+                        "additionalProperties": false
+                      },
+                      "escalation": {
+                        "type": "object",
+                        "properties": {
+                          "message": {
+                            "type": "string",
+                            "maxLength": 1000
+                          },
+                          "offerCallback": {
+                            "$ref": "#/properties/data/properties/draft/properties/settings/properties/greeting/properties/recordingDisclosure"
+                          }
+                        },
+                        "additionalProperties": false
+                      },
+                      "capabilities": {
+                        "type": "object",
+                        "properties": {
+                          "lookups": {
+                            "$ref": "#/properties/data/properties/draft/properties/settings/properties/greeting/properties/recordingDisclosure"
+                          },
+                          "bookings": {
+                            "$ref": "#/properties/data/properties/draft/properties/settings/properties/greeting/properties/recordingDisclosure"
+                          },
+                          "inCallSms": {
+                            "$ref": "#/properties/data/properties/draft/properties/settings/properties/greeting/properties/recordingDisclosure"
+                          }
+                        },
+                        "additionalProperties": false
+                      },
+                      "backend": {
+                        "type": "object",
+                        "properties": {
+                          "reasoningEffort": {
+                            "type": "string",
+                            "enum": [
+                              "low",
+                              "medium",
+                              "high"
+                            ]
+                          },
+                          "serviceTier": {
+                            "type": "string",
+                            "enum": [
+                              "priority",
+                              "default"
+                            ]
+                          }
+                        },
+                        "additionalProperties": false
+                      },
+                      "recording": {
+                        "type": "object",
+                        "properties": {
+                          "audio": {
+                            "$ref": "#/properties/data/properties/draft/properties/settings/properties/greeting/properties/recordingDisclosure"
+                          }
+                        },
+                        "additionalProperties": false
+                      }
+                    },
+                    "additionalProperties": false
                   }
                 },
                 "required": [
@@ -13574,6 +13962,200 @@
                       "delta",
                       "cinder"
                     ]
+                  },
+                  "settings": {
+                    "type": "object",
+                    "properties": {
+                      "greeting": {
+                        "type": "object",
+                        "properties": {
+                          "spokenName": {
+                            "type": "string",
+                            "maxLength": 60
+                          },
+                          "message": {
+                            "type": "string",
+                            "maxLength": 1000
+                          },
+                          "recordingDisclosure": {
+                            "type": "boolean"
+                          },
+                          "disclosureText": {
+                            "type": "string",
+                            "maxLength": 500
+                          }
+                        },
+                        "additionalProperties": false
+                      },
+                      "closing": {
+                        "type": "object",
+                        "properties": {
+                          "message": {
+                            "type": "string",
+                            "maxLength": 1000
+                          }
+                        },
+                        "additionalProperties": false
+                      },
+                      "language": {
+                        "type": "object",
+                        "properties": {
+                          "primary": {
+                            "type": "string",
+                            "enum": [
+                              "en",
+                              "es",
+                              "pt",
+                              "fr",
+                              "de",
+                              "tl"
+                            ]
+                          },
+                          "allowSwitching": {
+                            "$ref": "#/properties/data/properties/configuration/properties/settings/properties/greeting/properties/recordingDisclosure"
+                          }
+                        },
+                        "additionalProperties": false
+                      },
+                      "conversation": {
+                        "type": "object",
+                        "properties": {
+                          "responseStyle": {
+                            "type": "string",
+                            "enum": [
+                              "brief",
+                              "balanced",
+                              "detailed"
+                            ]
+                          },
+                          "allowInterruptions": {
+                            "$ref": "#/properties/data/properties/configuration/properties/settings/properties/greeting/properties/recordingDisclosure"
+                          },
+                          "pronunciations": {
+                            "type": "array",
+                            "items": {
+                              "type": "object",
+                              "properties": {
+                                "term": {
+                                  "type": "string",
+                                  "minLength": 1,
+                                  "maxLength": 80
+                                },
+                                "sayAs": {
+                                  "type": "string",
+                                  "minLength": 1,
+                                  "maxLength": 120
+                                }
+                              },
+                              "required": [
+                                "term",
+                                "sayAs"
+                              ],
+                              "additionalProperties": false
+                            },
+                            "maxItems": 50
+                          }
+                        },
+                        "additionalProperties": false
+                      },
+                      "silence": {
+                        "type": "object",
+                        "properties": {
+                          "enabled": {
+                            "$ref": "#/properties/data/properties/configuration/properties/settings/properties/greeting/properties/recordingDisclosure"
+                          },
+                          "seconds": {
+                            "type": "integer",
+                            "minimum": 5,
+                            "maximum": 120
+                          },
+                          "message": {
+                            "type": "string",
+                            "maxLength": 300
+                          },
+                          "hangUpAfter": {
+                            "type": "integer",
+                            "minimum": 0,
+                            "maximum": 5
+                          }
+                        },
+                        "additionalProperties": false
+                      },
+                      "limits": {
+                        "type": "object",
+                        "properties": {
+                          "maxCallMinutes": {
+                            "type": "integer",
+                            "minimum": 0,
+                            "maximum": 120
+                          },
+                          "wrapUpMessage": {
+                            "type": "string",
+                            "maxLength": 500
+                          }
+                        },
+                        "additionalProperties": false
+                      },
+                      "escalation": {
+                        "type": "object",
+                        "properties": {
+                          "message": {
+                            "type": "string",
+                            "maxLength": 1000
+                          },
+                          "offerCallback": {
+                            "$ref": "#/properties/data/properties/configuration/properties/settings/properties/greeting/properties/recordingDisclosure"
+                          }
+                        },
+                        "additionalProperties": false
+                      },
+                      "capabilities": {
+                        "type": "object",
+                        "properties": {
+                          "lookups": {
+                            "$ref": "#/properties/data/properties/configuration/properties/settings/properties/greeting/properties/recordingDisclosure"
+                          },
+                          "bookings": {
+                            "$ref": "#/properties/data/properties/configuration/properties/settings/properties/greeting/properties/recordingDisclosure"
+                          },
+                          "inCallSms": {
+                            "$ref": "#/properties/data/properties/configuration/properties/settings/properties/greeting/properties/recordingDisclosure"
+                          }
+                        },
+                        "additionalProperties": false
+                      },
+                      "backend": {
+                        "type": "object",
+                        "properties": {
+                          "reasoningEffort": {
+                            "type": "string",
+                            "enum": [
+                              "low",
+                              "medium",
+                              "high"
+                            ]
+                          },
+                          "serviceTier": {
+                            "type": "string",
+                            "enum": [
+                              "priority",
+                              "default"
+                            ]
+                          }
+                        },
+                        "additionalProperties": false
+                      },
+                      "recording": {
+                        "type": "object",
+                        "properties": {
+                          "audio": {
+                            "$ref": "#/properties/data/properties/configuration/properties/settings/properties/greeting/properties/recordingDisclosure"
+                          }
+                        },
+                        "additionalProperties": false
+                      }
+                    },
+                    "additionalProperties": false
                   }
                 },
                 "required": [
@@ -29564,6 +30146,200 @@
                   "delta",
                   "cinder"
                 ]
+              },
+              "settings": {
+                "type": "object",
+                "properties": {
+                  "greeting": {
+                    "type": "object",
+                    "properties": {
+                      "spokenName": {
+                        "type": "string",
+                        "maxLength": 60
+                      },
+                      "message": {
+                        "type": "string",
+                        "maxLength": 1000
+                      },
+                      "recordingDisclosure": {
+                        "type": "boolean"
+                      },
+                      "disclosureText": {
+                        "type": "string",
+                        "maxLength": 500
+                      }
+                    },
+                    "additionalProperties": false
+                  },
+                  "closing": {
+                    "type": "object",
+                    "properties": {
+                      "message": {
+                        "type": "string",
+                        "maxLength": 1000
+                      }
+                    },
+                    "additionalProperties": false
+                  },
+                  "language": {
+                    "type": "object",
+                    "properties": {
+                      "primary": {
+                        "type": "string",
+                        "enum": [
+                          "en",
+                          "es",
+                          "pt",
+                          "fr",
+                          "de",
+                          "tl"
+                        ]
+                      },
+                      "allowSwitching": {
+                        "$ref": "#/properties/configuration/properties/settings/properties/greeting/properties/recordingDisclosure"
+                      }
+                    },
+                    "additionalProperties": false
+                  },
+                  "conversation": {
+                    "type": "object",
+                    "properties": {
+                      "responseStyle": {
+                        "type": "string",
+                        "enum": [
+                          "brief",
+                          "balanced",
+                          "detailed"
+                        ]
+                      },
+                      "allowInterruptions": {
+                        "$ref": "#/properties/configuration/properties/settings/properties/greeting/properties/recordingDisclosure"
+                      },
+                      "pronunciations": {
+                        "type": "array",
+                        "items": {
+                          "type": "object",
+                          "properties": {
+                            "term": {
+                              "type": "string",
+                              "minLength": 1,
+                              "maxLength": 80
+                            },
+                            "sayAs": {
+                              "type": "string",
+                              "minLength": 1,
+                              "maxLength": 120
+                            }
+                          },
+                          "required": [
+                            "term",
+                            "sayAs"
+                          ],
+                          "additionalProperties": false
+                        },
+                        "maxItems": 50
+                      }
+                    },
+                    "additionalProperties": false
+                  },
+                  "silence": {
+                    "type": "object",
+                    "properties": {
+                      "enabled": {
+                        "$ref": "#/properties/configuration/properties/settings/properties/greeting/properties/recordingDisclosure"
+                      },
+                      "seconds": {
+                        "type": "integer",
+                        "minimum": 5,
+                        "maximum": 120
+                      },
+                      "message": {
+                        "type": "string",
+                        "maxLength": 300
+                      },
+                      "hangUpAfter": {
+                        "type": "integer",
+                        "minimum": 0,
+                        "maximum": 5
+                      }
+                    },
+                    "additionalProperties": false
+                  },
+                  "limits": {
+                    "type": "object",
+                    "properties": {
+                      "maxCallMinutes": {
+                        "type": "integer",
+                        "minimum": 0,
+                        "maximum": 120
+                      },
+                      "wrapUpMessage": {
+                        "type": "string",
+                        "maxLength": 500
+                      }
+                    },
+                    "additionalProperties": false
+                  },
+                  "escalation": {
+                    "type": "object",
+                    "properties": {
+                      "message": {
+                        "type": "string",
+                        "maxLength": 1000
+                      },
+                      "offerCallback": {
+                        "$ref": "#/properties/configuration/properties/settings/properties/greeting/properties/recordingDisclosure"
+                      }
+                    },
+                    "additionalProperties": false
+                  },
+                  "capabilities": {
+                    "type": "object",
+                    "properties": {
+                      "lookups": {
+                        "$ref": "#/properties/configuration/properties/settings/properties/greeting/properties/recordingDisclosure"
+                      },
+                      "bookings": {
+                        "$ref": "#/properties/configuration/properties/settings/properties/greeting/properties/recordingDisclosure"
+                      },
+                      "inCallSms": {
+                        "$ref": "#/properties/configuration/properties/settings/properties/greeting/properties/recordingDisclosure"
+                      }
+                    },
+                    "additionalProperties": false
+                  },
+                  "backend": {
+                    "type": "object",
+                    "properties": {
+                      "reasoningEffort": {
+                        "type": "string",
+                        "enum": [
+                          "low",
+                          "medium",
+                          "high"
+                        ]
+                      },
+                      "serviceTier": {
+                        "type": "string",
+                        "enum": [
+                          "priority",
+                          "default"
+                        ]
+                      }
+                    },
+                    "additionalProperties": false
+                  },
+                  "recording": {
+                    "type": "object",
+                    "properties": {
+                      "audio": {
+                        "$ref": "#/properties/configuration/properties/settings/properties/greeting/properties/recordingDisclosure"
+                      }
+                    },
+                    "additionalProperties": false
+                  }
+                },
+                "additionalProperties": false
               }
             },
             "required": [

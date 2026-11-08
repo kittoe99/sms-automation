@@ -1,5 +1,27 @@
 # Voice Agent workspace
 
+## Call settings — November 7, 2026 (local, not released)
+
+Configuration → **Call settings** holds per-agent settings stored with each draft and
+published revision (`configuration.settings`). All keys are optional; an absent key
+keeps the behavior from before this release.
+
+| Group | Settings | Effect on calls |
+| --- | --- | --- |
+| Greeting & disclosure | spoken name, opening line, read recording disclosure, disclosure wording | Opening turn; blank keeps the standard greeting |
+| Language & conversation | primary language, switch with caller, reply length, interruptions, pronunciation guide | Voice/backend instructions; interruptions off stops barge-in |
+| Silence & call length | check-ins on/off, seconds (5–120), hang up after N unanswered (0–5), wording; max minutes (0 = none, ≤120), wrap-up wording | Worker checks in, then ends the call; wraps up at the limit |
+| Escalation & closing | escalation wording, offer callback, closing line | Callbacks are saved as `callback_request` leads |
+| Capabilities | lookups, bookings, in-call SMS | Can only turn off deployment features; bookings need lookups |
+| Reasoning & recording | backend reasoning effort, speed tier, record audio | Transcripts and recaps are always kept |
+
+The contract is enforced in three places that must stay identical:
+`public/voiceSettings.js`, `src/mcp/voiceSchemas.js` and
+`sms_private.validate_voice_settings` (migration `20261107120000_voice_agent_settings.sql`,
+which also updates the stored MCP draft schemas). `test/voiceSettings.test.js` checks all
+three against the same valid and invalid cases. The worker must be redeployed for the
+settings to affect calls; until then they are stored but ignored.
+
 ## Voice delegation policy — October 22, 2026
 
 Opek's published voice configuration is now

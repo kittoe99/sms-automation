@@ -1,6 +1,20 @@
 import {z} from 'zod';
 const businessId=z.string().min(1).max(255),agentId=z.string().min(1).max(255),uuid=z.string().uuid(),revision=z.number().int().min(1).max(Number.MAX_SAFE_INTEGER),zero=z.number().int().min(0).max(Number.MAX_SAFE_INTEGER),page={page:z.number().int().min(1).max(100000).default(1),pageSize:z.number().int().min(1).max(100).default(25)},retry={idempotencyKey:z.string().min(8).max(128)};
-export const voiceConfiguration=z.object({name:z.string().min(1).max(100),persona:z.string(),voice:z.string().min(1),brain:z.string().min(1),voiceName:z.enum(['marin','quartz','ripple','vesper','willow','stone','gleam','meridian','bossa','tempo','beacon','delta','cinder'])}).strict();
+const text=n=>z.string().max(n).optional(),flag=z.boolean().optional(),whole=(a,b)=>z.number().int().min(a).max(b).optional(),group=shape=>z.object(shape).strict().optional();
+// Mirrors public/voiceSettings.js and sms_private.validate_voice_settings. Absent keys keep current behavior.
+export const voiceSettings=z.object({
+ greeting:group({spokenName:text(60),message:text(1000),recordingDisclosure:flag,disclosureText:text(500)}),
+ closing:group({message:text(1000)}),
+ language:group({primary:z.enum(['en','es','pt','fr','de','tl']).optional(),allowSwitching:flag}),
+ conversation:group({responseStyle:z.enum(['brief','balanced','detailed']).optional(),allowInterruptions:flag,pronunciations:z.array(z.object({term:z.string().trim().min(1).max(80),sayAs:z.string().trim().min(1).max(120)}).strict()).max(50).optional()}),
+ silence:group({enabled:flag,seconds:whole(5,120),message:text(300),hangUpAfter:whole(0,5)}),
+ limits:group({maxCallMinutes:whole(0,120),wrapUpMessage:text(500)}),
+ escalation:group({message:text(1000),offerCallback:flag}),
+ capabilities:group({lookups:flag,bookings:flag,inCallSms:flag}),
+ backend:group({reasoningEffort:z.enum(['low','medium','high']).optional(),serviceTier:z.enum(['priority','default']).optional()}),
+ recording:group({audio:flag}),
+}).strict();
+export const voiceConfiguration=z.object({name:z.string().min(1).max(100),persona:z.string(),voice:z.string().min(1),brain:z.string().min(1),voiceName:z.enum(['marin','quartz','ripple','vesper','willow','stone','gleam','meridian','bossa','tempo','beacon','delta','cinder']),settings:voiceSettings.optional()}).strict();
 export const voicePermissions=[['voice_config_read','Read scoped voice configurations and revision history'],['voice_create','Create private voice drafts'],['voice_edit','Edit voice drafts'],['voice_publish','Publish voice configuration for new calls'],['voice_rollback','Publish a copy of a previous voice revision'],['voice_call_read','Read scoped voice call metadata'],['voice_transcript_read','Read retained voice transcripts'],['voice_media_read','Access retained private call recordings']];
 export const voiceTools=[
  ['crm_list_voice_agents','List scoped voice agents and draft/publication revisions. No provider credentials or other-business deployments.',{businessId,...page}],

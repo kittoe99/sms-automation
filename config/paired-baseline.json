@@ -139,7 +139,8 @@
     "20261031100908_voice_prompt_length_unlimited.sql": "ad29aa5aa1f13d4f168bcd24f0d3367a3bce8cd964e80114c89c159b8f77ec66",
     "20261102051753_reusable_email_automations.sql": "2924c9e3847d3b326ff2a725b599b0c5ed673599c45b7d35cd43cf3153abf588",
     "20261102181913_mcp_reusable_email_automations.sql": "b60d411e774f5ad330e4d2239df071441a312ebd9f7f01f96ed0b5a550973981",
-    "20261102181936_email_preview_sequence_order.sql": "5657532ac3ff1ace49739acd4599ea6fe2cfe193780e897d0f71ed6fa9fb25ed"
+    "20261102181936_email_preview_sequence_order.sql": "5657532ac3ff1ace49739acd4599ea6fe2cfe193780e897d0f71ed6fa9fb25ed",
+    "20261107120000_voice_agent_settings.sql": "dcbb1d520d35c1741fb112345065e035babc311f7def59bb59f884f4fad04209"
   },
   "e2": {
     "20260922000000_create_contact_submissions.sql": "9a94bdadaabf0253d21529984d86bec5aafb1cfe80b454796d9ea9835b0463a5",

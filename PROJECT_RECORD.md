@@ -1,5 +1,33 @@
 # Opek SMS project record
 
+## Detailed Voice Agent call settings — November 7, 2026 (local, not released)
+
+Voice configurations gain an optional `settings` object, edited under Voice Agents →
+Configuration → Call settings and through the existing MCP draft tools: greeting and
+spoken name, recording disclosure, closing line, primary language and switching,
+reply length, interruptions, pronunciation guide (up to 50), silence check-ins with
+hang-up, maximum call length with wrap-up, escalation wording and callback offer,
+capability opt-outs (lookups, bookings, in-call SMS), backend reasoning effort and
+speed tier, and audio recording. Absent keys keep current behavior, so existing drafts
+and published revisions stay valid. Capabilities can only narrow deployment features.
+
+Contract: `public/voiceSettings.js` (UI), `src/mcp/voiceSchemas.js` (Zod) and new CRM
+migration `20261107120000_voice_agent_settings.sql` (`validate_voice_settings`, the
+widened `validate_voice_configuration`, and both stored MCP draft schemas). Requires CRM
+20261031100908; no E2 Local prerequisite (E2 does not read voice configurations).
+The paired baseline was re-recorded; the only difference is that migration.
+
+The LiveKit worker (`../voice agent`: `voice_settings.py`, `call_control.py`,
+`agent.py`, `crm_runtime.py`, `agent_config.py`) applies the settings. The deployed
+worker ignores the new key, so publishing settings before the worker is redeployed is
+harmless but has no effect on calls.
+
+Validation: CRM 795 tests (766 pass, 29 skipped, 0 fail), project checks, MCP docs
+check and 66 paired tests pass; worker 107 tests pass; the settings UI was checked in
+the local staff voice fixture (save/reload, pronunciation errors, 375px width). Not
+done: migration not applied, worker not deployed, nothing committed or pushed, no
+live call.
+
 ## Custom-domain Worker and CRM released — November 4, 2026
 
 At the user's request, deployed e2-sites custom-host routing and released CRM
