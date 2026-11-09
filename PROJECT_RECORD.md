@@ -1,6 +1,6 @@
 # Opek SMS project record
 
-## Customer service requests — November 9, 2026 (database applied; code not released)
+## Customer service requests — November 9, 2026 (released)
 
 Staff review customer service requests from the E2 dashboard. This is paired with
 E2-owned migration `20261109200000_customer_service_requests.sql`, which adds
@@ -19,10 +19,18 @@ marks a matching request activated.
   route case in `platformApi.test.js`.
 Validation: `npm test` 772 pass / 29 skipped; `check` passes; `test:paired` 68/68.
 The E2 migration was applied to the shared database on November 9, 2026 as remote
-version `20261109211010`; see the E2 record for the read-back. Not done: the crm-api
-Edge deploy, the static frontend release and commits. Until the Edge function is
-deployed, Decline returns "Route not found". Adding a service or setting it live still
-resolves requests, because that runs in the database.
+version `20261109211010`; see the E2 record for the read-back.
+Released November 9, 2026 at the user's request:
+- `899086c` fast-forwarded `deploy-crm` and `codex/crm-mcp-business-setup` from
+  355bb65. The push went over HTTPS; the SSH push URL fails host-key verification on
+  this machine.
+- crm-api deployed with the Supabase CLI (`--use-api`, existing `verify_jwt = false`).
+  v71 is ACTIVE, and an unauthenticated decline call returns 401.
+- Render auto-deploy did not fire. Explicit static deploy `dep-dbp3f2gn74is73cnfdeg`
+  is live, and crm.e2local.com/businessSetup.js contains the requests card and decline
+  route. The MCP service (no change) was not redeployed.
+- E2 `8e0c46a` is live on Vercel (`dpl_J7dJervT4MqRFvDQJxcsw4eGZQdg`).
+Not verified: a signed-in staff decline/activate on production.
 
 ## Managed marketing services — November 8, 2026 (released)
 
