@@ -1,5 +1,29 @@
 # Opek SMS project record
 
+## Customer service requests — November 9, 2026 (database applied; code not released)
+
+Staff review customer service requests from the E2 dashboard. This is paired with
+E2-owned migration `20261109200000_customer_service_requests.sql`, which adds
+`platform_service_requests`, `serviceRequests` on `platform_read('businesses')`
+rows, and the `service_request_decline` action. Adding a service, or setting it live,
+marks a matching request activated.
+- `public/businessSetup.js`: a "Customer requests" card shows each pending request
+  with the date, the requester and a Decline button. A matching Add button reads
+  "Add … · requested".
+- `supabase/functions/crm-api/handler.js`: `POST /platform/service-requests/decline`
+  → `platform_action('service_request_decline')`.
+- No CRM migration and no MCP tool change. `scripts/paired-baseline.js` runs the E2
+  `service-requests-database` test. The baseline was re-recorded; only the new E2
+  migration entry changed.
+- Tests: new `test/serviceRequests.test.js` (staff UI, escaping, decline write) and a
+  route case in `platformApi.test.js`.
+Validation: `npm test` 772 pass / 29 skipped; `check` passes; `test:paired` 68/68.
+The E2 migration was applied to the shared database on November 9, 2026 as remote
+version `20261109211010`; see the E2 record for the read-back. Not done: the crm-api
+Edge deploy, the static frontend release and commits. Until the Edge function is
+deployed, Decline returns "Route not found". Adding a service or setting it live still
+resolves requests, because that runs in the database.
+
 ## Managed marketing services — November 8, 2026 (released)
 
 Staff can add Google Search Ads, SEO and Facebook Ads for a business, paired with E2

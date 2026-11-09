@@ -39,7 +39,7 @@ if(process.argv.includes('--record')) {
   if(JSON.stringify(expected)!==JSON.stringify(actual))throw new Error('Paired baseline differs. Review owning migrations/contracts, run paired tests, then explicitly record the new baseline. Never replay histories on a shared database.');
   console.log('Paired source/migration fingerprints match.');
   if(process.argv.includes('--test')) {
-    const files=['hosting-tabs','hosting-storage','hosting-lifecycle','hosting-operation-database','site-details','platform-hosting-auth','platform-login-realms','business-services-database','customer-voice','email-automation-database','booking-calendar-database','managed-marketing-database'];
+    const files=['hosting-tabs','hosting-storage','hosting-lifecycle','hosting-operation-database','site-details','platform-hosting-auth','platform-login-realms','business-services-database','customer-voice','email-automation-database','booking-calendar-database','managed-marketing-database','service-requests-database'];
     const available=await readdir(path.join(paired,'tests'));
     const required=files.map(name=>`tests/${name}.test.mjs`);
     for(const file of required)if(!available.includes(path.basename(file)))throw new Error(`Missing paired contract test: ${file}`);

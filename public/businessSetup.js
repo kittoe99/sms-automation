@@ -9,6 +9,9 @@ const serviceLabels={sms:'SMS',enquiries:'Website enquiries',bookings:'Bookings'
 export function mountBusinessSetup(container,row,{read,write,reload,onCreateWebsite,onWebsite,onWorkspace,lookup}) {
  const setup=row.setup||{revision:0,draft:{}},profile={...row.registration?.profile,...setup.draft};
  const services=row.services||[],reviewed=Boolean(setup.reviewed_profile_id);
+ // Pending customer requests from the dashboard. Adding the service marks a request activated.
+ const requests=row.serviceRequests||[],requested=new Set(requests.map(r=>r.kind));
+ const serviceName=kind=>serviceLabels[kind]||(kind==='website'?'Website':kind);
  container.innerHTML=`<div data-twilio-connection></div><section class="card business-profile-card">
    <form class="compose business-profile-form" data-profile><p data-profile-error class="login-error" role="alert"></p>
    ${profileEditorHtml(profile)}
@@ -20,11 +23,16 @@ export function mountBusinessSetup(container,row,{read,write,reload,onCreateWebs
    </section>
    <div data-voice-setup></div><section class="card"><h3>Other services</h3><p>Set live makes a service visible in the customer dashboard. Publishing a website and activating SMS are separate controls. Use the Voice setup panel above for voice agents and customer access.</p>
    <p data-service-error class="login-error" role="alert"></p>
+   ${requests.length?`<section class="card" data-service-requests><h4>Customer requests</h4>
+    <p>The customer asked for these from their dashboard. Add the service below to activate it, or decline the request.</p>
+    ${requests.map(r=>`<article class="card"><p><strong>${esc(serviceName(r.kind))}</strong> · requested ${esc(new Date(r.requestedAt).toLocaleString())}${r.requestedBy?' by '+esc(r.requestedBy):''}</p>
+     ${services.some(s=>s.kind===r.kind)?'<p>Already added. Setting it live below completes this request.</p>':''}
+     <button type="button" class="btn ghost" data-decline-request="${esc(r.id)}">Decline</button></article>`).join('')}</section>`:''}
    ${services.filter(s=>s.kind!=='voice').map(s=>`<article class="card"><h4>${esc(s.kind==='website'?s.siteName||'Website':serviceLabels[s.kind])}</h4>
     <p>${s.visibility==='live'?'Live · visible to customer':'Draft · hidden from customer'}${s.kind==='sms'?` · Setup: ${esc(s.providerState||'pending')}${s.phoneNumber?' · '+esc(s.phoneNumber):''}`:''}</p>
     <button type="button" class="btn" data-release="${esc(s.id)}" ${!reviewed&&s.visibility!=='live'?'disabled':''}>${s.visibility==='live'?'Hide from customer':'Set live'}</button>
     ${s.kind==='website'?`<button type="button" class="btn ghost" data-site="${esc(s.site_id)}">Manage website</button>`:managedKinds.includes(s.kind)?'<p>Managed by E2 Local staff. The customer dashboard shows an active status panel once live.</p>':`<button type="button" class="btn ghost" data-configure="${s.kind}">Configure ${s.kind==='sms'?'SMS':s.kind}</button>`}</article>`).join('')||'<p>No services added.</p>'}
-   <div class="compose-actions">${['sms','enquiries','bookings','email',...managedKinds].filter(kind=>!services.some(s=>s.kind===kind)).map(kind=>`<button type="button" class="btn ghost" data-add="${kind}" ${!reviewed?'disabled':''}>Add ${managedKinds.includes(kind)?serviceLabels[kind]:kind==='sms'?'SMS':kind==='voice'?'Voice':kind}</button>`).join('')}
+   <div class="compose-actions">${['sms','enquiries','bookings','email',...managedKinds].filter(kind=>!services.some(s=>s.kind===kind)).map(kind=>`<button type="button" class="btn ghost" data-add="${kind}" ${!reviewed?'disabled':''}>Add ${managedKinds.includes(kind)?serviceLabels[kind]:kind==='sms'?'SMS':kind==='voice'?'Voice':kind}${requested.has(kind)?' · requested':''}</button>`).join('')}
    <button type="button" class="btn ghost" data-new-site ${!reviewed?'disabled':''}>Create website</button>
    <button type="button" class="btn ghost" data-link-site ${!reviewed?'disabled':''}>Link existing website</button></div><div data-site-link></div></section>`;
  mountTwilioConnection(container.querySelector('[data-twilio-connection]'),row,{read,write,reload,onWorkspace});
@@ -41,6 +49,7 @@ export function mountBusinessSetup(container,row,{read,write,reload,onCreateWebs
  });
  const error=container.querySelector('[data-service-error]');
  container.querySelectorAll('[data-add]').forEach(button=>button.addEventListener('click',()=>void perform(button,error,()=>write('services',{tenantId:row.tenant_id,kind:button.dataset.add}))));
+ container.querySelectorAll('[data-decline-request]').forEach(button=>button.addEventListener('click',()=>void perform(button,error,()=>write('service-requests/decline',{tenantId:row.tenant_id,requestId:button.dataset.declineRequest}))));
  container.querySelectorAll('[data-release]').forEach(button=>button.addEventListener('click',()=>{
   const service=services.find(s=>s.id===button.dataset.release);
   void perform(button,error,()=>write('services/visibility',{tenantId:row.tenant_id,serviceId:service.id,revision:service.revision,visibility:service.visibility==='live'?'draft':'live'}));

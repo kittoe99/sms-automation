@@ -56,7 +56,7 @@ export function createCrmHandler(db,verify=authenticate,{platform=false,provisio
     if(method==='GET' && directory) return json(await db.call('platform_read',user,directory[1],{...params,...(directory[2]?{id:decodeURIComponent(directory[2])}:{})}),200,headers);
     const actions={ '/platform/status':'status','/platform/memberships':'membership','/platform/ownership':'owner',
       '/platform/business-register':'business_register','/platform/business-profile/draft':'business_profile_draft',
-      '/platform/business-profile/review':'business_profile_review','/platform/services':'service_add','/platform/services/visibility':'service_visibility',
+      '/platform/business-profile/review':'business_profile_review','/platform/services':'service_add','/platform/services/visibility':'service_visibility','/platform/service-requests/decline':'service_request_decline',
       '/platform/website-business':'website_business','/platform/connections':'connection_create','/platform/connections/disable':'connection_disable' };
     if(['POST','PATCH'].includes(method) && actions[path]) return json(await db.call('platform_action',user,actions[path],await readJson(request)),200,headers);
     return json({error:'Route not found'},404,headers);
