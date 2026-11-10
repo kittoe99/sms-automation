@@ -14,7 +14,7 @@ export const voiceSettings=z.object({
  backend:group({reasoningEffort:z.enum(['low','medium','high']).optional(),serviceTier:z.enum(['priority','default']).optional()}),
  recording:group({audio:flag}),
 }).strict();
-export const voiceConfiguration=z.object({name:z.string().min(1).max(100),persona:z.string(),voice:z.string().min(1),brain:z.string().min(1),voiceName:z.enum(['marin','quartz','ripple','vesper','willow','stone','gleam','meridian','bossa','tempo','beacon','delta','cinder']),settings:voiceSettings.optional()}).strict();
+export const voiceConfiguration=z.object({name:z.string().min(1).max(100),persona:z.string(),voice:z.string().min(1),brain:z.string().min(1),voiceName:z.enum(['marin','quartz','ripple','vesper','willow','stone','gleam','meridian','bossa','tempo','beacon','delta','cinder','voice_6af2d134d92081918a68df7cf07fad38']),settings:voiceSettings.optional()}).strict();
 export const voicePermissions=[['voice_config_read','Read scoped voice configurations and revision history'],['voice_create','Create private voice drafts'],['voice_edit','Edit voice drafts'],['voice_publish','Publish voice configuration for new calls'],['voice_rollback','Publish a copy of a previous voice revision'],['voice_call_read','Read scoped voice call metadata'],['voice_transcript_read','Read retained voice transcripts'],['voice_media_read','Access retained private call recordings']];
 export const voiceTools=[
  ['crm_list_voice_agents','List scoped voice agents and draft/publication revisions. No provider credentials or other-business deployments.',{businessId,...page}],

@@ -1,5 +1,30 @@
 # Opek SMS project record
 
+## Custom OpenAI voice "My new voice" — November 10, 2026 (local, not released)
+
+Voice Agents can use the custom OpenAI voice `voice_6af2d134d92081918a68df7cf07fad38`
+as `voiceName`. The Opek LiveKit worker already accepts the id (`SUPPORTED_VOICES`;
+`realtime_voice()` sends it as `{"id": ...}`), and OpenAI confirmed it works on
+`gpt-live-1`. Until now the worker forced it with `VOICE_AGENT_PHONE_VOICE` because the CRM
+rejected the id.
+- `public/voiceWorkspace.js`: `VOICES` gains the id; the picker options now carry
+  `value` and show "My new voice (custom, American, masculine)" for it (built-in names
+  are unchanged). Overview shows the same label.
+- `src/mcp/voiceSchemas.js`: the `voiceName` enum gains the id; `docs/mcp` regenerated.
+- New CRM migration `20261110120000_custom_openai_voice.sql`: redefines
+  `sms_private.validate_voice_configuration` with the id (otherwise identical to
+  `20261107120000`) and sets the `voiceName` enum in both stored MCP draft schemas
+  (`crm_create_voice_agent`, `crm_save_voice_draft`), with a guard. Requires CRM
+  `20261107120000`; no E2 Local prerequisite (E2 does not read voice names).
+- New `test/customVoice.test.js` (client, Zod, database save/publish/runtime read,
+  stored-schema parity). Docs: `docs/VOICE_CRM.md`.
+- Paired baseline re-recorded; the only difference is the new migration.
+Validation: `npm test` 803 tests, 774 pass / 29 skipped / 0 fail; `check` and
+`docs:mcp:check` pass; `test:paired` 68/68. The picker was checked in the local staff
+voice fixture (label shown, id kept after save).
+Publishing a revision with this voice, and removing the worker's `PHONE_VOICE` override,
+are separate steps for the owner.
+
 ## Customer service requests — November 9, 2026 (released)
 
 Staff review customer service requests from the E2 dashboard. This is paired with

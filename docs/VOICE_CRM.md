@@ -188,6 +188,12 @@ See [library and release workflow](CUSTOMER_VOICE.md#voice-agents-library-and-gu
 publish require `agentId` and `version`; save takes `configuration`, rollback takes
 `revision`. Initialize is an operator import of the verified existing deployment.
 Configuration fields are `name`, `persona`, `voice`, `brain`, and `voiceName`.
+`voiceName` is one of the 13 built-in OpenAI voices or the custom OpenAI voice
+`voice_6af2d134d92081918a68df7cf07fad38` (shown in the picker as "My new voice (custom,
+American, masculine)"). The list must match in `public/voiceWorkspace.js` (`VOICES`),
+`src/mcp/voiceSchemas.js` and `sms_private.validate_voice_configuration` (latest:
+migration `20261110120000_custom_openai_voice.sql`, which also updates the stored MCP draft
+schemas); `test/customVoice.test.js` checks all three.
 Credentials, routing and model identifiers are not editable through this workspace.
 
 `POST /api/voice/create` takes `{requestId,configuration}`; `requestId` is a stable
