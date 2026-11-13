@@ -35,3 +35,17 @@ support link use 1px hairlines with no shadows; primary buttons are ink, seconda
 buttons white with a 1px outline. Scrollbars are hidden but scrolling is unchanged.
 `e2-theme.css` keeps the blue brand tokens for sign-in and embeds; the dashboard
 overrides them in `dashboard-theme.css`.
+
+## November 12 redesign (local)
+
+Follows E2 `ea25de4`. Sidebar-first shell with no top bar: brand, business card,
+page finder and sections in a `#f8f8f7` sidebar; help, the E2 Local site and the account
+at the bottom. Daily areas are flat links; Calls & voice, Settings and Administration
+are disclosures under a Manage caption. White canvas, page title 30px/600, live status
+and refresh at the right of the heading. Surfaces use one layered hairline
+(`--shadow-surface`); KPIs and Home counts are a single hairline metrics sheet; recent
+work is a bordered row list; Home shortcuts are product tiles with one hue per area.
+Workspace tabs are a tinted segmented control with a white selected chip. Primary
+buttons are ink, secondary white with a 1px outline, radius 8px. Under 900px the
+sidebar becomes a slim header plus a floating dock that opens the navigation as a
+sheet. Motion is short and disabled under reduced motion.

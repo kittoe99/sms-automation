@@ -1013,7 +1013,7 @@ function setSidebarOpen(open) {
     }
   }
   syncOverlayLock();
-  if (isOpen) requestAnimationFrame(() => el.sidebarClose?.focus());
+  if (isOpen) requestAnimationFrame(() => (el.sidebar?.querySelector('#nav [aria-current="page"]') || el.sidebarClose || el.sidebarTrigger)?.focus({ preventScroll: true }));
 }
 
 function closeSidebar({ restoreFocus = false } = {}) {
@@ -1129,6 +1129,8 @@ function syncWorkspaceNavigation() {
   renderSectionNavigation();
   const group=permittedGroups(state.platformStaff,state.tenant).find(g=>g.views.some(v=>v.view===state.view));
   const levels=navigationLevels(group,state.view);
+  const dock=document.getElementById('menu-dock');
+  if(dock&&dock.dataset.group!==(group?.id||'home')){dock.dataset.group=group?.id||'home';document.getElementById('menu-dock-icon').innerHTML=dashboardIcon(group?.icon||'overview');}
   syncNavigationTabs(document.getElementById('workspace-tabs'),levels.primary,state.view);
   syncNavigationTabs(document.getElementById('workspace-subtabs'),levels.secondary,state.view);
 }

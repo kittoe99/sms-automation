@@ -3,6 +3,7 @@ const artwork = {
   overview: '<path d="M3 3h7v10H3zM14 3h7v6h-7zM3 17h7v4H3z"/><path d="M14 13h7v8h-7z"/>',
   contacts: '<circle cx="12" cy="7" r="4"/><path d="M4 21v-2a8 8 0 0 1 16 0v2z"/>',
   messaging: '<path d="M3 4h18v13H9l-6 4zM7 9h10M7 13h6"/>',
+  email: '<rect x="3" y="5" width="18" height="14" rx="2"/><path d="m3 7 9 6 9-6"/>',
   bookings: '<path d="M3 5h18v16H3zM3 10h18M7 3v4M17 3v4m-9 8 3 3 5-5"/>',
   forms: '<path d="M3 4h13v16H3zM6 8h6M6 12h3M13 15h8m-3-3 3 3-3 3M6 16h2"/>',
   voice: '<rect x="8" y="3" width="8" height="13" rx="4"/><path d="M5 11v1a7 7 0 0 0 14 0v-1M12 19v3M9 22h6"/>',

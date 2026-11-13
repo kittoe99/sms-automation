@@ -3,38 +3,21 @@
   <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <meta name="theme-color" content="#ffffff" />
+    <meta name="theme-color" content="#f8f8f7" />
     <meta
       name="description"
       content="E2.Local CRM for customer conversations, bookings, and follow-ups."
     />
     <title>E2.Local CRM</title>
     <link rel="icon" href="/e2-icon.svg" type="image/svg+xml" />
-    <link rel="stylesheet" href="/styles.css?v=20261004-live-test" />
+    <link rel="stylesheet" href="/styles.css?v=20261112-sidebar-shell" />
     <link rel="stylesheet" href="/e2-theme.css?v=20260930-login-options" />
-    <link rel="stylesheet" href="/dashboard-theme.css?v=20261004-live-test" />
+    <link rel="stylesheet" href="/dashboard-theme.css?v=20261112-sidebar-shell" />
   </head>
   <body>
     <a class="skip-link" href="#view-root">Skip to main content</a>
     <div id="auth-root"><span class="crm-loader crm-boot-loader" role="status" aria-label="Loading…"><span class="crm-loader-ring" aria-hidden="true"></span><span class="crm-loader-label" aria-hidden="true">Loading…</span></span></div>
     <div class="crm" id="crm-app" hidden>
-      <header class="crm-topbar">
-        <a class="dashboard-brand" href="/?view=overview" aria-label="CRM dashboard">
-          <img src="/e2-dashboard-logo.svg" alt="E2 Local" width="152" height="55" />
-        </a>
-        <span class="brand-divider" aria-hidden="true"></span><span class="product-name">Dashboard <small>CRM</small></span>
-        <div class="crm-topbar-actions">
-          <button type="button" class="sidebar-trigger" id="sidebar-trigger" aria-label="Open navigation" aria-controls="sidebar" aria-expanded="false">
-            <span class="sidebar-trigger-icon" aria-hidden="true"><b></b><b></b><b></b></span>
-            <span class="sidebar-trigger-label">Menu</span>
-          </button>
-          <a class="dashboard-site-link" href="https://www.e2local.com/" aria-label="E2 Local homepage" title="E2 Local homepage"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" aria-hidden="true"><path d="M7 17 17 7M7 7h10v10"/></svg></a>
-          <div class="toolbar-live">
-            <span id="live-pill" class="live-pill offline" title="Realtime connection">Connecting…</span>
-          </div>
-        </div>
-      </header>
-
       <button
         type="button"
         class="sidebar-backdrop"
@@ -43,90 +26,116 @@
         tabindex="-1"
       ></button>
 
+      <!-- Sidebar-first shell from E2local-main/app/dashboard/dashboard-shell.tsx:
+           brand and workspace at the top, sections in the middle, help, the public
+           site and the account at the bottom. Phones get a slim header and a
+           floating dock that expands the same navigation into a sheet. -->
       <aside class="sidebar" id="sidebar" aria-label="CRM navigation">
         <div class="sidebar-brand">
-          <p class="sidebar-label">WORKSPACE</p>
-          <button type="button" class="sidebar-collapse" id="sidebar-close" aria-label="Close navigation" title="Close navigation">
-            <svg viewBox="0 0 16 16" aria-hidden="true"><path d="M4 3.5 8.5 8 4 12.5M9.5 3.5 14 8l-4.5 4.5" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"/></svg>
-          </button>
+          <a class="dashboard-brand" href="/?view=overview" aria-label="CRM dashboard">
+            <img src="/e2-dashboard-logo.svg" alt="E2 Local" width="152" height="55" />
+          </a>
+          <span class="product-name">CRM</span>
         </div>
 
-        <div class="clerk-org-switcher" id="clerk-organization-switcher"></div>
+        <div class="sidebar-sheet" id="sidebar-sheet">
+          <div class="clerk-org-switcher" id="clerk-organization-switcher"></div>
 
-        <label class="workspace-switcher" for="tenant-select">
-          <span>Business</span>
-          <select id="tenant-select" aria-label="Business account" disabled>
-            <option value="">Loading workspaces…</option>
-          </select>
-          <i aria-hidden="true">⌄</i>
-        </label>
+          <label class="workspace-switcher" for="tenant-select">
+            <span class="workspace-avatar" id="tenant-avatar" aria-hidden="true"></span>
+            <span class="workspace-copy">
+              <select id="tenant-select" aria-label="Business account" disabled>
+                <option value="">Loading workspaces…</option>
+              </select>
+              <small>Business workspace</small>
+            </span>
+            <i aria-hidden="true"><svg viewBox="0 0 16 16"><path d="m5 6 3-3 3 3M5 10l3 3 3-3" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/></svg></i>
+          </label>
 
-        <button type="button" id="add-business" class="btn ghost" style="margin:0 12px 16px" hidden>Set up business</button>
+          <button type="button" id="add-business" class="btn ghost" hidden>Set up business</button>
 
-        <div class="sidebar-find">
-          <svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="11" cy="11" r="7" fill="none" stroke="currentColor" stroke-width="1.8"/><path d="m16.5 16.5 4 4" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/></svg>
-          <input id="nav-find" type="search" placeholder="Find a page…" aria-label="Filter navigation" autocomplete="off" />
-          <kbd title="Press F to focus">F</kbd>
-        </div>
+          <div class="sidebar-find">
+            <svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="11" cy="11" r="7" fill="none" stroke="currentColor" stroke-width="1.8"/><path d="m16.5 16.5 4 4" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/></svg>
+            <input id="nav-find" type="search" placeholder="Find a page…" aria-label="Filter navigation" autocomplete="off" />
+            <kbd title="Press F to focus">F</kbd>
+          </div>
 
-        <nav class="nav simple-navigation" id="nav" aria-label="CRM pages"></nav>
-        <div id="nav-automations" hidden></div>
+          <nav class="nav simple-navigation" id="nav" aria-label="CRM pages"></nav>
+          <div id="nav-automations" hidden></div>
 
-        <a class="dashboard-support-link" href="https://www.e2local.com/contact"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" aria-hidden="true"><path d="M4 13v-2a8 8 0 0 1 16 0v2M3 12h4v7H3zM17 12h4v7h-4zM19 19v2h-7"/></svg><span>Help &amp; support</span><span aria-hidden="true">↗</span></a>
-        <div class="sidebar-foot">
-          <div class="auth-foot">
-            <span class="user-avatar" id="tenant-avatar" aria-hidden="true"></span>
-            <div>
-              <strong id="auth-email">Account</strong>
-              <span id="store-meta">Tracking outbound SMS</span>
+          <div class="sidebar-foot">
+            <a class="sidebar-link" href="https://www.e2local.com/contact" target="_blank" rel="noopener">
+              <span class="sidebar-link-icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="9"/><path d="M9.5 9.5a2.5 2.5 0 1 1 3.5 2.3c-.6.3-1 .9-1 1.6V14M12 17h.01"/></svg></span>
+              <span class="sidebar-link-text">Help &amp; support</span>
+              <span class="visually-hidden"> (opens in a new tab)</span>
+            </a>
+            <a class="sidebar-link dashboard-site-link" href="https://www.e2local.com/" target="_blank" rel="noopener" title="Open the E2 Local website in a new tab">
+              <span class="sidebar-link-icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="9"/><path d="M3 12h18M12 3a14 14 0 0 1 0 18M12 3a14 14 0 0 0 0 18"/></svg></span>
+              <span class="sidebar-link-text">E2 Local site</span>
+              <span class="sidebar-link-external" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M7 17 17 7M8 7h9v9"/></svg></span>
+              <span class="visually-hidden"> (opens in a new tab)</span>
+            </a>
+            <div class="auth-foot">
+              <span class="user-avatar" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round"><circle cx="12" cy="8.5" r="3.5"/><path d="M5 20a7 7 0 0 1 14 0"/></svg></span>
+              <div>
+                <strong id="auth-email">Account</strong>
+                <span id="store-meta">Tracking outbound SMS</span>
+              </div>
+              <button type="button" class="sign-out" id="sign-out-btn" title="Sign out" aria-label="Sign out"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M15 4h3a2 2 0 0 1 2 2v12a2 2 0 0 1-2 2h-3M10 16l4-4-4-4M14 12H4"/></svg></button>
             </div>
-            <button type="button" class="sign-out" id="sign-out-btn" title="Sign out" aria-label="Sign out">↗</button>
           </div>
         </div>
+
+        <button type="button" class="sidebar-trigger menu-dock" id="sidebar-trigger" aria-label="Open navigation" aria-controls="sidebar-sheet" aria-expanded="false">
+          <span class="menu-dock-current" id="menu-dock" data-group="">
+            <span class="menu-dock-icon" id="menu-dock-icon"></span>
+            <strong class="menu-dock-label" id="toolbar-section">Overview</strong>
+          </span>
+          <span class="menu-dock-toggle" aria-hidden="true"><i></i><i></i></span>
+        </button>
       </aside>
 
       <div class="workspace">
         <aside id="demo-banner" class="demo-banner" role="status" hidden>Demo preview · Sample data only · Authentication on standby · SMS, calls, and changes disabled</aside>
 
-
-        <div class="workspace-status"><span class="status-dot" aria-hidden="true"></span><span id="tab-status" role="status">Your workspace, in one place</span></div>
         <section class="page-heading">
           <div class="page-heading-copy">
-            <div class="toolbar-crumb">
-            <span id="toolbar-tenant">Workspace</span>
-            <strong id="toolbar-section">Overview</strong>
-          </div>
+            <div class="toolbar-crumb"><span id="toolbar-tenant">Workspace</span></div>
             <h1 id="page-title">Dashboard</h1>
             <p id="page-sub" class="muted">Your messages, contacts, and follow-ups in one place.</p>
           </div>
-          <div class="toolbar-actions">
-            <div class="search-wrap">
-              <input
-                id="search"
-                type="search"
-                placeholder="Search…"
-                aria-label="Search current view"
-                autocomplete="off"
-              />
+          <div class="page-heading-side">
+            <div class="workspace-status">
+              <span class="toolbar-live"><span id="live-pill" class="live-pill offline" title="Realtime connection">Connecting…</span></span>
+              <span class="status-dot" aria-hidden="true"></span><span id="tab-status" role="status">Your workspace, in one place</span>
             </div>
-            <select id="status-filter" aria-label="Deliverability filter">
-              <option value="">All statuses</option>
-              <option value="queued">Queued</option>
-              <option value="submitting">Submitting</option>
-              <option value="accepted">Accepted</option>
-              <option value="sending">Sending</option>
-              <option value="sent">Sent</option>
-              <option value="delivered">Delivered</option>
-              <option value="undelivered">Undelivered</option>
-              <option value="failed">Failed</option>
-              <option value="cancelled">Cancelled</option>
-              <option value="submission_unknown">Needs review</option>
-            </select>
-            <button type="button" id="refresh" class="btn ghost">Refresh</button>
+            <div class="toolbar-actions">
+              <div class="search-wrap">
+                <input
+                  id="search"
+                  type="search"
+                  placeholder="Search…"
+                  aria-label="Search current view"
+                  autocomplete="off"
+                />
+              </div>
+              <select id="status-filter" aria-label="Deliverability filter">
+                <option value="">All statuses</option>
+                <option value="queued">Queued</option>
+                <option value="submitting">Submitting</option>
+                <option value="accepted">Accepted</option>
+                <option value="sending">Sending</option>
+                <option value="sent">Sent</option>
+                <option value="delivered">Delivered</option>
+                <option value="undelivered">Undelivered</option>
+                <option value="failed">Failed</option>
+                <option value="cancelled">Cancelled</option>
+                <option value="submission_unknown">Needs review</option>
+              </select>
+              <button type="button" id="refresh" class="btn ghost">Refresh</button>
+            </div>
           </div>
         </section>
-
-
 
         <nav id="workspace-tabs" class="workspace-local-tabs" role="tablist" aria-label="Workspace" hidden></nav>
         <nav id="workspace-subtabs" class="workspace-local-tabs workspace-subtabs" role="tablist" aria-label="SMS tools" hidden></nav>
@@ -166,6 +175,6 @@
 
     <script type="importmap">{"imports":{"fflate":"/vendor/fflate.js"}}</script>
     <script src="/config.js"></script>
-    <script src="/app.js?v=20261004-live-test" type="module"></script>
+    <script src="/app.js?v=20261112-sidebar-shell" type="module"></script>
   </body>
 </html>

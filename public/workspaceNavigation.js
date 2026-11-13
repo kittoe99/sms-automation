@@ -8,8 +8,8 @@ export const workspaceGroups = [
  {id:'contacts',label:'Contacts',icon:'contacts',daily:true,views:[item('contacts','Contacts','customers directory'),item('optouts','Unsubscribed from SMS','opt-outs stop suppressed')]},
  {id:'bookings',label:'Bookings',icon:'bookings',daily:true,views:[item('bookings','Bookings','appointments')]},
  {id:'forms',label:'Forms',icon:'forms',daily:true,views:[item('web-forms','Forms','form builder submissions')]},
+ {id:'email',label:'Email',icon:'email',daily:true,views:[item('email','Email','email groups campaigns')]},
  {id:'voice',label:'Calls & voice',icon:'voice',views:[item('call','Calls','inbound calls recordings'),item('voice-agent','Voice agents','voice agent configuration ai assistants')]},
- {id:'email',label:'Email',icon:'messaging',daily:true,views:[item('email','Email','email groups campaigns')]},
  {id:'settings',label:'Settings',icon:'setup',views:[item('business-context','Business information','business context knowledge profile'),item('booking-setup','Booking availability','service availability schedules'),item('business-setup','SMS connection','sms activation business setup phone sender')]},
  {id:'admin',label:'Administration',icon:'platform',views:[item('platform-accounts','Users','platform accounts'),item('platform-businesses','Businesses','platform ownership'),item('platform-websites','Websites','hosting deployments domains'),item('platform-twilio','Twilio accounts','provider phone accounts'),item('platform-ai-connections','AI connections','mcp agents permissions audit')]},
 ];

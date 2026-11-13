@@ -1,5 +1,31 @@
 # Opek SMS project record
 
+## CRM Dashboard redesigned to the current E2 Dashboard — November 12, 2026 (local)
+
+The CRM now copies the sidebar-first E2 Dashboard (`app/dashboard/dashboard.module.css`
+and `dashboard-shell.tsx` at E2 `ea25de4`). The top bar is gone: brand, business
+switcher card, page finder and sections sit in a soft grey sidebar; Help & support,
+the E2 Local site and the account row sit at its foot. The canvas is white, max 1180px.
+Neutral palette (ink `#171717`, hairline `#e9e9e7`), monochrome icons, active item on
+a white chip with an ink edge marker, ink gradient primary buttons, white outlined
+secondary buttons, blue `#0a6cdb` only for links and focus rings. Phones get a slim
+header and a floating dock showing the current section that opens the same navigation
+as a sheet (coloured tiles per area).
+- `public/index.html`: new shell; all element IDs used by `app.js` are kept.
+- `public/dashboard-theme.css`: rewritten; tokens are scoped to `.crm`, so sign-in
+  and embeds still use `e2-theme.css` / `embed.css`.
+- `public/workspaceHome.js`: Home uses E2's metric sheet, row list and product tiles;
+  all `data-attention` / `data-run` / `data-home-view` hooks are unchanged.
+- `public/app.js`: the dock icon follows the current area; opening the phone sheet
+  focuses the active page. `workspaceNavigation.js`: Email moves next to the other
+  daily links and gets its own envelope icon (`dashboardIcons.js`).
+Presentation only: no API, permission, migration, shared database or MCP change, and
+no E2 code change. Validation: `npm run check`; `npm test` 772 pass / 29 skipped /
+0 fail; `build:frontend`. Visual check in the read-only demo (`node src/demo.js`) at
+1440px and 375px, with nav and Home rendered from the real modules using sample data
+because the demo returns 403 for those endpoints; no horizontal overflow at 375px;
+dock opens, Escape closes and returns focus. Not verified: signed-in pages against
+live data, and `test:paired` (no shared contract changed). Not committed or released.
 ## Custom OpenAI voice "My new voice" — November 10, 2026 (local, not released)
 
 Voice Agents can use the custom OpenAI voice `voice_6af2d134d92081918a68df7cf07fad38`
