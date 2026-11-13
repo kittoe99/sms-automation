@@ -1,6 +1,6 @@
 # Opek SMS project record
 
-## CRM Dashboard redesigned to the current E2 Dashboard — November 12, 2026 (local)
+## CRM Dashboard redesigned to the current E2 Dashboard — November 12, 2026 (released)
 
 The CRM now copies the sidebar-first E2 Dashboard (`app/dashboard/dashboard.module.css`
 and `dashboard-shell.tsx` at E2 `ea25de4`). The top bar is gone: brand, business
@@ -25,7 +25,19 @@ no E2 code change. Validation: `npm run check`; `npm test` 772 pass / 29 skipped
 1440px and 375px, with nav and Home rendered from the real modules using sample data
 because the demo returns 403 for those endpoints; no horizontal overflow at 375px;
 dock opens, Escape closes and returns focus. Not verified: signed-in pages against
-live data, and `test:paired` (no shared contract changed). Not committed or released.
+live data.
+Released November 12, 2026 at the user's request (CRM commit `9f01163`, rebased onto
+the already-live `3ae9d76`):
+- `npm run verify:release` passed: 803 tests, 774 pass / 29 skipped / 0 fail; `test:paired`
+  68/68; frontend build and Edge bundle.
+- `deploy-crm`, `codex/crm-mcp-business-setup` and `mcp-release` fast-forwarded to `9f01163`
+  over HTTPS.
+- Render auto-deploy did not fire. Static `dep-dbr9aodbedkc73cueua0` (wpacquisition-crm) is
+  live: crm.e2local.com serves the sidebar shell (`menu-dock`, `sidebar-sheet`, no
+  `crm-topbar`) and `assets/dashboard-theme-C3BADGCX.css`. Sign-in page unchanged.
+- Not deployed (no change for them): `e2-crm-mcp`, crm-api and other Edge functions;
+  no migration.
+Not verified: a signed-in session on production.
 ## Custom OpenAI voice "My new voice" — November 10, 2026 (local, not released)
 
 Voice Agents can use the custom OpenAI voice `voice_6af2d134d92081918a68df7cf07fad38`
