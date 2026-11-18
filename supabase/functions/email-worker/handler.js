@@ -1,7 +1,7 @@
 import { constantTimeToken, json } from '../_shared/workerAuth.js';
-import { processEmailJob } from '../../../src/workers/email.js';
+import { processEmailBatch, processEmailJob } from '../../../src/workers/email.js';
 
-export function createEmailWorkerHandler({ db, secret, processJob = processEmailJob, now = Date.now }) {
+export function createEmailWorkerHandler({ db, secret, processJob = processEmailJob, processBatch = processEmailBatch, now = Date.now, maxBatches = 6 }) {
   return async request => {
     if (request.method !== 'POST') return json({ error: 'POST required' }, 405);
     if (!secret || secret.length < 32) return json({ error: 'Worker not configured' }, 503);
@@ -20,7 +20,17 @@ export function createEmailWorkerHandler({ db, secret, processJob = processEmail
         await processJob(job, db);
         processed++;
       }
-      return json({ processed });
+      // Individual drip/booking messages go first; campaign batches use the rest
+      // of the budget. A batch already claimed is always completed.
+      let batches = 0;
+      while (batches < maxBatches && now() - started < 20000) {
+        const claim = await db.call('email_claim_batch');
+        if (!claim) break;
+        await processBatch(claim, db);
+        batches++;
+        processed += claim.jobs?.length || 0;
+      }
+      return json({ processed, batches });
     } catch (error) {
       console.error(JSON.stringify({ event: 'email_worker_failed', code: error.code || 'WORKER_ERROR' }));
       return json({ error: 'Worker temporarily unavailable', processed }, 503);

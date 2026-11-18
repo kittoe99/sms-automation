@@ -42,12 +42,38 @@ export async function draftEmail(context, { apiKey = env('OPENAI_API_KEY'), mode
   return { subject, body };
 }
 
-export async function processEmailJob(job, db, { apiKey = env('RESEND_API_KEY'), baseUrl = env('EMAIL_UNSUBSCRIBE_BASE_URL') || 'https://crm.e2local.com', unsubscribeApiUrl = env('EMAIL_UNSUBSCRIBE_API_URL') || 'https://wxamwhfmelxqahkdtcci.supabase.co/functions/v1/web-form/email/unsubscribe', fetchImpl = fetch, draft = draftEmail } = {}) {
-  const finish = (outcome, provider = null, code = null) => db.call('email_finish', job.id, job.lease_token, outcome, provider, code);
-  let started = Boolean(job.send_started_at);
+function workerOptions(overrides) {
+  const defaults = { apiKey: env('RESEND_API_KEY'), baseUrl: env('EMAIL_UNSUBSCRIBE_BASE_URL') || 'https://crm.e2local.com',
+    unsubscribeApiUrl: env('EMAIL_UNSUBSCRIBE_API_URL') || 'https://wxamwhfmelxqahkdtcci.supabase.co/functions/v1/web-form/email/unsubscribe',
+    fetchImpl: fetch, draft: draftEmail };
+  for (const [key, value] of Object.entries(overrides || {})) if (value !== undefined) defaults[key] = value;
+  return defaults;
+}
+
+function outcomeFor(error, started) {
+  return started && (error.uncertain || !error.status) ? 'retry'
+    : !started || error.status === 429 || error.code === 'concurrent_idempotent_requests' ? 'retry' : 'failed';
+}
+
+async function finishAfterError(db, job, error, started) {
+  const code = String(error.code || 'EMAIL_ERROR').slice(0, 100), outcome = outcomeFor(error, started);
+  try { await db.call('email_finish', job.id, job.lease_token, outcome, null, code); } catch (finishError) {
+    console.error(JSON.stringify({ event: 'email_finish_failed', jobId: job.id, code: finishError.code || 'DB_ERROR' }));
+  }
+  console.error(JSON.stringify({ event: 'email_job_failed', jobId: job.id, code, outcome }));
+  return outcome;
+}
+
+// Prepares one job up to and including the send guard: context, sender
+// verification, content and the frozen provider payload. Returns the guarded job,
+// or null when the job was deferred, cancelled or finished here.
+async function prepareEmailJob(job, db, { apiKey, baseUrl, unsubscribeApiUrl, fetchImpl, draft }) {
   try {
     const context = await db.call('email_job_context', job.id, job.lease_token);
-    if (!context?.source || !context?.settings) return await finish('failed', null, 'MISSING_CONTEXT');
+    if (!context?.source || !context?.settings) {
+      await db.call('email_finish', job.id, job.lease_token, 'failed', null, 'MISSING_CONTEXT');
+      return null;
+    }
     const providerKey = apiKey || await db.call('email_secret_value', 'resend_api');
     if (!providerKey) throw Object.assign(new Error('Resend key is not configured'), { code: 'RESEND_NOT_CONFIGURED' });
     if(context.template && context.settings.providerId && (!context.settings.checkedAt || Date.parse(context.settings.checkedAt)<Date.now()-15*60000)) {
@@ -75,21 +101,78 @@ export async function processEmailJob(job, db, { apiKey = env('RESEND_API_KEY'),
         ...(!context.template || context.enrollment.purpose === 'marketing' ? {headers: { 'List-Unsubscribe': `<${oneClickUrl}>`, 'List-Unsubscribe-Post': 'List-Unsubscribe=One-Click' }} : {}) });
     }
     const ready = await db.call('email_before_send', job.id, job.lease_token);
-    if (!ready) return;
-    started = true;
-    const sent = await resendEmailRequest('/emails', { method: 'POST', apiKey: providerKey, fetchImpl,
-      idempotencyKey: job.id, body: ready.job.provider_payload });
+    return ready ? { job: ready.job, providerKey } : null;
+  } catch (error) {
+    await finishAfterError(db, job, error, Boolean(job.send_started_at));
+    return null;
+  }
+}
+
+export async function processEmailJob(job, db, overrides = {}) {
+  const options = workerOptions(overrides);
+  const prepared = await prepareEmailJob(job, db, options);
+  if (!prepared) return;
+  try {
+    const sent = await resendEmailRequest('/emails', { method: 'POST', apiKey: prepared.providerKey, fetchImpl: options.fetchImpl,
+      idempotencyKey: job.id, body: prepared.job.provider_payload });
     if (!sent?.id || typeof sent.id !== 'string') {
       throw Object.assign(new Error('Resend response is uncertain'), { code: 'RESEND_INVALID_RESPONSE', uncertain: true });
     }
-    await finish('sent', sent.id);
+    await db.call('email_finish', job.id, job.lease_token, 'sent', sent.id, null);
   } catch (error) {
-    const code = String(error.code || 'EMAIL_ERROR').slice(0, 100);
-    const outcome = started && (error.uncertain || !error.status) ? 'retry'
-      : !started || error.status === 429 || error.code === 'concurrent_idempotent_requests' ? 'retry' : 'failed';
-    try { await finish(outcome, null, code); } catch (finishError) {
-      console.error(JSON.stringify({ event: 'email_finish_failed', jobId: job.id, code: finishError.code || 'DB_ERROR' }));
+    await finishAfterError(db, job, error, true);
+  }
+}
+
+// Campaign delivery: one Resend /emails/batch request for up to 100 prepared jobs.
+// The first submission freezes membership and payloads; a retry replays the
+// identical request under the same idempotency key, so accepted messages are not
+// duplicated. A replay does not re-run the send guard, because changing the
+// request would break provider idempotency.
+export async function processEmailBatch(claim, db, overrides = {}) {
+  const options = workerOptions(overrides);
+  const { batch, jobs = [], resume } = claim;
+  const token = batch.lease_token;
+  const ready = [];
+  let providerKey = options.apiKey;
+  if (!resume) {
+    for (const job of jobs) {
+      const prepared = await prepareEmailJob(job, db, options);
+      if (prepared) { ready.push(job.id); providerKey = prepared.providerKey; }
     }
-    console.error(JSON.stringify({ event: 'email_job_failed', jobId: job.id, code, outcome }));
+    if (!ready.length) return { sent: 0 };
+  }
+  const leased = new Set(resume ? jobs.map(job => job.id) : ready);
+  let request;
+  try {
+    providerKey = providerKey || await db.call('email_secret_value', 'resend_api');
+    request = await db.call('email_batch_submit', batch.id, token, resume ? null : JSON.stringify(ready));
+  } catch (error) {
+    // Nothing was sent; return the members for another attempt.
+    for (const id of leased) await finishAfterError(db, { id, lease_token: token }, error, false);
+    return { sent: 0 };
+  }
+  try {
+    if (!providerKey) throw Object.assign(new Error('Resend key is not configured'), { code: 'RESEND_NOT_CONFIGURED', uncertain: true });
+    const response = await resendEmailRequest('/emails/batch', { method: 'POST', apiKey: providerKey, fetchImpl: options.fetchImpl,
+      idempotencyKey: request.idempotencyKey, body: request.jobs.map(item => item.payload) });
+    const ids = Array.isArray(response?.data) ? response.data.map(item => item?.id) : [];
+    if (ids.length !== request.jobs.length || ids.some(id => typeof id !== 'string' || !id)) {
+      throw Object.assign(new Error('Resend batch response is uncertain'), { code: 'RESEND_INVALID_RESPONSE', uncertain: true });
+    }
+    let sent = 0;
+    for (const [index, item] of request.jobs.entries()) {
+      if (!leased.has(item.id)) continue;
+      try { await db.call('email_finish', item.id, token, 'sent', ids[index], null); sent++; } catch (error) {
+        console.error(JSON.stringify({ event: 'email_finish_failed', jobId: item.id, code: error.code || 'DB_ERROR' }));
+      }
+    }
+    await db.call('email_batch_finish', batch.id, token, 'sent').catch(() => {});
+    return { sent };
+  } catch (error) {
+    const outcome = outcomeFor(error, true);
+    for (const item of request.jobs) if (leased.has(item.id)) await finishAfterError(db, { id: item.id, lease_token: token }, error, true);
+    await db.call('email_batch_finish', batch.id, token, outcome).catch(() => {});
+    return { sent: 0 };
   }
 }

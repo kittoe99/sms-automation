@@ -1,5 +1,44 @@
 # Email automation rollout
 
+## Campaigns, segments and batched delivery — November 18, 2026 (local)
+
+**Follow-ups → Email → Campaigns** (staff CRM only) sends one published marketing
+template to a saved segment. Segments are JSON rules, never SQL: contact source,
+added within / more than N days ago, and email domain, matched all or any. The
+preview shows how many contacts are eligible and why others are skipped (no recorded
+consent, unsubscribed from this business, or provider-suppressed). Starting a campaign
+snapshots up to 50,000 recipients into `email_campaign_recipients` and creates one
+marketing enrollment per eligible address (`origin_type='campaign'`). It needs the
+business's email sending enabled with a verified sender and mailing address. Template
+sending hours apply. Appointment-timed and service templates are rejected. Campaigns
+can be scheduled, paused, resumed and cancelled; pause/cancel use the existing
+enrollment fencing, and every message still passes `email_before_send`.
+
+Delivery: campaign jobs are excluded from `email_claim` and have their own dispatcher
+allowance (≤500 per tenant, ≤2,000 per tick, oldest-waiting tenant first) so drips and
+booking reminders keep theirs. The worker sends individual jobs first, then up to six
+campaign batches per run with `email_claim_batch`. Each batch is one Resend
+`POST /emails/batch` (≤100 messages) with idempotency key `campaign-batch-<batch id>`.
+`email_batch_submit` freezes membership to the jobs that passed the send guard. A retry
+after an uncertain outcome replays the identical request and key; it does not re-run
+the send guard, because changing the request would break provider idempotency. Past
+23 hours, existing recovery marks members uncertain. A 4xx fails the batch's jobs;
+429/5xx/network errors retry.
+
+Engagement: the webhook now also accepts `email.opened` and `email.clicked` and records
+them through `email_record_engagement` (deduplicated by Svix id, http(s) links only).
+They never change consent or suppression. **Resend only emits them when open/click
+tracking is enabled on the sending domain, and the setting covers every message from
+that domain, including booking service email.** Tracking was not enabled by this work.
+Subscribe the existing webhook to these two events before relying on the report.
+
+Release order: apply only CRM `20261118200000_email_campaigns.sql` after reconciling
+live history (no E2 migration or E2 runtime change is needed), then deploy `crm-api`,
+`email-worker` (with `handler.js`) and `email-webhook`, then the CRM frontend. No
+campaign, segment, send, tracking or DNS change happens on deploy. Not yet done:
+send-test-to-self, topics/preferences, CSV import, E2 owner and MCP campaign surfaces.
+Disposable UI fixture: `node test/fixtures/email-campaign-preview.js` (port 8195).
+
 ## Reusable templates — local implementation, November 1, 2026
 
 **Follow-ups → Email** now opens Templates, Connections, Activity, and Settings.

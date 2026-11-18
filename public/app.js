@@ -3,6 +3,7 @@ import {workspaceGroups,groupForView,permittedGroups,navigationLevels,syncNaviga
 import {readHome,homeMarkup} from './workspaceHome.js';
 import {mountContactAutomations} from './contactAutomations.js';
 import {mountEmailWorkspace} from './emailAutomationWorkspace.js';
+import {mountEmailCampaignWorkspace} from './emailCampaignWorkspace.js';
 import {mountFormDirectory} from './formDirectory.js';
 import {installPhoneFormatting,normalizePhoneInput} from './phoneInput.js?v=20261003-phone';
 installPhoneFormatting();
@@ -1267,14 +1268,25 @@ let disposeEmailWorkspace;
 async function renderEmailGroups() {
   disposeEmailWorkspace?.();
   if(state.emailGroupId)return renderLegacyEmailGroups();
-  el.root.innerHTML='<div data-email-workspace></div><button class="btn ghost" data-legacy-email>Legacy AI email groups</button>';
+  el.root.innerHTML='<button class="btn" data-email-campaigns>Campaigns</button><div data-email-workspace></div><button class="btn ghost" data-legacy-email>Legacy AI email groups</button>';
   const tenant=getTenantId();
+  el.root.querySelector('[data-email-campaigns]').onclick=()=>renderEmailCampaigns(tenant);
   disposeEmailWorkspace=mountEmailWorkspace(el.root.querySelector('[data-email-workspace]'),{staff:true,request:async(action,input)=>{
     if(getTenantId()!==tenant)throw new Error('Business changed. Reopen Email.');
     const response=await apiFetch(`/api/email-automations/${action}${action==='read'?`?${new URLSearchParams(input)}`:''}`,action==='read'?{}:{method:'POST',body:JSON.stringify(input)});
     const result=await response.json();if(!response.ok)throw new Error(result.error||'Email request failed');return result;
   }});
   el.root.querySelector('[data-legacy-email]').onclick=async()=>{disposeEmailWorkspace?.();await renderLegacyEmailGroups();const back=document.createElement('button');back.className='btn ghost';back.textContent='Back to email templates';back.onclick=renderEmailGroups;el.root.prepend(back);};
+}
+function renderEmailCampaigns(tenant) {
+  disposeEmailWorkspace?.();
+  el.root.innerHTML='<button class="btn ghost" data-email-back>Back to email templates</button><div data-email-campaign-workspace></div>';
+  el.root.querySelector('[data-email-back]').onclick=renderEmailGroups;
+  disposeEmailWorkspace=mountEmailCampaignWorkspace(el.root.querySelector('[data-email-campaign-workspace]'),{request:async(action,input)=>{
+    if(getTenantId()!==tenant)throw new Error('Business changed. Reopen Email.');
+    const response=await apiFetch(`/api/email-campaigns/${action}${action==='read'?`?${new URLSearchParams(input)}`:''}`,action==='read'?{}:{method:'POST',body:JSON.stringify(input)});
+    const result=await response.json();if(!response.ok)throw new Error(result.error||'Campaign request failed');return result;
+  }});
 }
 async function renderLegacyEmailGroups() {
   setTitle('Email', 'Manage opted-in follow-ups for each automation group.');

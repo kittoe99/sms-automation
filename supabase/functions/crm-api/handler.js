@@ -80,6 +80,12 @@ export function createCrmHandler(db,verify=authenticate,{platform=false,provisio
     if(method!==(action==='read'?'GET':'POST')) return json({error:'Method not allowed'},405,headers);
     return json(await emailAutomationAction(db,user,tenant,action,action==='read'?params:await readJson(request,350000)),200,headers);
    }
+   const emailCampaignRoute=path.match(/^\/email-campaigns\/(read|segment_preview|campaign_preview|segment_save|segment_archive|campaign_save|campaign_start|campaign_pause|campaign_resume|campaign_cancel)$/);
+   if(emailCampaignRoute) {
+    const action=emailCampaignRoute[1],reading=action==='read';
+    if(method!==(reading?'GET':'POST')) return json({error:'Method not allowed'},405,headers);
+    return json(await db.call('email_campaigns',user,tenant,action,reading?params:await readJson(request,50000)),200,headers);
+   }
    const directRoute=path.match(/^\/contact-automations\/(templates|read|preview|save|publish|archive|enroll|run|block|edit)$/);
    if(directRoute) {
     const action=directRoute[1],reading=['templates','read'].includes(action);

@@ -1,5 +1,30 @@
 # Opek SMS project record
 
+## Email campaigns, segments and batched Resend delivery — November 18, 2026 (local)
+
+Phase 0–1 of `docs/EMAIL_MARKETING_PLAN.md`. New CRM migration
+`20261118200000_email_campaigns.sql` adds saved segments (JSON rules), campaigns with a
+recipient snapshot, `email_send_batches` and engagement events. It redefines
+`email_claim` (campaign jobs excluded) and `dispatch_email_edge` (separate campaign
+allowance, scheduled→sending→completed lifecycle) from their latest definitions in
+`20261014061007` / `20261102051753`. `src/workers/email.js` now splits job preparation
+from sending and adds `processEmailBatch` (Resend `/emails/batch`, frozen membership,
+identical replay under one idempotency key). The worker handler runs individual jobs
+first, then up to six batches. The webhook records `email.opened`/`email.clicked`.
+New route `/api/email-campaigns/*` and staff-only `public/emailCampaignWorkspace.js`
+(Email → Campaigns). `emailAutomationWorkspace.js` and the E2 email contract are unchanged.
+Local verification: 7 new tests (consent-aware preview, snapshot idempotency,
+tenant isolation, uncertain-batch identical replay, send-guard exclusion, pause/resume/
+cancel, scheduling, 4xx failure, engagement report, handler ordering, routes); browser
+fixture flow checked at desktop and 375px. Not applied, deployed or released; no
+email sent; Resend tracking, webhook event subscription and DMARC not changed. No E2
+migration or runtime change is required (paired E2 record notes this). The current-SQL
+modules in `supabase/sql/current/` were not updated (they already trail the November 2
+email migration). CRM `npm test` 781 pass / 29 existing skips / 0 fail; `npm run check`,
+frontend build and Edge bundle pass. `config/paired-baseline.json` was re-recorded; besides
+this migration it now also includes CRM `20261118120000` and E2 `20261117200000` /
+`20261118130000`, which earlier work applied but never recorded. Paired tests 68/68.
+
 ## E2 pricing requests accepted again — November 18, 2026 (released)
 
 `submit_pricing_request` accepted only consent evidence `pricing-sms-v1`, but E2's

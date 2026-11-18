@@ -4,6 +4,8 @@ import { verifyResendWebhook } from '../../../src/lib/resendWebhook.js';
 const db = database('SMS_AUTOMATION_DATABASE_URL');
 const allowed = new Set(['email.sent','email.delivered','email.delivery_delayed',
   'email.bounced','email.complained','email.failed','email.suppressed']);
+// Engagement is recorded separately; it never changes consent or suppression.
+const engagement = new Set(['email.opened','email.clicked']);
 Deno.serve(async request => {
   if (request.method !== 'POST') return json({ error: 'POST required' }, 405);
   let secret = env('RESEND_WEBHOOK_SECRET');
@@ -18,6 +20,11 @@ Deno.serve(async request => {
   }
   try {
     const event = JSON.parse(raw);
+    if (engagement.has(event.type)) {
+      if (typeof event.data?.email_id === 'string') await db.call('email_record_engagement', request.headers.get('svix-id'),
+        event.data.email_id, event.type, typeof event.data?.click?.link === 'string' ? event.data.click.link : null);
+      return json({ ok: true });
+    }
     if (!allowed.has(event.type)) return json({ ok: true });
     const address = Array.isArray(event.data?.to) ? event.data.to[0] : null;
     await db.call('email_record_provider_event', request.headers.get('svix-id'),

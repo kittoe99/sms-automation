@@ -141,7 +141,9 @@
     "20261102181913_mcp_reusable_email_automations.sql": "b60d411e774f5ad330e4d2239df071441a312ebd9f7f01f96ed0b5a550973981",
     "20261102181936_email_preview_sequence_order.sql": "5657532ac3ff1ace49739acd4599ea6fe2cfe193780e897d0f71ed6fa9fb25ed",
     "20261107120000_voice_agent_settings.sql": "dcbb1d520d35c1741fb112345065e035babc311f7def59bb59f884f4fad04209",
-    "20261110120000_custom_openai_voice.sql": "e928cc27472015f2d82655ca3f3549ab4db378f77af199db5aa9670517599943"
+    "20261110120000_custom_openai_voice.sql": "e928cc27472015f2d82655ca3f3549ab4db378f77af199db5aa9670517599943",
+    "20261118120000_pricing_consent_evidence_v4.sql": "01a83acd42d554f8a9f6088ebff3e0523bcca943ebc3c0f0d0b43b3313783bb3",
+    "20261118200000_email_campaigns.sql": "9dd53bcb47309078d2ded07d9a2fce7d95226de8b9f99f9bc40993c7e2718955"
   },
   "e2": {
     "20260922000000_create_contact_submissions.sql": "9a94bdadaabf0253d21529984d86bec5aafb1cfe80b454796d9ea9835b0463a5",
@@ -177,7 +179,9 @@
     "20261102233000_customer_booking_calendar_and_schedules.sql": "5f57596c43ccc770944060744a5b8b5a0733425c12eaa1bace0ee43825379a70",
     "20261103010000_hosting_domains.sql": "79ad60840c1ae161876a43d338fcd5b0a42b4a9fb3a7dfae7e43a7376954298d",
     "20261107180000_managed_marketing_services.sql": "6f2247e689b4f0f83b1244aa10f03a92b7c9548d65e170a264e95502d89f9f90",
-    "20261109200000_customer_service_requests.sql": "f4682a82cc3be75419461e41bcc035bef4386d5af23de3507f3e11ee602ce571"
+    "20261109200000_customer_service_requests.sql": "f4682a82cc3be75419461e41bcc035bef4386d5af23de3507f3e11ee602ce571",
+    "20261117200000_booked_jobs_leads.sql": "4761ede976a60898813d9a6a6a863e930d167546090801150bbed034d908d6c2",
+    "20261118130000_get_started_and_newsletter_intake.sql": "c6abe845bdd8759344a5e53e9b640bf98afcc21227e345527581bb1e86609aff"
   },
   "e2HostingSources": {
     "app/api/web-hosting/route.ts": "3147ffca4348b583de099f4807a2691e479daf2e09291df4860216538edd07c9",
