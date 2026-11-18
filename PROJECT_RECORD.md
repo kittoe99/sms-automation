@@ -1,15 +1,23 @@
 # Opek SMS project record
 
-## Email campaigns, segments and batched Resend delivery — November 18, 2026 (partly released)
+## Email campaigns, segments and batched Resend delivery — November 18, 2026 (released)
 
-**Live state, 17:40 UTC:** committed as `5c16f9d` (branch `mcp-release`, not pushed).
+**Completed 17:56 UTC:** `crm-api` v72 deployed through the Supabase connector with its
+full 22-file import graph (unauthenticated `/api/email-campaigns/read`, `/api/tenants` and
+`/api/email-automations/read` return 401; `/api/auth/config` 200). `deploy-crm`
+fast-forwarded `2b4d1f0` → `6e6a099` over HTTPS (the SSH push URL failed host-key
+verification). Render did not auto-deploy, so frontend deploy `dep-dbuucuafngtc739s8uq0`
+was triggered and is live; the served `app-AW2LEZZF.js` contains the Campaigns entry, all
+referenced assets serve as JavaScript and the Clerk sign-in renders. The signed-in
+Campaigns page was not exercised live (no staff session in the verification browser).
+
+**Earlier, 17:40 UTC:** committed as `5c16f9d` (branch `mcp-release`).
 Migration applied live as `email_campaigns` (version `20261118173532`) after
 reconciling history; the live `dispatch_email_edge` matched the local base exactly and
 `email_claim` differed only in line endings. Post-apply checks: 7 new functions, `sms_api`
 and `sms_automation` grants present, `anon` denied, cron dispatcher succeeding every
 minute. Edge `email-webhook` v17 (unsigned POST 401) and `email-worker` v19 (bad bearer
-401) deployed through the Supabase connector. **Not yet deployed:** `crm-api` (new
-`/email-campaigns` route) and the CRM frontend, so the Campaigns page is not reachable.
+401) deployed through the Supabase connector.
 Provider/DNS: `_dmarc.e2local.com` TXT `v=DMARC1; p=none; rua=mailto:hello@e2local.com`
 added in Cloudflare; Resend open and click tracking enabled on `e2local.com` and
 `test.e2local.com` (this also affects booking and other email from those domains); the
