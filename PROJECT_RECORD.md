@@ -1,6 +1,20 @@
 # Opek SMS project record
 
-## Email campaigns, segments and batched Resend delivery — November 18, 2026 (local)
+## Email campaigns, segments and batched Resend delivery — November 18, 2026 (partly released)
+
+**Live state, 17:40 UTC:** committed as `5c16f9d` (branch `mcp-release`, not pushed).
+Migration applied live as `email_campaigns` (version `20261118173532`) after
+reconciling history; the live `dispatch_email_edge` matched the local base exactly and
+`email_claim` differed only in line endings. Post-apply checks: 7 new functions, `sms_api`
+and `sms_automation` grants present, `anon` denied, cron dispatcher succeeding every
+minute. Edge `email-webhook` v17 (unsigned POST 401) and `email-worker` v19 (bad bearer
+401) deployed through the Supabase connector. **Not yet deployed:** `crm-api` (new
+`/email-campaigns` route) and the CRM frontend, so the Campaigns page is not reachable.
+Provider/DNS: `_dmarc.e2local.com` TXT `v=DMARC1; p=none; rua=mailto:hello@e2local.com`
+added in Cloudflare; Resend open and click tracking enabled on `e2local.com` and
+`test.e2local.com` (this also affects booking and other email from those domains); the
+Resend webhook now also subscribes to `email.opened` and `email.clicked`. No campaign
+was created and no email was sent; no business has email sending enabled.
 
 Phase 0–1 of `docs/EMAIL_MARKETING_PLAN.md`. New CRM migration
 `20261118200000_email_campaigns.sql` adds saved segments (JSON rules), campaigns with a
