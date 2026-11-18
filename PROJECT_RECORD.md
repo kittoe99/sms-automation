@@ -1,5 +1,26 @@
 # Opek SMS project record
 
+## CRM MCP email campaign tools — November 18, 2026 (released)
+
+Eleven MCP tools behind four opt-in grants (`email_campaign_read`, `_edit`, `_send`,
+`_control`); catalog 183 tools / 119 permissions. Tools: workspace, campaign report,
+segment and campaign previews, save/archive segment, save draft campaign, start, pause,
+resume, cancel. They call `email_campaign_apply` with actor `mcp:<connection>`, so the
+Campaigns page rules apply unchanged. Migration `20261118210000_mcp_email_campaigns.sql`
+(applied live as `mcp_email_campaigns`) extends the permission constraint from its live
+definition and wraps `mcp_invoke` / `mcp_admin` (renamed `*_before_campaigns`, no longer
+directly executable) instead of rewriting them; every other tool is delegated unchanged.
+Receipts and audit rows keep ids, revisions, status and aggregate counts only.
+`test/mcpManifest.test.js` now merges grant mappings across all gateway definitions.
+Verification: new `test/mcpEmailCampaigns.test.js`; CRM `npm test` 783 pass / 29 skipped /
+0 fail; `npm run check`, MCP doc generation/check/links and paired tests 68/68 pass.
+Live: existing tools keep working through the wrapper (`crm_get_access`,
+`crm_list_businesses` checked from a connected client). Commit `eee202a` pushed to
+`deploy-crm` and `codex/crm-mcp-business-setup`; Render MCP deploy
+`dep-dbuujhd9fdbs73b22nv0` and frontend deploy `dep-dbuujhou01pc73e2uep0` are live. Clients see
+the new tools after reconnecting. No
+connection was granted the new permissions; staff grant them in AI connections.
+
 ## Email campaigns, segments and batched Resend delivery — November 18, 2026 (released)
 
 **Completed 17:56 UTC:** `crm-api` v72 deployed through the Supabase connector with its
