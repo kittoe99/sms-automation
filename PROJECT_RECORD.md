@@ -1,6 +1,6 @@
 # Opek SMS project record
 
-## E2 pricing requests accepted again — November 18, 2026 (live database migrated)
+## E2 pricing requests accepted again — November 18, 2026 (released)
 
 `submit_pricing_request` accepted only consent evidence `pricing-sms-v1`, but E2's
 `/api/pricing` has sent `customer-service-sms-checkbox-v4` since September 27, 2026 (E2
@@ -12,6 +12,10 @@ and the rest of the body are unchanged. A rolled-back live call with the v4 labe
 the insert and returned prices; the SMS step reports `unavailable` because there is no
 `e2-local` row in `sms_businesses`. No other function, table or worker changed. Paired E2
 entry: "Every public form now saves to the database".
+Released: commit `312b09d`, `deploy-crm` fast-forwarded `ee660ee` → `312b09d` (owner chose
+deploy-crm only; `main` is unchanged and still at `1d01cc0`, 164 commits behind). No Render
+deploy is needed: the commit adds only this already-applied migration and this record. A live
+E2 `/api/pricing` test with the v4 label was stored, then deleted.
 
 ## CRM Dashboard redesigned to the current E2 Dashboard — November 12, 2026 (released)
 
