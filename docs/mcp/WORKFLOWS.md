@@ -64,6 +64,29 @@ The hypothetical AI preview uses approved Business Info and saved AI instruction
 
 Historical AI runs without captured provenance remain `not_recorded`; never assign today's Business Info version to them. See [AI diagnostics](../AI_REPLY_DIAGNOSTICS.md).
 
+## Email campaigns MCP — November 18, 2026
+
+Eleven tools behind four opt-in `email_campaign_*` grants (183 tools / 119 permissions)
+use the same workflow as the CRM Campaigns page:
+
+1. `crm_get_email_campaign_workspace` lists segments, campaigns with aggregate counts,
+   publishable marketing templates (published, event timing only) and sender readiness.
+2. `crm_preview_email_segment` with a `definition` (`{"match":"all"|"any","rules":[…]}`;
+   fields `source`, `createdWithinDays`, `createdOlderThanDays`, `emailDomain`) or a
+   `segmentId` shows matched, eligible and skipped counts. Then `crm_save_email_segment`.
+3. `crm_save_email_campaign` creates or edits a draft (`templateId`, `segmentId`, optional
+   `scheduledAt`). `crm_preview_email_campaign` re-checks recipients.
+4. `crm_start_email_campaign` (send grant) snapshots recipients and queues real email.
+   Business email sending must already be enabled with a verified sender
+   (`crm_set_email_automation_settings`), and recipients need recorded consent.
+5. `crm_get_email_campaign` reads the report. `crm_pause_email_campaign`,
+   `crm_resume_email_campaign` and `crm_cancel_email_campaign` use the current revision.
+
+All writes need a UUID `idempotencyKey`; reuse the exact payload and key after an
+uncertain response. Receipts and audit rows hold ids, revisions, status and aggregate
+counts only. CRM owns `20261118210000_mcp_email_campaigns.sql`, which wraps the existing
+gateway and grant editor (renamed `*_before_campaigns`) instead of replacing them.
+
 ## Reusable email automation MCP — November 2, 2026 (local)
 
 Added 16 MCP tools and eight opt-in `email_automation_*` grants. The source catalog

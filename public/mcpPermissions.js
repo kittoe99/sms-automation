@@ -8,6 +8,10 @@ export const connectionPermissions = [
  ["email_automation_consent","Record email marketing consent or withdrawal; opt-in may start connected sequences"],
  ["email_automation_start","Start an eligible individual email sequence"],
  ["email_automation_control","Pause, resume, stop or retry reusable email sequences"],
+ ["email_campaign_read","Read email campaigns, saved segments and reports, including recipient email addresses"],
+ ["email_campaign_edit","Create and edit saved segments and draft email campaigns"],
+ ["email_campaign_send","Start or resume an email campaign; sends real email to opted-in contacts"],
+ ["email_campaign_control","Pause or cancel email campaigns"],
 
  ["ai_reply_preview","Preview hypothetical AI replies using approved Business Info; calls the model but never sends"],
  ["ai_reply_read","Read scoped AI reply run diagnostics"],

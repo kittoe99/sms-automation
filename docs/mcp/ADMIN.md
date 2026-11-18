@@ -43,6 +43,15 @@ Authentication failures before a trusted connection is established cannot be att
 
 See [troubleshooting](TROUBLESHOOTING.md) and [release/operations procedures](../MCP_ROLLOUT.md).
 
+## Email campaign grants (November 18, 2026)
+
+The four `email_campaign_*` grants are opt-in; existing `email_automation_*` grants give
+no campaign access. `email_campaign_read` includes campaign reports with recipient email
+addresses and segment preview samples. `email_campaign_edit` saves segments and draft
+campaigns (never sends). `email_campaign_send` starts and resumes campaigns and sends real
+email to opted-in contacts, so grant it separately. `email_campaign_control` pauses and
+cancels. See the [campaign workflow](WORKFLOWS.md#email-campaigns-mcp--november-18-2026).
+
 ## Reusable email grants (local, November 2, 2026)
 
 The eight `email_automation_*` grants are opt-in and independent of legacy `email_*`

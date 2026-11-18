@@ -1,8 +1,8 @@
 {
   "formatVersion": 1,
   "source": "src/mcp/tools.js via in-memory MCP tools/list; permissions from src/mcp/manifest.js",
-  "toolCount": 172,
-  "permissionCount": 115,
+  "toolCount": 183,
+  "permissionCount": 119,
   "tools": [
     {
       "name": "crm_activate_sms_sending",
@@ -975,6 +975,143 @@
       "revisionInputs": [
         "revision",
         "versionRevision"
+      ]
+    },
+    {
+      "name": "crm_archive_email_segment",
+      "description": "Archive a saved segment. Refused while a draft, scheduled or paused campaign uses it.",
+      "inputSchema": {
+        "type": "object",
+        "properties": {
+          "businessId": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 255
+          },
+          "idempotencyKey": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "id": {
+            "$ref": "#/properties/idempotencyKey"
+          },
+          "revision": {
+            "type": "integer",
+            "minimum": 1,
+            "maximum": 2147483647
+          }
+        },
+        "required": [
+          "businessId",
+          "idempotencyKey",
+          "id",
+          "revision"
+        ],
+        "additionalProperties": false,
+        "$schema": "http://json-schema.org/draft-07/schema#"
+      },
+      "outputSchema": {
+        "type": "object",
+        "properties": {
+          "ok": {
+            "type": "boolean"
+          },
+          "requestId": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "error": {
+            "type": "object",
+            "properties": {
+              "code": {
+                "type": "string",
+                "enum": [
+                  "VALIDATION_ERROR",
+                  "PERMISSION_DENIED",
+                  "CONFLICT",
+                  "TEMPORARY_FAILURE"
+                ]
+              },
+              "message": {
+                "type": "string"
+              },
+              "retryable": {
+                "type": "boolean"
+              }
+            },
+            "required": [
+              "code",
+              "message",
+              "retryable"
+            ],
+            "additionalProperties": false
+          },
+          "data": {
+            "type": "object",
+            "properties": {
+              "businessId": {
+                "type": "string",
+                "minLength": 1,
+                "maxLength": 255
+              },
+              "databaseStatus": {
+                "type": "string",
+                "const": "committed"
+              },
+              "id": {
+                "type": "string",
+                "format": "uuid"
+              },
+              "revision": {
+                "type": "integer",
+                "minimum": 1,
+                "maximum": 2147483647
+              },
+              "status": {
+                "type": "string"
+              },
+              "counts": {
+                "anyOf": [
+                  {
+                    "type": "object",
+                    "additionalProperties": {}
+                  },
+                  {
+                    "type": "null"
+                  }
+                ]
+              }
+            },
+            "required": [
+              "businessId",
+              "databaseStatus",
+              "id",
+              "revision",
+              "status",
+              "counts"
+            ],
+            "additionalProperties": false
+          }
+        },
+        "required": [
+          "ok",
+          "requestId"
+        ],
+        "additionalProperties": false,
+        "$schema": "http://json-schema.org/draft-07/schema#"
+      },
+      "annotations": {
+        "readOnlyHint": false,
+        "destructiveHint": true,
+        "idempotentHint": true,
+        "openWorldHint": false
+      },
+      "execution": {
+        "taskSupport": "forbidden"
+      },
+      "permission": "email_campaign_edit",
+      "revisionInputs": [
+        "revision"
       ]
     },
     {
@@ -2086,6 +2223,143 @@
       "revisionInputs": [
         "revision",
         "contactRevision"
+      ]
+    },
+    {
+      "name": "crm_cancel_email_campaign",
+      "description": "Cancel a campaign, or discard a draft. Messages not yet sent are not sent; an in-flight provider submission cannot be recalled.",
+      "inputSchema": {
+        "type": "object",
+        "properties": {
+          "businessId": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 255
+          },
+          "idempotencyKey": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "id": {
+            "$ref": "#/properties/idempotencyKey"
+          },
+          "revision": {
+            "type": "integer",
+            "minimum": 1,
+            "maximum": 2147483647
+          }
+        },
+        "required": [
+          "businessId",
+          "idempotencyKey",
+          "id",
+          "revision"
+        ],
+        "additionalProperties": false,
+        "$schema": "http://json-schema.org/draft-07/schema#"
+      },
+      "outputSchema": {
+        "type": "object",
+        "properties": {
+          "ok": {
+            "type": "boolean"
+          },
+          "requestId": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "error": {
+            "type": "object",
+            "properties": {
+              "code": {
+                "type": "string",
+                "enum": [
+                  "VALIDATION_ERROR",
+                  "PERMISSION_DENIED",
+                  "CONFLICT",
+                  "TEMPORARY_FAILURE"
+                ]
+              },
+              "message": {
+                "type": "string"
+              },
+              "retryable": {
+                "type": "boolean"
+              }
+            },
+            "required": [
+              "code",
+              "message",
+              "retryable"
+            ],
+            "additionalProperties": false
+          },
+          "data": {
+            "type": "object",
+            "properties": {
+              "businessId": {
+                "type": "string",
+                "minLength": 1,
+                "maxLength": 255
+              },
+              "databaseStatus": {
+                "type": "string",
+                "const": "committed"
+              },
+              "id": {
+                "type": "string",
+                "format": "uuid"
+              },
+              "revision": {
+                "type": "integer",
+                "minimum": 1,
+                "maximum": 2147483647
+              },
+              "status": {
+                "type": "string"
+              },
+              "counts": {
+                "anyOf": [
+                  {
+                    "type": "object",
+                    "additionalProperties": {}
+                  },
+                  {
+                    "type": "null"
+                  }
+                ]
+              }
+            },
+            "required": [
+              "businessId",
+              "databaseStatus",
+              "id",
+              "revision",
+              "status",
+              "counts"
+            ],
+            "additionalProperties": false
+          }
+        },
+        "required": [
+          "ok",
+          "requestId"
+        ],
+        "additionalProperties": false,
+        "$schema": "http://json-schema.org/draft-07/schema#"
+      },
+      "annotations": {
+        "readOnlyHint": false,
+        "destructiveHint": true,
+        "idempotentHint": true,
+        "openWorldHint": false
+      },
+      "execution": {
+        "taskSupport": "forbidden"
+      },
+      "permission": "email_campaign_control",
+      "revisionInputs": [
+        "revision"
       ]
     },
     {
@@ -5256,6 +5530,10 @@
                     "email_automation_consent",
                     "email_automation_start",
                     "email_automation_control",
+                    "email_campaign_read",
+                    "email_campaign_edit",
+                    "email_campaign_send",
+                    "email_campaign_control",
                     "ai_reply_preview",
                     "ai_reply_read",
                     "ai_reply_content_read",
@@ -8210,6 +8488,257 @@
         "taskSupport": "forbidden"
       },
       "permission": "email_automation_read",
+      "revisionInputs": []
+    },
+    {
+      "name": "crm_get_email_campaign",
+      "description": "Read one campaign report: delivery, open and click counts, skip reasons, top links and a page of 100 recipients with their email addresses and delivery state.",
+      "inputSchema": {
+        "type": "object",
+        "properties": {
+          "businessId": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 255
+          },
+          "campaignId": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "page": {
+            "type": "integer",
+            "minimum": 1,
+            "maximum": 10000,
+            "default": 1
+          }
+        },
+        "required": [
+          "businessId",
+          "campaignId"
+        ],
+        "additionalProperties": false,
+        "$schema": "http://json-schema.org/draft-07/schema#"
+      },
+      "outputSchema": {
+        "type": "object",
+        "properties": {
+          "ok": {
+            "type": "boolean"
+          },
+          "requestId": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "error": {
+            "type": "object",
+            "properties": {
+              "code": {
+                "type": "string",
+                "enum": [
+                  "VALIDATION_ERROR",
+                  "PERMISSION_DENIED",
+                  "CONFLICT",
+                  "TEMPORARY_FAILURE"
+                ]
+              },
+              "message": {
+                "type": "string"
+              },
+              "retryable": {
+                "type": "boolean"
+              }
+            },
+            "required": [
+              "code",
+              "message",
+              "retryable"
+            ],
+            "additionalProperties": false
+          },
+          "data": {
+            "type": "object",
+            "properties": {
+              "campaign": {
+                "type": "object",
+                "additionalProperties": {}
+              },
+              "links": {
+                "type": "array",
+                "items": {
+                  "type": "object",
+                  "properties": {
+                    "url": {
+                      "type": "string"
+                    },
+                    "clicks": {
+                      "type": "integer"
+                    }
+                  },
+                  "required": [
+                    "url",
+                    "clicks"
+                  ],
+                  "additionalProperties": false
+                },
+                "maxItems": 10
+              },
+              "recipients": {
+                "type": "array",
+                "items": {
+                  "$ref": "#/properties/data/properties/campaign"
+                },
+                "maxItems": 100
+              }
+            },
+            "required": [
+              "campaign",
+              "links",
+              "recipients"
+            ],
+            "additionalProperties": false
+          }
+        },
+        "required": [
+          "ok",
+          "requestId"
+        ],
+        "additionalProperties": false,
+        "$schema": "http://json-schema.org/draft-07/schema#"
+      },
+      "annotations": {
+        "readOnlyHint": true,
+        "destructiveHint": false,
+        "idempotentHint": true,
+        "openWorldHint": false
+      },
+      "execution": {
+        "taskSupport": "forbidden"
+      },
+      "permission": "email_campaign_read",
+      "revisionInputs": []
+    },
+    {
+      "name": "crm_get_email_campaign_workspace",
+      "description": "Read saved segments, up to 50 campaigns with aggregate delivery counts, publishable marketing templates, contact sources and sender readiness. No recipient list.",
+      "inputSchema": {
+        "type": "object",
+        "properties": {
+          "businessId": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 255
+          }
+        },
+        "required": [
+          "businessId"
+        ],
+        "additionalProperties": false,
+        "$schema": "http://json-schema.org/draft-07/schema#"
+      },
+      "outputSchema": {
+        "type": "object",
+        "properties": {
+          "ok": {
+            "type": "boolean"
+          },
+          "requestId": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "error": {
+            "type": "object",
+            "properties": {
+              "code": {
+                "type": "string",
+                "enum": [
+                  "VALIDATION_ERROR",
+                  "PERMISSION_DENIED",
+                  "CONFLICT",
+                  "TEMPORARY_FAILURE"
+                ]
+              },
+              "message": {
+                "type": "string"
+              },
+              "retryable": {
+                "type": "boolean"
+              }
+            },
+            "required": [
+              "code",
+              "message",
+              "retryable"
+            ],
+            "additionalProperties": false
+          },
+          "data": {
+            "type": "object",
+            "properties": {
+              "segments": {
+                "type": "array",
+                "items": {
+                  "type": "object",
+                  "additionalProperties": {}
+                },
+                "maxItems": 100
+              },
+              "campaigns": {
+                "type": "array",
+                "items": {
+                  "$ref": "#/properties/data/properties/segments/items"
+                },
+                "maxItems": 50
+              },
+              "templates": {
+                "type": "array",
+                "items": {
+                  "$ref": "#/properties/data/properties/segments/items"
+                }
+              },
+              "sources": {
+                "type": "array",
+                "items": {
+                  "type": "string"
+                }
+              },
+              "sender": {
+                "anyOf": [
+                  {
+                    "$ref": "#/properties/data/properties/segments/items"
+                  },
+                  {
+                    "type": "null"
+                  }
+                ]
+              }
+            },
+            "required": [
+              "segments",
+              "campaigns",
+              "templates",
+              "sources",
+              "sender"
+            ],
+            "additionalProperties": false
+          }
+        },
+        "required": [
+          "ok",
+          "requestId"
+        ],
+        "additionalProperties": false,
+        "$schema": "http://json-schema.org/draft-07/schema#"
+      },
+      "annotations": {
+        "readOnlyHint": true,
+        "destructiveHint": false,
+        "idempotentHint": true,
+        "openWorldHint": false
+      },
+      "execution": {
+        "taskSupport": "forbidden"
+      },
+      "permission": "email_campaign_read",
       "revisionInputs": []
     },
     {
@@ -22024,6 +22553,143 @@
       ]
     },
     {
+      "name": "crm_pause_email_campaign",
+      "description": "Pause a scheduled or sending campaign. A batch already submitted to the provider can still be delivered.",
+      "inputSchema": {
+        "type": "object",
+        "properties": {
+          "businessId": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 255
+          },
+          "idempotencyKey": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "id": {
+            "$ref": "#/properties/idempotencyKey"
+          },
+          "revision": {
+            "type": "integer",
+            "minimum": 1,
+            "maximum": 2147483647
+          }
+        },
+        "required": [
+          "businessId",
+          "idempotencyKey",
+          "id",
+          "revision"
+        ],
+        "additionalProperties": false,
+        "$schema": "http://json-schema.org/draft-07/schema#"
+      },
+      "outputSchema": {
+        "type": "object",
+        "properties": {
+          "ok": {
+            "type": "boolean"
+          },
+          "requestId": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "error": {
+            "type": "object",
+            "properties": {
+              "code": {
+                "type": "string",
+                "enum": [
+                  "VALIDATION_ERROR",
+                  "PERMISSION_DENIED",
+                  "CONFLICT",
+                  "TEMPORARY_FAILURE"
+                ]
+              },
+              "message": {
+                "type": "string"
+              },
+              "retryable": {
+                "type": "boolean"
+              }
+            },
+            "required": [
+              "code",
+              "message",
+              "retryable"
+            ],
+            "additionalProperties": false
+          },
+          "data": {
+            "type": "object",
+            "properties": {
+              "businessId": {
+                "type": "string",
+                "minLength": 1,
+                "maxLength": 255
+              },
+              "databaseStatus": {
+                "type": "string",
+                "const": "committed"
+              },
+              "id": {
+                "type": "string",
+                "format": "uuid"
+              },
+              "revision": {
+                "type": "integer",
+                "minimum": 1,
+                "maximum": 2147483647
+              },
+              "status": {
+                "type": "string"
+              },
+              "counts": {
+                "anyOf": [
+                  {
+                    "type": "object",
+                    "additionalProperties": {}
+                  },
+                  {
+                    "type": "null"
+                  }
+                ]
+              }
+            },
+            "required": [
+              "businessId",
+              "databaseStatus",
+              "id",
+              "revision",
+              "status",
+              "counts"
+            ],
+            "additionalProperties": false
+          }
+        },
+        "required": [
+          "ok",
+          "requestId"
+        ],
+        "additionalProperties": false,
+        "$schema": "http://json-schema.org/draft-07/schema#"
+      },
+      "annotations": {
+        "readOnlyHint": false,
+        "destructiveHint": true,
+        "idempotentHint": true,
+        "openWorldHint": false
+      },
+      "execution": {
+        "taskSupport": "forbidden"
+      },
+      "permission": "email_campaign_control",
+      "revisionInputs": [
+        "revision"
+      ]
+    },
+    {
       "name": "crm_pause_email_template_run",
       "description": "pause one reusable email run at its current revision and generation. Resume/retry recheck eligibility and may schedule real email; stop cannot recall an in-flight provider submission.",
       "inputSchema": {
@@ -23201,6 +23867,137 @@
       ]
     },
     {
+      "name": "crm_preview_email_campaign",
+      "description": "Check a campaign's current recipients and skip reasons before starting it. Never sends.",
+      "inputSchema": {
+        "type": "object",
+        "properties": {
+          "businessId": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 255
+          },
+          "id": {
+            "type": "string",
+            "format": "uuid"
+          }
+        },
+        "required": [
+          "businessId",
+          "id"
+        ],
+        "additionalProperties": false,
+        "$schema": "http://json-schema.org/draft-07/schema#"
+      },
+      "outputSchema": {
+        "type": "object",
+        "properties": {
+          "ok": {
+            "type": "boolean"
+          },
+          "requestId": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "error": {
+            "type": "object",
+            "properties": {
+              "code": {
+                "type": "string",
+                "enum": [
+                  "VALIDATION_ERROR",
+                  "PERMISSION_DENIED",
+                  "CONFLICT",
+                  "TEMPORARY_FAILURE"
+                ]
+              },
+              "message": {
+                "type": "string"
+              },
+              "retryable": {
+                "type": "boolean"
+              }
+            },
+            "required": [
+              "code",
+              "message",
+              "retryable"
+            ],
+            "additionalProperties": false
+          },
+          "data": {
+            "type": "object",
+            "properties": {
+              "total": {
+                "type": "integer"
+              },
+              "eligible": {
+                "type": "integer"
+              },
+              "skipped": {
+                "type": "object",
+                "additionalProperties": {
+                  "type": "integer"
+                }
+              },
+              "sample": {
+                "type": "array",
+                "items": {
+                  "type": "object",
+                  "properties": {
+                    "name": {
+                      "type": [
+                        "string",
+                        "null"
+                      ]
+                    },
+                    "email": {
+                      "type": "string"
+                    }
+                  },
+                  "required": [
+                    "name",
+                    "email"
+                  ],
+                  "additionalProperties": false
+                },
+                "maxItems": 10
+              },
+              "queued": {
+                "type": "boolean",
+                "const": false
+              }
+            },
+            "required": [
+              "total",
+              "eligible",
+              "skipped",
+              "sample",
+              "queued"
+            ],
+            "additionalProperties": false
+          }
+        },
+        "required": [
+          "ok",
+          "requestId"
+        ],
+        "additionalProperties": false,
+        "$schema": "http://json-schema.org/draft-07/schema#"
+      },
+      "annotations": {
+        "readOnlyHint": true,
+        "destructiveHint": false,
+        "idempotentHint": true,
+        "openWorldHint": false
+      },
+      "execution": {
+        "taskSupport": "forbidden"
+      },
+      "permission": "email_campaign_read",
+      "revisionInputs": []
+    },
+    {
       "name": "crm_preview_email_schedule",
       "description": "Simulate a saved email schedule without enrolling, drafting through AI or sending. Future AI-authored message text is unavailable. Later times assume prompt processing of the preceding send.",
       "inputSchema": {
@@ -23361,6 +24158,231 @@
       "revisionInputs": [
         "revision"
       ]
+    },
+    {
+      "name": "crm_preview_email_segment",
+      "description": "Count contacts a saved or unsaved segment matches, how many can receive marketing email, why the rest are skipped, and a sample of up to 10 eligible addresses. Pass exactly one of segmentId or definition. Never sends.",
+      "inputSchema": {
+        "type": "object",
+        "properties": {
+          "businessId": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 255
+          },
+          "segmentId": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "definition": {
+            "type": "object",
+            "properties": {
+              "match": {
+                "type": "string",
+                "enum": [
+                  "all",
+                  "any"
+                ]
+              },
+              "rules": {
+                "type": "array",
+                "items": {
+                  "anyOf": [
+                    {
+                      "type": "object",
+                      "properties": {
+                        "field": {
+                          "type": "string",
+                          "const": "source"
+                        },
+                        "value": {
+                          "type": "string",
+                          "minLength": 1,
+                          "maxLength": 60
+                        }
+                      },
+                      "required": [
+                        "field",
+                        "value"
+                      ],
+                      "additionalProperties": false
+                    },
+                    {
+                      "type": "object",
+                      "properties": {
+                        "field": {
+                          "type": "string",
+                          "const": "createdWithinDays"
+                        },
+                        "value": {
+                          "type": "integer",
+                          "minimum": 1,
+                          "maximum": 3650
+                        }
+                      },
+                      "required": [
+                        "field",
+                        "value"
+                      ],
+                      "additionalProperties": false
+                    },
+                    {
+                      "type": "object",
+                      "properties": {
+                        "field": {
+                          "type": "string",
+                          "const": "createdOlderThanDays"
+                        },
+                        "value": {
+                          "type": "integer",
+                          "minimum": 1,
+                          "maximum": 3650
+                        }
+                      },
+                      "required": [
+                        "field",
+                        "value"
+                      ],
+                      "additionalProperties": false
+                    },
+                    {
+                      "type": "object",
+                      "properties": {
+                        "field": {
+                          "type": "string",
+                          "const": "emailDomain"
+                        },
+                        "value": {
+                          "type": "string",
+                          "pattern": "^[A-Za-z0-9.-]{1,253}$"
+                        }
+                      },
+                      "required": [
+                        "field",
+                        "value"
+                      ],
+                      "additionalProperties": false
+                    }
+                  ]
+                },
+                "maxItems": 20
+              }
+            },
+            "required": [
+              "match",
+              "rules"
+            ],
+            "additionalProperties": false
+          }
+        },
+        "required": [
+          "businessId"
+        ],
+        "additionalProperties": false,
+        "$schema": "http://json-schema.org/draft-07/schema#"
+      },
+      "outputSchema": {
+        "type": "object",
+        "properties": {
+          "ok": {
+            "type": "boolean"
+          },
+          "requestId": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "error": {
+            "type": "object",
+            "properties": {
+              "code": {
+                "type": "string",
+                "enum": [
+                  "VALIDATION_ERROR",
+                  "PERMISSION_DENIED",
+                  "CONFLICT",
+                  "TEMPORARY_FAILURE"
+                ]
+              },
+              "message": {
+                "type": "string"
+              },
+              "retryable": {
+                "type": "boolean"
+              }
+            },
+            "required": [
+              "code",
+              "message",
+              "retryable"
+            ],
+            "additionalProperties": false
+          },
+          "data": {
+            "type": "object",
+            "properties": {
+              "total": {
+                "type": "integer"
+              },
+              "eligible": {
+                "type": "integer"
+              },
+              "skipped": {
+                "type": "object",
+                "additionalProperties": {
+                  "type": "integer"
+                }
+              },
+              "sample": {
+                "type": "array",
+                "items": {
+                  "type": "object",
+                  "properties": {
+                    "name": {
+                      "type": [
+                        "string",
+                        "null"
+                      ]
+                    },
+                    "email": {
+                      "type": "string"
+                    }
+                  },
+                  "required": [
+                    "name",
+                    "email"
+                  ],
+                  "additionalProperties": false
+                },
+                "maxItems": 10
+              }
+            },
+            "required": [
+              "total",
+              "eligible",
+              "skipped",
+              "sample"
+            ],
+            "additionalProperties": false
+          }
+        },
+        "required": [
+          "ok",
+          "requestId"
+        ],
+        "additionalProperties": false,
+        "$schema": "http://json-schema.org/draft-07/schema#"
+      },
+      "annotations": {
+        "readOnlyHint": true,
+        "destructiveHint": false,
+        "idempotentHint": true,
+        "openWorldHint": false
+      },
+      "execution": {
+        "taskSupport": "forbidden"
+      },
+      "permission": "email_campaign_read",
+      "revisionInputs": []
     },
     {
       "name": "crm_preview_email_template",
@@ -26846,6 +27868,143 @@
       ]
     },
     {
+      "name": "crm_resume_email_campaign",
+      "description": "Resume a paused campaign. Every remaining message is re-checked for consent and suppression; this can send real email.",
+      "inputSchema": {
+        "type": "object",
+        "properties": {
+          "businessId": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 255
+          },
+          "idempotencyKey": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "id": {
+            "$ref": "#/properties/idempotencyKey"
+          },
+          "revision": {
+            "type": "integer",
+            "minimum": 1,
+            "maximum": 2147483647
+          }
+        },
+        "required": [
+          "businessId",
+          "idempotencyKey",
+          "id",
+          "revision"
+        ],
+        "additionalProperties": false,
+        "$schema": "http://json-schema.org/draft-07/schema#"
+      },
+      "outputSchema": {
+        "type": "object",
+        "properties": {
+          "ok": {
+            "type": "boolean"
+          },
+          "requestId": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "error": {
+            "type": "object",
+            "properties": {
+              "code": {
+                "type": "string",
+                "enum": [
+                  "VALIDATION_ERROR",
+                  "PERMISSION_DENIED",
+                  "CONFLICT",
+                  "TEMPORARY_FAILURE"
+                ]
+              },
+              "message": {
+                "type": "string"
+              },
+              "retryable": {
+                "type": "boolean"
+              }
+            },
+            "required": [
+              "code",
+              "message",
+              "retryable"
+            ],
+            "additionalProperties": false
+          },
+          "data": {
+            "type": "object",
+            "properties": {
+              "businessId": {
+                "type": "string",
+                "minLength": 1,
+                "maxLength": 255
+              },
+              "databaseStatus": {
+                "type": "string",
+                "const": "committed"
+              },
+              "id": {
+                "type": "string",
+                "format": "uuid"
+              },
+              "revision": {
+                "type": "integer",
+                "minimum": 1,
+                "maximum": 2147483647
+              },
+              "status": {
+                "type": "string"
+              },
+              "counts": {
+                "anyOf": [
+                  {
+                    "type": "object",
+                    "additionalProperties": {}
+                  },
+                  {
+                    "type": "null"
+                  }
+                ]
+              }
+            },
+            "required": [
+              "businessId",
+              "databaseStatus",
+              "id",
+              "revision",
+              "status",
+              "counts"
+            ],
+            "additionalProperties": false
+          }
+        },
+        "required": [
+          "ok",
+          "requestId"
+        ],
+        "additionalProperties": false,
+        "$schema": "http://json-schema.org/draft-07/schema#"
+      },
+      "annotations": {
+        "readOnlyHint": false,
+        "destructiveHint": true,
+        "idempotentHint": true,
+        "openWorldHint": true
+      },
+      "execution": {
+        "taskSupport": "forbidden"
+      },
+      "permission": "email_campaign_send",
+      "revisionInputs": [
+        "revision"
+      ]
+    },
+    {
       "name": "crm_resume_email_template_run",
       "description": "resume one reusable email run at its current revision and generation. Resume/retry recheck eligibility and may schedule real email; stop cannot recall an in-flight provider submission.",
       "inputSchema": {
@@ -28551,6 +29710,178 @@
       ]
     },
     {
+      "name": "crm_save_email_campaign",
+      "description": "Create a draft campaign, or edit a draft at its current revision (pass id and revision together). Templates must be published marketing templates with event timing. Saving never sends.",
+      "inputSchema": {
+        "type": "object",
+        "properties": {
+          "businessId": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 255
+          },
+          "idempotencyKey": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "id": {
+            "$ref": "#/properties/idempotencyKey"
+          },
+          "revision": {
+            "type": "integer",
+            "minimum": 1,
+            "maximum": 2147483647
+          },
+          "name": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 120
+          },
+          "templateId": {
+            "anyOf": [
+              {
+                "$ref": "#/properties/idempotencyKey"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "segmentId": {
+            "anyOf": [
+              {
+                "$ref": "#/properties/idempotencyKey"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "scheduledAt": {
+            "anyOf": [
+              {
+                "type": "string",
+                "format": "date-time"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          }
+        },
+        "required": [
+          "businessId",
+          "idempotencyKey",
+          "name"
+        ],
+        "additionalProperties": false,
+        "$schema": "http://json-schema.org/draft-07/schema#"
+      },
+      "outputSchema": {
+        "type": "object",
+        "properties": {
+          "ok": {
+            "type": "boolean"
+          },
+          "requestId": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "error": {
+            "type": "object",
+            "properties": {
+              "code": {
+                "type": "string",
+                "enum": [
+                  "VALIDATION_ERROR",
+                  "PERMISSION_DENIED",
+                  "CONFLICT",
+                  "TEMPORARY_FAILURE"
+                ]
+              },
+              "message": {
+                "type": "string"
+              },
+              "retryable": {
+                "type": "boolean"
+              }
+            },
+            "required": [
+              "code",
+              "message",
+              "retryable"
+            ],
+            "additionalProperties": false
+          },
+          "data": {
+            "type": "object",
+            "properties": {
+              "businessId": {
+                "type": "string",
+                "minLength": 1,
+                "maxLength": 255
+              },
+              "databaseStatus": {
+                "type": "string",
+                "const": "committed"
+              },
+              "id": {
+                "type": "string",
+                "format": "uuid"
+              },
+              "revision": {
+                "type": "integer",
+                "minimum": 1,
+                "maximum": 2147483647
+              },
+              "status": {
+                "type": "string"
+              },
+              "counts": {
+                "anyOf": [
+                  {
+                    "type": "object",
+                    "additionalProperties": {}
+                  },
+                  {
+                    "type": "null"
+                  }
+                ]
+              }
+            },
+            "required": [
+              "businessId",
+              "databaseStatus",
+              "id",
+              "revision",
+              "status",
+              "counts"
+            ],
+            "additionalProperties": false
+          }
+        },
+        "required": [
+          "ok",
+          "requestId"
+        ],
+        "additionalProperties": false,
+        "$schema": "http://json-schema.org/draft-07/schema#"
+      },
+      "annotations": {
+        "readOnlyHint": false,
+        "destructiveHint": true,
+        "idempotentHint": true,
+        "openWorldHint": false
+      },
+      "execution": {
+        "taskSupport": "forbidden"
+      },
+      "permission": "email_campaign_edit",
+      "revisionInputs": [
+        "revision"
+      ]
+    },
+    {
       "name": "crm_save_email_group",
       "description": "Edit an existing email group at its current revision, preserving activation. Existing enrollments retain their schedule snapshots; future drafts use current instructions. No backfill or send.",
       "inputSchema": {
@@ -28780,6 +30111,248 @@
         "taskSupport": "forbidden"
       },
       "permission": "email_config_edit",
+      "revisionInputs": [
+        "revision"
+      ]
+    },
+    {
+      "name": "crm_save_email_segment",
+      "description": "Create a saved segment, or update one at its current revision (pass id and revision together). Rules are data, never SQL. Consent is always checked separately.",
+      "inputSchema": {
+        "type": "object",
+        "properties": {
+          "businessId": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 255
+          },
+          "idempotencyKey": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "id": {
+            "$ref": "#/properties/idempotencyKey"
+          },
+          "revision": {
+            "type": "integer",
+            "minimum": 1,
+            "maximum": 2147483647
+          },
+          "name": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 120
+          },
+          "definition": {
+            "type": "object",
+            "properties": {
+              "match": {
+                "type": "string",
+                "enum": [
+                  "all",
+                  "any"
+                ]
+              },
+              "rules": {
+                "type": "array",
+                "items": {
+                  "anyOf": [
+                    {
+                      "type": "object",
+                      "properties": {
+                        "field": {
+                          "type": "string",
+                          "const": "source"
+                        },
+                        "value": {
+                          "type": "string",
+                          "minLength": 1,
+                          "maxLength": 60
+                        }
+                      },
+                      "required": [
+                        "field",
+                        "value"
+                      ],
+                      "additionalProperties": false
+                    },
+                    {
+                      "type": "object",
+                      "properties": {
+                        "field": {
+                          "type": "string",
+                          "const": "createdWithinDays"
+                        },
+                        "value": {
+                          "type": "integer",
+                          "minimum": 1,
+                          "maximum": 3650
+                        }
+                      },
+                      "required": [
+                        "field",
+                        "value"
+                      ],
+                      "additionalProperties": false
+                    },
+                    {
+                      "type": "object",
+                      "properties": {
+                        "field": {
+                          "type": "string",
+                          "const": "createdOlderThanDays"
+                        },
+                        "value": {
+                          "type": "integer",
+                          "minimum": 1,
+                          "maximum": 3650
+                        }
+                      },
+                      "required": [
+                        "field",
+                        "value"
+                      ],
+                      "additionalProperties": false
+                    },
+                    {
+                      "type": "object",
+                      "properties": {
+                        "field": {
+                          "type": "string",
+                          "const": "emailDomain"
+                        },
+                        "value": {
+                          "type": "string",
+                          "pattern": "^[A-Za-z0-9.-]{1,253}$"
+                        }
+                      },
+                      "required": [
+                        "field",
+                        "value"
+                      ],
+                      "additionalProperties": false
+                    }
+                  ]
+                },
+                "maxItems": 20
+              }
+            },
+            "required": [
+              "match",
+              "rules"
+            ],
+            "additionalProperties": false
+          }
+        },
+        "required": [
+          "businessId",
+          "idempotencyKey",
+          "name",
+          "definition"
+        ],
+        "additionalProperties": false,
+        "$schema": "http://json-schema.org/draft-07/schema#"
+      },
+      "outputSchema": {
+        "type": "object",
+        "properties": {
+          "ok": {
+            "type": "boolean"
+          },
+          "requestId": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "error": {
+            "type": "object",
+            "properties": {
+              "code": {
+                "type": "string",
+                "enum": [
+                  "VALIDATION_ERROR",
+                  "PERMISSION_DENIED",
+                  "CONFLICT",
+                  "TEMPORARY_FAILURE"
+                ]
+              },
+              "message": {
+                "type": "string"
+              },
+              "retryable": {
+                "type": "boolean"
+              }
+            },
+            "required": [
+              "code",
+              "message",
+              "retryable"
+            ],
+            "additionalProperties": false
+          },
+          "data": {
+            "type": "object",
+            "properties": {
+              "businessId": {
+                "type": "string",
+                "minLength": 1,
+                "maxLength": 255
+              },
+              "databaseStatus": {
+                "type": "string",
+                "const": "committed"
+              },
+              "id": {
+                "type": "string",
+                "format": "uuid"
+              },
+              "revision": {
+                "type": "integer",
+                "minimum": 1,
+                "maximum": 2147483647
+              },
+              "status": {
+                "type": "string"
+              },
+              "counts": {
+                "anyOf": [
+                  {
+                    "type": "object",
+                    "additionalProperties": {}
+                  },
+                  {
+                    "type": "null"
+                  }
+                ]
+              }
+            },
+            "required": [
+              "businessId",
+              "databaseStatus",
+              "id",
+              "revision",
+              "status",
+              "counts"
+            ],
+            "additionalProperties": false
+          }
+        },
+        "required": [
+          "ok",
+          "requestId"
+        ],
+        "additionalProperties": false,
+        "$schema": "http://json-schema.org/draft-07/schema#"
+      },
+      "annotations": {
+        "readOnlyHint": false,
+        "destructiveHint": true,
+        "idempotentHint": true,
+        "openWorldHint": false
+      },
+      "execution": {
+        "taskSupport": "forbidden"
+      },
+      "permission": "email_campaign_edit",
       "revisionInputs": [
         "revision"
       ]
@@ -33486,6 +35059,143 @@
       ]
     },
     {
+      "name": "crm_start_email_campaign",
+      "description": "Start a draft campaign: snapshot the segment (up to 50,000), skip addresses without consent or that are unsubscribed or suppressed, and queue real email now or at its scheduled time. Requires business email sending to be enabled with a verified sender.",
+      "inputSchema": {
+        "type": "object",
+        "properties": {
+          "businessId": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 255
+          },
+          "idempotencyKey": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "id": {
+            "$ref": "#/properties/idempotencyKey"
+          },
+          "revision": {
+            "type": "integer",
+            "minimum": 1,
+            "maximum": 2147483647
+          }
+        },
+        "required": [
+          "businessId",
+          "idempotencyKey",
+          "id",
+          "revision"
+        ],
+        "additionalProperties": false,
+        "$schema": "http://json-schema.org/draft-07/schema#"
+      },
+      "outputSchema": {
+        "type": "object",
+        "properties": {
+          "ok": {
+            "type": "boolean"
+          },
+          "requestId": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "error": {
+            "type": "object",
+            "properties": {
+              "code": {
+                "type": "string",
+                "enum": [
+                  "VALIDATION_ERROR",
+                  "PERMISSION_DENIED",
+                  "CONFLICT",
+                  "TEMPORARY_FAILURE"
+                ]
+              },
+              "message": {
+                "type": "string"
+              },
+              "retryable": {
+                "type": "boolean"
+              }
+            },
+            "required": [
+              "code",
+              "message",
+              "retryable"
+            ],
+            "additionalProperties": false
+          },
+          "data": {
+            "type": "object",
+            "properties": {
+              "businessId": {
+                "type": "string",
+                "minLength": 1,
+                "maxLength": 255
+              },
+              "databaseStatus": {
+                "type": "string",
+                "const": "committed"
+              },
+              "id": {
+                "type": "string",
+                "format": "uuid"
+              },
+              "revision": {
+                "type": "integer",
+                "minimum": 1,
+                "maximum": 2147483647
+              },
+              "status": {
+                "type": "string"
+              },
+              "counts": {
+                "anyOf": [
+                  {
+                    "type": "object",
+                    "additionalProperties": {}
+                  },
+                  {
+                    "type": "null"
+                  }
+                ]
+              }
+            },
+            "required": [
+              "businessId",
+              "databaseStatus",
+              "id",
+              "revision",
+              "status",
+              "counts"
+            ],
+            "additionalProperties": false
+          }
+        },
+        "required": [
+          "ok",
+          "requestId"
+        ],
+        "additionalProperties": false,
+        "$schema": "http://json-schema.org/draft-07/schema#"
+      },
+      "annotations": {
+        "readOnlyHint": false,
+        "destructiveHint": true,
+        "idempotentHint": true,
+        "openWorldHint": true
+      },
+      "execution": {
+        "taskSupport": "forbidden"
+      },
+      "permission": "email_campaign_send",
+      "revisionInputs": [
+        "revision"
+      ]
+    },
+    {
       "name": "crm_start_email_template_run",
       "description": "Start one eligible contact on a published marketing sequence. Requires current consent and verified activation. Can schedule real email; no bulk enrollment.",
       "inputSchema": {
@@ -35926,6 +37636,22 @@
     {
       "name": "email_automation_start",
       "description": "Start an eligible individual email sequence"
+    },
+    {
+      "name": "email_campaign_control",
+      "description": "Pause or cancel email campaigns"
+    },
+    {
+      "name": "email_campaign_edit",
+      "description": "Create and edit saved segments and draft email campaigns"
+    },
+    {
+      "name": "email_campaign_read",
+      "description": "Read email campaigns, saved segments and reports, including recipient email addresses"
+    },
+    {
+      "name": "email_campaign_send",
+      "description": "Start or resume an email campaign; sends real email to opted-in contacts"
     },
     {
       "name": "email_config_edit",

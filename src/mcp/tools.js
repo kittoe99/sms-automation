@@ -1,4 +1,5 @@
 import {emailAutomationTools,emailAutomationOutputs} from './emailAutomationSchemas.js';
+import {emailCampaignTools,emailCampaignOutputs} from './emailCampaignSchemas.js';
 import {aiPreviewTools,aiPreviewOutputs} from './aiPreviewSchemas.js';
 import {aiDiagnosticsTools,aiDiagnosticsOutputs} from './aiDiagnosticsSchemas.js';
 import {operationsTools,operationsOutputs} from './operationsSchemas.js';
@@ -34,7 +35,7 @@ const profile={...write,revision:z.number().int().nonnegative(),profile:z.record
 export const toolDefinitions=[
  ...aiPreviewTools,
  ...aiDiagnosticsTools,
- ...operationsTools,...websiteTools,...voiceTools,...activityTools,...formLifecycleTools,...emailTools,...emailAutomationTools,
+ ...operationsTools,...websiteTools,...voiceTools,...activityTools,...formLifecycleTools,...emailTools,...emailAutomationTools,...emailCampaignTools,
  ...knowledgeTools,
  ...bookingTools,
  ...contactTools,
@@ -80,7 +81,7 @@ export const toolOutputs={
  ...aiDiagnosticsOutputs,
  ...operationsOutputs,...websiteOutputs,
  ...voiceOutputs,
- ...activityOutputs,...formLifecycleOutputs,...emailOutputs,...emailAutomationOutputs,
+ ...activityOutputs,...formLifecycleOutputs,...emailOutputs,...emailAutomationOutputs,...emailCampaignOutputs,
  ...knowledgeOutputs,
  ...bookingOutputs,
  ...contactOutputs,
