@@ -1,6 +1,6 @@
 # Opek SMS project record
 
-## New GPT-Live voices — November 20, 2026 (local, not released)
+## New GPT-Live voices — November 20, 2026 (released)
 
 Voice Agents can use the nine voices OpenAI added to the GPT-Live voice table on
 October 16, 2026: `nuri`, `juni`, `flitz` (German), `brise`, `sillage` (French), `nira`
@@ -22,7 +22,21 @@ Validation: `npm test` 816 tests, 787 pass / 29 skipped / 0 fail; `check` and
 `docs:mcp:check` pass. `test:paired` 67/68: the one failure is the email editor
 comparison, which failed only because this worktree checked the file out with CRLF line
 endings (the text is identical, and it passes in the main checkout).
-Not verified: the picker in a browser.
+Released November 20, 2026 at the user's request, in this order:
+- Opek LiveKit worker `voice-agent-phone` deployed first as `MqUFZv34T7gd` with the nine
+  voices in `SUPPORTED_VOICES`. A silent cloud probe played the greeting afterwards.
+- `d06cee0` fast-forwarded `deploy-crm` (from `892049b`) and
+  `codex/crm-mcp-business-setup` (from `bee4816`, which also brings it the already-released
+  `a16b80a` and `892049b`), over HTTPS.
+- Migration applied alone to the shared project as remote version `20261120204142`
+  (`gpt_live_voices`; history 173 → 174). Before it, the live validator matched the
+  `20261110120000` body exactly. Read-back: both stored MCP draft schemas list 23 voices,
+  and the validator accepts `nuri`, `noeul` and `bossa`.
+- Render auto-deploy did not fire. Explicit deploys are live: frontend
+  `dep-dc0b1ks0916s73d6tjrg` (wpacquisition-crm; the served `voiceWorkspace.js` lists the
+  new voices) and MCP `dep-dc0b1ld6e07s73c7vs9g` (e2-crm-mcp; `/health` returns 200).
+Not verified: the picker in a signed-in browser session, or saving a new voice on a live
+agent (the Opek agent stays on `bossa`).
 
 ## Phrase Vocabulary — November 19, 2026
 
