@@ -11,7 +11,7 @@ test('daily work stays directly accessible while permission-filtered siblings re
  const reader=permittedGroups(false,{smsRead:true});
  assert.ok(!reader.some(g=>['settings','admin'].includes(g.id)));
  assert.ok(!reader.flatMap(g=>g.views).some(v=>['handoffs','email'].includes(v.view)));
- assert.deepEqual(permittedGroups(true,null).map(g=>g.id),['admin']);
+ assert.deepEqual(permittedGroups(true,null).map(g=>g.id),['phrase-vocabulary','admin']);
  assert.deepEqual(permittedGroups(false,null),[]);
 });
 test('legacy labels find their current destination and bookmarks retain their group',()=>{

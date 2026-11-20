@@ -11,6 +11,11 @@ The CRM uses one persistent shell. SMS contains Inbox, Automations, AI replies
 and Activity, with a second row only for the selected section’s tools. Calls &
 voice, Settings and Administration remain separate. Sibling tools use local tabs. Find a page searches all permitted pages and former labels. Visibility follows the existing staff/operator/form permissions.
 
+**Phrase Vocabulary** is a separate staff tab at `?view=phrase-vocabulary`.
+It follows the signed-in CRM account and works without selecting a business.
+An empty library can import Voice Lab's `.local/phrase-vocabulary.json`.
+Search includes variations, and each phrase's variations expand on demand.
+
 ## Navigation and refresh
 
 - Most tabs fetch on first opening. Returning restores their DOM nodes, listeners,

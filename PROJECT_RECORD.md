@@ -1,5 +1,19 @@
 # Opek SMS project record
 
+## Phrase Vocabulary — November 19, 2026
+
+The CRM has a dedicated staff tab for phrases, variations, rebuttals, and prompt
+instructions. The library follows the signed-in CRM account across devices
+and is available without a business workspace. The CRM API checks the existing
+staff authorization and saves revisioned libraries in a private table. An empty
+library can import the Voice Lab JSON export.
+
+Production migration `20261120043049_crm_phrase_vocabulary.sql` was applied
+by itself and recorded in Supabase. The existing Voice Lab library was copied
+to the matching CRM staff account, preserving all 36 entries and six variations.
+The CRM API Edge function was redeployed. Focused API and authorization tests,
+68 paired tests, and the 390 px CRM browser workflow passed.
+
 ## CRM MCP email campaign tools — November 18, 2026 (released)
 
 Eleven MCP tools behind four opt-in grants (`email_campaign_read`, `_edit`, `_send`,

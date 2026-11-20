@@ -1,5 +1,5 @@
 import {profileFromForm,profileEditorHtml,bindProfileEditor} from './businessProfileEditor.js?v=20261016-document';
-import {workspaceGroups,groupForView,permittedGroups,navigationLevels,syncNavigation,syncNavigationTabs} from './workspaceNavigation.js';
+import {workspaceGroups,groupForView,permittedGroups,navigationLevels,syncNavigation,syncNavigationTabs,isAccountWorkspace} from './workspaceNavigation.js';
 import {readHome,homeMarkup} from './workspaceHome.js';
 import {mountContactAutomations} from './contactAutomations.js';
 import {mountEmailWorkspace} from './emailAutomationWorkspace.js';
@@ -49,7 +49,7 @@ async function apiFetch(path, options = {}) {
 
 let disposeActivity,disposeVoice;
 let stopLive = () => {};
-const KNOWN_VIEWS = ['handoffs','form-followups','contact-templates','automation-activity','inbound-ai','voice-agent','overview','contacts','messaging','bookings','automations','email','call','messages','deliverability','optouts','ai-instructions','business-setup','business-context','booking-setup','web-forms','knowledge','platform-accounts','platform-businesses','platform-websites','platform-twilio','platform-ai-connections'];
+const KNOWN_VIEWS = ['handoffs','form-followups','contact-templates','automation-activity','inbound-ai','voice-agent','phrase-vocabulary','overview','contacts','messaging','bookings','automations','email','call','messages','deliverability','optouts','ai-instructions','business-setup','business-context','booking-setup','web-forms','knowledge','platform-accounts','platform-businesses','platform-websites','platform-twilio','platform-ai-connections'];
 function initialViewFromUrl() {
   const view = new URLSearchParams(location.search).get('view');
   if (['automations','ai-instructions'].includes(view)) return 'web-forms';
@@ -176,7 +176,7 @@ function stopWorkspaceWarmup() {warmupController?.abort();warmupController=null;
 function scheduleWorkspaceWarmup() {
   stopWorkspaceWarmup();
   if (document.getElementById('crm-app').hidden || navigator.connection?.saveData || ['slow-2g','2g'].includes(navigator.connection?.effectiveType)) return;
-  const views=KNOWN_VIEWS.filter(view=>canOpenWorkspace(view,state.platformStaff,state.tenant) && (state.tenant || view.startsWith('platform-')));
+  const views=KNOWN_VIEWS.filter(view=>canOpenWorkspace(view,state.platformStaff,state.tenant) && (state.tenant || isAccountWorkspace(view)));
   // Prioritize adjacent tabs; rendering the active page always runs first.
   const controller=warmupController=new AbortController();
   const tasks=workspaceWarmupTasks(views.filter(view=>view!==state.view), (path,options)=>authenticatedFetch(path,{
@@ -915,6 +915,7 @@ const titles = {
   overview: ['Home', 'Your conversations, customers, and follow-ups.'],
   messaging: ['Inbox', 'Read and reply to customer conversations.'],
   'voice-agent': ['Voice Agents', 'Create agents, manage deployments and release customer access.'],
+  'phrase-vocabulary': ['Phrase Vocabulary', 'Save phrases, rebuttals, and instructions for future scripts and prompts.'],
   call: ['Inbound calls', 'Track inbound calls from your customers.'],
   messages: ['Message history', 'All customer, staff, AI, and automation SMS.'],
   contacts: ['Contacts', 'Find customers and manage your contacts.'],
@@ -1376,7 +1377,7 @@ function load(options = {},isCurrent=()=>true) {
 }
 function syncViewControls() {
   document.getElementById('crm-app').dataset.view = state.view;
-  el.search.closest('.search-wrap').hidden = state.view.startsWith('platform-') || ['handoffs','form-followups','contact-templates','automation-activity','inbound-ai', 'overview', 'call', 'deliverability', 'ai-instructions', 'business-setup', 'business-context', 'booking-setup', 'knowledge', 'web-forms', 'email'].includes(state.view);
+  el.search.closest('.search-wrap').hidden = isAccountWorkspace(state.view) || ['handoffs','form-followups','contact-templates','automation-activity','inbound-ai', 'overview', 'call', 'deliverability', 'ai-instructions', 'business-setup', 'business-context', 'booking-setup', 'knowledge', 'web-forms', 'email'].includes(state.view);
   el.status.hidden = !['messages', 'deliverability'].includes(state.view) && !(state.view === 'automations' && state.categoryId);
 }
 async function loadCategories() {
@@ -1419,13 +1420,24 @@ async function renderWorkspace(options = {}) {
       await platform.render(state.view);readScope.signal.throwIfAborted();lastRenderedView = state.view;currentTabLoadedAt=Date.now();tabStatus();return;
     }
     el.root.classList.remove('platform-root');
-    if (!state.tenant) throw new Error('Choose or create a business workspace.');
     if (!canOpenWorkspace(state.view,state.platformStaff,state.tenant)) {state.view=state.tenant.smsRead?'overview':'web-forms';setActiveNav();}
+    if (!state.tenant && !isAccountWorkspace(state.view)) throw new Error('Choose or create a business workspace.');
     if (['messaging','contacts','messages','deliverability','automations'].includes(state.view)) await loadCategories();
 
     if (state.view === 'overview') await renderOverview();
     else if (state.view === 'messaging') await renderMessaging();
     else if (state.view === 'voice-agent') await renderVoiceWorkspace();
+    else if (state.view === 'phrase-vocabulary') {
+      const {mountPhraseVocabulary} = await pageReads.wait(import('./phraseVocabulary.js'));
+      readScope.signal.throwIfAborted();
+      const sessionId = getSession()?.id;
+      el.toolbarTenant.textContent='CRM';
+      el.kpi.replaceChildren(); el.pager.hidden=true;
+      await mountPhraseVocabulary(el.root,{apiFetch:(path,options)=>{
+        if(getSession()?.id!==sessionId) throw new DOMException('The signed-in account changed.', 'AbortError');
+        return pageReads.fetch(path,options);
+      }});
+    }
     else if (state.view === 'call') await renderCall();
     else if (state.view === 'contacts') await renderContacts();
     else if (state.view === 'optouts') await renderOptOuts();
@@ -3450,7 +3462,7 @@ async function openAuthenticatedWorkspace() {
   businessSetupButton.hidden = !state.platformStaff;
   await loadTenantContext(session,isCurrent);
   assertCurrent();
-  if (!state.tenant && state.platformStaff && !state.view.startsWith('platform-')) { state.view = 'platform-accounts'; setActiveNav(); }
+  if (!state.tenant && state.platformStaff && !isAccountWorkspace(state.view)) { state.view = 'platform-accounts'; setActiveNav(); }
   showCrmApp();
   updateAuthChrome();
   if (runtimeConfig.previewReadOnly) {
@@ -3509,7 +3521,7 @@ async function loadTenantContext(session,isCurrent=()=>true) {
     if (state.platformStaff) return;
     throw new Error('No business account is configured');
   }
-  if(state.tenant.smsRead===false){
+  if(state.tenant.smsRead===false && !(state.platformStaff && isAccountWorkspace(state.view))){
     state.view='web-forms';
     document.querySelectorAll('#nav .nav-item').forEach(node=>{if(!node.hasAttribute('data-platform-nav')&&node.dataset.view!=='web-forms')node.hidden=true;});
     setActiveNav();

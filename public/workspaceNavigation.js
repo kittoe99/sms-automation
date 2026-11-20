@@ -10,10 +10,12 @@ export const workspaceGroups = [
  {id:'forms',label:'Forms',icon:'forms',daily:true,views:[item('web-forms','Forms','form builder submissions')]},
  {id:'email',label:'Email',icon:'email',daily:true,views:[item('email','Email','email groups campaigns')]},
  {id:'voice',label:'Calls & voice',icon:'voice',views:[item('call','Calls','inbound calls recordings'),item('voice-agent','Voice agents','voice agent configuration ai assistants')]},
+ {id:'phrase-vocabulary',label:'Phrase Vocabulary',icon:'forms',views:[item('phrase-vocabulary','Phrase Vocabulary','phrase library rebuttals script prompt instructions')]},
  {id:'settings',label:'Settings',icon:'setup',views:[item('business-context','Business information','business context knowledge profile'),item('booking-setup','Booking availability','service availability schedules'),item('business-setup','SMS connection','sms activation business setup phone sender')]},
  {id:'admin',label:'Administration',icon:'platform',views:[item('platform-accounts','Users','platform accounts'),item('platform-businesses','Businesses','platform ownership'),item('platform-websites','Websites','hosting deployments domains'),item('platform-twilio','Twilio accounts','provider phone accounts'),item('platform-ai-connections','AI connections','mcp agents permissions audit')]},
 ];
 export const groupForView=view=>workspaceGroups.find(group=>group.views.some(item=>item.view===view));
+export const isAccountWorkspace=view=>view==='phrase-vocabulary'||view.startsWith('platform-');
 const smsSections = [
  {label:'Inbox',children:['messaging','handoffs']},
  {label:'Automations',children:['contact-templates','form-followups']},
@@ -29,7 +31,7 @@ export function navigationLevels(group,view) {
 }
 export function permittedGroups(staff,tenant) {
  return workspaceGroups.map(group=>({...group,views:group.views.filter(item=>
-  (tenant||item.view.startsWith('platform-'))&&canOpenWorkspace(item.view,staff,tenant))})).filter(group=>group.views.length);
+  (tenant||isAccountWorkspace(item.view))&&canOpenWorkspace(item.view,staff,tenant))})).filter(group=>group.views.length);
 }
 export function navigationMarkup({view,staff,tenant,query='',expanded=[]}) {
  const q=query.trim().toLowerCase();

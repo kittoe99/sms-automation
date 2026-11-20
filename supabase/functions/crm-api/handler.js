@@ -11,6 +11,7 @@ import {createTwilioConnections} from './twilio-connections.js';
 import {signMcpKnowledgeUpload} from './mcp-upload.js';
 import {executeMcpEmailAction} from './mcp-email.js';
 import {emailAutomationAction} from './email-automations.js';
+import {phraseVocabularyInput} from './phrase-vocabulary.js';
 const KNOWLEDGE_MIME=new Set(['application/pdf','application/vnd.openxmlformats-officedocument.wordprocessingml.document','text/plain','text/markdown']);
 const INTAKE_TYPES=new Set(['contacts','quote_requests','bookings','reviews']);
 async function signedKnowledgeUpload(tenant,input,fetchImpl=fetch) {
@@ -44,6 +45,12 @@ export function createCrmHandler(db,verify=authenticate,{platform=false,provisio
    const conversationId=async value=>/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(value)
      ? value:db.call('general_conversation',user,tenant,phone(value));
    const params=Object.fromEntries(url.searchParams); const method=request.method;
+   if(path==='/phrase-vocabulary') {
+    if(method==='GET') return json(await db.call('crm_phrase_vocabulary',user,null,null),200,headers);
+    if(method!=='PUT') return json({error:'Method not allowed'},405,headers);
+    const input=phraseVocabularyInput(await readJson(request,500_000));
+    return json(await db.call('crm_phrase_vocabulary',user,input.revision,{categories:input.categories}),200,headers);
+   }
    if(path.startsWith('/platform/')) {
     if(path==='/platform/ai-connections'&&method==='GET')return json(await db.call('mcp_admin',user,'list',params),200,headers);
     if(path==='/platform/ai-connections/activity'&&method==='GET')return json(await db.call('mcp_admin',user,'activity',params),200,headers);
