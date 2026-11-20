@@ -14,8 +14,8 @@ export function voiceTime(value,timeZone='UTC'){return value?new Date(value).toL
 export const recordingAvailable=(c,now=Date.now())=>c.media_state==='ready'&&!c.deleted_at&&Date.parse(c.expires_at)>now;
 export const recordingLabel=c=>c.deleted_at||Date.parse(c.expires_at)<=Date.now()?'expired':c.media_state==='failed'&&c.configuration_source==='provider_history'?'Unavailable':c.media_state;
 export const CUSTOM_VOICE_ID='voice_6af2d134d92081918a68df7cf07fad38';
-export const VOICES=['marin','quartz','ripple','vesper','willow','stone','gleam','meridian','bossa','tempo','beacon','delta','cinder',CUSTOM_VOICE_ID];
-export const VOICE_LABELS={[CUSTOM_VOICE_ID]:'My new voice (custom, American, masculine)'};
+export const VOICES=['marin','quartz','ripple','vesper','willow','stone','gleam','meridian','bossa','tempo','beacon','delta','cinder','nuri','juni','flitz','brise','sillage','nira','harema','shida','noeul',CUSTOM_VOICE_ID];
+export const VOICE_LABELS={nuri:'nuri (German, feminine)',juni:'juni (German, feminine)',flitz:'flitz (German, masculine)',brise:'brise (French, feminine)',sillage:'sillage (French, masculine)',nira:'nira (Hindi, feminine)',harema:'harema (Japanese, feminine)',shida:'shida (Japanese, masculine)',noeul:'noeul (Korean, feminine)',[CUSTOM_VOICE_ID]:'My new voice (custom, American, masculine)'};
 export const voiceLabel=v=>VOICE_LABELS[v]||v;
 const voiceOptions=selected=>VOICES.map(v=>`<option value="${esc(v)}" ${v===selected?'selected':''}>${esc(voiceLabel(v))}</option>`).join('');
 export function validateConfiguration(c){

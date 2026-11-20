@@ -1,5 +1,29 @@
 # Opek SMS project record
 
+## New GPT-Live voices — November 20, 2026 (local, not released)
+
+Voice Agents can use the nine voices OpenAI added to the GPT-Live voice table on
+October 16, 2026: `nuri`, `juni`, `flitz` (German), `brise`, `sillage` (French), `nira`
+(Hindi), `harema`, `shida` (Japanese) and `noeul` (Korean). Each opened a `gpt-live-1.1`
+session on November 20. The Opek LiveKit worker lists them in `SUPPORTED_VOICES`, and it
+has to be deployed before this CRM release.
+- `public/voiceWorkspace.js`: `VOICES` gains the nine names, and the picker labels show
+  the language, e.g. "harema (Japanese, feminine)". Existing names are unchanged.
+- `src/mcp/voiceSchemas.js`: the `voiceName` enum gains them; `docs/mcp` regenerated.
+- New CRM migration `20261120200000_gpt_live_voices.sql`: redefines
+  `sms_private.validate_voice_configuration` with the nine names (otherwise identical to
+  `20261110120000`) and sets the `voiceName` enum in both stored MCP draft schemas, with
+  a guard. Requires CRM `20261110120000`; no E2 Local prerequisite.
+- New `test/gptLiveVoices.test.js` (client, Zod, database save/publish/runtime read,
+  stored-schema parity); `test/customVoice.test.js` now expects 23 voices. Docs:
+  `docs/VOICE_CRM.md`.
+- Paired baseline re-recorded; the only difference is the new migration.
+Validation: `npm test` 816 tests, 787 pass / 29 skipped / 0 fail; `check` and
+`docs:mcp:check` pass. `test:paired` 67/68: the one failure is the email editor
+comparison, which failed only because this worktree checked the file out with CRLF line
+endings (the text is identical, and it passes in the main checkout).
+Not verified: the picker in a browser.
+
 ## Phrase Vocabulary — November 19, 2026
 
 The CRM has a dedicated staff tab for phrases, variations, rebuttals, and prompt

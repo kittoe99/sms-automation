@@ -13,7 +13,7 @@ const unknown={...base,voiceName:'voice_00000000000000000000000000000000'};
 
 test('custom OpenAI voice is offered with a readable label and validated by client and MCP',()=>{
  assert.equal(CUSTOM_VOICE_ID,custom.voiceName);
- assert.equal(VOICES.length,14);assert.ok(VOICES.includes(CUSTOM_VOICE_ID));
+ assert.equal(VOICES.length,23);assert.ok(VOICES.includes(CUSTOM_VOICE_ID));
  assert.equal(voiceLabel(CUSTOM_VOICE_ID),'My new voice (custom, American, masculine)');
  assert.equal(voiceLabel('marin'),'marin');
  validateConfiguration(custom);voiceConfiguration.parse(custom);

@@ -188,12 +188,16 @@ See [library and release workflow](CUSTOMER_VOICE.md#voice-agents-library-and-gu
 publish require `agentId` and `version`; save takes `configuration`, rollback takes
 `revision`. Initialize is an operator import of the verified existing deployment.
 Configuration fields are `name`, `persona`, `voice`, `brain`, and `voiceName`.
-`voiceName` is one of the 13 built-in OpenAI voices or the custom OpenAI voice
+`voiceName` is one of the 22 built-in GPT-Live voices or the custom OpenAI voice
 `voice_6af2d134d92081918a68df7cf07fad38` (shown in the picker as "My new voice (custom,
-American, masculine)"). The list must match in `public/voiceWorkspace.js` (`VOICES`),
+American, masculine)"). The nine voices OpenAI added on October 16, 2026 (`nuri`, `juni`,
+`flitz`, `brise`, `sillage`, `nira`, `harema`, `shida`, `noeul`) show their language in the
+picker. The list must match in `public/voiceWorkspace.js` (`VOICES`),
 `src/mcp/voiceSchemas.js` and `sms_private.validate_voice_configuration` (latest:
-migration `20261110120000_custom_openai_voice.sql`, which also updates the stored MCP draft
-schemas); `test/customVoice.test.js` checks all three.
+migration `20261120200000_gpt_live_voices.sql`, which also updates the stored MCP draft
+schemas); `test/customVoice.test.js` and `test/gptLiveVoices.test.js` check all three. The
+Opek LiveKit worker must list a voice in `SUPPORTED_VOICES` before the CRM allows it, or the
+worker rejects the published configuration.
 Credentials, routing and model identifiers are not editable through this workspace.
 
 `POST /api/voice/create` takes `{requestId,configuration}`; `requestId` is a stable
