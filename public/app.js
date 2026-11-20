@@ -1,5 +1,6 @@
 import {profileFromForm,profileEditorHtml,bindProfileEditor} from './businessProfileEditor.js?v=20261016-document';
 import {workspaceGroups,groupForView,permittedGroups,navigationLevels,syncNavigation,syncNavigationTabs,isAccountWorkspace} from './workspaceNavigation.js';
+import {createWorkspaceSwitcher} from './workspaceSwitcher.js';
 import {readHome,homeMarkup} from './workspaceHome.js';
 import {mountContactAutomations} from './contactAutomations.js';
 import {mountEmailWorkspace} from './emailAutomationWorkspace.js';
@@ -109,9 +110,7 @@ const el = {
   sidebarTrigger: document.getElementById('sidebar-trigger'),
   sidebarClose: document.getElementById('sidebar-close'),
   sidebarBackdrop: document.getElementById('sidebar-backdrop'),
-  tenantSelect: document.getElementById('tenant-select'),
   toolbarTenant: document.getElementById('toolbar-tenant'),
-  tenantAvatar: document.getElementById('tenant-avatar'),
 };
 
 function workspaceCompletionGuard(node) {
@@ -266,9 +265,8 @@ function syncOverlayLock() {
   document.body.classList.toggle('ui-overlay-open', hasOpenOverlay);
 }
 
-el.tenantSelect?.addEventListener('change', () => {
-  switchTenant(el.tenantSelect.value).catch(error=>console.error(error));
-});
+const workspaceSwitcher = createWorkspaceSwitcher(document.getElementById('workspace-picker'),
+  tenantId => switchTenant(tenantId).catch(error=>console.error(error)));
 
 window.addEventListener('clerk:organization-changed', () => {
   switchTenant(getTenantId(), { force: true }).catch(error=>console.error(error));
@@ -1000,6 +998,7 @@ document.getElementById('nav').addEventListener('click', (e) => {
 
 function setSidebarOpen(open) {
   const isOpen = Boolean(open);
+  if (!isOpen) workspaceSwitcher.close();
   document.querySelector('.crm')?.classList.toggle('sidebar-open', isOpen);
   el.sidebarTrigger?.classList.toggle('is-open', isOpen);
   el.sidebarTrigger?.setAttribute('aria-expanded', String(isOpen));
@@ -1244,11 +1243,6 @@ async function switchTenant(tenantId, options = {}) {
   if(!isCurrent())return;
   if (!isDemoMode() && !runtimeConfig.previewReadOnly && !document.getElementById('crm-app').hidden && state.tenant && state.tenant.smsRead!==false) connectLive();
   });
-}
-
-function syncSidebarBrand() {
-  const name = state.tenant?.name || 'No business workspace';
-  if (el.tenantSelect) el.tenantSelect.title = name;
 }
 
 function initNavFind() {
@@ -3428,6 +3422,7 @@ function esc(value) {
 let workspaceOpenRevision=0;
 async function forceLogin(message = '') {
   workspaceOpenRevision++;
+  workspaceSwitcher.update([], null);
   stopLive();
   invalidateWorkspaceCache();
   clearTabs();
@@ -3485,17 +3480,8 @@ function updateAuthChrome() {
   if (emailEl) emailEl.textContent = email;
   const tenant = state.tenant;
   if (el.toolbarTenant) el.toolbarTenant.textContent = tenant?.shortName || tenant?.name || 'CRM';
-  if (el.tenantAvatar) {
-    el.tenantAvatar.textContent = String(tenant?.shortName || tenant?.name || '')
-      .split(/\s+/)
-      .map((part) => part[0])
-      .join('')
-      .slice(0, 2)
-      .toUpperCase();
-  }
   document.title = tenant ? `${tenant.shortName || tenant.name} · E2.Local CRM` : 'E2.Local CRM';
   if (!tenant) el.storeMeta.textContent = 'No business workspace';
-  syncSidebarBrand();
   initNavFind();
 }
 
@@ -3507,13 +3493,7 @@ async function loadTenantContext(session,isCurrent=()=>true) {
   state.tenant = state.tenants.find((tenant) => tenant.id === stored)
     || state.tenants.find((tenant) => tenant.id === data.currentTenant?.id)
     || state.tenants[0] || null;
-  if (el.tenantSelect) {
-    el.tenantSelect.disabled = !state.tenants.length;
-    el.tenantSelect.innerHTML = state.tenants.length
-      ? state.tenants.map((tenant) => `<option value="${esc(tenant.id)}">${esc(tenant.name)}</option>`).join('')
-      : '<option value="">No business workspace</option>';
-    el.tenantSelect.value = state.tenant?.id || '';
-  }
+  workspaceSwitcher.update(state.tenants, state.tenant);
   if (!state.tenant) {
     configureWorkspaceCache({...data,capabilities:{platformStaff:state.platformStaff}});
     state.categories = [];

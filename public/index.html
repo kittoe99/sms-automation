@@ -41,16 +41,17 @@
         <div class="sidebar-sheet" id="sidebar-sheet">
           <div class="clerk-org-switcher" id="clerk-organization-switcher"></div>
 
-          <label class="workspace-switcher" for="tenant-select">
-            <span class="workspace-avatar" id="tenant-avatar" aria-hidden="true"></span>
-            <span class="workspace-copy">
-              <select id="tenant-select" aria-label="Business account" disabled>
-                <option value="">Loading workspaces…</option>
-              </select>
-              <small>Business workspace</small>
-            </span>
-            <i aria-hidden="true"><svg viewBox="0 0 16 16"><path d="m5 6 3-3 3 3M5 10l3 3 3-3" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/></svg></i>
-          </label>
+          <div class="workspace-picker" id="workspace-picker">
+            <button class="workspace-switcher" type="button" aria-expanded="false" aria-controls="workspace-options" aria-labelledby="workspace-caption workspace-name" disabled>
+              <span class="workspace-avatar" aria-hidden="true"></span>
+              <span class="workspace-copy">
+                <small id="workspace-caption">Business workspace</small>
+                <strong id="workspace-name">Loading workspaces…</strong>
+              </span>
+              <svg class="workspace-chevron" viewBox="0 0 16 16" aria-hidden="true"><path d="m4.5 6.5 3.5 3.5 3.5-3.5" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/></svg>
+            </button>
+            <div id="workspace-options" class="workspace-options" role="group" aria-label="Switch business workspace" hidden></div>
+          </div>
 
           <button type="button" id="add-business" class="btn ghost" hidden>Set up business</button>
 

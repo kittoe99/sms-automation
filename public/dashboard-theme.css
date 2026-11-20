@@ -71,25 +71,32 @@ html:has(.crm)::-webkit-scrollbar, .crm::-webkit-scrollbar, .crm *::-webkit-scro
 .crm .clerk-org-switcher { margin-bottom: 10px; }
 
 /* Workspace identity card with the business switcher. */
-.crm .workspace-switcher { position: relative; display: flex; align-items: center; gap: 10px; min-width: 0; min-height: 0; margin: 0 0 12px; padding: 9px; border: 0; border-radius: 11px; background: #fff; box-shadow: 0 0 0 1px var(--line), 0 1px 2px #1a1a1a0a; cursor: pointer; }
-.crm .workspace-switcher:hover { box-shadow: 0 0 0 1px var(--card-line), 0 2px 4px #1a1a1a0d; }
-.crm .workspace-switcher:focus-within { box-shadow: 0 0 0 1px var(--link), var(--ring); }
-.crm .workspace-avatar { display: grid; place-items: center; flex: none; width: 28px; height: 28px; border-radius: 7px; background: linear-gradient(180deg, #fff 0%, #efefed 100%); box-shadow: inset 0 0 0 1px var(--card-line), 0 1px 1px #1a1a1a0d; color: var(--ink); font-size: 12px; font-weight: 600; letter-spacing: -.02em; }
+.crm .workspace-picker { flex: none; min-width: 0; margin: 0 0 12px; }
+.crm .workspace-switcher { display: flex; align-items: center; gap: 9px; width: 100%; min-width: 0; min-height: 48px; margin: 0; padding: 8px 9px; border: 0; border-radius: 10px; background: #fff; box-shadow: 0 0 0 1px var(--line), 0 1px 2px #1a1a1a0a; color: var(--ink); text-align: left; cursor: pointer; }
+.crm .workspace-switcher:hover:not(:disabled), .crm .workspace-switcher[aria-expanded="true"] { background: var(--paper); box-shadow: 0 0 0 1px var(--card-line); }
+.crm .workspace-switcher:focus-visible, .crm .workspace-choice:focus-visible { outline: 0; box-shadow: inset 0 0 0 1px var(--link), var(--ring); }
+.crm .workspace-switcher:disabled { cursor: default; opacity: 1; }
+.crm .workspace-avatar { display: grid; place-items: center; flex: none; width: 32px; height: 32px; border-radius: 8px; background: var(--tint); box-shadow: inset 0 0 0 1px var(--line); color: var(--ink); font: 650 12px/1 "Plus Jakarta Sans", Arial, sans-serif; letter-spacing: 0; }
 .crm .workspace-avatar:empty::before { content: "E"; }
-.crm .workspace-copy { display: grid; flex: 1; min-width: 0; line-height: 1.3; }
-.crm .workspace-switcher select { width: 100%; min-width: 0; min-height: 0; padding: 0 18px 0 0; border: 0 !important; border-radius: 0; background: transparent; box-shadow: none !important; color: var(--ink); font-size: 13px; font-weight: 600; text-overflow: ellipsis; appearance: none; cursor: pointer; }
-.crm .workspace-switcher select:focus-visible { outline: 0; }
-.crm .workspace-switcher small { color: var(--muted); font-size: 11.5px; }
-.crm .workspace-switcher :is(span, small, select) { font-family: "Plus Jakarta Sans", Arial, sans-serif; letter-spacing: 0; text-transform: none; }
-.crm .workspace-switcher i { position: absolute; right: 9px; top: 50%; display: grid; width: 16px; height: 16px; translate: 0 -50%; color: var(--subtle); pointer-events: none; }
-.crm .workspace-switcher i svg { width: 16px; height: 16px; }
+.crm .workspace-copy { display: grid; gap: 2px; flex: 1; min-width: 0; font-family: "Plus Jakarta Sans", Arial, sans-serif; letter-spacing: 0; text-transform: none; }
+.crm .workspace-copy small { color: var(--muted); font-size: 11px; font-weight: 500; }
+.crm .workspace-copy strong { display: -webkit-box; -webkit-box-orient: vertical; -webkit-line-clamp: 2; overflow: hidden; color: var(--ink); font-size: 14px; font-weight: 700; line-height: 1.3; white-space: normal; overflow-wrap: anywhere; }
+.crm .workspace-chevron { flex: none; width: 16px; height: 16px; color: var(--muted); }
+.crm .workspace-switcher[aria-expanded="true"] .workspace-chevron { transform: rotate(180deg); }
+.crm .workspace-switcher:disabled .workspace-chevron { visibility: hidden; }
+.crm .workspace-options { display: grid; gap: 2px; max-height: min(250px, 35dvh); overflow-y: auto; margin-top: 6px; padding: 4px; border: 1px solid var(--line); border-radius: 10px; background: #fff; box-shadow: 0 3px 10px #1a1a1a0d; }
+.crm .workspace-choice { display: flex; justify-content: space-between; align-items: center; gap: 8px; min-height: 40px; padding: 7px 9px; border: 0; border-radius: 7px; background: transparent; color: var(--ink); font: 500 13px/1.35 "Plus Jakarta Sans", Arial, sans-serif; text-align: left; overflow-wrap: anywhere; cursor: pointer; }
+.crm .workspace-choice:hover, .crm .workspace-choice[aria-current="true"] { background: var(--tint); }
+.crm .workspace-choice[aria-current="true"] { font-weight: 700; }
+.crm .workspace-choice[aria-current="true"]::after { content: ""; flex: none; width: 6px; height: 10px; border: solid currentColor; border-width: 0 2px 2px 0; transform: rotate(45deg) translateY(-2px); }
+.crm .workspace-choice:focus-visible { box-shadow: inset 0 0 0 2px var(--link); }
 .crm #add-business { width: 100%; margin: -4px 0 12px !important; }
 
 /* Page finder. */
 .crm .sidebar-find { display: flex; align-items: center; gap: 8px; min-height: 34px; margin: 0 0 10px; padding: 0 8px 0 10px; border: 0; border-radius: 8px; background: #ffffffa6; box-shadow: inset 0 0 0 1px var(--line); color: var(--subtle); }
 .crm .sidebar-find:focus-within { background: #fff; box-shadow: inset 0 0 0 1px var(--link), var(--ring); }
 .crm .sidebar-find svg { width: 15px; height: 15px; }
-.crm .sidebar-find input { flex: 1; width: 100%; min-width: 0; min-height: 32px; padding: 0; border: 0 !important; background: transparent; box-shadow: none !important; color: var(--ink); font-size: 13px; }
+.crm #nav-find { flex: 1; width: 100%; min-width: 0; min-height: 32px; padding: 0; border: 0; border-radius: 0; outline: 0; background: transparent; box-shadow: none !important; color: var(--ink); font-size: 13px; }
 .crm .sidebar-find input::placeholder { color: var(--subtle); }
 .crm .sidebar-find kbd { display: grid; place-items: center; min-width: 18px; height: 18px; padding: 0 4px; border-radius: 5px; background: #fff; box-shadow: inset 0 0 0 1px var(--line); color: var(--subtle); font: 500 10.5px/1 "Plus Jakarta Sans", sans-serif; }
 
@@ -493,8 +500,9 @@ html:has(.crm)::-webkit-scrollbar, .crm::-webkit-scrollbar, .crm *::-webkit-scro
   .crm .sidebar-backdrop { position: fixed; inset: 0; z-index: 55; display: block; border: 0; opacity: 0; pointer-events: none; transition: opacity .25s ease; }
   .crm.sidebar-open .sidebar-backdrop { opacity: 1; pointer-events: auto; }
 
-  .crm .sidebar-sheet .workspace-switcher { flex: none; }
-  .crm .sidebar-sheet .sidebar-find { flex: none; }
+  .crm .workspace-choice { min-height: 44px; }
+  .crm .sidebar-sheet .sidebar-find { flex: none; min-height: 44px; }
+  .crm #nav-find { font-size: 16px; }
   .crm .sidebar-find kbd { display: none; }
   .crm #nav.simple-navigation { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 6px; flex: none; }
   .crm #nav .nav-item.daily-link { flex-direction: column; align-items: flex-start; justify-content: space-between; gap: 10px; min-height: 80px; padding: 11px 12px; border-radius: 14px; background: var(--paper); box-shadow: inset 0 0 0 1px var(--line); color: var(--ink); font-size: 13.5px; font-weight: 500; }
@@ -509,7 +517,7 @@ html:has(.crm)::-webkit-scrollbar, .crm::-webkit-scrollbar, .crm *::-webkit-scro
   .crm #nav .navigation-group > summary svg { color: var(--svc); }
   .crm #nav .navigation-group .nav-item { min-height: 40px; }
   .crm #nav .navigation-group .nav-item.active { background: var(--tint); box-shadow: inset 0 0 0 1px var(--line); }
-  .crm.sidebar-open .sidebar-sheet :is(.workspace-switcher, .nav-item.daily-link, .navigation-group, .sidebar-foot) { animation: crm-rise .42s var(--ease-out) both; }
+  .crm.sidebar-open .sidebar-sheet :is(.workspace-picker, .nav-item.daily-link, .navigation-group, .sidebar-foot) { animation: crm-rise .42s var(--ease-out) both; }
   .crm.sidebar-open .sidebar-sheet .nav-item.daily-link:nth-child(n+3) { animation-delay: .04s; }
   .crm.sidebar-open .sidebar-sheet .nav-item.daily-link:nth-child(n+5) { animation-delay: .08s; }
   .crm.sidebar-open .sidebar-sheet .navigation-group { animation-delay: .12s; }
