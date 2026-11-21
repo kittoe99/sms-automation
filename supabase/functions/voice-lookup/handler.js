@@ -1,6 +1,7 @@
 import {json,failure} from '../_shared/http.js';
 import {hmac} from '../voice-agent/handler.js';
 
+// Fallback only: the database uses the business recorded for this call (multi-business voice).
 const TENANT='biz-1c0c09ce-819e-4795-86b9-0e457ab92f58';
 // Callers confirm identity with the booking's phone plus the full name on it; no texted code.
 const ACTIONS=new Set(['business.lookup','customer.find','customer.identify','customer.lookup']);
@@ -31,7 +32,7 @@ export function createLookupHandler(db,{secret}={}){
       if(action==='business.lookup'){
         if(Object.keys(payload).some(k=>k!=='query')||typeof payload.query!=='string'||payload.query.length>500)
           throw invalid('Invalid search');
-        result=await db.call('voice_read_business',TENANT,payload.query);
+        result=await db.call('voice_read_business_call',TENANT,callId,payload.query);
       }else{
         const phone=payload.phone;
         if(typeof phone!=='string'||!/^\+[1-9]\d{7,14}$/.test(phone))throw invalid('Valid phone required');

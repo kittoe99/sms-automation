@@ -1,5 +1,6 @@
 import {json,failure} from '../_shared/http.js';
 import {hmac} from '../voice-agent/handler.js';
+// Fallback only: the database uses the business recorded for this call (multi-business voice).
 const TENANT='biz-1c0c09ce-819e-4795-86b9-0e457ab92f58';
 const change=['kind','bookingId','phone','localDate','localTime','address','notes','lateFeeAccepted'];
 const operations={availability:['service','variant','zip','localDate'],prepare:['service','variant','zip','localDate','localTime','phone','name','address','details'],confirm:['holdId'],check_change:change,apply_change:change};

@@ -1,5 +1,6 @@
 import {json,failure} from '../_shared/http.js';
 import {hmac} from '../voice-agent/handler.js';
+// Fallback only: the database uses the business recorded for this call (multi-business voice).
 const TENANT='biz-1c0c09ce-819e-4795-86b9-0e457ab92f58';
 const invalid=(message,status=400)=>Object.assign(new Error(message),{status});
 function equal(a,b){if(typeof a!=='string'||a.length!==64)return false;let diff=0;for(let i=0;i<64;i++)diff|=a.charCodeAt(i)^b.charCodeAt(i);return diff===0;}

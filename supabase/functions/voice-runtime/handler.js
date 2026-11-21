@@ -1,8 +1,10 @@
 import {json,failure} from '../_shared/http.js';
 import {hmac} from '../voice-agent/handler.js';
 import {voiceStorage} from '../_shared/voice-storage.js';
+// Fallback only: the dialed number or the call record picks the business in the database.
 export const RUNTIME_TENANT='biz-1c0c09ce-819e-4795-86b9-0e457ab92f58';
-const fields={configuration:[],start:['room','sipCallId','phone','revision','source'],heartbeat:[],finish:['status','duration','transcript','audio'],outcome:['outcome','summary','phone','name','service','location','request'],upload:['bytes'],uploaded:['bytes']};
+// dialed: the business number from the operator's LiveKit dispatch rule; it picks the business.
+const fields={configuration:['dialed'],start:['room','sipCallId','phone','revision','source','dialed'],heartbeat:[],finish:['status','duration','transcript','audio'],outcome:['outcome','summary','phone','name','service','location','request'],upload:['bytes'],uploaded:['bytes']};
 const bad=(message,status=400)=>Object.assign(new Error(message),{status});
 export async function signedInput(request,secret,maxBytes=600000){
  if(request.method!=='POST')throw bad('POST required',405);

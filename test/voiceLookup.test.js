@@ -16,7 +16,8 @@ test('lookup gateway signs exact bodies, pins tenant, rejects writes and invalid
   }
   const request={action:'business.lookup',callId,payload:{query:'pricing'}};
   assert.equal((await send(request)).status,200);
-  assert.deepEqual(calls[0],['voice_read_business',tenant,'pricing']);
+  // Business facts come from the call's own business (resolved from the call in SQL).
+  assert.deepEqual(calls[0],['voice_read_business_call',tenant,callId,'pricing']);
   for(const input of [{...request,tenant:'other'},{...request,action:'booking.confirm'},
     {...request,payload:{query:'pricing',table:'sms_contacts'}},{...request,payload:{query:'x'.repeat(501)}},null]){
     assert.equal((await send(input)).status,400);

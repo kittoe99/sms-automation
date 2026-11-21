@@ -2,6 +2,9 @@ import {json,env,failure} from '../_shared/http.js';
 import {constantEqual,twilioSignature} from '../twilio-webhook/handler.js';
 
 const OPEK_NUMBER='+18777574365';
+// Business numbers on the same Twilio account that this LiveKit deployment answers.
+// Mile High Plumbing: +18777524664 (voice only, no SMS).
+const VOICE_NUMBERS=new Set([OPEK_NUMBER,'+18777524664']);
 const SIP_HOST='65qezov0v3b.sip.livekit.cloud';
 
 function safeAttribute(value) {
@@ -25,15 +28,17 @@ export function createSoniInboundHandler(db,{
       const raw=await request.text();if(raw.length>8192)return json({error:'Payload too large'},413);
       const form=new URLSearchParams(raw),params=Object.fromEntries(form);
       if([...form.keys()].length!==Object.keys(params).length)return json({error:'Duplicate fields'},400);
-      if(params.To!==OPEK_NUMBER||!/^AC[0-9a-f]{32}$/i.test(params.AccountSid||''))
+      if(!VOICE_NUMBERS.has(params.To)||!/^AC[0-9a-f]{32}$/i.test(params.AccountSid||''))
         return json({error:'Wrong destination'},403);
-      const config=await db.call('resolve_twilio_webhook',params.AccountSid,'call',params,null);
+      // Every answered number lives on the Twilio account that owns Opek's number, so that account's
+      // token signs the request. Other numbers have no SMS provider row (voice only).
+      const config=await db.call('resolve_twilio_webhook',params.AccountSid,'call',{...params,To:OPEK_NUMBER},null);
       if(config?.tenant_id!==tenantId||config.from_number!==OPEK_NUMBER||!config.auth_token)
         return json({error:'Unknown account'},403);
       const signature=await twilioSignature(config.auth_token,base,params);
       if(!constantEqual(signature,request.headers.get('X-Twilio-Signature')))
         return json({error:'Invalid signature'},403);
-      const body=`<?xml version="1.0" encoding="UTF-8"?><Response><Dial><Sip username="${username}" password="${password}">sip:${OPEK_NUMBER}@${SIP_HOST};transport=tcp</Sip></Dial></Response>`;
+      const body=`<?xml version="1.0" encoding="UTF-8"?><Response><Dial><Sip username="${username}" password="${password}">sip:${params.To}@${SIP_HOST};transport=tcp</Sip></Dial></Response>`;
       return new Response(body,{status:200,headers:{'Content-Type':'text/xml; charset=utf-8','Cache-Control':'no-store'}});
     }catch(error){return failure(error);}
   };
