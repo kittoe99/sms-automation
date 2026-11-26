@@ -3,8 +3,8 @@ import {mountAiConnections} from './aiConnections.js';
 import {createRenderQueue} from './tabWorkspace.js?v=20261002-workspace';
 import {dashboardLoader} from './dashboardLoader.js';
 import {mountTwilioAccounts} from './twilioAccounts.js?v=20261003-directory';
-import {mountBusinessSetup} from './businessSetup.js?v=20261125-billing';
-import {billingSummary} from './billingAdmin.js?v=20261125-billing';
+import {mountBusinessSetup} from './businessSetup.js?v=20261127-exempt';
+import {billingSummary} from './billingAdmin.js?v=20261127-exempt';
 import {accessBadge,mountAccountAccess} from './accountAccess.js?v=20261126-access';
 import {apiFetch,getAccessToken,runtimeConfig} from './auth.js?v=20261001-business-services';
 import {abortable,createPageLifecycle,uploadFiles} from './pageLifecycle.js';
@@ -68,7 +68,7 @@ export function createPlatform({root,title,subtitle,pager,onNavigate,onWorkspace
     <div class="platform-grid">${result.rows.map(row=>`<article class="card"><h2>${esc(row.clerk_display_name||row.name||row.clerk_primary_email||row.id)}</h2>
      <p>${esc(row.clerk_primary_email||row.tenant_id||(row.slug?`${row.slug}.e2local.com`:''))}</p>
      ${view==='accounts'?`<p>${accessBadge(row)} · ${row.onboarding_completed_at?'Onboarding complete':'Onboarding pending'}${row.identityMapped?'':' · Identity mapping required'}</p><p>${row.loginApplication==='crm'?'Admin CRM':row.loginApplication==='customer'?'E2 Local':'Mapping required'} · ${esc(row.identity?.issuer)}</p>`:''}
-     ${view==='businesses'?`<p>${row.owner_account_id?'Owner assigned':'Owner not assigned'} · ${row.setup?.reviewed_profile_id?'Profile reviewed':'Awaiting admin setup'}</p><p data-billing-summary>Billing: ${esc(billingSummary(row.billing))}</p>`:''}
+     ${view==='businesses'?`<p>${row.owner_account_id?'Owner assigned':'Owner not assigned'} · ${row.setup?.reviewed_profile_id?'Profile reviewed':'Awaiting admin setup'}</p><p data-billing-summary>Billing: ${esc(billingSummary(row.billing,row.billingExempt))}</p>`:''}
      ${view==='websites'?`<p>${esc(row.business_name||'Business not assigned')} · ${row.owner_account_id?'Owner assigned':'Owner not assigned'}</p>`:''}
      ${button('View details',`data-open="${esc(row.id||row.tenant_id)}"`)}</article>`).join('')||'<p>No matching records.</p>'}</div>
      <div class="compose-actions">${button('Previous',`data-page="${page-1}" ${page<=1?'disabled':''}`)}<span>Page ${page} of ${result.totalPages} · ${result.total} records</span>${button('Next',`data-page="${page+1}" ${page>=result.totalPages?'disabled':''}`)}</div></section>`;

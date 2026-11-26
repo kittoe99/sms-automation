@@ -42,7 +42,7 @@ export function createBilling({environment=env,fetchImpl=fetch}={}) {
  // Live view from Stripe: subscriptions and recent payments.
  async function overview(db,user,tenantId) {
   const billing=await customer(db,user,tenantId),configured=Boolean(environment('STRIPE_SECRET_KEY'));
-  const base={businessName:billing.businessName,customerId:billing.customerId,stored:billing.subscriptions,configured,dashboardUrl:billing.customerId?`https://dashboard.stripe.com/customers/${billing.customerId}`:null};
+  const base={businessName:billing.businessName,customerId:billing.customerId,exemption:billing.exemption??null,stored:billing.subscriptions,configured,dashboardUrl:billing.customerId?`https://dashboard.stripe.com/customers/${billing.customerId}`:null};
   if(!configured||!billing.customerId)return {...base,subscriptions:[],payments:[]};
   const [subscriptions,charges]=await Promise.all([
    stripe('GET','subscriptions',{customer:billing.customerId,status:'all',limit:20}),
@@ -87,7 +87,17 @@ export function createBilling({environment=env,fetchImpl=fetch}={}) {
   await db.call('platform_billing',user,'audit',{tenantId:input.tenantId,kind:input.action,details:{subscriptionId:current.id,status:result.status,cancelAtPeriodEnd:Boolean(result.cancel_at_period_end),note:String(input.note||'').slice(0,500)||null}});
   return {subscription:{id:result.id,status:result.status,cancelAtPeriodEnd:Boolean(result.cancel_at_period_end)}};
  }
- return {overview,refund,subscription};
+
+ // Waive payment for a business, or require it again. Database-only: Stripe is
+ // untouched, and the database checks staff access, the reason and the audit.
+ async function exemption(db,user,input) {
+  if(typeof input.exempt!=='boolean')throw fail('Choose whether payment is waived.');
+  const reason=String(input.reason??'').trim();
+  if(input.exempt&&!reason)throw fail('Give a reason.');
+  if(reason.length>500)throw fail('Keep the reason under 500 characters.');
+  return db.call('platform_billing',user,input.exempt?'exempt':'unexempt',{tenantId:input.tenantId,reason});
+ }
+ return {overview,refund,subscription,exemption};
 }
 
 // Newer Stripe API versions keep the period end on each item.

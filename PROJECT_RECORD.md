@@ -1,5 +1,32 @@
 # Opek SMS project record
 
+## Billing exemptions for E2 paid account access (paired) — November 26, 2026 (code local; nothing applied or deployed)
+
+E2 now requires new customers to pay on onboarding step 3 before their dashboard opens
+(E2 record, same date). This CRM side lets staff waive that per business.
+
+- Migration (new, CRM-owned, not applied): `20261127020000_crm_billing_exemptions.sql`
+  replaces `sms_private.platform_billing` with `exempt` (reason required, at most 500
+  characters, one at a time) and `unexempt`, both audited (`billing_exempt`,
+  `billing_exempt_removed`), and returns the exemption on `read`. It reads E2's
+  `platform_billing_exemptions` at call time. Apply after E2 `20261127010000_paid_account_access`.
+- `crm-api`: `POST /platform/billing/exemption` (`billing.js` `exemption`, database
+  only, never calls Stripe).
+- `public/billingAdmin.js`: Payment requirement section on the Billing card (Waive
+  payment with reason / Require payment, both confirmed); the Businesses list summary
+  adds "payment waived". Asset versions bumped to `20261127-exempt`.
+- Preview fixture handles the new route. Docs: `docs/CRM_BILLING.md`.
+- `config/paired-baseline.json` re-recorded; the only changes are the two new
+  migrations (this one and E2 `20261127010000`).
+
+Validation actually performed: `test/crmBilling.test.js` and
+`test/crmBillingDatabase.test.js` (10 pass, including staff-only, reason, duplicate,
+audit, unlock/lock through E2 `read_customer_setup_access` and `billingExempt`);
+full `npm test` 811 pass, 0 fail, 29 skipped; E2 `npm run test:paired` 68/68. The
+rebuilt local `dist` was checked in the platform preview fixture: waive and require
+payment updated the card with no console errors. Not applied to the shared database,
+not committed, not deployed (Edge function and frontend both need a release).
+
 ## CRM Dashboard synced to E2's current Dashboard design — November 25, 2026 (released)
 
 `public/dashboard-theme.css` gains one closing block that brings the CRM up to the E2

@@ -8,11 +8,24 @@ const money=(cents,currency='usd')=>(cents/100).toLocaleString('en-US',{style:'c
 const day=value=>value?new Date(value).toLocaleDateString('en-US',{month:'short',day:'numeric',year:'numeric'}):'—';
 const ended=status=>['canceled','incomplete_expired'].includes(status);
 
-// One line for the Business setup list.
-export function billingSummary(billing) {
- if(!billing)return 'No subscription';
+// One line for the Business setup list. Exempt businesses open the E2 dashboard
+// without paying (E2 platform_billing_exemptions).
+export function billingSummary(billing,exempt=false) {
+ const waived=exempt?' · payment waived':'';
+ if(!billing)return `No subscription${waived}`;
  const plans=(billing.plans||[]).map(code=>PLAN_NAMES[code]||code).join(', ')||'Subscription';
- return `${plans} · ${STATUS[billing.status]||billing.status}${billing.cancelAtPeriodEnd&&!ended(billing.status)?' · cancels at period end':''}`;
+ return `${plans} · ${STATUS[billing.status]||billing.status}${billing.cancelAtPeriodEnd&&!ended(billing.status)?' · cancels at period end':''}${waived}`;
+}
+
+// Whether the customer must pay before their E2 dashboard opens.
+function requirementSection(exemption) {
+ return `<section data-exemption><h4>Payment requirement</h4>${exemption
+  ?`<p><strong>Payment waived.</strong> ${esc(exemption.reason)} · ${esc(exemption.createdBy||'E2 Local')}${exemption.createdAt?` · ${esc(day(exemption.createdAt))}`:''}</p>
+   <p>The customer's dashboard opens without a subscription.</p>
+   <div class="compose-actions"><button type="button" class="btn ghost" data-require-payment>Require payment</button></div>`
+  :`<p>The customer must have an active, trial or overdue subscription before their dashboard opens.</p>
+   <form class="compose" data-waive><label class="compose-label">Reason (required)<input name="reason" maxlength="500" required placeholder="Comped partner, invoiced offline…"></label>
+   <div class="compose-actions"><button class="btn ghost">Waive payment</button></div></form>`}</section>`;
 }
 
 // Staff billing card for one business: live Stripe subscriptions and payments,
@@ -27,7 +40,7 @@ export async function mountBillingAdmin(container,{tenantId,read,write,confirm=m
  const intro=!data.configured?'<p>Stripe is not configured for the CRM (set <code>STRIPE_SECRET_KEY</code> on the crm-api function).</p>'
   :!data.customerId?'<p>This business has not started a subscription. Owners subscribe from Account → Billing in their E2 dashboard.</p>'
   :`<p><a class="btn ghost" href="${esc(data.dashboardUrl)}" target="_blank" rel="noopener noreferrer">Open in Stripe</a> Plan changes, coupons and disputes are handled in Stripe.</p>`;
- container.innerHTML=`<section class="card billing-admin"><h3>Billing</h3>${intro}<p data-billing-error class="login-error" role="alert"></p><p data-billing-status role="status">${esc(notice)}</p>
+ container.innerHTML=`<section class="card billing-admin"><h3>Billing</h3>${intro}<p data-billing-error class="login-error" role="alert"></p><p data-billing-status role="status">${esc(notice)}</p>${requirementSection(data.exemption)}
   ${subs.length?`<h4>Subscriptions</h4>${subs.map(s=>`<article class="card" data-subscription="${esc(s.id)}">
    <p><strong>${esc(s.items.map(i=>PRODUCT_NAMES[i.product]||i.name||i.product).join(', '))}</strong> · ${esc(STATUS[s.status]||s.status)}
     · ${esc(money(s.items.reduce((sum,i)=>sum+(i.amount||0),0),s.items[0]?.currency))}/month</p>
@@ -54,6 +67,16 @@ export async function mountBillingAdmin(container,{tenantId,read,write,confirm=m
   try{await action();}catch(e){error.textContent=e.message;button.disabled=false;return;}
   await mountBillingAdmin(container,{tenantId,read,write,confirm,notice:done});
  }
+ container.querySelector('[data-require-payment]')?.addEventListener('click',event=>{
+  if(!confirm('Require payment again? Unless this business has an active, trial or overdue subscription, its users are sent to the plan step until the owner pays.'))return;
+  void perform(event.currentTarget,()=>write('billing/exemption',{tenantId,exempt:false}),'Payment is required again.');
+ });
+ container.querySelector('[data-waive]')?.addEventListener('submit',event=>{
+  event.preventDefault();const reason=String(new FormData(event.currentTarget).get('reason')||'').trim();
+  if(!reason)return;
+  if(!confirm('Waive payment? This business’s dashboard opens without a subscription until payment is required again.'))return;
+  void perform(event.submitter,()=>write('billing/exemption',{tenantId,exempt:true,reason}),'Payment waived.');
+ });
  container.querySelectorAll('[data-sub-action]').forEach(button=>button.addEventListener('click',()=>{
   const subscriptionId=button.closest('[data-subscription]').dataset.subscription,action=button.dataset.subAction;
   const message={cancel_at_period_end:'Cancel this subscription at the end of the current billing period? The customer keeps access until then.',

@@ -92,6 +92,8 @@ test('subscription: schedule, resume and cancel now',async()=>{
 test('business list billing summary',()=>{
  assert.equal(billingSummary(null),'No subscription');
  assert.equal(billingSummary({status:'active',plans:['website','sms_marketing'],cancelAtPeriodEnd:true}),'Website, SMS Marketing · Active · cancels at period end');
+ assert.equal(billingSummary(null,true),'No subscription · payment waived');
+ assert.equal(billingSummary({status:'canceled',plans:['website']},true),'Website · Canceled · payment waived');
 });
 
 test('migrations: CRM staff function, E2 business-list wrapper',async()=>{
@@ -100,4 +102,17 @@ test('migrations: CRM staff function, E2 business-list wrapper',async()=>{
  assert.match(crm,/grant execute on function sms_private\.platform_billing\(text,text,jsonb\) to sms_api/);
  const e2=await readFile(new URL('../../E2local-main/supabase/migrations/20261125140000_billing_business_list.sql',import.meta.url),'utf8');
  assert.match(e2,/rename to platform_read_before_billing/);
+});
+
+test('payment exemption: reason required, database-only, never calls Stripe',async()=>{
+ const x=fixture();
+ const db={call:async(...args)=>{x.calls.push(args);return {exempt:args[2]==='exempt'};}};
+ assert.deepEqual(await x.api.exemption(db,'staff',{tenantId:'t',exempt:true,reason:'  Comped partner '}),{exempt:true});
+ assert.deepEqual(x.calls.at(-1),['platform_billing','staff','exempt',{tenantId:'t',reason:'Comped partner'}]);
+ assert.deepEqual(await x.api.exemption(db,'staff',{tenantId:'t',exempt:false}),{exempt:false});
+ assert.deepEqual(x.calls.at(-1),['platform_billing','staff','unexempt',{tenantId:'t',reason:''}]);
+ await assert.rejects(x.api.exemption(db,'staff',{tenantId:'t',exempt:true,reason:' '}),/Give a reason/);
+ await assert.rejects(x.api.exemption(db,'staff',{tenantId:'t',exempt:'yes'}),/Choose whether/);
+ await assert.rejects(x.api.exemption(db,'staff',{tenantId:'t',exempt:true,reason:'x'.repeat(501)}),/under 500/);
+ assert.equal(x.stripe.length,0);
 });

@@ -41,5 +41,24 @@ test('staff billing reads, audits and business-list summary over the paired sche
   const audit=(await db.query("select action,target,changed,actor_account_id from public.platform_audit where action='billing_refund'")).rows[0];
   assert.equal(audit.target,tenant);assert.equal(audit.actor_account_id,staff);assert.equal(audit.changed.refundId,'re_1');
   await assert.rejects(call(db,'platform_billing','user_staff','audit',{tenantId:tenant,kind:'delete_everything'}),/Unknown billing action/);
+
+  // Waiving payment: staff only, reason required, once at a time, audited both ways.
+  const access=async()=>(await db.query('select public.read_customer_setup_access($1) r',[owner])).rows[0].r.unlocked;
+  await db.query("select public.record_billing_subscription('cus_test1','sub_test1','canceled',array['website'],null,false)");
+  assert.equal(await access(),false,'a canceled subscription locks a new business');
+  await assert.rejects(call(db,'platform_billing','user_nonstaff','exempt',{tenantId:tenant,reason:'Comped'}),/Staff access required/);
+  await assert.rejects(call(db,'platform_billing','user_staff','exempt',{tenantId:tenant,reason:' '}),/Give a reason/);
+  assert.deepEqual(await call(db,'platform_billing','user_staff','exempt',{tenantId:tenant,reason:'Comped partner'}),{exempt:true});
+  await assert.rejects(call(db,'platform_billing','user_staff','exempt',{tenantId:tenant,reason:'Again'}),/already waived/);
+  assert.equal(await access(),true,'an exempt business opens without paying');
+  view=await call(db,'platform_billing','user_staff','read',{tenantId:tenant});
+  assert.equal(view.exemption.reason,'Comped partner');assert.equal(view.exemption.createdBy,'user_staff');
+  assert.equal((await call(db,'platform_read','user_staff','businesses',{q:'Billing test'})).rows.find(r=>r.tenant_id===tenant).billingExempt,true);
+  assert.deepEqual(await call(db,'platform_billing','user_staff','unexempt',{tenantId:tenant,reason:'Partner ended'}),{exempt:false});
+  await assert.rejects(call(db,'platform_billing','user_staff','unexempt',{tenantId:tenant}),/not waived/);
+  assert.equal(await access(),false);
+  const trail=(await db.query("select action,changed from public.platform_audit where action like 'billing_exempt%' order by id")).rows;
+  assert.deepEqual(trail.map(r=>r.action),['billing_exempt','billing_exempt_removed']);
+  assert.equal(trail[1].changed.reason,'Comped partner');assert.equal(trail[1].changed.note,'Partner ended');
  } finally {await db.close();}
 });

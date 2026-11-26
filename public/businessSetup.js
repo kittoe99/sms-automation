@@ -2,7 +2,7 @@ const esc=value=>String(value??'').replaceAll('&','&amp;').replaceAll('<','&lt;'
 import {profileFromForm,profileEditorHtml,bindProfileEditor} from './businessProfileEditor.js?v=20261016-document';
 import {mountTwilioConnection} from './twilioConnection.js?v=20261003-sms-nav';
 import {mountVoiceSetup} from './voiceSetup.js';
-import {mountBillingAdmin} from './billingAdmin.js?v=20261125-billing';
+import {mountBillingAdmin} from './billingAdmin.js?v=20261127-exempt';
 export {profileFromForm};
 // Staff-run marketing services: no CRM workspace; release shows a managed status panel to the customer.
 const managedKinds=['search_ads','seo','facebook_ads'];

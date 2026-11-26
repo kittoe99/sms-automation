@@ -63,6 +63,8 @@ http.createServer(async(req,res)=>{
    owner.revision++;}
   else if(url.pathname==='/api/platform/billing')data=billing;
   else if(url.pathname==='/api/platform/billing/refund'){let raw='';for await(const chunk of req)raw+=chunk;const input=JSON.parse(raw);const p=billing.payments.find(x=>x.id===input.chargeId);p.amountRefunded+=input.amountCents;p.refunded=p.amountRefunded>=p.amount;data={refund:{id:'re_preview',amount:input.amountCents,status:'succeeded'}};}
+  else if(url.pathname==='/api/platform/billing/exemption'){let raw='';for await(const chunk of req)raw+=chunk;const input=JSON.parse(raw);
+   billing.exemption=input.exempt?{reason:input.reason,createdAt:new Date().toISOString(),createdBy:'Preview Staff'}:null;business.billingExempt=Boolean(input.exempt);data={exempt:Boolean(input.exempt)};}
   else if(url.pathname==='/api/platform/billing/subscription'){let raw='';for await(const chunk of req)raw+=chunk;const input=JSON.parse(raw);const s=billing.subscriptions[0];
    if(input.action==='cancel_now')s.status='canceled';else s.cancelAtPeriodEnd=input.action==='cancel_at_period_end';business.billing={status:s.status,plans:['full_system'],cancelAtPeriodEnd:s.cancelAtPeriodEnd};data={subscription:s};}
   else if(url.pathname==='/api/platform/ai-connections/activity')data={activity:aiActivity,page:1,total:aiActivity.length,totalPages:1};

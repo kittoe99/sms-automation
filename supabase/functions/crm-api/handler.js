@@ -68,6 +68,7 @@ export function createCrmHandler(db,verify=authenticate,{platform=false,provisio
     if(method==='POST'&&path==='/platform/account-access/unblock')return json(await accountAccess.unblock(db,user,await readJson(request)),200,headers);
     if(method==='POST'&&path==='/platform/account-access/sign-out')return json(await accountAccess.signOut(db,user,await readJson(request)),200,headers);
     if(method==='POST'&&path==='/platform/billing/subscription')return json(await billing.subscription(db,user,await readJson(request)),200,headers);
+    if(method==='POST'&&path==='/platform/billing/exemption')return json(await billing.exemption(db,user,await readJson(request)),200,headers);
     const directory=path.match(/^\/platform\/(accounts|businesses|websites)(?:\/([^/]+))?$/);
     if(method==='GET' && directory) return json(await db.call('platform_read',user,directory[1],{...params,...(directory[2]?{id:decodeURIComponent(directory[2])}:{})}),200,headers);
     const actions={ '/platform/status':'status','/platform/memberships':'membership','/platform/ownership':'owner',

@@ -15,8 +15,16 @@ connection. Every CRM staff member can use it; there is no separate billing gran
 - **Cancel at period end**, **Keep subscription** (undo a scheduled cancellation), or
   **Cancel now**. Cancelling does not refund anything; refund a payment separately.
 - **Open in Stripe** for anything else: plan changes, coupons, disputes, invoices.
+- **Payment requirement** (E2 paid account access, local, not yet applied): new E2
+  customers pay on onboarding step 3 before their dashboard opens. **Waive payment**
+  (reason required) lets a business's users in without a subscription, for comped,
+  invoiced-offline or partner accounts; **Require payment** sends them back to the plan
+  step unless the business has an active, trial or overdue subscription. Businesses that
+  existed when E2 `20261127010000` was applied are waived automatically. Neither action
+  touches Stripe. Audited as `billing_exempt` and `billing_exempt_removed`.
 
-The Businesses list shows each business's current plan and status.
+The Businesses list shows each business's current plan and status, plus "payment waived"
+for exempt businesses.
 
 Each action asks for confirmation. Stripe is called only after the database confirms
 staff access, and every charge or subscription is fetched first and must belong to the
@@ -29,12 +37,17 @@ updated by the E2 Stripe webhook, normally within seconds.
 
 - `supabase/functions/crm-api/billing.js`: Stripe calls (REST, no SDK), ownership checks.
 - Routes in `crm-api/handler.js`: `GET /platform/billing?tenantId=`,
-  `POST /platform/billing/refund`, `POST /platform/billing/subscription`.
+  `POST /platform/billing/refund`, `POST /platform/billing/subscription`,
+  `POST /platform/billing/exemption` `{tenantId, exempt, reason}`.
 - `public/billingAdmin.js`: the Billing card and the list summary.
 - Migration `20261125130000_crm_billing.sql`: `sms_private.platform_billing(u, action, p)`
   (`read`, `audit`), staff-only, granted to `sms_api`. It reads E2 billing tables at call
   time, so it needs E2 `customer_billing`. The list summary is E2-owned
   (E2 `20261125140000_billing_business_list.sql`).
+- Migration `20261127020000_crm_billing_exemptions.sql` (local, not applied): replaces
+  `platform_billing` to add `exempt`/`unexempt` and the exemption on `read`. Apply after
+  E2 `20261127010000_paid_account_access.sql`, which owns `platform_billing_exemptions`
+  and adds `billingExempt` to Businesses rows.
 
 ## Setup
 
