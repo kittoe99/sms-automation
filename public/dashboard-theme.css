@@ -780,3 +780,102 @@ html:has(.crm)::-webkit-scrollbar, .crm::-webkit-scrollbar, .crm *::-webkit-scro
 @media (max-width: 420px) {
   .vocabulary-filters { grid-template-columns: minmax(0, 1fr); }
 }
+
+/* ═════════ E2 Dashboard sync — November 25, 2026 ═════════
+   Brings the CRM up to E2's current dashboard (dashboard.module.css, Nov 23–24):
+   cool-grey palette, all-white canvas and sidebar, homepage-style soft shadows,
+   service-coloured navigation with a solid active tab, and brand-blue actions.
+   Layout, markup and feature styles are unchanged. */
+.crm {
+  --ink: #141a21;
+  --text: #141a21;
+  --muted: #64707d;
+  --subtle: #8a94a0;
+  --line: #e4e8ee;
+  --border: #e4e8ee;
+  --border-soft: #edf0f4;
+  --card-line: #d9dee6;
+  --button-line: #d6dce4;
+  --paper: #f9fafc;
+  --bg: #fff;
+  --tint: #f1f4f8;
+  --surface-2: #f1f4f8;
+  --surface-3: #e9eef5;
+  --brand: #0a6cdb;
+  --brand-deep: #0858b3;
+  --brand-soft: #eaf2fd;
+  --link: #0a6cdb;
+  --blue: #0a6cdb;
+  --blue-dark: #0858b3;
+  --blue-soft: #eaf2fd;
+  --button-soft: #f1f4f8;
+  --shadow-edge: 0 0 0 1px rgb(23 47 54 / .07);
+  --shadow-quiet: var(--shadow-edge), 0 1px 2px rgb(23 47 54 / .05);
+  --shadow-surface: var(--shadow-edge), 0 1px 2px rgb(23 47 54 / .04), 0 8px 20px -12px rgb(23 47 54 / .15);
+  --shadow-raised: 0 0 0 1px rgb(23 47 54 / .09), 0 2px 4px rgb(23 47 54 / .05), 0 14px 28px -14px rgb(23 47 54 / .22);
+  --shadow-md: 0 0 0 1px rgb(23 47 54 / .08), 0 10px 24px rgb(23 47 54 / .08), 0 28px 56px -16px rgb(23 47 54 / .24);
+  --shadow-control: inset 0 0 0 1px var(--button-line), 0 1px 2px rgb(23 47 54 / .05);
+}
+.crm ::selection { background: #0a6cdb26; }
+
+/* All-white canvas: page and sidebar; the sidebar keeps a hairline edge. */
+.crm .sidebar { background: #fff; box-shadow: inset -1px 0 0 var(--line); }
+.crm .sidebar-find { background: var(--paper); }
+.crm .product-name, .crm .sidebar-find kbd { background: var(--paper); }
+
+/* Navigation: icons carry their area colour; the current page is a solid fill. */
+.crm [data-service="overview"], .crm [data-group="home"], .crm [data-group=""], .crm .nav-item[data-view="overview"] { --svc: #0a6cdb; }
+.crm .nav-item, .crm .navigation-group > summary, .crm .sidebar-link { color: #3d4652; }
+.crm .nav-item svg, .crm .navigation-group > summary svg { color: var(--svc, #4b5563); }
+.crm .sidebar-link-icon { color: var(--blue); }
+.crm .nav-item:not(.active):hover, .crm .navigation-group > summary:hover, .crm .sidebar-link:hover, .crm .sign-out:hover { background: var(--tint); color: var(--ink); }
+.crm .nav-item:hover svg, .crm .navigation-group > summary:hover svg { color: var(--svc, var(--ink)); }
+.crm .nav-item.active, .crm .nav-item.active:hover { background: var(--svc, var(--blue)); box-shadow: none; color: #fff; font-weight: 500; }
+.crm .nav-item.active::before { content: none; }
+.crm .nav-item.active svg { color: #fff; }
+.crm .nav-tag, .crm .nav-count { flex: none; background: var(--blue-soft); box-shadow: none; color: var(--blue-dark); font-weight: 600; }
+.crm .nav-item.active :is(.nav-tag, .nav-count) { background: #ffffff2e; color: #fff; }
+
+/* Business switcher and account avatar in the cool-grey palette. */
+.crm .workspace-switcher { box-shadow: var(--shadow-surface); }
+.crm .workspace-switcher:hover:not(:disabled), .crm .workspace-switcher[aria-expanded="true"] { background: #fff; box-shadow: var(--shadow-raised); }
+.crm .workspace-avatar { background: var(--blue-soft); box-shadow: none; color: var(--blue-dark); }
+.crm .workspace-options { border: 0; box-shadow: var(--shadow-surface); }
+.crm .workspace-choice[aria-current="true"] { background: var(--blue-soft); }
+.crm .user-avatar { background: var(--tint); box-shadow: inset 0 0 0 1px var(--line); color: #4b5563; }
+
+/* Actions: brand blue primary, blue-text outlined secondary with a small control shadow. */
+.crm .btn:not(.ghost):not(.btn-ghost):not(.danger), .crm .website-deployments .btn:not(.ghost) { background: var(--blue); box-shadow: 0 1px 2px rgb(23 47 54 / .08), 0 3px 6px -2px rgb(23 47 54 / .12); color: #fff; }
+.crm .btn:not(.ghost):not(.btn-ghost):not(.danger):hover { background: var(--blue-dark); box-shadow: 0 1px 2px rgb(23 47 54 / .08), 0 3px 6px -2px rgb(23 47 54 / .12); }
+.crm :is(.btn.ghost, .btn-ghost) { color: var(--blue-dark); }
+.crm :is(.btn.ghost, .btn-ghost):hover { background: var(--blue-soft); box-shadow: inset 0 0 0 1px #c4daf7; color: var(--blue-dark); }
+.crm .btn:disabled, .crm .btn-ghost:disabled, .crm .btn:not(.ghost):not(.btn-ghost):not(.danger):disabled { background: var(--paper); box-shadow: inset 0 0 0 1px var(--line); color: var(--subtle); }
+.crm :is(input:not([type="checkbox"]):not([type="radio"]), select, textarea):hover { border-color: #b9c2ce; }
+.crm :is(input[type="checkbox"], input[type="radio"]) { accent-color: var(--blue); }
+.crm .chip.active { background: var(--blue); box-shadow: inset 0 0 0 1px var(--blue); }
+
+/* In-page tabs: quiet cool-grey track; selected tab lifts onto white. */
+.workspace-local-tabs button[aria-selected=true] { box-shadow: var(--shadow-quiet); }
+.crm .inbox-item.active { background: var(--blue-soft); box-shadow: inset 3px 0 var(--blue); }
+
+/* Metrics and meters: blue accents instead of black. */
+.crm button.metric::after { background: var(--svc, var(--blue)); }
+.crm button.metric:hover { background: var(--paper); }
+.crm .metric-label svg { color: var(--blue); }
+.crm .meter { background: var(--tint); box-shadow: none; }
+.crm .meter > span { background: var(--blue); }
+.crm .dashboard-action-top svg { background: color-mix(in srgb, var(--svc, var(--blue)) 10%, #fff); box-shadow: none; color: var(--svc, var(--blue)); }
+.crm .form-sequence-summary { box-shadow: inset 3px 0 0 var(--blue); }
+.crm .empty { background: var(--card); }
+
+/* Phones: white top bar with a hairline, and the active area in its colour. */
+@media (max-width: 900px) {
+  .crm .sidebar { background: #fff; box-shadow: inset 0 -1px 0 var(--card-line); }
+  .crm #nav .nav-item.daily-link { background: #fff; box-shadow: var(--shadow-quiet); }
+  .crm #nav .nav-item.daily-link svg { background: color-mix(in srgb, var(--svc) 10%, #fff); color: var(--svc); box-shadow: none; }
+  .crm #nav .nav-item.daily-link:hover { background: #fff; box-shadow: var(--shadow-raised); }
+  .crm #nav .nav-item.daily-link.active { background: var(--svc); box-shadow: none; color: #fff; }
+  .crm #nav .nav-item.daily-link.active svg { background: #ffffff26; color: #fff; box-shadow: none; }
+  .crm #nav .navigation-group .nav-item.active { background: var(--svc); box-shadow: none; color: #fff; }
+  .crm .sidebar-foot .sidebar-link { background: #fff; box-shadow: var(--shadow-quiet); }
+}

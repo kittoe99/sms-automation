@@ -19,6 +19,13 @@ pagePerformance, formDirectory and smsConnectionSummary pass. The existing
 dashboardFollowups test expects previously retired markup. Deployment evidence
 belongs in the paired project records; a passing build alone is not a release.
 
+## November 25 sync (local)
+
+Follows E2 `dashboard.module.css` after its November 23–24 releases: cool-grey tokens,
+all-white sidebar and canvas, soft layered shadows, area-coloured nav icons with a solid
+active fill, and brand-blue primary actions. The rules are the last block in
+`public/dashboard-theme.css`; earlier sections describe the base they override.
+
 ## Shared loading states (released October 11)
 
 CRM release `d507c4c` uses the Dashboard ring loader for startup, workspaces and inline

@@ -18,6 +18,9 @@ Search includes variations, and each phrase's variations expand on demand.
 
 ## Navigation and refresh
 
+- The business switcher shows the current business and marks it in the list.
+  Open it with a click or the keyboard. Arrow keys move between businesses
+  and Escape closes the list. The page finder still opens with **F**.
 - Most tabs fetch on first opening. Returning restores their DOM nodes, listeners,
   filters, pagination, expanded details, scroll position and unsaved inputs. Voice
   Agents, Calls and Automation activity remount their controls from retained models

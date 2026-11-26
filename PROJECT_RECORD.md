@@ -1,6 +1,22 @@
 # Opek SMS project record
 
-## User access controls: block, sign out everywhere, reasons, history — November 25, 2026 (local)
+## CRM Dashboard synced to E2's current Dashboard design — November 25, 2026 (local, not released)
+
+`public/dashboard-theme.css` gains one closing block that brings the CRM up to the E2
+Dashboard as of its November 23–24 releases, without changing layout or markup:
+cool-grey palette (ink `#141a21`, hairline `#e4e8ee`), white sidebar and canvas, E2's
+homepage-style soft shadow tokens, sidebar icons in their area colour with the current page
+as a solid fill (Home blue, SMS purple, Contacts blue, Bookings green, Forms orange, Voice
+pink, Settings grey, Admin teal), brand-blue primary buttons and blue-text outlined buttons,
+blue checkboxes/chips/meters, and the same treatment in the phone menu. `index.html` bumps
+the stylesheet version to `20261125-e2-sync`. Sign-in, embeds and `e2-theme.css` unchanged.
+Validation: `npm run check`, `npm run build:frontend` and `npm test` (810 passed, 29 skipped,
+0 failed); `crm-demo` preview at 1280px and 375px (phone menu open, no horizontal overflow).
+The demo build renders no sidebar links, so sample links were injected in the browser to
+check navigation states; not checked in a signed-in CRM. No database, API, E2 or deployment
+change. Not committed or deployed.
+
+## User access controls: block, sign out everywhere, reasons, history — November 25, 2026 (live)
 
 Users → View details has an **Access** card: Suspend (reason required) / Restore,
 Block sign-in (suspends, bans the Clerk user, revokes sessions) / Unblock, and Sign out
@@ -13,8 +29,8 @@ Details: `docs/CRM_ACCOUNT_ACCESS.md`.
   identity picks the Clerk key: `CRM_CLERK_SECRET_KEY` or new `E2_CLERK_SECRET_KEY`.
 - `public/accountAccess.js`, `public/platform.js` (filter, badge, card replaces the old
   Suspend button), badge CSS in `public/styles.css`.
-- Database: E2-owned migration `20261126010000_account_access_controls.sql` (not
-  applied); no CRM migration. Paired baseline re-recorded (only that migration differs).
+- Database: E2-owned migration `20261126010000_account_access_controls.sql` applied
+  alone as live `20261126043536`. No CRM migration. Paired baseline records the new migration.
 
 Validation: `test/accountAccessDatabase.test.js` 1 pass (paired PGlite schema),
 `test/accountAccess.test.js` 8 pass; `npm test` 839 tests, 810 pass, 29 skipped, 0 fail;
@@ -22,6 +38,14 @@ Validation: `test/accountAccessDatabase.test.js` 1 pass (paired PGlite schema),
 synthetic data at desktop and 375px. Supabase lists `E2_CLERK_SECRET_KEY` and
 `E2_CLERK_ISSUER` in production. The stored customer key fingerprint differs from
 the CRM key fingerprint. Clerk API access is unverified.
+
+Released CRM commit `3340eb9` on `deploy-crm` and `codex/crm-mcp-business-setup`,
+Supabase `crm-api` v77, and Render `dep-dc3rec7f3r2c739fq1og`. The live CRM serves
+the `accountAccess.js` from the commit. Signed-out access and billing requests returned
+401. Live SQL verified the migration and confirmed `sms_api` can call the new action
+wrapper, `authenticated` cannot, and `sms_api` cannot call the previous action directly.
+The browser session was scoped to the business workspace and did not exercise staff
+access or call Clerk using the new key.
 
 ## Staff billing released — November 25, 2026
 

@@ -36,12 +36,12 @@ Rules (database, `sms_private.platform_action`):
   `GET /platform/account-access`, `POST /platform/account-access/block|unblock|sign-out`.
 - `public/accountAccess.js` (card and badge), `public/platform.js` (list filter).
 
-## Setup
+## Production setup
 
-1. Apply E2 `20261126010000_account_access_controls.sql`.
-2. On `crm-api`, set `E2_CLERK_SECRET_KEY` (the customer Clerk application's secret key,
-   matching `E2_CLERK_ISSUER`). `CRM_CLERK_SECRET_KEY` is already set. Redeploy `crm-api`.
-3. Release the CRM frontend.
+1. E2 `20261126010000_account_access_controls.sql` is live as `20261126043536`.
+2. Supabase lists `E2_CLERK_SECRET_KEY`, `E2_CLERK_ISSUER`, and `CRM_CLERK_SECRET_KEY`.
+   `crm-api` v77 is active. A signed-in staff check of the customer Clerk key is pending.
+3. Render published the CRM frontend from `3340eb9`.
 
 Without a Clerk key for an account's application, Suspend/Restore still work, Block still
 suspends, and the card reports that Clerk is not configured.
