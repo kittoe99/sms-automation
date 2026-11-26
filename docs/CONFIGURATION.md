@@ -39,7 +39,8 @@ test. The build validates destinations before clearing its own generated `dist/`
 | Variable | Exposure | Use |
 | --- | --- | --- |
 | `CRM_CLERK_PUBLISHABLE_KEY` | Public through auth config | Independent CRM Clerk application |
-| `CRM_CLERK_SECRET_KEY` | Server secret | Verified first-login metadata synchronization |
+| `CRM_CLERK_SECRET_KEY` | Server secret | Verified first-login metadata synchronization; staff block, unblock and sign-out of CRM accounts |
+| `E2_CLERK_SECRET_KEY` | Server secret (`crm-api`) | Customer (E2 Local) Clerk application key; staff block, unblock and sign-out of customer accounts. Must match `E2_CLERK_ISSUER` |
 | `CRM_CLERK_ISSUER` | Server configuration; public issuer | CRM HTTPS issuer, normally `https://clerk.crm.e2local.com` |
 | `E2_CLERK_ISSUER` | Server configuration; public issuer | Different customer issuer, normally `https://clerk.e2local.com` |
 | `CRM_ALLOWED_ORIGINS` | Server configuration | Comma-separated exact origins for CORS and JWT `azp` checks; include intentional local/preview origins |

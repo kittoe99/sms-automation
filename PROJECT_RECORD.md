@@ -1,6 +1,29 @@
 # Opek SMS project record
 
-## Staff billing released — November 25, 2026 (released; Stripe key not set)
+## User access controls: block, sign out everywhere, reasons, history — November 25, 2026 (local)
+
+Users → View details has an **Access** card: Suspend (reason required) / Restore,
+Block sign-in (suspends, bans the Clerk user, revokes sessions) / Unblock, and Sign out
+everywhere, plus live Clerk state (blocked, last sign-in, active sessions) and the last 25
+access changes. The Users list shows Active/Suspended/Blocked badges and an Access filter.
+Details: `docs/CRM_ACCOUNT_ACCESS.md`.
+
+- `supabase/functions/crm-api/account-access.js`; routes `GET /platform/account-access`,
+  `POST /platform/account-access/block|unblock|sign-out`. The issuer of each account
+  identity picks the Clerk key: `CRM_CLERK_SECRET_KEY` or new `E2_CLERK_SECRET_KEY`.
+- `public/accountAccess.js`, `public/platform.js` (filter, badge, card replaces the old
+  Suspend button), badge CSS in `public/styles.css`.
+- Database: E2-owned migration `20261126010000_account_access_controls.sql` (not
+  applied); no CRM migration. Paired baseline re-recorded (only that migration differs).
+
+Validation: `test/accountAccessDatabase.test.js` 1 pass (paired PGlite schema),
+`test/accountAccess.test.js` 8 pass; `npm test` 839 tests, 810 pass, 29 skipped, 0 fail;
+`check` and `test:paired` 68/68 pass. Checked in the platform preview fixture with
+synthetic data at desktop and 375px. Supabase lists `E2_CLERK_SECRET_KEY` and
+`E2_CLERK_ISSUER` in production. The stored customer key fingerprint differs from
+the CRM key fingerprint. Clerk API access is unverified.
+
+## Staff billing released — November 25, 2026
 
 `47a65d9` fast-forwarded `codex/crm-mcp-business-setup` and `deploy-crm` (from `8cf174c`)
 over HTTPS. `crm-api` deployed with the Supabase CLI (`--use-api`, existing
@@ -8,8 +31,13 @@ over HTTPS. `crm-api` deployed with the Supabase CLI (`--use-api`, existing
 auto-deploy did not fire; explicit static deploy `dep-dc3qdms9v7es73cv5hi0` is live and
 crm.e2local.com serves `billingAdmin.js` and the updated `businessSetup.js`/`platform.js`.
 The MCP service (no change) was not redeployed. E2 `e9e35c4` is live on Vercel
-(`dpl_2wrCmT5eG6cyTzVoLMQNQVPRHSLn`). `STRIPE_SECRET_KEY` is not set on `crm-api`, so the
-card says Stripe is not configured. Not verified: a signed-in staff session in production.
+(`dpl_2wrCmT5eG6cyTzVoLMQNQVPRHSLn`, subsequently redeployed for webhook credentials).
+The Supabase Edge Function Secrets dashboard now lists `STRIPE_SECRET_KEY` and
+`CRM_CLERK_SECRET_KEY`. The CRM billing script returned 200 and the signed-out billing
+API returned 401. Signed-in Stripe API access and the key's permissions remain unverified.
+At the billing release check, `crm-api` included `billing.js` and the Render site
+served the billing script. See the access-controls entry for the current Clerk key
+and release status.
 
 ## Staff billing: refunds and cancellations — November 25, 2026 (code local; migrations live)
 
@@ -101,6 +129,15 @@ Released November 20, 2026 at the user's request, in this order:
 Not verified: the picker in a signed-in browser session, or saving a new voice on a live
 agent (the Opek agent stays on `bossa`).
 
+## CRM sidebar controls — November 19, 2026 (released)
+
+The page finder renders as a single field. The business switcher shows the
+active business and opens an in-app menu with a selected indicator, keyboard
+navigation, and touch-sized options. The existing workspace selection and
+permission checks still apply. Desktop and mobile browser checks and 12
+focused tests passed. Render deploy `dep-dbvt2k3m8hqs738u7190` is live on
+`892049b`. Verified the CRM markup and both updated assets in production.
+
 ## Phrase Vocabulary — November 19, 2026
 
 The CRM has a dedicated staff tab for phrases, variations, rebuttals, and prompt
@@ -114,6 +151,11 @@ by itself and recorded in Supabase. The existing Voice Lab library was copied
 to the matching CRM staff account, preserving all 36 entries and six variations.
 The CRM API Edge function was redeployed. Focused API and authorization tests,
 68 paired tests, and the 390 px CRM browser workflow passed.
+
+Frontend commit `a16b80a` was released to the CRM static site as Render deploy
+`dep-dbvsuhcs728c73bsm0cg`. Verified the live deep link and its feature assets,
+anonymous API denial, and the import in the private production library. The
+full CRM suite passed 785 tests with 29 skipped.
 
 ## CRM MCP email campaign tools — November 18, 2026 (released)
 

@@ -7,6 +7,9 @@ const membership={account_id:accountId,tenant_id:'demo',role:'owner',enabled:tru
 const site={id:siteId,slug:'example-preview',name:'Example Website',sms_tenant_id:'demo',owner_account_id:accountId,business_name:'Example Services',revision:0,created_at:'2026-09-29T12:00:00Z',details:{businessName:'Example Services',services:['Home repairs'],serviceAreas:['Denver']}};
 const records={accounts:[{id:accountId,clerk_display_name:'Example Owner',clerk_primary_email:'owner@example.test',status:'active',created_at:site.created_at,onboarding_completed_at:site.created_at,memberships:[membership],websites:[site],identityMapped:true,personal_info:{firstName:'Example',lastName:'Owner'},business_profile:{businessName:'Example Services'}}],businesses:[{tenant_id:'demo',name:'Example Services',time_zone:'America/Denver',owner_account_id:accountId,memberships:[membership],sites:[site]}],websites:[site]};
 const business=records.businesses[0];
+// Synthetic access state for the Users list and account page.
+const owner=records.accounts[0];Object.assign(owner,{access:'active',revision:0,accessHistory:[]});
+const accessEvent=(action,reason,status)=>owner.accessHistory.unshift({action,at:new Date().toISOString(),by:'Example Staff',reason:reason||null,status});
 // Synthetic Stripe billing: one active Full System subscription and one payment.
 business.billing={status:'active',plans:['full_system'],cancelAtPeriodEnd:false};
 const billing={businessName:'Example Services',customerId:'cus_preview',configured:true,dashboardUrl:'https://dashboard.stripe.com/customers/cus_preview',stored:[],
@@ -51,6 +54,13 @@ http.createServer(async(req,res)=>{
    let raw='';for await(const chunk of req)raw+=chunk;const input=JSON.parse(raw);if(!input.confirmedBusinessIdentity)throw new Error('Identity confirmation required');
    business.services=[...business.services.filter(s=>s.kind!=='sms'),{id:'sms',tenant_id:'demo',kind:'sms',visibility:'draft',revision:0,providerState:'configured',phoneNumber:'+18775550180'}];data={connected:true,sendingEnabled:false};
   }
+  else if(url.pathname==='/api/platform/account-access')data={accountId:owner.id,status:owner.status,blocked:owner.access==='blocked',clerk:[{issuer:'https://clerk.e2local.com',ok:true,app:'E2 Local',banned:owner.access==='blocked',locked:false,lastSignInAt:'2026-11-25T15:00:00Z',activeSessions:owner.access==='blocked'?0:2}]};
+  else if(url.pathname==='/api/platform/status'||url.pathname.startsWith('/api/platform/account-access/')){let raw='';for await(const chunk of req)raw+=chunk;const input=JSON.parse(raw);const kind=url.pathname.split('/').pop();
+   if(kind==='status'){if(input.status==='suspended'&&!input.reason){res.writeHead(400,{'Content-Type':'application/json'});res.end(JSON.stringify({error:'Give a reason'}));return;}owner.status=owner.access=input.status;accessEvent('status',input.reason,input.status);data=owner;}
+   else if(kind==='block'){owner.status='suspended';owner.access='blocked';owner.access_blocked_at=new Date().toISOString();owner.accessBlockedByName='Example Staff';owner.access_block_reason=input.reason;accessEvent('access_block',input.reason);data={message:'Account blocked and signed out.'};}
+   else if(kind==='unblock'){owner.status=owner.access='active';owner.access_blocked_at=null;owner.access_block_reason=null;accessEvent('access_unblock',input.reason);data={message:'Account unblocked and access restored.'};}
+   else {accessEvent('access_sign_out',input.reason);data={message:'Signed out of 2 active sessions.'};}
+   owner.revision++;}
   else if(url.pathname==='/api/platform/billing')data=billing;
   else if(url.pathname==='/api/platform/billing/refund'){let raw='';for await(const chunk of req)raw+=chunk;const input=JSON.parse(raw);const p=billing.payments.find(x=>x.id===input.chargeId);p.amountRefunded+=input.amountCents;p.refunded=p.amountRefunded>=p.amount;data={refund:{id:'re_preview',amount:input.amountCents,status:'succeeded'}};}
   else if(url.pathname==='/api/platform/billing/subscription'){let raw='';for await(const chunk of req)raw+=chunk;const input=JSON.parse(raw);const s=billing.subscriptions[0];

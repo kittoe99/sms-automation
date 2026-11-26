@@ -3552,3 +3552,11 @@ tr[data-booking-id] { cursor: pointer; }
 
 .domain-results{list-style:none;padding:0;margin:12px 0;display:grid;gap:8px}
 .domain-results li{display:flex;flex-wrap:wrap;align-items:center;gap:8px 16px}
+
+/* CRM user access badges (accountAccess.js) */
+.access-badge{display:inline-block;padding:2px 8px;border-radius:999px;font-size:12px;font-weight:600;background:#eaf6ee;color:#1f6b2a}
+.access-badge[data-access="suspended"]{background:#fff4e5;color:#8a4b00}
+.access-badge[data-access="blocked"]{background:#fdecec;color:#a12222}
+.access-badge[data-access="deleted"]{background:#f1f1f1;color:#555}
+.account-access .access-history{margin:8px 0 0;padding-left:18px}
+.account-access .compose-label span{font-weight:400;opacity:.75}

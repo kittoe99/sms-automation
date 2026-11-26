@@ -13,6 +13,7 @@ import {executeMcpEmailAction} from './mcp-email.js';
 import {emailAutomationAction} from './email-automations.js';
 import {phraseVocabularyInput} from './phrase-vocabulary.js';
 import {createBilling} from './billing.js';
+import {createAccountAccess} from './account-access.js';
 const KNOWLEDGE_MIME=new Set(['application/pdf','application/vnd.openxmlformats-officedocument.wordprocessingml.document','text/plain','text/markdown']);
 const INTAKE_TYPES=new Set(['contacts','quote_requests','bookings','reviews']);
 async function signedKnowledgeUpload(tenant,input,fetchImpl=fetch) {
@@ -26,7 +27,7 @@ async function signedKnowledgeUpload(tenant,input,fetchImpl=fetch) {
  const rawUrl=result.url || result.signedURL || result.signedUrl;
  return {path,token:result.token,signedUrl:/^https?:/i.test(rawUrl||'')?rawUrl:`${base}${rawUrl || ''}`,contentType,maxBytes:10*1024*1024};
 }
-export function createCrmHandler(db,verify=authenticate,{platform=false,provision=syncCrmLogin,twilioConnections=createTwilioConnections(),billing=createBilling()}={}) {
+export function createCrmHandler(db,verify=authenticate,{platform=false,provision=syncCrmLogin,twilioConnections=createTwilioConnections(),billing=createBilling(),accountAccess=createAccountAccess()}={}) {
  return async request=>{
   let headers={};
   try {
@@ -62,6 +63,10 @@ export function createCrmHandler(db,verify=authenticate,{platform=false,provisio
     if(method==='POST'&&path==='/platform/twilio/connect')return json(await twilioConnections.connect(db,user,await readJson(request)),200,headers);
     if(method==='GET'&&path==='/platform/billing')return json(await billing.overview(db,user,params.tenantId),200,headers);
     if(method==='POST'&&path==='/platform/billing/refund')return json(await billing.refund(db,user,await readJson(request)),200,headers);
+    if(method==='GET'&&path==='/platform/account-access')return json(await accountAccess.status(db,user,params.accountId),200,headers);
+    if(method==='POST'&&path==='/platform/account-access/block')return json(await accountAccess.block(db,user,await readJson(request)),200,headers);
+    if(method==='POST'&&path==='/platform/account-access/unblock')return json(await accountAccess.unblock(db,user,await readJson(request)),200,headers);
+    if(method==='POST'&&path==='/platform/account-access/sign-out')return json(await accountAccess.signOut(db,user,await readJson(request)),200,headers);
     if(method==='POST'&&path==='/platform/billing/subscription')return json(await billing.subscription(db,user,await readJson(request)),200,headers);
     const directory=path.match(/^\/platform\/(accounts|businesses|websites)(?:\/([^/]+))?$/);
     if(method==='GET' && directory) return json(await db.call('platform_read',user,directory[1],{...params,...(directory[2]?{id:decodeURIComponent(directory[2])}:{})}),200,headers);

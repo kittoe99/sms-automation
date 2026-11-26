@@ -5,6 +5,7 @@ import {dashboardLoader} from './dashboardLoader.js';
 import {mountTwilioAccounts} from './twilioAccounts.js?v=20261003-directory';
 import {mountBusinessSetup} from './businessSetup.js?v=20261125-billing';
 import {billingSummary} from './billingAdmin.js?v=20261125-billing';
+import {accessBadge,mountAccountAccess} from './accountAccess.js?v=20261126-access';
 import {apiFetch,getAccessToken,runtimeConfig} from './auth.js?v=20261001-business-services';
 import {abortable,createPageLifecycle,uploadFiles} from './pageLifecycle.js';
 const esc=value=>String(value??'').replaceAll('&','&amp;').replaceAll('<','&lt;').replaceAll('>','&gt;').replaceAll('"','&quot;').replaceAll("'",'&#39;');
@@ -17,7 +18,7 @@ const checkbox=(label,name,checked=false)=>`<label><input type="checkbox" name="
 export function createPlatform({root,title,subtitle,pager,onNavigate,onWorkspace,onOpenRecord,isCurrent=()=>true,
  fetcher=apiFetch,hostingFetcher=fetch,getToken=getAccessToken,config=runtimeConfig}){
  root.classList.add('platform-root');
- let view='accounts',page=1,q='',selected=null,tab='dashboard',enquiryPage=1,enquiryType='all',deploymentPage=1;
+ let view='accounts',page=1,q='',accessFilter='',selected=null,tab='dashboard',enquiryPage=1,enquiryType='all',deploymentPage=1;
  let disposed=false,needsRefresh=false,activeReads=0;
  const lifecycle=createPageLifecycle({isCurrent:()=>!disposed&&isCurrent()});
  const changed=data=>{needsRefresh=true;window.dispatchEvent(new Event('crm:data-changed'));return data;};
@@ -58,18 +59,20 @@ export function createPlatform({root,title,subtitle,pager,onNavigate,onWorkspace
   lifecycle.begin();needsRefresh=false;
   if(view==='twilio'){title.textContent='Twilio accounts';subtitle.textContent='Approved senders and business connections';pager.hidden=true;await mountTwilioAccounts(root,{read,onBusiness:id=>openRecord('businesses',id)});return;}
   title.textContent={accounts:'Users',businesses:'Businesses',websites:'Websites'}[view];subtitle.textContent='Platform management';pager.hidden=true;
-  const result=await read(view,{page,pageSize:25,q});
-  root.innerHTML=`<section class="card"><form data-search class="compose"><label>Search ${esc(title.textContent.toLowerCase())}<input name="q" value="${esc(q)}" maxlength="120"/></label><button class="btn">Search</button></form>${error()}
+  const result=await read(view,{page,pageSize:25,q,...(view==='accounts'&&accessFilter?{access:accessFilter}:{})});
+  root.innerHTML=`<section class="card"><form data-search class="compose"><label>Search ${esc(title.textContent.toLowerCase())}<input name="q" value="${esc(q)}" maxlength="120"/></label>
+    ${view==='accounts'?`<label>Access<select name="access">${[['','All users'],['active','Active'],['suspended','Suspended'],['blocked','Blocked']].map(([value,label])=>`<option value="${value}" ${accessFilter===value?'selected':''}>${label}</option>`).join('')}</select></label>`:''}
+    <button class="btn">Search</button></form>${error()}
     ${view==='websites'?button('Create website','data-create-site'):''}
     ${view==='businesses'?button('Set up registered business','data-create-business'):''}
     <div class="platform-grid">${result.rows.map(row=>`<article class="card"><h2>${esc(row.clerk_display_name||row.name||row.clerk_primary_email||row.id)}</h2>
      <p>${esc(row.clerk_primary_email||row.tenant_id||(row.slug?`${row.slug}.e2local.com`:''))}</p>
-     ${view==='accounts'?`<p>${esc(row.status)} · ${row.onboarding_completed_at?'Onboarding complete':'Onboarding pending'}${row.identityMapped?'':' · Identity mapping required'}</p><p>${row.loginApplication==='crm'?'Admin CRM':row.loginApplication==='customer'?'E2 Local':'Mapping required'} · ${esc(row.identity?.issuer)}</p>`:''}
+     ${view==='accounts'?`<p>${accessBadge(row)} · ${row.onboarding_completed_at?'Onboarding complete':'Onboarding pending'}${row.identityMapped?'':' · Identity mapping required'}</p><p>${row.loginApplication==='crm'?'Admin CRM':row.loginApplication==='customer'?'E2 Local':'Mapping required'} · ${esc(row.identity?.issuer)}</p>`:''}
      ${view==='businesses'?`<p>${row.owner_account_id?'Owner assigned':'Owner not assigned'} · ${row.setup?.reviewed_profile_id?'Profile reviewed':'Awaiting admin setup'}</p><p data-billing-summary>Billing: ${esc(billingSummary(row.billing))}</p>`:''}
      ${view==='websites'?`<p>${esc(row.business_name||'Business not assigned')} · ${row.owner_account_id?'Owner assigned':'Owner not assigned'}</p>`:''}
      ${button('View details',`data-open="${esc(row.id||row.tenant_id)}"`)}</article>`).join('')||'<p>No matching records.</p>'}</div>
      <div class="compose-actions">${button('Previous',`data-page="${page-1}" ${page<=1?'disabled':''}`)}<span>Page ${page} of ${result.totalPages} · ${result.total} records</span>${button('Next',`data-page="${page+1}" ${page>=result.totalPages?'disabled':''}`)}</div></section>`;
-  bind('[data-search]','submit',event=>{event.preventDefault();q=new FormData(event.currentTarget).get('q').trim();page=1;run(directory);});
+  bind('[data-search]','submit',event=>{event.preventDefault();const form=new FormData(event.currentTarget);q=form.get('q').trim();if(view==='accounts')accessFilter=form.get('access')||'';page=1;run(directory);});
   bind('[data-page]','click',event=>{page=Number(event.currentTarget.dataset.page);run(directory);});
   bind('[data-open]','click',event=>{if(selected!==event.currentTarget.dataset.open)siteCache=null;selected=event.currentTarget.dataset.open;deploymentPage=1;tab=view==='websites'?'assets':'dashboard';run(detail);});
   bind('[data-create-site]','click',()=>run(createSite));
@@ -147,13 +150,13 @@ export function createPlatform({root,title,subtitle,pager,onNavigate,onWorkspace
   body.innerHTML=`<h2>${esc(row.clerk_display_name||'User')}</h2><p>${esc(row.clerk_primary_email)} · ${esc(row.status)} · ${row.onboarding_completed_at?'Onboarding complete':'Onboarding pending'}</p>
     <p>Account ID: <code>${esc(row.id)}</code></p><p>Created ${date(row.created_at)}</p>
     <p>Login application: <strong>${row.loginApplication==='crm'?'Admin CRM':row.loginApplication==='customer'?'E2 Local':'Mapping required'}</strong><br/>Clerk issuer: <code>${esc(row.identity?.issuer||'Mapping required')}</code><br/>Clerk subject: <code>${esc(row.identity?.subject||'Mapping required')}</code></p>
-    ${row.status!=='deleted'?button(row.status==='active'?'Suspend access':'Restore access','data-status'):''}
+    <div data-account-access></div>
     ${row.loginApplication==='customer'&&row.onboarding_completed_at?button('Set up business','data-setup-account'):''}
     ${row.registrationIssue?`<p role="alert">${esc(row.registrationIssue)}</p>`:''}
     <details><summary>Saved onboarding</summary><pre>${esc(JSON.stringify({personal:row.personal_info,business:row.business_profile},null,2))}</pre></details>
     <h3>Websites</h3>${(row.websites||[]).map(s=>button(s.name,`data-user-site="${esc(s.id)}"`)).join('')||'<p>No websites associated.</p>'}<h3>Businesses and access</h3>${row.memberships.map(m=>`<div class="card"><strong>${esc(m.business_name)}</strong><p>${esc(m.role)} · ${m.enabled?'Enabled':'Disabled'}</p>${button('Open business',`data-business="${esc(m.tenant_id)}"`)} ${button('Edit access',`data-edit-membership="${esc(m.tenant_id)}"`)}</div>`).join('')||'<p>No business access assigned.</p>'}<div data-editor></div>`;
   bind('[data-setup-account]','click',()=>run(()=>registration(row.id)));
-  bind('[data-status]','click',()=>run(async()=>{if(row.status==='active'&&!confirm('Suspend access for this account? Its separate account in the other application will keep its own access.'))return;await write('status',{accountId:row.id,revision:row.revision,status:row.status==='active'?'suspended':'active'});await detail();}));
+  mountAccountAccess(body.querySelector('[data-account-access]'),row,{read,write,reload:detail});
   bind('[data-user-site]','click',event=>{openRecord('websites',event.currentTarget.dataset.userSite);});
   bind('[data-business]','click',event=>{openRecord('businesses',event.currentTarget.dataset.business);});
   bind('[data-edit-membership]','click',event=>run(async()=>{const id=event.currentTarget.dataset.editMembership;const b=(await read('businesses',{id})).rows[0];await membershipEditor(body.querySelector('[data-editor]'),{accountId:row.id,tenantId:id,membership:row.memberships.find(m=>m.tenant_id===id),previousOwnerId:b.owner_account_id});}));
