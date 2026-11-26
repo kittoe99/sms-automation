@@ -1,5 +1,16 @@
 # Opek SMS project record
 
+## Staff billing released — November 25, 2026 (released; Stripe key not set)
+
+`47a65d9` fast-forwarded `codex/crm-mcp-business-setup` and `deploy-crm` (from `8cf174c`)
+over HTTPS. `crm-api` deployed with the Supabase CLI (`--use-api`, existing
+`verify_jwt = false`); signed-out billing read and refund calls return 401. Render
+auto-deploy did not fire; explicit static deploy `dep-dc3qdms9v7es73cv5hi0` is live and
+crm.e2local.com serves `billingAdmin.js` and the updated `businessSetup.js`/`platform.js`.
+The MCP service (no change) was not redeployed. E2 `e9e35c4` is live on Vercel
+(`dpl_2wrCmT5eG6cyTzVoLMQNQVPRHSLn`). `STRIPE_SECRET_KEY` is not set on `crm-api`, so the
+card says Stripe is not configured. Not verified: a signed-in staff session in production.
+
 ## Staff billing: refunds and cancellations — November 25, 2026 (code local; migrations live)
 
 **Live database (November 25, US time):** applied alone, in order, E2
