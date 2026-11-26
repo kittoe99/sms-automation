@@ -15,8 +15,9 @@ connection. Every CRM staff member can use it; there is no separate billing gran
 - **Cancel at period end**, **Keep subscription** (undo a scheduled cancellation), or
   **Cancel now**. Cancelling does not refund anything; refund a payment separately.
 - **Open in Stripe** for anything else: plan changes, coupons, disputes, invoices.
-- **Payment requirement** (E2 paid account access, local, not yet applied): new E2
-  customers pay on onboarding step 3 before their dashboard opens. **Waive payment**
+- **Payment requirement** (E2 paid account access, live November 26, 2026): new E2
+  customers pay on the onboarding plan step (step 1 since E2 `20261128010000`, before
+  Personal and Your business) before their dashboard opens. **Waive payment**
   (reason required) lets a business's users in without a subscription, for comped,
   invoiced-offline or partner accounts; **Require payment** sends them back to the plan
   step unless the business has an active, trial or overdue subscription. Businesses that
@@ -44,7 +45,7 @@ updated by the E2 Stripe webhook, normally within seconds.
   (`read`, `audit`), staff-only, granted to `sms_api`. It reads E2 billing tables at call
   time, so it needs E2 `customer_billing`. The list summary is E2-owned
   (E2 `20261125140000_billing_business_list.sql`).
-- Migration `20261127020000_crm_billing_exemptions.sql` (local, not applied): replaces
+- Migration `20261127020000_crm_billing_exemptions.sql` (live as `20261126055040`): replaces
   `platform_billing` to add `exempt`/`unexempt` and the exemption on `read`. Apply after
   E2 `20261127010000_paid_account_access.sql`, which owns `platform_billing_exemptions`
   and adds `billingExempt` to Businesses rows.
@@ -59,3 +60,13 @@ updated by the E2 Stripe webhook, normally within seconds.
 3. Release the CRM frontend.
 
 Without the key, the card says Stripe is not configured and nothing is sent to Stripe.
+
+## Payments made before a business exists (E2 `20261128010000_signup_offer_pay_first`, live)
+
+New E2 customers pay before onboarding, often from a campaign link that shows a single
+plan (see E2 `docs/campaign-offers.md`). Until the customer finishes **Your business**,
+the Stripe customer and subscription belong to their E2 account, not a business, so the
+Billing card cannot show, refund or cancel them: use **Stripe Dashboard** for that
+window. Registering the business moves both onto it and they appear here as normal.
+If that business already had a Stripe customer, the subscription still moves, the old
+customer stays, and the registration shows a `reconciliation_issue` to review.

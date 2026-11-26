@@ -192,7 +192,8 @@
     "20261125120000_customer_billing.sql": "6cd4b1485f383b6bf1d1ba4952936b85dcc616ad3371e53aac8cb741edde242e",
     "20261125140000_billing_business_list.sql": "9d3a9ebb2c08a8e890e908674c7703f8a6875acc8ea7e9dfd8d8d7dab8a73503",
     "20261126010000_account_access_controls.sql": "329d6f4a93284be5a82a7aa9d952aa733b38890aa5498f86dad03e368270ab9e",
-    "20261127010000_paid_account_access.sql": "649ba064df6516385b0a13ad880b799b9fa03594f9c96a70fc4ea71d26627912"
+    "20261127010000_paid_account_access.sql": "649ba064df6516385b0a13ad880b799b9fa03594f9c96a70fc4ea71d26627912",
+    "20261128010000_signup_offer_pay_first.sql": "030332bf92624ba4ffc5fc14eacb6678453f1b42f22e9977ae94df070c402224"
   },
   "e2HostingSources": {
     "app/api/web-hosting/route.ts": "3147ffca4348b583de099f4807a2691e479daf2e09291df4860216538edd07c9",

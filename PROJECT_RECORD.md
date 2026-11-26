@@ -1,5 +1,17 @@
 # Opek SMS project record
 
+## E2 campaign offers and payment before onboarding (paired note) — November 26, 2026 (E2 migration live as `20261126194353`)
+
+E2 migration `20261128010000_signup_offer_pay_first.sql` (E2-owned) lets a new customer
+pay before registering a business: the Stripe customer and subscription belong to the
+account until registration moves them to the business. CRM Billing reads by business,
+so it is unchanged and sees the payment once the customer finishes Your business; before
+that, refunds and cancellations need the Stripe Dashboard. A registration whose business
+already had a Stripe customer is flagged in `reconciliation_issue`. No CRM migration or
+code change. `config/paired-baseline.json` re-recorded (only that migration added).
+Validation: `crmBilling` + `crmBillingDatabase` 10/10 against the new chain; E2
+`npm run test:paired` 68/68.
+
 ## Billing exemptions for E2 paid account access (paired) — November 26, 2026 (code local; nothing applied or deployed)
 
 E2 now requires new customers to pay on onboarding step 3 before their dashboard opens
