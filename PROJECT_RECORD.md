@@ -1,6 +1,6 @@
 # Opek SMS project record
 
-## CRM Dashboard synced to E2's current Dashboard design — November 25, 2026 (local, not released)
+## CRM Dashboard synced to E2's current Dashboard design — November 25, 2026 (released)
 
 `public/dashboard-theme.css` gains one closing block that brings the CRM up to the E2
 Dashboard as of its November 23–24 releases, without changing layout or markup:
@@ -13,8 +13,12 @@ the stylesheet version to `20261125-e2-sync`. Sign-in, embeds and `e2-theme.css`
 Validation: `npm run check`, `npm run build:frontend` and `npm test` (810 passed, 29 skipped,
 0 failed); `crm-demo` preview at 1280px and 375px (phone menu open, no horizontal overflow).
 The demo build renders no sidebar links, so sample links were injected in the browser to
-check navigation states; not checked in a signed-in CRM. No database, API, E2 or deployment
-change. Not committed or deployed.
+check navigation states; not checked in a signed-in CRM. No database, API or E2 change.
+`npm run verify:release` passed before release. Released CRM commit `f37ebbb` on
+`deploy-crm`, `codex/crm-mcp-business-setup` and `mcp-release` (pushed over HTTPS). Render
+did not auto-deploy; explicit static deploy `dep-dc3rno17lnhs73ekrf5g` is live and
+crm.e2local.com (200) serves `assets/dashboard-theme-CB3WJPFN.css` with the new rules.
+`crm-api` and the MCP service were not redeployed (no change).
 
 ## User access controls: block, sign out everywhere, reasons, history — November 25, 2026 (live)
 
