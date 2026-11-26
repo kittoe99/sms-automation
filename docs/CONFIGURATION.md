@@ -85,6 +85,7 @@ Queue enable switches, concurrency, scheduler controls and per-business sending 
 | --- | --- |
 | `TWILIO_MASTER_ACCOUNT_SID`, `TWILIO_MASTER_AUTH_TOKEN` | Provisioning worker's parent account; token is secret; ordinary sends use tenant credentials in Vault |
 | `SMS_WEBHOOK_BASE_URL` | Exact HTTPS base for signed callbacks, normally the `twilio-webhook` Edge URL |
+| `STRIPE_SECRET_KEY` | `crm-api` only: staff billing (refunds, cancellations) on the E2 LOCAL LLC Stripe account; secret, live key; see `docs/CRM_BILLING.md` |
 | `SMS_CALLBACK_URL` | Sender delivery callback URL, normally the base plus `/status` |
 | `TWILIO_WEBHOOK_BASE_URL` | Provisioning callback override; otherwise provisioning derives it from `SUPABASE_URL` |
 | `OPENAI_API_KEY` | Private generation and embedding access |

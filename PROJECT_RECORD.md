@@ -1,5 +1,57 @@
 # Opek SMS project record
 
+## Staff billing: refunds and cancellations — November 25, 2026 (code local; migrations live)
+
+**Live database (November 25, US time):** applied alone, in order, E2
+`billing_business_list` (`20261126032241`) then CRM `crm_billing` (`20261126032253`); no
+history replayed. `sms_api` can run `platform_read` and `platform_billing` but not
+`platform_read_before_billing`; `anon`/`authenticated` cannot. `platform_billing` refuses
+an unknown user (42501). Acting as an existing staff identity (read-only), the
+Businesses list returned 3 rows, each with `billing`, and the staff billing read
+returned no subscriptions (none exist yet).
+
+Businesses → View details has a **Billing** card (above SMS connection): the business's
+Stripe subscriptions and last 25 payments read live from Stripe, full or partial refunds
+with a reason and note, cancel at period end, keep subscription (undo), cancel now, and
+Open in Stripe. The Businesses list shows each business's plan and status. All CRM staff
+can use it (owner's choice; no separate grant). Details: `docs/CRM_BILLING.md`.
+
+- `supabase/functions/crm-api/billing.js` and routes `GET /platform/billing`,
+  `POST /platform/billing/refund`, `POST /platform/billing/subscription`. Staff access is
+  checked in the database first; each charge or subscription must belong to the
+  business's stored Stripe customer; refunds use an idempotency key from the browser.
+- `public/billingAdmin.js`, mounted from `businessSetup.js`; list line in `platform.js`.
+- New CRM migration `20261125130000_crm_billing.sql` (live, above):
+  `sms_private.platform_billing` (`read`, `audit` to `platform_audit`), staff-only,
+  granted to `sms_api`. Reads E2 billing tables at call time. The list summary is in new
+  E2 migration `20261125140000_billing_business_list.sql` (live, above), which wraps
+  `platform_read`. Apply order: E2 `customer_billing` (live), E2 `20261125140000`, CRM
+  `20261125130000`.
+- New env secret on `crm-api`: `STRIPE_SECRET_KEY` (`docs/CONFIGURATION.md`).
+- Paired baseline re-recorded; only the three billing migrations differ.
+- Before this work the checkout was fast-forwarded from `892049b` to its upstream
+  `8cf174c` (released voice work); uncommitted record and `docs/TABBED_WORKSPACE.md`
+  edits were kept.
+
+Validation: `test/crmBilling.test.js` 8 pass; `test/crmBillingDatabase.test.js` 1 pass
+(PGlite with all CRM then all E2 migrations: staff read, non-staff denial, audit, list
+summary); `npm test` 830 tests, 801 pass, 29 skipped, 0 fail; `npm run check` and
+`test:paired` 68/68 pass. Checked in the platform preview fixture with synthetic data
+(partial refund, schedule/undo cancellation, 375px). Not done: no Stripe key on
+`crm-api`, nothing committed, deployed or released.
+
+## E2 Stripe billing (paired note) — November 25, 2026 (E2 migration live, code local)
+
+E2 added an E2-owned migration, `20261125120000_customer_billing.sql` (applied live as
+version `20261126030348` `customer_billing`), with
+new tables `platform_billing_customers` and `platform_billing_subscriptions` and
+service-role RPCs for dashboard checkout and the Stripe webhook. It reads
+`sms_businesses`, `platform_business_memberships` and `dashboard_accounts` and writes
+`platform_audit`; no CRM function, table or RPC changes at that point (staff billing
+followed; see above). `pricing_catalog` still lists $997 / from $297, while the new Stripe
+prices are Full System $597, Website $99, Sales Closer $497 and SMS Marketing $99. See E2
+`docs/billing.md`.
+
 ## New GPT-Live voices — November 20, 2026 (released)
 
 Voice Agents can use the nine voices OpenAI added to the GPT-Live voice table on

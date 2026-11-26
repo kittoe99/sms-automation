@@ -2,6 +2,7 @@ const esc=value=>String(value??'').replaceAll('&','&amp;').replaceAll('<','&lt;'
 import {profileFromForm,profileEditorHtml,bindProfileEditor} from './businessProfileEditor.js?v=20261016-document';
 import {mountTwilioConnection} from './twilioConnection.js?v=20261003-sms-nav';
 import {mountVoiceSetup} from './voiceSetup.js';
+import {mountBillingAdmin} from './billingAdmin.js?v=20261125-billing';
 export {profileFromForm};
 // Staff-run marketing services: no CRM workspace; release shows a managed status panel to the customer.
 const managedKinds=['search_ads','seo','facebook_ads'];
@@ -12,7 +13,7 @@ export function mountBusinessSetup(container,row,{read,write,reload,onCreateWebs
  // Pending customer requests from the dashboard. Adding the service marks a request activated.
  const requests=row.serviceRequests||[],requested=new Set(requests.map(r=>r.kind));
  const serviceName=kind=>serviceLabels[kind]||(kind==='website'?'Website':kind);
- container.innerHTML=`<div data-twilio-connection></div><section class="card business-profile-card">
+ container.innerHTML=`<div data-billing-admin></div><div data-twilio-connection></div><section class="card business-profile-card">
    <form class="compose business-profile-form" data-profile><p data-profile-error class="login-error" role="alert"></p>
    ${profileEditorHtml(profile)}
    <div class="profile-savebar"><div><strong>${reviewed?'Reviewed profile':'Ready when you are'}</strong><p>${reviewed?'Reviewed '+esc(new Date(setup.reviewed_at).toLocaleString())+'. Draft edits take effect after review.':'Save your progress, or review the facts to continue with service setup.'}</p></div>
@@ -36,6 +37,7 @@ export function mountBusinessSetup(container,row,{read,write,reload,onCreateWebs
    <button type="button" class="btn ghost" data-new-site ${!reviewed?'disabled':''}>Create website</button>
    <button type="button" class="btn ghost" data-link-site ${!reviewed?'disabled':''}>Link existing website</button></div><div data-site-link></div></section>`;
  mountTwilioConnection(container.querySelector('[data-twilio-connection]'),row,{read,write,reload,onWorkspace});
+ void mountBillingAdmin(container.querySelector('[data-billing-admin]'),{tenantId:row.tenant_id,read,write});
  async function perform(button,error,action){if(button)button.disabled=true;error.textContent='';try{await action();await reload();}catch(e){error.textContent=e.message;if(button)button.disabled=false;}}
  void mountVoiceSetup(container.querySelector('[data-voice-setup]'),{load:()=>read('voice-setup',{tenantId:row.tenant_id}),write,onLibrary:()=>onWorkspace(row.tenant_id,'voice'),onAgent:id=>onWorkspace(row.tenant_id,'voice',id),onBusiness:()=>container.querySelector('[data-profile]').scrollIntoView({block:'start'})});
  const editor=bindProfileEditor(container.querySelector('[data-profile]'));

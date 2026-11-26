@@ -12,6 +12,7 @@ import {signMcpKnowledgeUpload} from './mcp-upload.js';
 import {executeMcpEmailAction} from './mcp-email.js';
 import {emailAutomationAction} from './email-automations.js';
 import {phraseVocabularyInput} from './phrase-vocabulary.js';
+import {createBilling} from './billing.js';
 const KNOWLEDGE_MIME=new Set(['application/pdf','application/vnd.openxmlformats-officedocument.wordprocessingml.document','text/plain','text/markdown']);
 const INTAKE_TYPES=new Set(['contacts','quote_requests','bookings','reviews']);
 async function signedKnowledgeUpload(tenant,input,fetchImpl=fetch) {
@@ -25,7 +26,7 @@ async function signedKnowledgeUpload(tenant,input,fetchImpl=fetch) {
  const rawUrl=result.url || result.signedURL || result.signedUrl;
  return {path,token:result.token,signedUrl:/^https?:/i.test(rawUrl||'')?rawUrl:`${base}${rawUrl || ''}`,contentType,maxBytes:10*1024*1024};
 }
-export function createCrmHandler(db,verify=authenticate,{platform=false,provision=syncCrmLogin,twilioConnections=createTwilioConnections()}={}) {
+export function createCrmHandler(db,verify=authenticate,{platform=false,provision=syncCrmLogin,twilioConnections=createTwilioConnections(),billing=createBilling()}={}) {
  return async request=>{
   let headers={};
   try {
@@ -59,6 +60,9 @@ export function createCrmHandler(db,verify=authenticate,{platform=false,provisio
     if(method==='GET'&&path==='/platform/twilio/accounts')return json(await twilioConnections.accounts(db,user),200,headers);
     if(method==='GET'&&path==='/platform/twilio/profiles')return json(await twilioConnections.profiles(db,user,params.accountSid,params.tenantId),200,headers);
     if(method==='POST'&&path==='/platform/twilio/connect')return json(await twilioConnections.connect(db,user,await readJson(request)),200,headers);
+    if(method==='GET'&&path==='/platform/billing')return json(await billing.overview(db,user,params.tenantId),200,headers);
+    if(method==='POST'&&path==='/platform/billing/refund')return json(await billing.refund(db,user,await readJson(request)),200,headers);
+    if(method==='POST'&&path==='/platform/billing/subscription')return json(await billing.subscription(db,user,await readJson(request)),200,headers);
     const directory=path.match(/^\/platform\/(accounts|businesses|websites)(?:\/([^/]+))?$/);
     if(method==='GET' && directory) return json(await db.call('platform_read',user,directory[1],{...params,...(directory[2]?{id:decodeURIComponent(directory[2])}:{})}),200,headers);
     const actions={ '/platform/status':'status','/platform/memberships':'membership','/platform/ownership':'owner',
